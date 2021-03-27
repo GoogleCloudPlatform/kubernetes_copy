@@ -25,7 +25,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	"k8s.io/klog/v2"
 	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
 	"k8s.io/kubernetes/pkg/apis/scheduling"
@@ -52,7 +52,7 @@ type Config struct {
 	Logger                           klog.Logger
 	ProbeManager                     prober.Manager
 	VolumeManager                    volumemanager.VolumeManager
-	Recorder                         record.EventRecorder
+	Recorder                         events.EventRecorder
 	NodeRef                          *v1.ObjectReference
 	GetPodsFunc                      eviction.ActivePodsFunc
 	KillPodFunc                      eviction.KillPodFunc

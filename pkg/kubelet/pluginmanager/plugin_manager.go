@@ -20,7 +20,7 @@ import (
 	"time"
 
 	"k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/kubelet/config"
 	"k8s.io/kubernetes/pkg/kubelet/pluginmanager/cache"
@@ -53,7 +53,7 @@ const (
 // PluginManager interface.
 func NewPluginManager(
 	sockDir string,
-	recorder record.EventRecorder) PluginManager {
+	recorder events.EventRecorder) PluginManager {
 	asw := cache.NewActualStateOfWorld()
 	dsw := cache.NewDesiredStateOfWorld()
 	reconciler := reconciler.NewReconciler(

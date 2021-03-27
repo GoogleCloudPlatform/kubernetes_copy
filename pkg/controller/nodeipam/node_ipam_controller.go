@@ -22,10 +22,9 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	coreinformers "k8s.io/client-go/informers/core/v1"
 	clientset "k8s.io/client-go/kubernetes"
-	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	cloudprovider "k8s.io/cloud-provider"
 	controllersmetrics "k8s.io/component-base/metrics/prometheus/controllers"
 	"k8s.io/klog/v2"
@@ -48,7 +47,7 @@ type Controller struct {
 	serviceCIDR          *net.IPNet
 	secondaryServiceCIDR *net.IPNet
 	kubeClient           clientset.Interface
-	eventBroadcaster     record.EventBroadcaster
+	eventBroadcaster     events.EventBroadcaster
 
 	nodeLister         corelisters.NodeLister
 	nodeInformerSynced cache.InformerSynced
@@ -77,6 +76,8 @@ func NewNodeIpamController(
 		return nil, fmt.Errorf("kubeClient is nil when starting Controller")
 	}
 
+	eventBroadcaster := events.NewBroadcaster(&events.EventSinkImpl{Interface: kubeClient.EventsV1()})
+
 	// Cloud CIDR allocator does not rely on clusterCIDR or nodeCIDRMaskSize for allocation.
 	if allocatorType != ipam.CloudAllocatorType {
 		if len(clusterCIDRs) == 0 {
@@ -94,7 +95,7 @@ func NewNodeIpamController(
 	ic := &Controller{
 		cloud:                cloud,
 		kubeClient:           kubeClient,
-		eventBroadcaster:     record.NewBroadcaster(record.WithContext(ctx)),
+		eventBroadcaster:     eventBroadcaster,
 		clusterCIDRs:         clusterCIDRs,
 		serviceCIDR:          serviceCIDR,
 		secondaryServiceCIDR: secondaryServiceCIDR,
@@ -134,9 +135,9 @@ func NewNodeIpamController(
 func (nc *Controller) Run(ctx context.Context) {
 	defer utilruntime.HandleCrash()
 
-	// Start event processing pipeline.
+	// Start events processing pipeline.
 	nc.eventBroadcaster.StartStructuredLogging(3)
-	nc.eventBroadcaster.StartRecordingToSink(&v1core.EventSinkImpl{Interface: nc.kubeClient.CoreV1().Events("")})
+	nc.eventBroadcaster.StartRecordingToSink(ctx.Done())
 	defer nc.eventBroadcaster.Shutdown()
 	klog.FromContext(ctx).Info("Starting ipam controller")
 	defer klog.FromContext(ctx).Info("Shutting down ipam controller")

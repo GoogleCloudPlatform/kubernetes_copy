@@ -36,7 +36,7 @@ func (kl *Kubelet) cgroupVersionCheck() error {
 	metrics.CgroupVersion.Set(float64(cgroupVersion))
 	switch cgroupVersion {
 	case 1:
-		kl.recorder.Eventf(kl.nodeRef, v1.EventTypeWarning, events.CgroupV1, cm.CgroupV1MaintenanceModeWarning)
+		kl.recorder.Eventf(kl.nodeRef, nil, v1.EventTypeWarning, events.CgroupV1, "WarningCgroupv1", cm.CgroupV1MaintenanceModeWarning)
 		return errors.New(cm.CgroupV1MaintenanceModeWarning)
 	case 2:
 		cpustat := filepath.Join(util.CgroupRoot, "cpu.stat")

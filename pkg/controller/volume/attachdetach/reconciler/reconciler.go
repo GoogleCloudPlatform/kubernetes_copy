@@ -29,7 +29,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	corelisters "k8s.io/client-go/listers/core/v1"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/controller/volume/attachdetach/cache"
 	"k8s.io/kubernetes/pkg/controller/volume/attachdetach/metrics"
@@ -75,7 +75,8 @@ func NewReconciler(
 	attacherDetacher operationexecutor.OperationExecutor,
 	nodeStatusUpdater statusupdater.NodeStatusUpdater,
 	nodeLister corelisters.NodeLister,
-	recorder record.EventRecorder) Reconciler {
+	pvcLister corelisters.PersistentVolumeClaimLister,
+	recorder events.EventRecorder) Reconciler {
 	return &reconciler{
 		loopPeriod:                  loopPeriod,
 		maxWaitForUnmountDuration:   maxWaitForUnmountDuration,
@@ -87,6 +88,7 @@ func NewReconciler(
 		attacherDetacher:            attacherDetacher,
 		nodeStatusUpdater:           nodeStatusUpdater,
 		nodeLister:                  nodeLister,
+		pvcLister:                   pvcLister,
 		timeOfLastSync:              time.Now(),
 		recorder:                    recorder,
 	}
@@ -101,10 +103,11 @@ type reconciler struct {
 	attacherDetacher            operationexecutor.OperationExecutor
 	nodeStatusUpdater           statusupdater.NodeStatusUpdater
 	nodeLister                  corelisters.NodeLister
+	pvcLister                   corelisters.PersistentVolumeClaimLister
 	timeOfLastSync              time.Time
 	disableReconciliationSync   bool
 	disableForceDetachOnTimeout bool
-	recorder                    record.EventRecorder
+	recorder                    events.EventRecorder
 }
 
 func (rc *reconciler) Run(ctx context.Context) {
@@ -387,11 +390,13 @@ func (rc *reconciler) reportMultiAttachError(logger klog.Logger, volumeToAttach 
 
 	// Get list of pods that use the volume on the other nodes.
 	pods := rc.desiredStateOfWorld.GetVolumePodsOnNodes(otherNodes, volumeToAttach.VolumeName)
+	pvc := operationexecutor.GetPVCToAttach(volumeToAttach.VolumeToAttach, rc.pvcLister, nil)
+
 	if len(pods) == 0 {
 		// We did not find any pods that requests the volume. The pod must have been deleted already.
 		simpleMsg, _ := volumeToAttach.GenerateMsg("Multi-Attach error", "Volume is already exclusively attached to one node and can't be attached to another")
 		for _, pod := range volumeToAttach.ScheduledPods {
-			rc.recorder.Eventf(pod, v1.EventTypeWarning, kevents.FailedAttachVolume, simpleMsg)
+			rc.recorder.Eventf(pod, pvc, v1.EventTypeWarning, kevents.FailedAttachVolume, "AttachingVolume", simpleMsg)
 		}
 		// Log detailed message to system admin
 		logger.Info("Multi-Attach error: volume is already exclusively attached and can't be attached to another node", "attachedTo", otherNodesStr, "volume", volumeToAttach)
@@ -426,7 +431,7 @@ func (rc *reconciler) reportMultiAttachError(logger klog.Logger, volumeToAttach 
 			msg = fmt.Sprintf("Volume is already used by %d pod(s) in different namespaces", otherPods)
 		}
 		simpleMsg, _ := volumeToAttach.GenerateMsg("Multi-Attach error", msg)
-		rc.recorder.Eventf(scheduledPod, v1.EventTypeWarning, kevents.FailedAttachVolume, simpleMsg)
+		rc.recorder.Eventf(scheduledPod, pvc, v1.EventTypeWarning, kevents.FailedAttachVolume, "AttachingVolume", simpleMsg)
 	}
 
 	// Log all pods for system admin

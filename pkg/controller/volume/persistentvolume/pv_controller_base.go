@@ -35,10 +35,9 @@ import (
 	storageinformers "k8s.io/client-go/informers/storage/v1"
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
-	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	"k8s.io/client-go/util/workqueue"
 	storagehelpers "k8s.io/component-helpers/storage/volume"
 	csitrans "k8s.io/csi-translation-lib"
@@ -74,8 +73,8 @@ type ControllerParameters struct {
 
 // NewController creates a new PersistentVolume controller
 func NewController(ctx context.Context, p ControllerParameters) (*PersistentVolumeController, error) {
-	eventBroadcaster := record.NewBroadcaster(record.WithContext(ctx))
-	eventRecorder := eventBroadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: "persistentvolume-controller"})
+	eventBroadcaster := events.NewBroadcaster(&events.EventSinkImpl{Interface: p.KubeClient.EventsV1()})
+	eventRecorder := eventBroadcaster.NewRecorder(scheme.Scheme, "persistentvolume-controller")
 
 	controller := &PersistentVolumeController{
 		volumes:                       newPersistentVolumeOrderedIndex(),
@@ -301,9 +300,8 @@ func (ctrl *PersistentVolumeController) Run(ctx context.Context) {
 
 	// Start events processing pipeline.
 	ctrl.eventBroadcaster.StartStructuredLogging(3)
-	ctrl.eventBroadcaster.StartRecordingToSink(&v1core.EventSinkImpl{Interface: ctrl.kubeClient.CoreV1().Events("")})
+	ctrl.eventBroadcaster.StartRecordingToSink(ctx.Done())
 	defer ctrl.eventBroadcaster.Shutdown()
-
 	logger := klog.FromContext(ctx)
 	logger.Info("Starting persistent volume controller")
 	defer logger.Info("Shutting down persistent volume controller")

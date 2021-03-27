@@ -29,7 +29,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/features"
 	kubeletevents "k8s.io/kubernetes/pkg/kubelet/events"
@@ -54,7 +54,7 @@ const (
 // managerImpl has functions that can be used to interact with the Node Shutdown Manager.
 type managerImpl struct {
 	logger       klog.Logger
-	recorder     record.EventRecorder
+	recorder     events.EventRecorder
 	nodeRef      *v1.ObjectReference
 	probeManager prober.Manager
 
@@ -245,7 +245,7 @@ func (m *managerImpl) ShutdownStatus() error {
 func (m *managerImpl) ProcessShutdownEvent() error {
 	m.logger.V(1).Info("Shutdown manager detected new preshutdown event", "event", "preshutdown")
 
-	m.recorder.Event(m.nodeRef, v1.EventTypeNormal, kubeletevents.NodeShutdown, "Shutdown manager detected preshutdown event")
+	m.recorder.Eventf(m.nodeRef, nil, v1.EventTypeNormal, kubeletevents.NodeShutdown, "ShuttingDownNode", "Shutdown manager detected preshutdown event")
 
 	m.nodeShuttingDownMutex.Lock()
 	m.nodeShuttingDownNow = true

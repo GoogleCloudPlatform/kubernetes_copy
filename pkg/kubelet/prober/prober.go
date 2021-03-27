@@ -23,7 +23,7 @@ import (
 	"time"
 
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/client-go/tools/record"
+	toolsevents "k8s.io/client-go/tools/events"
 	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
 	"k8s.io/kubernetes/pkg/kubelet/events"
 	"k8s.io/kubernetes/pkg/kubelet/prober/results"
@@ -48,14 +48,14 @@ type prober struct {
 	grpc   grpcprobe.Prober
 	runner kubecontainer.CommandRunner
 
-	recorder record.EventRecorder
+	recorder toolsevents.EventRecorder
 }
 
 // NewProber creates a Prober, it takes a command runner and
 // several container info managers.
 func newProber(
 	runner kubecontainer.CommandRunner,
-	recorder record.EventRecorder) *prober {
+	recorder toolsevents.EventRecorder) *prober {
 
 	const followNonLocalRedirects = false
 	return &prober{
@@ -75,7 +75,7 @@ func (pb *prober) recordContainerEvent(pod *v1.Pod, container *v1.Container, eve
 		klog.ErrorS(err, "Can't make a ref to pod and container", "pod", klog.KObj(pod), "containerName", container.Name)
 		return
 	}
-	pb.recorder.Eventf(ref, eventType, reason, message, args...)
+	pb.recorder.Eventf(ref, pod, eventType, reason, reason, message, args...)
 }
 
 // probe probes the container.

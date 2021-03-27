@@ -31,8 +31,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
+	clientsetfake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/kubernetes/scheme"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	kubetypes "k8s.io/kubernetes/pkg/kubelet/types"
 	"k8s.io/kubernetes/pkg/securitycontext"
 	"k8s.io/kubernetes/test/utils/ktesting"
@@ -94,8 +95,9 @@ func CreatePodUpdate(op kubetypes.PodOperation, source string, pods ...*v1.Pod) 
 }
 
 func createPodConfigTester(ctx context.Context, mode PodConfigNotificationMode) (chan<- interface{}, <-chan kubetypes.PodUpdate, *PodConfig) {
-	eventBroadcaster := record.NewBroadcaster(record.WithContext(ctx))
-	config := NewPodConfig(mode, eventBroadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: "kubelet"}), &mockPodStartupSLIObserver{})
+	client := clientsetfake.NewSimpleClientset()
+	eventBroadcaster := events.NewBroadcaster(&events.EventSinkImpl{Interface: client.EventsV1()})
+	config := NewPodConfig(mode, eventBroadcaster.NewRecorder(scheme.Scheme, "kubelet"), &mockPodStartupSLIObserver{})
 	channel := config.Channel(ctx, TestSource)
 	ch := config.Updates()
 	return channel, ch, config
@@ -453,8 +455,9 @@ func TestPodUpdateLabels(t *testing.T) {
 func TestPodConfigRace(t *testing.T) {
 	tCtx := ktesting.Init(t)
 
-	eventBroadcaster := record.NewBroadcaster(record.WithContext(tCtx))
-	config := NewPodConfig(PodConfigNotificationIncremental, eventBroadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: "kubelet"}), &mockPodStartupSLIObserver{})
+	client := clientsetfake.NewSimpleClientset()
+	eventBroadcaster := events.NewBroadcaster(&events.EventSinkImpl{Interface: client.EventsV1()})
+	config := NewPodConfig(PodConfigNotificationIncremental, eventBroadcaster.NewRecorder(scheme.Scheme, "kubelet"), &mockPodStartupSLIObserver{})
 	seenSources := sets.New[string](TestSource)
 	var wg sync.WaitGroup
 	const iterations = 100

@@ -125,7 +125,7 @@ func NodeRules() []rbacv1.PolicyRule {
 		rbacv1helpers.NewRule("update", "patch").Groups(legacyGroup).Resources("nodes").RuleOrDie(),
 
 		// TODO: restrict to the bound node as creator in the NodeRestrictions admission plugin
-		rbacv1helpers.NewRule("create", "update", "patch").Groups(legacyGroup).Resources("events").RuleOrDie(),
+		eventsRule(),
 
 		// Use the Node authorizer to limit get to pods related to the node, and to limit list/watch to field selectors related to the node.
 		rbacv1helpers.NewRule(Read...).Groups(legacyGroup).Resources("pods").RuleOrDie(),

@@ -25,7 +25,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/record"
+	toolsevents "k8s.io/client-go/tools/events"
 	"k8s.io/client-go/util/flowcontrol"
 	"k8s.io/klog/v2"
 
@@ -44,7 +44,7 @@ type ImagePodPullingTimeRecorder interface {
 
 // imageManager provides the functionalities for image pulling.
 type imageManager struct {
-	recorder       record.EventRecorder
+	recorder       toolsevents.EventRecorder
 	imageService   kubecontainer.ImageService
 	backOff        *flowcontrol.Backoff
 	prevPullErrMsg sync.Map
@@ -58,7 +58,7 @@ type imageManager struct {
 var _ ImageManager = &imageManager{}
 
 // NewImageManager instantiates a new ImageManager object.
-func NewImageManager(recorder record.EventRecorder, imageService kubecontainer.ImageService, imageBackOff *flowcontrol.Backoff, serialized bool, maxParallelImagePulls *int32, qps float32, burst int, podPullingTimeRecorder ImagePodPullingTimeRecorder) ImageManager {
+func NewImageManager(recorder toolsevents.EventRecorder, imageService kubecontainer.ImageService, imageBackOff *flowcontrol.Backoff, serialized bool, maxParallelImagePulls *int32, qps float32, burst int, podPullingTimeRecorder ImagePodPullingTimeRecorder) ImageManager {
 	imageService = throttleImagePulling(imageService, qps, burst)
 
 	var puller imagePuller
@@ -110,7 +110,7 @@ func (m *imageManager) imagePullPrecheck(ctx context.Context, objRef *v1.ObjectR
 // records an event using ref, event msg.  log to glog using prefix, msg, logFn
 func (m *imageManager) logIt(objRef *v1.ObjectReference, eventtype, event, prefix, msg string, logFn func(args ...interface{})) {
 	if objRef != nil {
-		m.recorder.Event(objRef, eventtype, event, msg)
+		m.recorder.Eventf(objRef, nil, eventtype, event, "", msg)
 	} else {
 		logFn(fmt.Sprint(prefix, " ", msg))
 	}

@@ -28,7 +28,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	clientset "k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	vol "k8s.io/kubernetes/pkg/volume"
 	"k8s.io/kubernetes/pkg/volume/util/subpath"
 )
@@ -130,7 +130,7 @@ func (ctrl *PersistentVolumeController) GetNodeName() types.NodeName {
 	return ""
 }
 
-func (ctrl *PersistentVolumeController) GetEventRecorder() record.EventRecorder {
+func (ctrl *PersistentVolumeController) GetEventRecorder() events.EventRecorder {
 	return ctrl.eventRecorder
 }
 

@@ -25,7 +25,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	clientset "k8s.io/client-go/kubernetes"
 	storagelisters "k8s.io/client-go/listers/storage/v1"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/volume"
 	"k8s.io/kubernetes/pkg/volume/util/subpath"
@@ -130,7 +130,7 @@ func (c *Controller) GetNodeName() types.NodeName {
 	return ""
 }
 
-func (c *Controller) GetEventRecorder() record.EventRecorder {
+func (c *Controller) GetEventRecorder() events.EventRecorder {
 	return nil
 }
 

@@ -28,7 +28,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/record"
+	toolsevents "k8s.io/client-go/tools/events"
 	"k8s.io/kubernetes/pkg/kubelet/events"
 	"k8s.io/kubernetes/pkg/volume"
 	"k8s.io/kubernetes/pkg/volume/util"
@@ -51,7 +51,7 @@ func ProbeVolumePlugins() []volume.VolumePlugin {
 type localVolumePlugin struct {
 	host        volume.VolumeHost
 	volumeLocks keymutex.KeyMutex
-	recorder    record.EventRecorder
+	recorder    toolsevents.EventRecorder
 }
 
 var _ volume.VolumePlugin = &localVolumePlugin{}
@@ -556,7 +556,7 @@ func (m *localVolumeMounter) SetUpAt(dir string, mounterArgs volume.MounterArgs)
 				return fmt.Errorf("failed to check fsGroup for %s (%v)", m.globalPath, err)
 			}
 			if fsGroupNew != fsGroupOld {
-				m.plugin.recorder.Eventf(m.pod, v1.EventTypeWarning, events.WarnAlreadyMountedVolume, "The requested fsGroup is %d, but the volume %s has GID %d. The volume may not be shareable.", fsGroupNew, m.volName, fsGroupOld)
+				m.plugin.recorder.Eventf(m.pod, nil, v1.EventTypeWarning, events.WarnAlreadyMountedVolume, "MountingVolume", "The requested fsGroup is %d, but the volume %s has GID %d. The volume may not be shareable.", fsGroupNew, m.volName, fsGroupOld)
 			}
 		}
 

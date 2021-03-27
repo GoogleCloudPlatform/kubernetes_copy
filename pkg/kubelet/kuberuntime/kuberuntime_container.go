@@ -95,7 +95,7 @@ func (m *kubeGenericRuntimeManager) recordContainerEvent(pod *v1.Pod, container 
 	if containerID != "" {
 		eventMessage = strings.Replace(eventMessage, containerID, container.Name, -1)
 	}
-	m.recorder.Event(ref, eventType, reason, eventMessage)
+	m.recorder.Eventf(ref, nil, eventType, reason, reason, eventMessage)
 }
 
 // startSpec wraps the spec required to start a container, either a regular/init container

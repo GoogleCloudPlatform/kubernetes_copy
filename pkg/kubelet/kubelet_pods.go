@@ -1027,7 +1027,7 @@ func (kl *Kubelet) getPullSecretsForPod(pod *v1.Pod) []v1.Secret {
 	}
 
 	if len(failedPullSecrets) > 0 {
-		kl.recorder.Eventf(pod, v1.EventTypeWarning, "FailedToRetrieveImagePullSecret", "Unable to retrieve some image pull secrets (%s); attempting to pull the image may not succeed.", strings.Join(failedPullSecrets, ", "))
+		kl.recorder.Eventf(pod, nil, v1.EventTypeWarning, "FailedToRetrieveImagePullSecret", "RetrievingImagePullSecret", "Unable to retrieve some image pull secrets (%s); attempting to pull the image may not succeed.", strings.Join(failedPullSecrets, ", "))
 	}
 
 	return pullSecrets
@@ -1935,7 +1935,7 @@ func (kl *Kubelet) generateAPIPodStatus(pod *v1.Pod, podStatus *kubecontainer.Po
 		} else {
 			if s.HostIP != "" {
 				if utilnet.IPFamilyOfString(s.HostIP) != utilnet.IPFamilyOf(hostIPs[0]) {
-					kl.recorder.Eventf(pod, v1.EventTypeWarning, "HostIPsIPFamilyMismatch",
+					kl.recorder.Eventf(pod, nil, v1.EventTypeWarning, "HostIPsIPFamilyMismatch", "MatchingHostIPsIPFamily",
 						"Kubelet detected an IPv%s node IP (%s), but the cloud provider selected an IPv%s node IP (%s); pass an explicit `--node-ip` to kubelet to fix this.",
 						utilnet.IPFamilyOfString(s.HostIP), s.HostIP, utilnet.IPFamilyOf(hostIPs[0]), hostIPs[0].String())
 				}

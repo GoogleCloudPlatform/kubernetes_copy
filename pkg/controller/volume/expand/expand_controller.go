@@ -38,10 +38,9 @@ import (
 	coreinformers "k8s.io/client-go/informers/core/v1"
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
-	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
-	"k8s.io/client-go/tools/record"
+	toolsevents "k8s.io/client-go/tools/events"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/kubernetes/pkg/controller/volume/events"
 	"k8s.io/kubernetes/pkg/features"
@@ -86,8 +85,9 @@ type expandController struct {
 	volumePluginMgr volume.VolumePluginMgr
 
 	// recorder is used to record events in the API server
-	recorder record.EventRecorder
-
+	recorder toolsevents.EventRecorder
+	// broadcaster is broadcasting events
+	broadcaster        toolsevents.EventBroadcaster
 	operationGenerator operationexecutor.OperationGenerator
 
 	queue workqueue.TypedRateLimitingInterface[string]
@@ -122,10 +122,10 @@ func NewExpandController(
 		return nil, fmt.Errorf("could not initialize volume plugins for Expand Controller : %+v", err)
 	}
 
-	eventBroadcaster := record.NewBroadcaster(record.WithContext(ctx))
-	eventBroadcaster.StartStructuredLogging(3)
-	eventBroadcaster.StartRecordingToSink(&v1core.EventSinkImpl{Interface: kubeClient.CoreV1().Events("")})
-	expc.recorder = eventBroadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: "volume_expand"})
+	expc.broadcaster = toolsevents.NewBroadcaster(&toolsevents.EventSinkImpl{Interface: kubeClient.EventsV1()})
+	expc.broadcaster.StartStructuredLogging(3)
+	expc.recorder = expc.broadcaster.NewRecorder(scheme.Scheme, "volume_expand")
+
 	blkutil := volumepathhandler.NewBlockVolumePathHandler()
 
 	expc.operationGenerator = operationexecutor.NewOperationGenerator(
@@ -252,18 +252,18 @@ func (expc *expandController) syncHandler(ctx context.Context, key string) error
 		}
 
 		msg := fmt.Sprintf("CSI migration enabled for %s; waiting for external resizer to expand the pvc", inTreePluginName)
-		expc.recorder.Event(pvc, v1.EventTypeNormal, events.ExternalExpanding, msg)
+		expc.recorder.Eventf(pvc, nil, v1.EventTypeNormal, events.ExternalExpanding, "ExpandingPVC", msg)
 		csiResizerName, err := expc.translator.GetCSINameFromInTreeName(inTreePluginName)
 		if err != nil {
 			errorMsg := fmt.Sprintf("error getting CSI driver name for pvc %s, with error %v", key, err)
-			expc.recorder.Event(pvc, v1.EventTypeWarning, events.ExternalExpanding, errorMsg)
+			expc.recorder.Eventf(pvc, nil, v1.EventTypeWarning, events.ExternalExpanding, "ExpandingPVC", errorMsg)
 			return errors.New(errorMsg)
 		}
 
 		pvc, err := util.SetClaimResizer(pvc, csiResizerName, expc.kubeClient)
 		if err != nil {
 			errorMsg := fmt.Sprintf("error setting resizer annotation to pvc %s, with error %v", key, err)
-			expc.recorder.Event(pvc, v1.EventTypeWarning, events.ExternalExpanding, errorMsg)
+			expc.recorder.Eventf(pvc, nil, v1.EventTypeWarning, events.ExternalExpanding, "ExpandingPVC", errorMsg)
 			return errors.New(errorMsg)
 		}
 		return nil
@@ -276,7 +276,7 @@ func (expc *expandController) syncHandler(ctx context.Context, key string) error
 		if err != nil {
 			eventType = v1.EventTypeWarning
 		}
-		expc.recorder.Event(pvc, eventType, events.ExternalExpanding, msg)
+		expc.recorder.Eventf(pvc, nil, eventType, events.ExternalExpanding, "ExpandingPVC", msg)
 		logger.Info("Waiting for an external controller to expand the PVC", "pvcKey", key, "pvcUID", pvc.UID)
 		// If we are expecting that an external plugin will handle resizing this volume then
 		// is no point in requeuing this PVC.
@@ -325,6 +325,12 @@ func (expc *expandController) expand(logger klog.Logger, pvc *v1.PersistentVolum
 func (expc *expandController) Run(ctx context.Context) {
 	defer runtime.HandleCrash()
 	defer expc.queue.ShutDown()
+
+	// Start events processing pipeline.
+	expc.broadcaster.StartStructuredLogging(0)
+	expc.broadcaster.StartRecordingToSink(ctx.Done())
+	defer expc.broadcaster.Shutdown()
+
 	logger := klog.FromContext(ctx)
 	logger.Info("Starting expand controller")
 	defer logger.Info("Shutting down expand controller")
@@ -464,7 +470,7 @@ func (expc *expandController) GetNodeName() types.NodeName {
 	return ""
 }
 
-func (expc *expandController) GetEventRecorder() record.EventRecorder {
+func (expc *expandController) GetEventRecorder() toolsevents.EventRecorder {
 	return expc.recorder
 }
 

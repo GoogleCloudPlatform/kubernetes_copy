@@ -22,10 +22,10 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	"k8s.io/kubernetes/pkg/kubelet/status"
 	"k8s.io/utils/clock"
 	testingclock "k8s.io/utils/clock/testing"
@@ -49,12 +49,12 @@ func (m *mockPodStatusProvider) GetPodStatus(uid types.UID) (v1.PodStatus, bool)
 func TestNewActiveDeadlineHandler(t *testing.T) {
 	pods := newTestPods(1)
 	podStatusProvider := &mockPodStatusProvider{pods: pods}
-	fakeRecorder := &record.FakeRecorder{}
+	fakeRecorder := &events.FakeRecorder{}
 	fakeClock := testingclock.NewFakeClock(time.Now())
 
 	testCases := []struct {
 		podStatusProvider status.PodStatusProvider
-		recorder          record.EventRecorder
+		recorder          events.EventRecorder
 		clock             clock.Clock
 	}{
 		{podStatusProvider, fakeRecorder, fakeClock},
@@ -94,7 +94,7 @@ func TestActiveDeadlineHandler(t *testing.T) {
 	pods := newTestPods(5)
 	fakeClock := testingclock.NewFakeClock(time.Now())
 	podStatusProvider := &mockPodStatusProvider{pods: pods}
-	fakeRecorder := &record.FakeRecorder{}
+	fakeRecorder := &events.FakeRecorder{}
 	handler, err := newActiveDeadlineHandler(podStatusProvider, fakeRecorder, fakeClock)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

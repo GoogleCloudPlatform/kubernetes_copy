@@ -29,7 +29,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	registerapi "k8s.io/kubelet/pkg/apis/pluginregistration/v1"
 
 	"k8s.io/kubernetes/pkg/kubelet/config"
@@ -164,7 +164,7 @@ func TestPluginRegistration(t *testing.T) {
 func newTestPluginManager(sockDir string) PluginManager {
 	pm := NewPluginManager(
 		sockDir,
-		&record.FakeRecorder{},
+		&events.FakeRecorder{},
 	)
 	return pm
 }

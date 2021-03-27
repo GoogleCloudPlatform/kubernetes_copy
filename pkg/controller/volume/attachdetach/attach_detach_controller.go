@@ -40,11 +40,10 @@ import (
 	storageinformersv1 "k8s.io/client-go/informers/storage/v1"
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
-	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
 	storagelistersv1 "k8s.io/client-go/listers/storage/v1"
 	kcache "k8s.io/client-go/tools/cache"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	"k8s.io/client-go/util/workqueue"
 	csitrans "k8s.io/csi-translation-lib"
 	"k8s.io/kubernetes/pkg/controller/volume/attachdetach/cache"
@@ -152,8 +151,8 @@ func NewAttachDetachController(
 		return nil, fmt.Errorf("could not initialize volume plugins for Attach/Detach Controller: %w", err)
 	}
 
-	adc.broadcaster = record.NewBroadcaster(record.WithContext(ctx))
-	recorder := adc.broadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: "attachdetach-controller"})
+	adc.broadcaster = events.NewBroadcaster(&events.EventSinkImpl{Interface: kubeClient.EventsV1()})
+	recorder := adc.broadcaster.NewRecorder(scheme.Scheme, "attachdetach-controller")
 	blkutil := volumepathhandler.NewBlockVolumePathHandler()
 
 	adc.desiredStateOfWorld = cache.NewDesiredStateOfWorld(&adc.volumePluginMgr)
@@ -179,6 +178,7 @@ func NewAttachDetachController(
 		adc.attacherDetacher,
 		adc.nodeStatusUpdater,
 		adc.nodeLister,
+		adc.pvcLister,
 		recorder)
 
 	csiTranslator := csitrans.New()
@@ -313,7 +313,7 @@ type attachDetachController struct {
 	desiredStateOfWorldPopulator populator.DesiredStateOfWorldPopulator
 
 	// broadcaster is broadcasting events
-	broadcaster record.EventBroadcaster
+	broadcaster events.EventBroadcaster
 
 	// pvcQueue is used to queue pvc objects
 	pvcQueue workqueue.TypedRateLimitingInterface[string]
@@ -331,7 +331,7 @@ func (adc *attachDetachController) Run(ctx context.Context) {
 
 	// Start events processing pipeline.
 	adc.broadcaster.StartStructuredLogging(3)
-	adc.broadcaster.StartRecordingToSink(&v1core.EventSinkImpl{Interface: adc.kubeClient.CoreV1().Events("")})
+	adc.broadcaster.StartRecordingToSink(ctx.Done())
 	defer adc.broadcaster.Shutdown()
 
 	logger := klog.FromContext(ctx)
@@ -871,7 +871,7 @@ func (adc *attachDetachController) GetNodeName() types.NodeName {
 	return ""
 }
 
-func (adc *attachDetachController) GetEventRecorder() record.EventRecorder {
+func (adc *attachDetachController) GetEventRecorder() events.EventRecorder {
 	return nil
 }
 

@@ -38,7 +38,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes/fake"
 	core "k8s.io/client-go/testing"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	"k8s.io/klog/v2"
 	"k8s.io/klog/v2/ktesting"
 	_ "k8s.io/klog/v2/ktesting/init"
@@ -75,7 +75,7 @@ func Test_Run_Positive_DoNothing(t *testing.T) {
 	dsw := cache.NewDesiredStateOfWorld(volumePluginMgr, seLinuxTranslator)
 	asw := cache.NewActualStateOfWorld(nodeName, volumePluginMgr)
 	kubeClient := createTestClient()
-	fakeRecorder := &record.FakeRecorder{}
+	fakeRecorder := &events.FakeRecorder{}
 	fakeHandler := volumetesting.NewBlockVolumePathHandler()
 	oex := operationexecutor.NewOperationExecutor(operationexecutor.NewOperationGenerator(
 		kubeClient,
@@ -120,7 +120,7 @@ func Test_Run_Positive_VolumeAttachAndMount(t *testing.T) {
 	dsw := cache.NewDesiredStateOfWorld(volumePluginMgr, seLinuxTranslator)
 	asw := cache.NewActualStateOfWorld(nodeName, volumePluginMgr)
 	kubeClient := createTestClient()
-	fakeRecorder := &record.FakeRecorder{}
+	fakeRecorder := &events.FakeRecorder{}
 	fakeHandler := volumetesting.NewBlockVolumePathHandler()
 	oex := operationexecutor.NewOperationExecutor(operationexecutor.NewOperationGenerator(
 		kubeClient,
@@ -217,7 +217,7 @@ func Test_Run_Positive_VolumeAttachAndMountMigrationEnabled(t *testing.T) {
 		DevicePath: "fake/path",
 	})
 
-	fakeRecorder := &record.FakeRecorder{}
+	fakeRecorder := &events.FakeRecorder{}
 	fakeHandler := volumetesting.NewBlockVolumePathHandler()
 	oex := operationexecutor.NewOperationExecutor(operationexecutor.NewOperationGenerator(
 		kubeClient,
@@ -318,7 +318,7 @@ func Test_Run_Positive_VolumeMountControllerAttachEnabled(t *testing.T) {
 	dsw := cache.NewDesiredStateOfWorld(volumePluginMgr, seLinuxTranslator)
 	asw := cache.NewActualStateOfWorld(nodeName, volumePluginMgr)
 	kubeClient := createTestClient()
-	fakeRecorder := &record.FakeRecorder{}
+	fakeRecorder := &events.FakeRecorder{}
 	fakeHandler := volumetesting.NewBlockVolumePathHandler()
 	oex := operationexecutor.NewOperationExecutor(operationexecutor.NewOperationGenerator(
 		kubeClient,
@@ -398,7 +398,7 @@ func Test_Run_Negative_VolumeMountControllerAttachEnabled(t *testing.T) {
 	dsw := cache.NewDesiredStateOfWorld(volumePluginMgr, seLinuxTranslator)
 	asw := cache.NewActualStateOfWorld(nodeName, volumePluginMgr)
 	kubeClient := createTestClient()
-	fakeRecorder := &record.FakeRecorder{}
+	fakeRecorder := &events.FakeRecorder{}
 	fakeHandler := volumetesting.NewBlockVolumePathHandler()
 	oex := operationexecutor.NewOperationExecutor(operationexecutor.NewOperationGenerator(
 		kubeClient,
@@ -477,7 +477,7 @@ func Test_Run_Positive_VolumeAttachMountUnmountDetach(t *testing.T) {
 	dsw := cache.NewDesiredStateOfWorld(volumePluginMgr, seLinuxTranslator)
 	asw := cache.NewActualStateOfWorld(nodeName, volumePluginMgr)
 	kubeClient := createTestClient()
-	fakeRecorder := &record.FakeRecorder{}
+	fakeRecorder := &events.FakeRecorder{}
 	fakeHandler := volumetesting.NewBlockVolumePathHandler()
 	oex := operationexecutor.NewOperationExecutor(operationexecutor.NewOperationGenerator(
 		kubeClient,
@@ -580,7 +580,7 @@ func Test_Run_Positive_VolumeUnmountControllerAttachEnabled(t *testing.T) {
 	dsw := cache.NewDesiredStateOfWorld(volumePluginMgr, seLinuxTranslator)
 	asw := cache.NewActualStateOfWorld(nodeName, volumePluginMgr)
 	kubeClient := createTestClient()
-	fakeRecorder := &record.FakeRecorder{}
+	fakeRecorder := &events.FakeRecorder{}
 	fakeHandler := volumetesting.NewBlockVolumePathHandler()
 	oex := operationexecutor.NewOperationExecutor(operationexecutor.NewOperationGenerator(
 		kubeClient,
@@ -704,7 +704,7 @@ func Test_Run_Positive_VolumeAttachAndMap(t *testing.T) {
 	dsw := cache.NewDesiredStateOfWorld(volumePluginMgr, seLinuxTranslator)
 	asw := cache.NewActualStateOfWorld(nodeName, volumePluginMgr)
 	kubeClient := createtestClientWithPVPVC(gcepv, gcepvc)
-	fakeRecorder := &record.FakeRecorder{}
+	fakeRecorder := &events.FakeRecorder{}
 	fakeHandler := volumetesting.NewBlockVolumePathHandler()
 	oex := operationexecutor.NewOperationExecutor(operationexecutor.NewOperationGenerator(
 		kubeClient,
@@ -820,7 +820,7 @@ func Test_Run_Positive_BlockVolumeMapControllerAttachEnabled(t *testing.T) {
 		Name:       "fake-plugin/fake-device1",
 		DevicePath: "/fake/path",
 	})
-	fakeRecorder := &record.FakeRecorder{}
+	fakeRecorder := &events.FakeRecorder{}
 	fakeHandler := volumetesting.NewBlockVolumePathHandler()
 	oex := operationexecutor.NewOperationExecutor(operationexecutor.NewOperationGenerator(
 		kubeClient,
@@ -918,7 +918,7 @@ func Test_Run_Positive_BlockVolumeAttachMapUnmapDetach(t *testing.T) {
 	dsw := cache.NewDesiredStateOfWorld(volumePluginMgr, seLinuxTranslator)
 	asw := cache.NewActualStateOfWorld(nodeName, volumePluginMgr)
 	kubeClient := createtestClientWithPVPVC(gcepv, gcepvc)
-	fakeRecorder := &record.FakeRecorder{}
+	fakeRecorder := &events.FakeRecorder{}
 	fakeHandler := volumetesting.NewBlockVolumePathHandler()
 	oex := operationexecutor.NewOperationExecutor(operationexecutor.NewOperationGenerator(
 		kubeClient,
@@ -1043,7 +1043,7 @@ func Test_Run_Positive_VolumeUnmapControllerAttachEnabled(t *testing.T) {
 		Name:       "fake-plugin/fake-device1",
 		DevicePath: "/fake/path",
 	})
-	fakeRecorder := &record.FakeRecorder{}
+	fakeRecorder := &events.FakeRecorder{}
 	fakeHandler := volumetesting.NewBlockVolumePathHandler()
 	oex := operationexecutor.NewOperationExecutor(operationexecutor.NewOperationGenerator(
 		kubeClient,
@@ -1323,7 +1323,7 @@ func Test_Run_Positive_VolumeFSResizeControllerAttachEnabled(t *testing.T) {
 				Name:       v1.UniqueVolumeName(fmt.Sprintf("fake-plugin/%s", tc.pvName)),
 				DevicePath: "fake/path",
 			})
-			fakeRecorder := &record.FakeRecorder{}
+			fakeRecorder := &events.FakeRecorder{}
 			fakeHandler := volumetesting.NewBlockVolumePathHandler()
 			oex := operationexecutor.NewOperationExecutor(operationexecutor.NewOperationGenerator(
 				kubeClient,
@@ -1582,7 +1582,7 @@ func Test_UncertainDeviceGlobalMounts(t *testing.T) {
 					Name:       v1.UniqueVolumeName(fmt.Sprintf("fake-plugin/%s", tc.volumeName)),
 					DevicePath: "fake/path",
 				})
-				fakeRecorder := &record.FakeRecorder{}
+				fakeRecorder := &events.FakeRecorder{}
 				fakeHandler := volumetesting.NewBlockVolumePathHandler()
 				oex := operationexecutor.NewOperationExecutor(operationexecutor.NewOperationGenerator(
 					kubeClient,
@@ -1805,7 +1805,7 @@ func Test_UncertainVolumeMountState(t *testing.T) {
 					Name:       v1.UniqueVolumeName(fmt.Sprintf("fake-plugin/%s", tc.volumeName)),
 					DevicePath: "fake/path",
 				})
-				fakeRecorder := &record.FakeRecorder{}
+				fakeRecorder := &events.FakeRecorder{}
 				fakeHandler := volumetesting.NewBlockVolumePathHandler()
 				oex := operationexecutor.NewOperationExecutor(operationexecutor.NewOperationGenerator(
 					kubeClient,
@@ -2121,7 +2121,7 @@ func Test_Run_Positive_VolumeMountControllerAttachEnabledRace(t *testing.T) {
 	dsw := cache.NewDesiredStateOfWorld(volumePluginMgr, seLinuxTranslator)
 	asw := cache.NewActualStateOfWorld(nodeName, volumePluginMgr)
 	kubeClient := createTestClient()
-	fakeRecorder := &record.FakeRecorder{}
+	fakeRecorder := &events.FakeRecorder{}
 	fakeHandler := volumetesting.NewBlockVolumePathHandler()
 	oex := operationexecutor.NewOperationExecutor(operationexecutor.NewOperationGenerator(
 		kubeClient,
@@ -2275,7 +2275,7 @@ func getReconciler(kubeletDir string, t *testing.T, volumePaths []string, kubeCl
 		kubeClient = createTestClient()
 	}
 
-	fakeRecorder := &record.FakeRecorder{}
+	fakeRecorder := &events.FakeRecorder{}
 	fakeHandler := volumetesting.NewBlockVolumePathHandler()
 	oex := operationexecutor.NewOperationExecutor(operationexecutor.NewOperationGenerator(
 		kubeClient,
@@ -2326,7 +2326,7 @@ func TestReconcileWithUpdateReconstructedFromAPIServer(t *testing.T) {
 	dsw := cache.NewDesiredStateOfWorld(volumePluginMgr, seLinuxTranslator)
 	asw := cache.NewActualStateOfWorld(nodeName, volumePluginMgr)
 	kubeClient := createTestClient()
-	fakeRecorder := &record.FakeRecorder{}
+	fakeRecorder := &events.FakeRecorder{}
 	fakeHandler := volumetesting.NewBlockVolumePathHandler()
 	oex := operationexecutor.NewOperationExecutor(operationexecutor.NewOperationGenerator(
 		kubeClient,

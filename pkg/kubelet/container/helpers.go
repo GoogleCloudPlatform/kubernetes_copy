@@ -29,7 +29,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1"
 	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
 	sc "k8s.io/kubernetes/pkg/securitycontext"
@@ -202,14 +202,14 @@ func ExpandContainerCommandAndArgs(container *v1.Container, envs []EnvVar) (comm
 }
 
 // FilterEventRecorder creates an event recorder to record object's event except implicitly required container's, like infra container.
-func FilterEventRecorder(recorder record.EventRecorder) record.EventRecorder {
+func FilterEventRecorder(recorder events.EventRecorder) events.EventRecorder {
 	return &innerEventRecorder{
 		recorder: recorder,
 	}
 }
 
 type innerEventRecorder struct {
-	recorder record.EventRecorder
+	recorder events.EventRecorder
 }
 
 func (irecorder *innerEventRecorder) shouldRecordEvent(object runtime.Object) (*v1.ObjectReference, bool) {
@@ -225,22 +225,9 @@ func (irecorder *innerEventRecorder) shouldRecordEvent(object runtime.Object) (*
 	return nil, false
 }
 
-func (irecorder *innerEventRecorder) Event(object runtime.Object, eventtype, reason, message string) {
-	if ref, ok := irecorder.shouldRecordEvent(object); ok {
-		irecorder.recorder.Event(ref, eventtype, reason, message)
-	}
-}
-
-func (irecorder *innerEventRecorder) Eventf(object runtime.Object, eventtype, reason, messageFmt string, args ...interface{}) {
-	if ref, ok := irecorder.shouldRecordEvent(object); ok {
-		irecorder.recorder.Eventf(ref, eventtype, reason, messageFmt, args...)
-	}
-
-}
-
-func (irecorder *innerEventRecorder) AnnotatedEventf(object runtime.Object, annotations map[string]string, eventtype, reason, messageFmt string, args ...interface{}) {
-	if ref, ok := irecorder.shouldRecordEvent(object); ok {
-		irecorder.recorder.AnnotatedEventf(ref, annotations, eventtype, reason, messageFmt, args...)
+func (irecorder *innerEventRecorder) Eventf(regarding runtime.Object, related runtime.Object, eventtype, reason, action, note string, args ...interface{}) {
+	if ref, ok := irecorder.shouldRecordEvent(regarding); ok {
+		irecorder.recorder.Eventf(ref, related, eventtype, reason, action, note, args...)
 	}
 
 }

@@ -30,7 +30,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	"k8s.io/kubernetes/pkg/api/legacyscheme"
 	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
 	containertest "k8s.io/kubernetes/pkg/kubelet/container/testing"
@@ -236,7 +236,7 @@ func TestProbe(t *testing.T) {
 				pType = probeType(666)
 			}
 			prober := &prober{
-				recorder: &record.FakeRecorder{},
+				recorder: &events.FakeRecorder{},
 			}
 			testID := fmt.Sprintf("%d-%s", i, pType)
 			testContainer := v1.Container{Env: test.env}
@@ -351,7 +351,7 @@ func TestNewExecInContainer(t *testing.T) {
 
 func TestNewProber(t *testing.T) {
 	runner := &containertest.FakeContainerCommandRunner{}
-	recorder := &record.FakeRecorder{}
+	recorder := &events.FakeRecorder{}
 	prober := newProber(runner, recorder)
 
 	assert.NotNil(t, prober, "Expected prober to be non-nil")
@@ -424,7 +424,7 @@ func TestRecordContainerEventUnknownStatus(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			bufferSize := len(tc.expected) + 1
-			fakeRecorder := record.NewFakeRecorder(bufferSize)
+			fakeRecorder := events.NewFakeRecorder(bufferSize)
 
 			pb := &prober{
 				recorder: fakeRecorder,

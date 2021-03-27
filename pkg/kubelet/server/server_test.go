@@ -47,7 +47,7 @@ import (
 	"k8s.io/apiserver/pkg/authentication/authenticator"
 	"k8s.io/apiserver/pkg/authentication/user"
 	"k8s.io/apiserver/pkg/authorization/authorizer"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	"k8s.io/client-go/tools/remotecommand"
 	runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1"
 	statsapi "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
@@ -370,7 +370,7 @@ func newServerTestWithDebuggingHandlers(kubeCfg *kubeletconfiginternal.KubeletCo
 	}
 	server := NewServer(
 		fw.fakeKubelet,
-		stats.NewResourceAnalyzer(fw.fakeKubelet, time.Minute, &record.FakeRecorder{}),
+		stats.NewResourceAnalyzer(fw.fakeKubelet, time.Minute, &events.FakeRecorder{}),
 		[]healthz.HealthChecker{},
 		fw.fakeAuth,
 		kubeCfg,
@@ -1882,7 +1882,7 @@ func TestNewServerRegistersMetricsSLIsEndpointTwice(t *testing.T) {
 			return "127.0.0.1"
 		},
 	}
-	resourceAnalyzer := stats.NewResourceAnalyzer(nil, time.Minute, &record.FakeRecorder{})
+	resourceAnalyzer := stats.NewResourceAnalyzer(nil, time.Minute, &events.FakeRecorder{})
 
 	server1 := NewServer(host, resourceAnalyzer, []healthz.HealthChecker{}, nil, nil)
 	server2 := NewServer(host, resourceAnalyzer, []healthz.HealthChecker{}, nil, nil)
