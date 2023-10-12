@@ -25,16 +25,19 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/onsi/gomega"
 
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/apimachinery/pkg/util/wait"
 	clientset "k8s.io/client-go/kubernetes"
+	"k8s.io/kubernetes/pkg/features"
 	admissionapi "k8s.io/pod-security-admission/api"
 
 	"k8s.io/kubernetes/test/e2e/feature"
@@ -367,6 +370,209 @@ var _ = SIGDescribe("kubelet", func() {
 				}
 			})
 		}
+	})
+
+	ginkgo.Describe("kubelet should delete termination message log files when container is removed", func() {
+		f.It("termination message log files should be deleted automatically", feature.TerminationLogFileCleanup, framework.WithFeatureGate(features.TerminationLogFileCleanup), func(ctx context.Context) {
+			// make containers(init container or app container) with the command="exit 1" to restart 4 times,
+			// and then check if the number of corresponding termination log files is more than expected value.
+			// If the number of termination log files is more than expected, it indicates that TerminationLogFileCleanup
+			// feature does not work. Otherwise, it works.
+
+			ginkgo.By("creating the pod")
+
+			image := imageutils.GetE2EImage(imageutils.BusyBox)
+			containerRestartPolicyAlways := v1.ContainerRestartPolicyAlways
+			type instance struct {
+				focusContainerName string
+				pod                *v1.Pod
+				expectedFileCnt    int
+			}
+			e2eInstances := []instance{
+				{
+					focusContainerName: "test-init-container",
+					pod: &v1.Pod{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "init-container-exited-pod" + string(uuid.NewUUID()),
+						},
+						Spec: v1.PodSpec{
+							RestartPolicy: v1.RestartPolicyOnFailure,
+							InitContainers: []v1.Container{
+								{
+									Name:  "test-init-container",
+									Image: image,
+									Command: []string{
+										"/bin/sh", "-c", "exit 1",
+									},
+								},
+							},
+							Containers: []v1.Container{
+								{
+									Name:  "test-app-container",
+									Image: image,
+									Command: []string{
+										"/bin/sh",
+									},
+								},
+							},
+						},
+					},
+					// pruneInitContainersBeforeStart method will be invoked before start a new init container
+					// and remove termination file operation will be executed in this method. So it will be only one or no
+					// termination file in KUBELET_ROOT/pods/POD_UID/containers/CONTAINER_NAME directory
+					expectedFileCnt: 1,
+				},
+				{
+					focusContainerName: "test-sidecar-container",
+					pod: &v1.Pod{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "sidecar-container-exited-pod" + string(uuid.NewUUID()),
+						},
+						Spec: v1.PodSpec{
+							RestartPolicy: v1.RestartPolicyOnFailure,
+							InitContainers: []v1.Container{
+								{
+									Name:  "test-sidecar-container",
+									Image: image,
+									Command: []string{
+										"/bin/sh", "-c", "exit 1",
+									},
+									RestartPolicy: &containerRestartPolicyAlways,
+								},
+							},
+							Containers: []v1.Container{
+								{
+									Name:  "test-app-container",
+									Image: image,
+									Command: []string{
+										"/bin/sh",
+									},
+								},
+							},
+						},
+					},
+					// same with expected file count in test-init-container-exited-and-termination-file-will-be-removed
+					expectedFileCnt: 1,
+				},
+				{
+					focusContainerName: "test-app-container",
+					pod: &v1.Pod{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "app-container-exited-pod" + string(uuid.NewUUID()),
+						},
+						Spec: v1.PodSpec{
+							RestartPolicy: v1.RestartPolicyOnFailure,
+							InitContainers: []v1.Container{
+								{
+									Name:  "test-sidecar-container",
+									Image: image,
+									Command: []string{
+										"/bin/sh",
+									},
+									RestartPolicy: &containerRestartPolicyAlways,
+								},
+							},
+							Containers: []v1.Container{
+								{
+									Name:  "test-app-container",
+									Image: image,
+									Command: []string{
+										"/bin/sh", "-c", "exit 1",
+									},
+								},
+							},
+						},
+					},
+					// Three termination log files contain file used by current running container, file used by containersToKeep container
+					// and file used by to be removed container(maybe non-existent). So the number of termination log files
+					// that we can detect is certainly less than or equal to three.
+					expectedFileCnt: 3,
+				},
+			}
+
+			ginkgo.DeferCleanup(func(ctx context.Context) error {
+				ginkgo.By("deleting the pod")
+				var errList []error
+				for i := range e2eInstances {
+					errList = append(errList, c.CoreV1().Pods(ns).Delete(ctx, e2eInstances[i].pod.Name, metav1.DeleteOptions{}))
+				}
+				return utilerrors.NewAggregate(errList)
+			})
+
+			ginkgo.By("submitting the pod to kubernetes")
+			waitGroup := sync.WaitGroup{}
+			waitGroup.Add(len(e2eInstances))
+			var createdPods []*v1.Pod
+
+			ginkgo.By("waiting for init/sidecar/app container restarts more than 4 times")
+			for i := range e2eInstances {
+				go func(i int) {
+					defer waitGroup.Done()
+
+					_, err := c.CoreV1().Pods(ns).Create(ctx, e2eInstances[i].pod, metav1.CreateOptions{})
+					framework.ExpectNoError(err)
+
+					// backoff time: 10s, 20s, 40s, 1m20s
+					timeout := 4 * time.Minute
+					poll := 10 * time.Second
+					err = wait.PollUntilContextTimeout(ctx, poll, timeout, true, func(ctx context.Context) (bool, error) {
+						createdPod, err := c.CoreV1().Pods(ns).Get(ctx, e2eInstances[i].pod.Name, metav1.GetOptions{}) // return fresh pod
+						framework.ExpectNoError(err)
+
+						containerStatus := e2epod.FindContainerStatusInPod(createdPod, e2eInstances[i].focusContainerName)
+						if containerStatus == nil {
+							framework.ExpectNoError(fmt.Errorf("the status of %s container has not existed in %s pod status yet", e2eInstances[i].focusContainerName, e2eInstances[i].pod.Name))
+							return false, nil
+						}
+
+						// wait for init/sidecar/app container restarts 4 times
+						if containerStatus != nil && containerStatus.RestartCount >= 4 {
+							framework.Logf(" the restart count of %s container in %s pod is %d which has been greater than 4", e2eInstances[i].focusContainerName, e2eInstances[i].pod.Name, containerStatus.RestartCount)
+							createdPods = append(createdPods, createdPod)
+							return true, nil
+						}
+						return false, nil // retry
+					})
+					framework.ExpectNoError(err)
+				}(i)
+			}
+			waitGroup.Wait()
+
+			waitGroup.Add(len(e2eInstances))
+			ginkgo.By("check the number of termination message log files")
+			for i := range e2eInstances {
+				go func(i int) {
+					defer waitGroup.Done()
+
+					terminationLogDir := filepath.Join(framework.TestContext.KubeletRootDir, "pods", string(createdPods[i].UID), "containers", e2eInstances[i].focusContainerName)
+					cmd := fmt.Sprintf("ls %s", terminationLogDir)
+
+					timeout := time.Minute
+					poll := 5 * time.Second
+					var fileList []string
+					err := wait.PollUntilContextTimeout(ctx, poll, timeout, true, func(ctx context.Context) (bool, error) {
+						result, err := e2essh.NodeExec(ctx, createdPods[i].Spec.NodeName, cmd, framework.TestContext.Provider)
+						framework.ExpectNoError(err)
+						e2essh.LogResult(result)
+						ok := result.Code == 0 && len(result.Stdout) > 0 && len(result.Stderr) == 0
+						if !ok { // keep trying
+							return false, nil
+						}
+						fileList = strings.Split(result.Stdout, "\n")
+						return true, nil
+					})
+
+					framework.ExpectNoError(err)
+
+					framework.Logf("in %s pod, the number of %s container termination message log files is %d", e2eInstances[i].pod.Name, e2eInstances[i].focusContainerName, len(fileList))
+					if len(fileList) > e2eInstances[i].expectedFileCnt {
+						framework.ExpectNoError(fmt.Errorf("kubelet cannot delete termination message log files of container %s in pod %s when container is removed", e2eInstances[i].focusContainerName, e2eInstances[i].pod.Name))
+					}
+				}(i)
+			}
+
+			waitGroup.Wait()
+		})
 	})
 
 	// Test host cleanup when disrupting the volume environment.
