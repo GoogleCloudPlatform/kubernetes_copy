@@ -131,14 +131,6 @@ func WithAuditContext(parent context.Context) context.Context {
 	return genericapirequest.WithValue(parent, auditKey, &AuditContext{})
 }
 
-// AuditEventFrom returns the audit event struct on the ctx
-func AuditEventFrom(ctx context.Context) *auditinternal.Event {
-	if ac := AuditContextFrom(ctx); ac.Enabled() {
-		return &ac.Event
-	}
-	return nil
-}
-
 // AuditContextFrom returns the pair of the audit configuration object
 // that applies to the given request and the audit event that is going to
 // be written to the API audit log.
