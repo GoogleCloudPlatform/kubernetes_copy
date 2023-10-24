@@ -46,12 +46,12 @@ type AuditContext struct {
 	// RequestAuditConfig is the audit configuration that applies to the request
 	RequestAuditConfig RequestAuditConfig
 
-	// Event is the audit Event object that is being captured to be written in
-	// the API audit log.
-	Event *auditinternal.Event
+	// lock guards event
+	lock sync.Mutex
 
-	// annotationMutex guards event.Annotations
-	annotationMutex sync.Mutex
+	// event is the audit Event object that is being captured to be written in
+	// the API audit log.
+	event *auditinternal.Event
 }
 
 // Enabled checks whether auditing is enabled for this audit context.
@@ -88,19 +88,19 @@ func (ac *AuditContext) EventIsNil() bool {
 }
 
 func (ac *AuditContext) visitEventIfNotNil(f func(event *auditinternal.Event)) {
-	ac.annotationMutex.Lock()
-	defer ac.annotationMutex.Unlock()
-	if ac.Event == nil {
+	ac.lock.Lock()
+	defer ac.lock.Unlock()
+	if ac.event == nil {
 		return
 	}
-	f(ac.Event)
+	f(ac.event)
 }
 
-func (ac *AuditContext) visiteEventIfNotNilLocked(f func(event *auditinternal.Event)) {
-	if ac.Event == nil {
+func (ac *AuditContext) visitEventIfNotNilLocked(f func(event *auditinternal.Event)) {
+	if ac.event == nil {
 		return
 	}
-	f(ac.Event)
+	f(ac.event)
 }
 
 func (ac *AuditContext) LogRequestObject(objMeta metav1.Object, gvr schema.GroupVersionResource, subresource string, obj *runtime.Unknown) {
@@ -237,8 +237,8 @@ func AddAuditAnnotation(ctx context.Context, key, value string) {
 		return
 	}
 
-	ac.annotationMutex.Lock()
-	defer ac.annotationMutex.Unlock()
+	ac.lock.Lock()
+	defer ac.lock.Unlock()
 
 	addAuditAnnotationLocked(ac, key, value)
 }
@@ -252,8 +252,8 @@ func AddAuditAnnotations(ctx context.Context, keysAndValues ...string) {
 		return
 	}
 
-	ac.annotationMutex.Lock()
-	defer ac.annotationMutex.Unlock()
+	ac.lock.Lock()
+	defer ac.lock.Unlock()
 
 	if len(keysAndValues)%2 != 0 {
 		klog.Errorf("Dropping mismatched audit annotation %q", keysAndValues[len(keysAndValues)-1])
@@ -271,8 +271,8 @@ func AddAuditAnnotationsMap(ctx context.Context, annotations map[string]string) 
 		return
 	}
 
-	ac.annotationMutex.Lock()
-	defer ac.annotationMutex.Unlock()
+	ac.lock.Lock()
+	defer ac.lock.Unlock()
 
 	for k, v := range annotations {
 		addAuditAnnotationLocked(ac, k, v)
@@ -281,7 +281,7 @@ func AddAuditAnnotationsMap(ctx context.Context, annotations map[string]string) 
 
 // addAuditAnnotationLocked records the audit annotation on the event.
 func addAuditAnnotationLocked(ac *AuditContext, key, value string) {
-	ac.visiteEventIfNotNilLocked(func(ae *auditinternal.Event) {
+	ac.visitEventIfNotNilLocked(func(ae *auditinternal.Event) {
 		if ae.Annotations == nil {
 			ae.Annotations = make(map[string]string)
 		}
@@ -299,7 +299,9 @@ func WithAuditContext(parent context.Context) context.Context {
 		return parent // Avoid double registering.
 	}
 
-	return genericapirequest.WithValue(parent, auditKey, &AuditContext{})
+	return genericapirequest.WithValue(parent, auditKey, &AuditContext{
+		event: &auditinternal.Event{},
+	})
 }
 
 // AuditContextFrom returns the pair of the audit configuration object
@@ -317,7 +319,9 @@ func WithAuditID(ctx context.Context, auditID types.UID) {
 		return
 	}
 	if ac := AuditContextFrom(ctx); ac != nil {
-		ac.Event.AuditID = auditID
+		ac.visitEventIfNotNil(func(event *auditinternal.Event) {
+			event.AuditID = auditID
+		})
 	}
 }
 
@@ -325,7 +329,11 @@ func WithAuditID(ctx context.Context, auditID types.UID) {
 // auditing is enabled.
 func AuditIDFrom(ctx context.Context) (types.UID, bool) {
 	if ac := AuditContextFrom(ctx); ac != nil {
-		return ac.Event.AuditID, true
+		var ret types.UID
+		ac.visitEventIfNotNil(func(event *auditinternal.Event) {
+			ret = event.AuditID
+		})
+		return ret, true
 	}
 	return "", false
 }

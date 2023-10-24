@@ -89,28 +89,28 @@ func TestAddAuditAnnotation(t *testing.T) {
 		// Annotations should be retained.
 		ctx: WithAuditContext(context.Background()),
 		validator: func(t *testing.T, ctx context.Context) {
-			ev := AuditContextFrom(ctx).Event
+			ev := AuditContextFrom(ctx).event
 			expectAnnotations(t, ev.Annotations)
 		},
 	}, {
 		description: "with metadata level",
 		ctx:         withAuditContextAndLevel(context.Background(), auditinternal.LevelMetadata),
 		validator: func(t *testing.T, ctx context.Context) {
-			ev := AuditContextFrom(ctx).Event
+			ev := AuditContextFrom(ctx).event
 			expectAnnotations(t, ev.Annotations)
 		},
 	}, {
 		description: "with none level",
 		ctx:         withAuditContextAndLevel(context.Background(), auditinternal.LevelNone),
 		validator: func(t *testing.T, ctx context.Context) {
-			ev := AuditContextFrom(ctx).Event
+			ev := AuditContextFrom(ctx).event
 			assert.Empty(t, ev.Annotations)
 		},
 	}, {
 		description: "with overlapping annotations",
 		ctx:         ctxWithAnnotation,
 		validator: func(t *testing.T, ctx context.Context) {
-			ev := AuditContextFrom(ctx).Event
+			ev := AuditContextFrom(ctx).event
 			expectAnnotations(t, ev.Annotations)
 			// Verify that the pre-existing annotation is not overwritten.
 			assert.Equal(t, annotationExtraValue, ev.Annotations[fmt.Sprintf(annotationKeyTemplate, 0)])
@@ -153,7 +153,7 @@ func TestAuditAnnotationsWithAuditLoggingSetup(t *testing.T) {
 		"before-evaluation": "1",
 		"after-evaluation":  "2",
 	}
-	actual := AuditContextFrom(ctx).Event.Annotations
+	actual := AuditContextFrom(ctx).event.Annotations
 	assert.Equal(t, expected, actual)
 }
 
