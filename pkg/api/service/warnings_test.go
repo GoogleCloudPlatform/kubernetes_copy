@@ -22,7 +22,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/validation/field"
 	api "k8s.io/kubernetes/pkg/apis/core"
 )
 
@@ -108,58 +107,58 @@ func TestGetWarningsForServiceClusterIPs(t *testing.T) {
 			name:    "IPv4 with leading zeros",
 			service: service([]string{"192.012.2.2"}),
 			want: []string{
-				`spec.clusterIPs[0]: IP address was accepted, but will be invalid in a future Kubernetes release: ParseAddr("192.012.2.2"): IPv4 field has octet with leading zero`,
+				`spec.clusterIPs[0]: non-standard IP address "192.012.2.2" will be considered invalid in a future Kubernetes release: use "192.12.2.2"`,
 			},
 		},
 		{
 			name:    "Dual Stack IPv4-IPv6 and IPv4 with leading zeros",
 			service: service([]string{"192.012.2.2", "2001:db8::2"}),
 			want: []string{
-				`spec.clusterIPs[0]: IP address was accepted, but will be invalid in a future Kubernetes release: ParseAddr("192.012.2.2"): IPv4 field has octet with leading zero`,
+				`spec.clusterIPs[0]: non-standard IP address "192.012.2.2" will be considered invalid in a future Kubernetes release: use "192.12.2.2"`,
 			},
 		},
 		{
 			name:    "Dual Stack IPv6-IPv4 and IPv4 with leading zeros",
 			service: service([]string{"2001:db8::2", "192.012.2.2"}),
 			want: []string{
-				`spec.clusterIPs[1]: IP address was accepted, but will be invalid in a future Kubernetes release: ParseAddr("192.012.2.2"): IPv4 field has octet with leading zero`,
+				`spec.clusterIPs[1]: non-standard IP address "192.012.2.2" will be considered invalid in a future Kubernetes release: use "192.12.2.2"`,
 			},
 		},
 		{
 			name:    "IPv6 non canonical format",
 			service: service([]string{"2001:db8:0:0::2"}),
 			want: []string{
-				`spec.clusterIPs[0]: IPv6 address "2001:db8:0:0::2" is not in RFC 5952 canonical format ("2001:db8::2"), which may cause controller apply-loops`,
+				`spec.clusterIPs[0]: IPv6 address "2001:db8:0:0::2" should be in RFC 5952 canonical format ("2001:db8::2")`,
 			},
 		},
 		{
 			name:    "Dual Stack IPv4-IPv6 and IPv6 non-canonical format",
 			service: service([]string{"192.12.2.2", "2001:db8:0:0::2"}),
 			want: []string{
-				`spec.clusterIPs[1]: IPv6 address "2001:db8:0:0::2" is not in RFC 5952 canonical format ("2001:db8::2"), which may cause controller apply-loops`,
+				`spec.clusterIPs[1]: IPv6 address "2001:db8:0:0::2" should be in RFC 5952 canonical format ("2001:db8::2")`,
 			},
 		},
 		{
 			name:    "Dual Stack IPv6-IPv4 and IPv6 non-canonical formats",
 			service: service([]string{"2001:db8:0:0::2", "192.12.2.2"}),
 			want: []string{
-				`spec.clusterIPs[0]: IPv6 address "2001:db8:0:0::2" is not in RFC 5952 canonical format ("2001:db8::2"), which may cause controller apply-loops`,
+				`spec.clusterIPs[0]: IPv6 address "2001:db8:0:0::2" should be in RFC 5952 canonical format ("2001:db8::2")`,
 			},
 		},
 		{
 			name:    "Dual Stack IPv4-IPv6 and IPv4 with leading zeros and IPv6 non-canonical format",
 			service: service([]string{"192.012.2.2", "2001:db8:0:0::2"}),
 			want: []string{
-				`spec.clusterIPs[0]: IP address was accepted, but will be invalid in a future Kubernetes release: ParseAddr("192.012.2.2"): IPv4 field has octet with leading zero`,
-				`spec.clusterIPs[1]: IPv6 address "2001:db8:0:0::2" is not in RFC 5952 canonical format ("2001:db8::2"), which may cause controller apply-loops`,
+				`spec.clusterIPs[0]: non-standard IP address "192.012.2.2" will be considered invalid in a future Kubernetes release: use "192.12.2.2"`,
+				`spec.clusterIPs[1]: IPv6 address "2001:db8:0:0::2" should be in RFC 5952 canonical format ("2001:db8::2")`,
 			},
 		},
 		{
 			name:    "Dual Stack IPv6-IPv4 and IPv4 with leading zeros and IPv6 non-canonical format",
 			service: service([]string{"2001:db8:0:0::2", "192.012.2.2"}),
 			want: []string{
-				`spec.clusterIPs[0]: IPv6 address "2001:db8:0:0::2" is not in RFC 5952 canonical format ("2001:db8::2"), which may cause controller apply-loops`,
-				`spec.clusterIPs[1]: IP address was accepted, but will be invalid in a future Kubernetes release: ParseAddr("192.012.2.2"): IPv4 field has octet with leading zero`,
+				`spec.clusterIPs[0]: IPv6 address "2001:db8:0:0::2" should be in RFC 5952 canonical format ("2001:db8::2")`,
+				`spec.clusterIPs[1]: non-standard IP address "192.012.2.2" will be considered invalid in a future Kubernetes release: use "192.12.2.2"`,
 			},
 		},
 		{
@@ -179,13 +178,13 @@ func TestGetWarningsForServiceClusterIPs(t *testing.T) {
 				},
 			},
 			want: []string{
-				`spec.clusterIPs[0]: IPv6 address "2001:db8:0:0::2" is not in RFC 5952 canonical format ("2001:db8::2"), which may cause controller apply-loops`,
-				`spec.clusterIPs[1]: IP address was accepted, but will be invalid in a future Kubernetes release: ParseAddr("192.012.2.2"): IPv4 field has octet with leading zero`,
-				`spec.externalIPs[0]: IPv6 address "2001:db8:1:0::2" is not in RFC 5952 canonical format ("2001:db8:1::2"), which may cause controller apply-loops`,
-				`spec.externalIPs[1]: IP address was accepted, but will be invalid in a future Kubernetes release: ParseAddr("10.012.2.2"): IPv4 field has octet with leading zero`,
-				`spec.loadBalancerIP: IP address was accepted, but will be invalid in a future Kubernetes release: ParseAddr("10.001.1.1"): IPv4 field has octet with leading zero`,
-				`spec.loadBalancerSourceRanges[0]: IPv6 prefix "2001:db8:1:0::/64" is not in RFC 5952 canonical format ("2001:db8:1::/64"), which may cause controller apply-loops`,
-				`spec.loadBalancerSourceRanges[1]: IP prefix was accepted, but will be invalid in a future Kubernetes release: netip.ParsePrefix("10.012.2.0/24"): ParseAddr("10.012.2.0"): IPv4 field has octet with leading zero`,
+				`spec.clusterIPs[0]: IPv6 address "2001:db8:0:0::2" should be in RFC 5952 canonical format ("2001:db8::2")`,
+				`spec.clusterIPs[1]: non-standard IP address "192.012.2.2" will be considered invalid in a future Kubernetes release: use "192.12.2.2"`,
+				`spec.externalIPs[0]: IPv6 address "2001:db8:1:0::2" should be in RFC 5952 canonical format ("2001:db8:1::2")`,
+				`spec.externalIPs[1]: non-standard IP address "10.012.2.2" will be considered invalid in a future Kubernetes release: use "10.12.2.2"`,
+				`spec.loadBalancerIP: non-standard IP address "10.001.1.1" will be considered invalid in a future Kubernetes release: use "10.1.1.1"`,
+				`spec.loadBalancerSourceRanges[0]: IPv6 CIDR value "2001:db8:1:0::/64" should be in RFC 5952 canonical format ("2001:db8:1::/64")`,
+				`spec.loadBalancerSourceRanges[1]: non-standard CIDR value "10.012.2.0/24" will be considered invalid in a future Kubernetes release: use "10.12.2.0/24"`,
 			},
 		},
 	}
@@ -193,96 +192,6 @@ func TestGetWarningsForServiceClusterIPs(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := GetWarningsForService(tt.service, tt.oldService); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("GetWarningsForService() = %v", cmp.Diff(got, tt.want))
-			}
-		})
-	}
-}
-
-func Test_getWarningsForIP(t *testing.T) {
-	tests := []struct {
-		name      string
-		fieldPath *field.Path
-		address   string
-		want      []string
-	}{
-		{
-			name:      "IPv4 No failures",
-			address:   "192.12.2.2",
-			fieldPath: field.NewPath("spec").Child("clusterIPs").Index(0),
-			want:      []string{},
-		},
-		{
-			name:      "IPv6 No failures",
-			address:   "2001:db8::2",
-			fieldPath: field.NewPath("spec").Child("clusterIPs").Index(0),
-			want:      []string{},
-		},
-		{
-			name:      "IPv4 with leading zeros",
-			address:   "192.012.2.2",
-			fieldPath: field.NewPath("spec").Child("clusterIPs").Index(0),
-			want: []string{
-				`spec.clusterIPs[0]: IP address was accepted, but will be invalid in a future Kubernetes release: ParseAddr("192.012.2.2"): IPv4 field has octet with leading zero`,
-			},
-		},
-		{
-			name:      "IPv6 non-canonical format",
-			address:   "2001:db8:0:0::2",
-			fieldPath: field.NewPath("spec").Child("loadBalancerIP"),
-			want: []string{
-				`spec.loadBalancerIP: IPv6 address "2001:db8:0:0::2" is not in RFC 5952 canonical format ("2001:db8::2"), which may cause controller apply-loops`,
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := getWarningsForIP(tt.fieldPath, tt.address); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("getWarningsForIP() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func Test_getWarningsForCIDR(t *testing.T) {
-	tests := []struct {
-		name      string
-		fieldPath *field.Path
-		cidr      string
-		want      []string
-	}{
-		{
-			name:      "IPv4 No failures",
-			cidr:      "192.12.2.0/24",
-			fieldPath: field.NewPath("spec").Child("loadBalancerSourceRanges").Index(0),
-			want:      []string{},
-		},
-		{
-			name:      "IPv6 No failures",
-			cidr:      "2001:db8::/64",
-			fieldPath: field.NewPath("spec").Child("loadBalancerSourceRanges").Index(0),
-			want:      []string{},
-		},
-		{
-			name:      "IPv4 with leading zeros",
-			cidr:      "192.012.2.0/24",
-			fieldPath: field.NewPath("spec").Child("loadBalancerSourceRanges").Index(0),
-			want: []string{
-				`spec.loadBalancerSourceRanges[0]: IP prefix was accepted, but will be invalid in a future Kubernetes release: netip.ParsePrefix("192.012.2.0/24"): ParseAddr("192.012.2.0"): IPv4 field has octet with leading zero`,
-			},
-		},
-		{
-			name:      "IPv6 non-canonical format",
-			cidr:      "2001:db8:0:0::/64",
-			fieldPath: field.NewPath("spec").Child("loadBalancerSourceRanges").Index(0),
-			want: []string{
-				`spec.loadBalancerSourceRanges[0]: IPv6 prefix "2001:db8:0:0::/64" is not in RFC 5952 canonical format ("2001:db8::/64"), which may cause controller apply-loops`,
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := getWarningsForCIDR(tt.fieldPath, tt.cidr); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("getWarningsForCIDR() = %v, want %v", got, tt.want)
 			}
 		})
 	}

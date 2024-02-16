@@ -18,8 +18,8 @@ package service
 
 import (
 	"fmt"
-	"net/netip"
 
+	utilvalidation "k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	api "k8s.io/kubernetes/pkg/apis/core"
 	"k8s.io/kubernetes/pkg/apis/core/helper"
@@ -37,20 +37,20 @@ func GetWarningsForService(service, oldService *api.Service) []string {
 
 	if helper.IsServiceIPSet(service) {
 		for i, clusterIP := range service.Spec.ClusterIPs {
-			warnings = append(warnings, getWarningsForIP(field.NewPath("spec").Child("clusterIPs").Index(i), clusterIP)...)
+			warnings = append(warnings, utilvalidation.GetWarningsForIP(field.NewPath("spec").Child("clusterIPs").Index(i), clusterIP)...)
 		}
 	}
 
 	for i, externalIP := range service.Spec.ExternalIPs {
-		warnings = append(warnings, getWarningsForIP(field.NewPath("spec").Child("externalIPs").Index(i), externalIP)...)
+		warnings = append(warnings, utilvalidation.GetWarningsForIP(field.NewPath("spec").Child("externalIPs").Index(i), externalIP)...)
 	}
 
 	if len(service.Spec.LoadBalancerIP) > 0 {
-		warnings = append(warnings, getWarningsForIP(field.NewPath("spec").Child("loadBalancerIP"), service.Spec.LoadBalancerIP)...)
+		warnings = append(warnings, utilvalidation.GetWarningsForIP(field.NewPath("spec").Child("loadBalancerIP"), service.Spec.LoadBalancerIP)...)
 	}
 
 	for i, cidr := range service.Spec.LoadBalancerSourceRanges {
-		warnings = append(warnings, getWarningsForCIDR(field.NewPath("spec").Child("loadBalancerSourceRanges").Index(i), cidr)...)
+		warnings = append(warnings, utilvalidation.GetWarningsForCIDR(field.NewPath("spec").Child("loadBalancerSourceRanges").Index(i), cidr)...)
 	}
 
 	if service.Spec.Type == api.ServiceTypeExternalName && len(service.Spec.ExternalIPs) > 0 {
@@ -61,46 +61,4 @@ func GetWarningsForService(service, oldService *api.Service) []string {
 	}
 
 	return warnings
-}
-
-func getWarningsForIP(fieldPath *field.Path, address string) []string {
-	// IPv4 addresses with leading zeros CVE-2021-29923 are not valid in golang since 1.17
-	// This will also warn about possible future changes on the golang std library
-	// xref: https://issues.k8s.io/108074
-	ip, err := netip.ParseAddr(address)
-	if err != nil {
-		return []string{fmt.Sprintf("%s: IP address was accepted, but will be invalid in a future Kubernetes release: %v", fieldPath, err)}
-	}
-	// A Recommendation for IPv6 Address Text Representation
-	//
-	// "All of the above examples represent the same IPv6 address.  This
-	// flexibility has caused many problems for operators, systems
-	// engineers, and customers.
-	// ..."
-	// https://datatracker.ietf.org/doc/rfc5952/
-	if ip.Is6() && ip.String() != address {
-		return []string{fmt.Sprintf("%s: IPv6 address %q is not in RFC 5952 canonical format (%q), which may cause controller apply-loops", fieldPath, address, ip.String())}
-	}
-	return []string{}
-}
-
-func getWarningsForCIDR(fieldPath *field.Path, cidr string) []string {
-	// IPv4 addresses with leading zeros CVE-2021-29923 are not valid in golang since 1.17
-	// This will also warn about possible future changes on the golang std library
-	// xref: https://issues.k8s.io/108074
-	prefix, err := netip.ParsePrefix(cidr)
-	if err != nil {
-		return []string{fmt.Sprintf("%s: IP prefix was accepted, but will be invalid in a future Kubernetes release: %v", fieldPath, err)}
-	}
-	// A Recommendation for IPv6 Address Text Representation
-	//
-	// "All of the above examples represent the same IPv6 address.  This
-	// flexibility has caused many problems for operators, systems
-	// engineers, and customers.
-	// ..."
-	// https://datatracker.ietf.org/doc/rfc5952/
-	if prefix.Addr().Is6() && prefix.String() != cidr {
-		return []string{fmt.Sprintf("%s: IPv6 prefix %q is not in RFC 5952 canonical format (%q), which may cause controller apply-loops", fieldPath, cidr, prefix.String())}
-	}
-	return []string{}
 }

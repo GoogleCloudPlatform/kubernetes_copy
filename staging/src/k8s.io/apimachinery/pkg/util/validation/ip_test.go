@@ -17,6 +17,7 @@ limitations under the License.
 package validation
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 
@@ -197,6 +198,59 @@ func TestIsValidIP(t *testing.T) {
 	}
 }
 
+func TestGetWarningsForIP(t *testing.T) {
+	tests := []struct {
+		name      string
+		fieldPath *field.Path
+		address   string
+		want      []string
+	}{
+		{
+			name:      "IPv4 No failures",
+			address:   "192.12.2.2",
+			fieldPath: field.NewPath("spec").Child("clusterIPs").Index(0),
+			want:      nil,
+		},
+		{
+			name:      "IPv6 No failures",
+			address:   "2001:db8::2",
+			fieldPath: field.NewPath("spec").Child("clusterIPs").Index(0),
+			want:      nil,
+		},
+		{
+			name:      "IPv4 with leading zeros",
+			address:   "192.012.2.2",
+			fieldPath: field.NewPath("spec").Child("clusterIPs").Index(0),
+			want: []string{
+				`spec.clusterIPs[0]: non-standard IP address "192.012.2.2" will be considered invalid in a future Kubernetes release: use "192.12.2.2"`,
+			},
+		},
+		{
+			name:      "IPv4-mapped IPv6",
+			address:   "::ffff:192.12.2.2",
+			fieldPath: field.NewPath("spec").Child("clusterIPs").Index(0),
+			want: []string{
+				`spec.clusterIPs[0]: non-standard IP address "::ffff:192.12.2.2" will be considered invalid in a future Kubernetes release: use "192.12.2.2"`,
+			},
+		},
+		{
+			name:      "IPv6 non-canonical format",
+			address:   "2001:db8:0:0::2",
+			fieldPath: field.NewPath("spec").Child("loadBalancerIP"),
+			want: []string{
+				`spec.loadBalancerIP: IPv6 address "2001:db8:0:0::2" should be in RFC 5952 canonical format ("2001:db8::2")`,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := GetWarningsForIP(tt.fieldPath, tt.address); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("getWarningsForIP() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestIsValidCIDR(t *testing.T) {
 	for _, tc := range []struct {
 		name string
@@ -314,6 +368,84 @@ func TestIsValidCIDR(t *testing.T) {
 				} else if !strings.Contains(errs[0].Detail, tc.err) {
 					t.Errorf("expected error for %q to contain %q but got: %q", tc.in, tc.err, errs[0].Detail)
 				}
+			}
+		})
+	}
+}
+
+func TestGetWarningsForCIDR(t *testing.T) {
+	tests := []struct {
+		name      string
+		fieldPath *field.Path
+		cidr      string
+		want      []string
+	}{
+		{
+			name:      "IPv4 No failures",
+			cidr:      "192.12.2.0/24",
+			fieldPath: field.NewPath("spec").Child("loadBalancerSourceRanges").Index(0),
+			want:      nil,
+		},
+		{
+			name:      "IPv6 No failures",
+			cidr:      "2001:db8::/64",
+			fieldPath: field.NewPath("spec").Child("loadBalancerSourceRanges").Index(0),
+			want:      nil,
+		},
+		{
+			name:      "IPv4 with leading zeros",
+			cidr:      "192.012.2.0/24",
+			fieldPath: field.NewPath("spec").Child("loadBalancerSourceRanges").Index(0),
+			want: []string{
+				`spec.loadBalancerSourceRanges[0]: non-standard CIDR value "192.012.2.0/24" will be considered invalid in a future Kubernetes release: use "192.12.2.0/24"`,
+			},
+		},
+		{
+			name:      "leading zeros in prefix length",
+			cidr:      "192.12.2.0/024",
+			fieldPath: field.NewPath("spec").Child("loadBalancerSourceRanges").Index(0),
+			want: []string{
+				`spec.loadBalancerSourceRanges[0]: non-standard CIDR value "192.12.2.0/024" will be considered invalid in a future Kubernetes release: use "192.12.2.0/24"`,
+			},
+		},
+		{
+			name:      "IPv4-mapped IPv6",
+			cidr:      "::ffff:192.12.2.0/120",
+			fieldPath: field.NewPath("spec").Child("loadBalancerSourceRanges").Index(0),
+			want: []string{
+				`spec.loadBalancerSourceRanges[0]: non-standard CIDR value "::ffff:192.12.2.0/120" will be considered invalid in a future Kubernetes release: use "192.12.2.0/24"`,
+			},
+		},
+		{
+			name:      "bits after prefix length",
+			cidr:      "192.12.2.8/24",
+			fieldPath: field.NewPath("spec").Child("loadBalancerSourceRanges").Index(0),
+			want: []string{
+				`spec.loadBalancerSourceRanges[0]: CIDR value "192.12.2.8/24" is ambiguous in this context (should be "192.12.2.0/24" or "192.12.2.8/32"?)`,
+			},
+		},
+		{
+			name:      "multiple problems",
+			cidr:      "192.012.2.8/24",
+			fieldPath: field.NewPath("spec").Child("loadBalancerSourceRanges").Index(0),
+			want: []string{
+				`spec.loadBalancerSourceRanges[0]: CIDR value "192.012.2.8/24" is ambiguous in this context (should be "192.12.2.0/24" or "192.12.2.8/32"?)`,
+				`spec.loadBalancerSourceRanges[0]: non-standard CIDR value "192.012.2.8/24" will be considered invalid in a future Kubernetes release: use "192.12.2.0/24"`,
+			},
+		},
+		{
+			name:      "IPv6 non-canonical format",
+			cidr:      "2001:db8:0:0::/64",
+			fieldPath: field.NewPath("spec").Child("loadBalancerSourceRanges").Index(0),
+			want: []string{
+				`spec.loadBalancerSourceRanges[0]: IPv6 CIDR value "2001:db8:0:0::/64" should be in RFC 5952 canonical format ("2001:db8::/64")`,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := GetWarningsForCIDR(tt.fieldPath, tt.cidr); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("getWarningsForCIDR() = %v, want %v", got, tt.want)
 			}
 		})
 	}
