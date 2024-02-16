@@ -638,7 +638,9 @@ func runEvictionTest(f *framework.Framework, pressureTimeout time.Duration, expe
 			}, postTestConditionMonitoringPeriod, evictionPollInterval).Should(gomega.Succeed())
 
 			ginkgo.By("checking for correctly formatted eviction events")
-			verifyEvictionEvents(ctx, f, testSpecs, expectedStarvedResource)
+			gomega.Eventually(ctx, func(ctx context.Context) error {
+				return verifyEvictionEvents(ctx, f, testSpecs, expectedStarvedResource)
+			}, postTestConditionMonitoringPeriod, evictionPollInterval).Should(gomega.Succeed())
 		})
 
 		ginkgo.AfterEach(func(ctx context.Context) {
@@ -814,7 +816,7 @@ func verifyPodConditions(ctx context.Context, f *framework.Framework, testSpecs 
 	}
 }
 
-func verifyEvictionEvents(ctx context.Context, f *framework.Framework, testSpecs []podEvictSpec, expectedStarvedResource v1.ResourceName) {
+func verifyEvictionEvents(ctx context.Context, f *framework.Framework, testSpecs []podEvictSpec, expectedStarvedResource v1.ResourceName) error {
 	for _, spec := range testSpecs {
 		pod := spec.pod
 		if spec.evictionPriority != 0 {
@@ -828,24 +830,29 @@ func verifyEvictionEvents(ctx context.Context, f *framework.Framework, testSpecs
 			framework.ExpectNoError(err, "getting events")
 			gomega.Expect(podEvictEvents.Items).To(gomega.HaveLen(1), "Expected to find 1 eviction event for pod %s, got %d", pod.Name, len(podEvictEvents.Items))
 			event := podEvictEvents.Items[0]
-
+			if len(podEvictEvents.Items) != 1 {
+				return fmt.Errorf("Expected to find 1 eviction event for pod %s, got %d", pod.Name, len(podEvictEvents.Items))
+			}
 			if expectedStarvedResource != noStarvedResource {
 				// Check the eviction.StarvedResourceKey
 				starved, found := event.Annotations[eviction.StarvedResourceKey]
 				if !found {
-					framework.Failf("Expected to find an annotation on the eviction event for pod %s containing the starved resource %s, but it was not found",
+					return fmt.Errorf("Expected to find an annotation on the eviction event for pod %s containing the starved resource %s, but it was not found",
 						pod.Name, expectedStarvedResource)
 				}
 				starvedResource := v1.ResourceName(starved)
 				gomega.Expect(starvedResource).To(gomega.Equal(expectedStarvedResource), "Expected to the starved_resource annotation on pod %s to contain %s, but got %s instead",
 					pod.Name, expectedStarvedResource, starvedResource)
-
+				if starvedResource != expectedStarvedResource {
+					return fmt.Errorf("expected to the starved_resource annotation on pod %s to contain %s, but got %s instead",
+						pod.Name, expectedStarvedResource, starvedResource)
+				}
 				// We only check these keys for memory, because ephemeral storage evictions may be due to volume usage, in which case these values are not present
 				if expectedStarvedResource == v1.ResourceMemory {
 					// Check the eviction.OffendingContainersKey
 					offendersString, found := event.Annotations[eviction.OffendingContainersKey]
 					if !found {
-						framework.Failf("Expected to find an annotation on the eviction event for pod %s containing the offending containers, but it was not found",
+						return fmt.Errorf("Expected to find an annotation on the eviction event for pod %s containing the offending containers, but it was not found",
 							pod.Name)
 					}
 					offendingContainers := strings.Split(offendersString, ",")
@@ -857,7 +864,7 @@ func verifyEvictionEvents(ctx context.Context, f *framework.Framework, testSpecs
 					// Check the eviction.OffendingContainersUsageKey
 					offendingUsageString, found := event.Annotations[eviction.OffendingContainersUsageKey]
 					if !found {
-						framework.Failf("Expected to find an annotation on the eviction event for pod %s containing the offending containers' usage, but it was not found",
+						return fmt.Errorf("Expected to find an annotation on the eviction event for pod %s containing the offending containers' usage, but it was not found",
 							pod.Name)
 					}
 					offendingContainersUsage := strings.Split(offendingUsageString, ",")
@@ -872,6 +879,7 @@ func verifyEvictionEvents(ctx context.Context, f *framework.Framework, testSpecs
 			}
 		}
 	}
+	return nil
 }
 
 // Returns TRUE if the node has the node condition, FALSE otherwise
