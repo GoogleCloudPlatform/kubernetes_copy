@@ -22,6 +22,7 @@ import (
 
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/runtime"
+	utilvalidation "k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/apiserver/pkg/storage/names"
 	"k8s.io/kubernetes/pkg/api/legacyscheme"
@@ -172,5 +173,17 @@ func (ingressStatusStrategy) ValidateUpdate(ctx context.Context, obj, old runtim
 
 // WarningsOnUpdate returns warnings for the given update.
 func (ingressStatusStrategy) WarningsOnUpdate(ctx context.Context, obj, old runtime.Object) []string {
-	return nil
+	newIngress := obj.(*networking.Ingress)
+	var warnings []string
+
+	if len(newIngress.Status.LoadBalancer.Ingress) > 0 {
+		fieldPath := field.NewPath("status", "loadBalancer", "ingress")
+		for i, ingress := range newIngress.Status.LoadBalancer.Ingress {
+			if len(ingress.IP) > 0 {
+				warnings = append(warnings, utilvalidation.GetWarningsForIP(fieldPath.Index(i), ingress.IP)...)
+			}
+		}
+	}
+
+	return warnings
 }

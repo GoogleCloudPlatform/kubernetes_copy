@@ -20,6 +20,7 @@ import (
 	"context"
 
 	"k8s.io/apimachinery/pkg/runtime"
+	utilvalidation "k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/apiserver/pkg/storage/names"
 	"k8s.io/kubernetes/pkg/api/legacyscheme"
@@ -57,7 +58,7 @@ func (endpointsStrategy) Validate(ctx context.Context, obj runtime.Object) field
 
 // WarningsOnCreate returns warnings for the creation of the given object.
 func (endpointsStrategy) WarningsOnCreate(ctx context.Context, obj runtime.Object) []string {
-	return nil
+	return endpointsWarnings(obj.(*api.Endpoints))
 }
 
 // Canonicalize normalizes the object after validation.
@@ -76,9 +77,30 @@ func (endpointsStrategy) ValidateUpdate(ctx context.Context, obj, old runtime.Ob
 
 // WarningsOnUpdate returns warnings for the given update.
 func (endpointsStrategy) WarningsOnUpdate(ctx context.Context, obj, old runtime.Object) []string {
-	return nil
+	return endpointsWarnings(obj.(*api.Endpoints))
 }
 
 func (endpointsStrategy) AllowUnconditionalUpdate() bool {
 	return true
+}
+
+func endpointsWarnings(endpoints *api.Endpoints) []string {
+	// Don't bother checking for warnings if it looks like the request is coming from
+	// the EndpointController.
+	if endpoints.Annotations[api.EndpointsLastChangeTriggerTime] != "" {
+		return nil
+	}
+
+	var warnings []string
+	for i := range endpoints.Subsets {
+		for j := range endpoints.Subsets[i].Addresses {
+			fldPath := field.NewPath("subsets").Index(i).Child("addresses").Index(j).Child("ip")
+			warnings = append(warnings, utilvalidation.GetWarningsForIP(fldPath, endpoints.Subsets[i].Addresses[j].IP)...)
+		}
+		for j := range endpoints.Subsets[i].NotReadyAddresses {
+			fldPath := field.NewPath("subsets").Index(i).Child("notReadyAddresses").Index(j).Child("ip")
+			warnings = append(warnings, utilvalidation.GetWarningsForIP(fldPath, endpoints.Subsets[i].NotReadyAddresses[j].IP)...)
+		}
+	}
+	return warnings
 }

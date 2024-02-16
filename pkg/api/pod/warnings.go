@@ -24,6 +24,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	nodeapi "k8s.io/kubernetes/pkg/api/node"
 	pvcutil "k8s.io/kubernetes/pkg/api/persistentvolumeclaim"
@@ -349,6 +350,16 @@ func warningsForPodSpecAndMeta(fieldPath *field.Path, podSpec *api.PodSpec, meta
 			warnings = append(warnings, warningsForPodAffinityTerms(affinity.RequiredDuringSchedulingIgnoredDuringExecution, fieldPath.Child("spec", "affinity", "podAntiAffinity", "requiredDuringSchedulingIgnoredDuringExecution"))...)
 			warnings = append(warnings, warningsForWeightedPodAffinityTerms(affinity.PreferredDuringSchedulingIgnoredDuringExecution, fieldPath.Child("spec", "affinity", "podAntiAffinity", "preferredDuringSchedulingIgnoredDuringExecution"))...)
 		}
+	}
+
+	// Deprecated IP address formats
+	if podSpec.DNSConfig != nil {
+		for i, ns := range podSpec.DNSConfig.Nameservers {
+			warnings = append(warnings, validation.GetWarningsForIP(fieldPath.Child("spec", "dnsConfig", "nameservers").Index(i), ns)...)
+		}
+	}
+	for i, hostAlias := range podSpec.HostAliases {
+		warnings = append(warnings, validation.GetWarningsForIP(fieldPath.Child("spec", "hostAliases").Index(i).Child("ip"), hostAlias.IP)...)
 	}
 
 	return warnings

@@ -30,6 +30,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	utilnet "k8s.io/apimachinery/pkg/util/net"
+	utilvalidation "k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/apiserver/pkg/registry/generic"
 	pkgstorage "k8s.io/apiserver/pkg/storage"
@@ -131,7 +132,7 @@ func (nodeStrategy) Validate(ctx context.Context, obj runtime.Object) field.Erro
 
 // WarningsOnCreate returns warnings for the creation of the given object.
 func (nodeStrategy) WarningsOnCreate(ctx context.Context, obj runtime.Object) []string {
-	return fieldIsDeprecatedWarnings(obj)
+	return nodeWarnings(obj)
 }
 
 // Canonicalize normalizes the object after validation.
@@ -146,7 +147,7 @@ func (nodeStrategy) ValidateUpdate(ctx context.Context, obj, old runtime.Object)
 
 // WarningsOnUpdate returns warnings for the given update.
 func (nodeStrategy) WarningsOnUpdate(ctx context.Context, obj, old runtime.Object) []string {
-	return fieldIsDeprecatedWarnings(obj)
+	return nodeWarnings(obj)
 }
 
 func (nodeStrategy) AllowUnconditionalUpdate() bool {
@@ -287,7 +288,7 @@ func isProxyableHostname(ctx context.Context, hostname string) error {
 	return nil
 }
 
-func fieldIsDeprecatedWarnings(obj runtime.Object) []string {
+func nodeWarnings(obj runtime.Object) []string {
 	newNode := obj.(*api.Node)
 	var warnings []string
 	if newNode.Spec.ConfigSource != nil {
@@ -297,6 +298,14 @@ func fieldIsDeprecatedWarnings(obj runtime.Object) []string {
 	if len(newNode.Spec.DoNotUseExternalID) > 0 {
 		warnings = append(warnings, "spec.externalID: this field is deprecated, and is unused by Kubernetes")
 	}
+
+	if len(newNode.Spec.PodCIDRs) > 0 {
+		podCIDRsField := field.NewPath("spec", "podCIDRs")
+		for i, value := range newNode.Spec.PodCIDRs {
+			warnings = append(warnings, utilvalidation.GetWarningsForCIDR(podCIDRsField.Index(i), value)...)
+		}
+	}
+
 	return warnings
 }
 

@@ -236,7 +236,17 @@ func (podStatusStrategy) ValidateUpdate(ctx context.Context, obj, old runtime.Ob
 
 // WarningsOnUpdate returns warnings for the given update.
 func (podStatusStrategy) WarningsOnUpdate(ctx context.Context, obj, old runtime.Object) []string {
-	return nil
+	pod := obj.(*api.Pod)
+	var warnings []string
+
+	for i, podIP := range pod.Status.PodIPs {
+		warnings = append(warnings, utilvalidation.GetWarningsForIP(field.NewPath("status", "podIPs").Index(i).Child("ip"), podIP.IP)...)
+	}
+	for i, hostIP := range pod.Status.HostIPs {
+		warnings = append(warnings, utilvalidation.GetWarningsForIP(field.NewPath("status", "hostIPs").Index(i).Child("ip"), hostIP.IP)...)
+	}
+
+	return warnings
 }
 
 type podEphemeralContainersStrategy struct {

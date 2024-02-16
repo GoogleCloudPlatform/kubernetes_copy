@@ -1767,6 +1767,21 @@ func TestWarnings(t *testing.T) {
 				`spec.affinity.nodeAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].preference.matchExpressions[0].values[0]: -1 is invalid, a valid label must be an empty string or consist of alphanumeric characters, '-', '_' or '.', and must start and end with an alphanumeric character (e.g. 'MyValue',  or 'my_value',  or '12345', regex used for validation is '(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])?')`,
 			},
 		},
+		{
+			name: "dubious IP address formats",
+			template: &api.PodTemplateSpec{Spec: api.PodSpec{
+				DNSConfig: &api.PodDNSConfig{
+					Nameservers: []string{"1.2.3.4", "05.06.07.08"},
+				},
+				HostAliases: []api.HostAlias{
+					{IP: "::ffff:1.2.3.4"},
+				},
+			}},
+			expected: []string{
+				`spec.dnsConfig.nameservers[1]: non-standard IP address "05.06.07.08" will be considered invalid in a future Kubernetes release: use "5.6.7.8"`,
+				`spec.hostAliases[0].ip: non-standard IP address "::ffff:1.2.3.4" will be considered invalid in a future Kubernetes release: use "1.2.3.4"`,
+			},
+		},
 	}
 
 	for _, tc := range testcases {

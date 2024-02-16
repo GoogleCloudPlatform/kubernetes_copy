@@ -287,25 +287,65 @@ func TestWarningOnUpdateAndCreate(t *testing.T) {
 		node        api.Node
 		warningText string
 	}{
-		{api.Node{},
+		{
 			api.Node{},
-			""},
-		{api.Node{},
+			api.Node{},
+			"",
+		},
+		{
+			api.Node{},
+			//nolint:staticcheck // ignore deprecation warning
 			api.Node{Spec: api.NodeSpec{ConfigSource: &api.NodeConfigSource{}}},
-			"spec.configSource"},
-		{api.Node{Spec: api.NodeSpec{ConfigSource: &api.NodeConfigSource{}}},
+			"spec.configSource",
+		},
+		{
+			//nolint:staticcheck // ignore deprecation warning
 			api.Node{Spec: api.NodeSpec{ConfigSource: &api.NodeConfigSource{}}},
-			"spec.configSource"},
-		{api.Node{Spec: api.NodeSpec{ConfigSource: &api.NodeConfigSource{}}},
-			api.Node{}, ""},
-		{api.Node{},
+			//nolint:staticcheck // ignore deprecation warning
+			api.Node{Spec: api.NodeSpec{ConfigSource: &api.NodeConfigSource{}}},
+			"spec.configSource",
+		},
+		{
+			//nolint:staticcheck // ignore deprecation warning
+			api.Node{Spec: api.NodeSpec{ConfigSource: &api.NodeConfigSource{}}},
+			api.Node{},
+			"",
+		},
+		{
+			api.Node{},
 			api.Node{Spec: api.NodeSpec{DoNotUseExternalID: "externalID"}},
-			"spec.externalID"},
-		{api.Node{Spec: api.NodeSpec{DoNotUseExternalID: "externalID"}},
+			"spec.externalID",
+		},
+		{
 			api.Node{Spec: api.NodeSpec{DoNotUseExternalID: "externalID"}},
-			"spec.externalID"},
-		{api.Node{Spec: api.NodeSpec{DoNotUseExternalID: "externalID"}},
-			api.Node{}, ""},
+			api.Node{Spec: api.NodeSpec{DoNotUseExternalID: "externalID"}},
+			"spec.externalID",
+		},
+		{
+			api.Node{Spec: api.NodeSpec{DoNotUseExternalID: "externalID"}},
+			api.Node{},
+			"",
+		},
+		{
+			api.Node{},
+			api.Node{Spec: api.NodeSpec{PodCIDRs: []string{"10.0.1.0/24", "fd00::/64"}}},
+			"",
+		},
+		{
+			api.Node{},
+			api.Node{Spec: api.NodeSpec{PodCIDRs: []string{"010.000.001.000/24", "fd00::/64"}}},
+			"spec.podCIDRs[0]",
+		},
+		{
+			api.Node{},
+			api.Node{Spec: api.NodeSpec{PodCIDRs: []string{"10.0.1.0/24", "fd00::1234/64"}}},
+			"spec.podCIDRs[1]",
+		},
+		{
+			api.Node{Spec: api.NodeSpec{PodCIDRs: []string{"010.000.001.000/24", "fd00::1234/64"}}},
+			api.Node{Spec: api.NodeSpec{PodCIDRs: []string{"10.0.1.0/24", "fd00::/64"}}},
+			"",
+		},
 	}
 	for i, test := range tests {
 		warnings := (nodeStrategy{}).WarningsOnUpdate(context.Background(), &test.node, &test.oldNode)

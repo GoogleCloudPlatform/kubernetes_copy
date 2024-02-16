@@ -137,4 +137,15 @@ func TestIngressStatusStrategy(t *testing.T) {
 	if len(errs) != 0 {
 		t.Errorf("Unexpected error %v", errs)
 	}
+
+	warnings := StatusStrategy.WarningsOnUpdate(ctx, &newIngress, &oldIngress)
+	if len(warnings) != 0 {
+		t.Errorf("Unexpected warnings %v", errs)
+	}
+
+	newIngress.Status.LoadBalancer.Ingress[0].IP = "127.000.000.002"
+	warnings = StatusStrategy.WarningsOnUpdate(ctx, &newIngress, &oldIngress)
+	if len(warnings) != 1 {
+		t.Errorf("Did not get warning for bad IP")
+	}
 }

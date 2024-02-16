@@ -21,12 +21,14 @@ import (
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
+	discoveryv1 "k8s.io/api/discovery/v1"
 	discoveryv1beta1 "k8s.io/api/discovery/v1beta1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/sets"
+	utilvalidation "k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	genericapirequest "k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/apiserver/pkg/storage/names"
@@ -99,6 +101,7 @@ func (endpointSliceStrategy) WarningsOnCreate(ctx context.Context, obj runtime.O
 	}
 	var warnings []string
 	warnings = append(warnings, warnOnDeprecatedAddressType(eps.AddressType)...)
+	warnings = append(warnings, warnOnBadIPs(eps)...)
 	return warnings
 }
 
@@ -120,7 +123,13 @@ func (endpointSliceStrategy) ValidateUpdate(ctx context.Context, new, old runtim
 
 // WarningsOnUpdate returns warnings for the given update.
 func (endpointSliceStrategy) WarningsOnUpdate(ctx context.Context, obj, old runtime.Object) []string {
-	return nil
+	eps := obj.(*discovery.EndpointSlice)
+	if eps == nil {
+		return nil
+	}
+	var warnings []string
+	warnings = append(warnings, warnOnBadIPs(eps)...)
+	return warnings
 }
 
 // AllowUnconditionalUpdate is the default update policy for EndpointSlice objects.
@@ -221,4 +230,23 @@ func warnOnDeprecatedAddressType(addressType discovery.AddressType) []string {
 		return []string{fmt.Sprintf("%s: FQDN endpoints are deprecated", field.NewPath("spec").Child("addressType"))}
 	}
 	return nil
+}
+
+// warnOnBadIPs returns warnings for bad IP address formats
+func warnOnBadIPs(eps *discovery.EndpointSlice) []string {
+	// Don't bother checking for bad IPs if it looks like the request is coming from
+	// one of our controllers.
+	if eps.Labels[discoveryv1.LabelManagedBy] == "endpointslice-controller.k8s.io" ||
+		eps.Labels[discoveryv1.LabelManagedBy] == "endpointslicemirroring-controller.k8s.io" {
+		return nil
+	}
+
+	var warnings []string
+	for i := range eps.Endpoints {
+		for j, addr := range eps.Endpoints[i].Addresses {
+			fldPath := field.NewPath("endpoints").Index(i).Child("addresses").Index(j)
+			warnings = append(warnings, utilvalidation.GetWarningsForIP(fldPath, addr)...)
+		}
+	}
+	return warnings
 }
