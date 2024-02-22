@@ -95,9 +95,9 @@ var _ = SIGDescribe("LocalStorageCapacityIsolationEviction", framework.WithSlow(
 			// setting a threshold to 0% disables; non-empty map overrides default value (necessary due to omitempty)
 			initialConfig.EvictionHard = map[string]string{string(evictionapi.SignalMemoryAvailable): "0%"}
 		})
-		sizeLimit := resource.MustParse("100Mi")
-		useOverLimit := 101 /* Mb */
-		useUnderLimit := 99 /* Mb */
+		sizeLimit := resource.MustParse("40Mi")
+		useOverLimit := 41  /* Mb */
+		useUnderLimit := 39 /* Mb */
 		containerLimit := v1.ResourceList{v1.ResourceEphemeralStorage: sizeLimit}
 
 		runEvictionTest(f, evictionTestTimeout, noPressure, noStarvedResource, logDiskMetrics, []podEvictSpec{
