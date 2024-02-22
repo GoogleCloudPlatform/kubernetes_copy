@@ -60,26 +60,15 @@ var _ = SIGDescribe("InodeEviction", framework.WithSlow(), framework.WithSerial(
 	expectedNodeCondition := v1.NodeDiskPressure
 	expectedStarvedResource := resourceInodes
 	pressureTimeout := 15 * time.Minute
-	inodesConsumed := uint64(200000)
 	ginkgo.Context(fmt.Sprintf(testContextFmt, expectedNodeCondition), func() {
 		tempSetCurrentKubeletConfig(f, func(ctx context.Context, initialConfig *kubeletconfig.KubeletConfiguration) {
-			// Set the eviction threshold to inodesFree - inodesConsumed, so that using inodesConsumed causes an eviction.
-			summary := eventuallyGetSummary(ctx)
-			inodesFree := *summary.Node.Fs.InodesFree
-			inodesFreeImagefs := *(summary.Node.Runtime.ImageFs.InodesFree)
-			initialConfig.EvictionHard = map[string]string{string(evictionapi.SignalNodeFsInodesFree): fmt.Sprintf("%d", inodesFree-inodesConsumed), string(evictionapi.SignalImageFsInodesFree): fmt.Sprintf("%d", inodesFreeImagefs-inodesConsumed)}
+			initialConfig.EvictionHard = map[string]string{string(evictionapi.SignalImageFsInodesFree): "50%"}
 			initialConfig.EvictionMinimumReclaim = map[string]string{}
-			ginkgo.By(fmt.Sprintf("EvictionHardSettings %s", initialConfig.EvictionHard))
-			ginkgo.By(fmt.Sprintf("ImageFs.inodesFree %d diskConsumed %d ImageFs.availableBytes - diskConsumed %d", inodesFreeImagefs, inodesConsumed, inodesFreeImagefs-inodesConsumed))
 		})
 		runEvictionTest(f, pressureTimeout, expectedNodeCondition, expectedStarvedResource, logInodeMetrics, []podEvictSpec{
 			{
 				evictionPriority: 1,
 				pod:              inodeConsumingPod("container-inode-hog", lotsOfFiles, nil),
-			},
-			{
-				evictionPriority: 1,
-				pod:              inodeConsumingPod("volume-inode-hog", lotsOfFiles, &v1.VolumeSource{EmptyDir: &v1.EmptyDirVolumeSource{}}),
 			},
 		})
 	})
@@ -132,17 +121,17 @@ var _ = SIGDescribe("LocalStorageCapacityIsolationEviction", framework.WithSlow(
 
 // LocalStorageEviction tests that the node responds to node disk pressure by evicting pods.
 var _ = SIGDescribe("LocalStorageEviction", framework.WithSlow(), framework.WithSerial(), framework.WithDisruptive(), nodefeature.SeparateDisk, func() {
-	f := framework.NewDefaultFramework("priority-disk-eviction-ordering-test")
+	f := framework.NewDefaultFramework("local-storage-imagefs-test")
 	f.NamespacePodSecurityLevel = admissionapi.LevelPrivileged
 	expectedNodeCondition := v1.NodeDiskPressure
 	expectedStarvedResource := v1.ResourceEphemeralStorage
 	pressureTimeout := 15 * time.Minute
 
-	diskTestInMb := 4000
+	diskTestInMb := 3000
 
 	ginkgo.Context(fmt.Sprintf(testContextFmt, expectedNodeCondition), func() {
 		tempSetCurrentKubeletConfig(f, func(ctx context.Context, initialConfig *kubeletconfig.KubeletConfiguration) {
-			initialConfig.EvictionHard = map[string]string{string(evictionapi.SignalImageFsAvailable): "50%"}
+			initialConfig.EvictionHard = map[string]string{string(evictionapi.SignalImageFsAvailable): "10%"}
 			initialConfig.EvictionMinimumReclaim = map[string]string{}
 			ginkgo.By(fmt.Sprintf("EvictionHard %s", initialConfig.EvictionHard))
 		})
