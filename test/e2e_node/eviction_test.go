@@ -571,6 +571,14 @@ func runEvictionTest(f *framework.Framework, pressureTimeout time.Duration, expe
 			// Nodes do not immediately report local storage capacity
 			// Sleep so that pods requesting local storage do not fail to schedule
 			time.Sleep(30 * time.Second)
+			// Check for Pressure
+			ginkgo.By("make sure node has no pressure before starting")
+			gomega.Eventually(ctx, func(ctx context.Context) error {
+				if expectedNodeCondition == noPressure || !hasNodeCondition(ctx, f, expectedNodeCondition) {
+					return nil
+				}
+				return fmt.Errorf("NodeCondition: %s encountered", expectedNodeCondition)
+			}, pressureDisappearTimeout, evictionPollInterval).Should(gomega.BeNil())
 			ginkgo.By("setting up pods to be used by tests")
 			pods := []*v1.Pod{}
 			for _, spec := range testSpecs {
