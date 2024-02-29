@@ -380,6 +380,11 @@ func (in *DeploymentSpec) DeepCopyInto(out *DeploymentSpec) {
 		*out = new(int32)
 		**out = **in
 	}
+	if in.PodReplacementPolicy != nil {
+		in, out := &in.PodReplacementPolicy, &out.PodReplacementPolicy
+		*out = new(DeploymentPodReplacementPolicy)
+		**out = **in
+	}
 	return
 }
 

@@ -514,6 +514,10 @@
             "description": "Indicates that the deployment is paused.",
             "type": "boolean"
           },
+          "podReplacementPolicy": {
+            "description": "podReplacementPolicy specifies when to create replacement Pods. Possible values are: - TerminationStarted policy creates replacement Pods when the old Pods start\n  terminating (have a non-null .metadata.deletionTimestamp). The total number\n  of Deployment Pods can be greater than specified by the Deployment's\n  .spec.replicas and the DeploymentStrategy.\n- TerminationComplete policy creates replacement Pods only when the old Pods\n  are fully terminated (reach Succeeded or Failed phase). The old Pods are\n  subsequently removed. The total number of the Deployment Pods is\n  limited by the Deployment's .spec.replicas and the DeploymentStrategy.\n  This policy will also delay declaring the deployment as complete until all\n  of its terminating replicas have been fully terminated.\n\nThe default behavior when the policy is not specified depends on the DeploymentStrategy: - Recreate strategy uses TerminationComplete behavior when recreating the deployment,\n  but uses TerminationStarted when scaling the deployment.\n- RollingUpdate strategy uses TerminationStarted behavior for both rolling out and\n  scaling the deployments.\n\nThis is an alpha field. Enable DeploymentPodReplacementPolicy to be able to use this field.",
+            "type": "string"
+          },
           "progressDeadlineSeconds": {
             "description": "The maximum time in seconds for a deployment to make progress before it is considered to be failed. The deployment controller will continue to process failed deployments and a condition with a ProgressDeadlineExceeded reason will be surfaced in the deployment status. Note that progress will not be estimated during the time a deployment is paused. Defaults to 600s.",
             "format": "int32",
