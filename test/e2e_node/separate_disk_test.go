@@ -137,7 +137,7 @@ var _ = SIGDescribe("LocalStorageEviction", framework.WithSlow(), framework.With
 	expectedStarvedResource := v1.ResourceEphemeralStorage
 	pressureTimeout := 15 * time.Minute
 
-	diskTestInMb := 3000
+	diskTestInMb := 12000
 
 	ginkgo.Context(fmt.Sprintf(testContextFmt, expectedNodeCondition), func() {
 		tempSetCurrentKubeletConfig(f, func(ctx context.Context, initialConfig *kubeletconfig.KubeletConfiguration) {
