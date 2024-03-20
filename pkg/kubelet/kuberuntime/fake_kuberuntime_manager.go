@@ -152,5 +152,7 @@ func newFakeKubeRuntimeManager(runtimeService internalapi.RuntimeService, imageS
 		}
 	}
 
+	kubeRuntimeManager.containerLifecycle = newContainerLifecycle(kubeRuntimeManager)
+
 	return kubeRuntimeManager, nil
 }

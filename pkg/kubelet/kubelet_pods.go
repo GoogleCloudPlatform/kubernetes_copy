@@ -42,6 +42,7 @@ import (
 	utilvalidation "k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/version"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	"k8s.io/client-go/util/flowcontrol"
 	runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1"
 	"k8s.io/klog/v2"
 	"k8s.io/kubelet/pkg/cri/streaming/portforward"
@@ -987,6 +988,21 @@ func (kl *Kubelet) killPod(ctx context.Context, pod *v1.Pod, p kubecontainer.Pod
 		klog.V(2).InfoS("Failed to update QoS cgroups while killing pod", "err", err)
 	}
 	return nil
+}
+
+func (kl *Kubelet) syncTerminatingPod(ctx context.Context, pod *v1.Pod, podStatus *kubecontainer.PodStatus, gracePeriodOverride *int64, pullSecrets []v1.Secret, backOff *flowcontrol.Backoff) (bool, error) {
+	// Call the container runtime KillPod method which stops all known running containers of the pod
+	terminated, err := kl.containerRuntime.SyncTerminatingPod(ctx, pod, podStatus, gracePeriodOverride, pullSecrets, backOff, true)
+	if err != nil {
+		return false, err
+	}
+	if !terminated {
+		return false, nil
+	}
+	if err := kl.containerManager.UpdateQOSCgroups(); err != nil {
+		klog.V(2).InfoS("Failed to update QoS cgroups while killing pod", "err", err)
+	}
+	return terminated, nil
 }
 
 // makePodDataDirs creates the dirs for the pod datas.

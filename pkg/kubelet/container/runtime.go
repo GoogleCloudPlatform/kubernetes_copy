@@ -105,6 +105,9 @@ type Runtime interface {
 	// only hard kill paths are allowed to specify a gracePeriodOverride in the kubelet in order to not corrupt user data.
 	// it is useful when doing SIGKILL for hard eviction scenarios, or max grace period during soft eviction scenarios.
 	KillPod(ctx context.Context, pod *v1.Pod, runningPod Pod, gracePeriodOverride *int64) error
+	// SyncTerminatingPod syncs the terminating pod into the desired pod.
+	// It returns true if the pod is fully terminated.
+	SyncTerminatingPod(ctx context.Context, pod *v1.Pod, podStatus *PodStatus, gracePeriodOverride *int64, pullSecrets []v1.Secret, backOff *flowcontrol.Backoff, stopPod bool) (bool, error)
 	// GetPodStatus retrieves the status of the pod, including the
 	// information of all containers in the pod that are visible in Runtime.
 	GetPodStatus(ctx context.Context, uid types.UID, name, namespace string) (*PodStatus, error)

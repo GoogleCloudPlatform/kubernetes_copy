@@ -719,6 +719,11 @@ var defaultVersionedKubernetesFeatureGates = map[featuregate.Feature]featuregate
 		{Version: version.MustParse("1.31"), Default: true, PreRelease: featuregate.Beta},
 	},
 
+	// FIXME: Disable by default
+	RestartContainerDuringTermination: {
+		{Version: version.MustParse("1.32"), Default: true, PreRelease: featuregate.Alpha},
+	},
+
 	SidecarContainers: {
 		{Version: version.MustParse("1.28"), Default: false, PreRelease: featuregate.Alpha},
 		{Version: version.MustParse("1.29"), Default: true, PreRelease: featuregate.Beta},

@@ -256,6 +256,21 @@ func (f *FakeRuntime) KillPod(_ context.Context, pod *v1.Pod, runningPod kubecon
 	return f.Err
 }
 
+func (f *FakeRuntime) SyncTerminatingPod(ctx context.Context, pod *v1.Pod, podStatus *kubecontainer.PodStatus, gracePeriodOverride *int64, pullSecrets []v1.Secret, backOff *flowcontrol.Backoff, stopPod bool) (bool, error) {
+	f.Lock()
+	defer f.Unlock()
+
+	f.CalledFunctions = append(f.CalledFunctions, "SyncTerminatingPod")
+	f.KilledPods = append(f.KilledPods, string(pod.UID))
+	for _, c := range podStatus.ContainerStatuses {
+		f.KilledContainers = append(f.KilledContainers, c.Name)
+	}
+	if f.Err != nil {
+		return false, f.Err
+	}
+	return true, nil
+}
+
 func (f *FakeRuntime) RunContainerInPod(container v1.Container, pod *v1.Pod, volumeMap map[string]volume.VolumePlugin) error {
 	f.Lock()
 	defer f.Unlock()
