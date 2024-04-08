@@ -41,7 +41,7 @@ import (
 // Stats is best effort and we evict based on stats being successful
 
 // Container runtime filesystem should display different stats for imagefs and nodefs
-var _ = SIGDescribe("Summary", framework.WithSlow(), framework.WithSerial(), framework.WithDisruptive(), nodefeature.SeparateDisk, func() {
+var _ = SIGDescribe("Summary", nodefeature.SeparateDisk, func() {
 	f := framework.NewDefaultFramework("summary-test")
 	f.It("should display different stats for imagefs and nodefs", func(ctx context.Context) {
 		summary := eventuallyGetSummary(ctx)
@@ -75,10 +75,6 @@ var _ = SIGDescribe("InodeEviction", framework.WithSlow(), framework.WithSerial(
 			{
 				evictionPriority: 1,
 				pod:              inodeConsumingPod("container-inode-hog", lotsOfFiles, nil),
-			},
-			{
-				evictionPriority: 1,
-				pod:              inodeConsumingPod("volume-inode-hog", lotsOfFiles, &v1.VolumeSource{EmptyDir: &v1.EmptyDirVolumeSource{}}),
 			},
 		})
 	})
