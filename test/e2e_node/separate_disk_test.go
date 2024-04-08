@@ -65,9 +65,8 @@ var _ = SIGDescribe("InodeEviction", framework.WithSlow(), framework.WithSerial(
 		tempSetCurrentKubeletConfig(f, func(ctx context.Context, initialConfig *kubeletconfig.KubeletConfiguration) {
 			// Set the eviction threshold to inodesFree - inodesConsumed, so that using inodesConsumed causes an eviction.
 			summary := eventuallyGetSummary(ctx)
-			inodesFree := *summary.Node.Fs.InodesFree
 			inodesFreeImagefs := *(summary.Node.Runtime.ImageFs.InodesFree)
-			initialConfig.EvictionHard = map[string]string{string(evictionapi.SignalNodeFsInodesFree): fmt.Sprintf("%d", inodesFree-inodesConsumed), string(evictionapi.SignalImageFsInodesFree): fmt.Sprintf("%d", inodesFreeImagefs-inodesConsumed)}
+			initialConfig.EvictionHard = map[string]string{string(evictionapi.SignalImageFsInodesFree): fmt.Sprintf("%d", inodesFreeImagefs-inodesConsumed)}
 			initialConfig.EvictionMinimumReclaim = map[string]string{}
 			ginkgo.By(fmt.Sprintf("EvictionHardSettings %s", initialConfig.EvictionHard))
 		})
