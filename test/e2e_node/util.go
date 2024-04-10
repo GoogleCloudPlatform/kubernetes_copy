@@ -598,6 +598,27 @@ func WaitForPodContainerRestartCount(ctx context.Context, c clientset.Interface,
 	})
 }
 
+// WaitForPodContainerRestartCountByContainerName waits for the given Pod
+// container to achieve at least a given restartCount by container name
+// TODO: eventually look at moving to test/e2e/framework/pod
+func WaitForPodContainerRestartCountByContainerName(ctx context.Context, c clientset.Interface, namespace, podName string, containerName string, desiredRestartCount int32, timeout time.Duration) error {
+	conditionDesc := fmt.Sprintf("container %q started", containerName)
+	return e2epod.WaitForPodCondition(ctx, c, namespace, podName, conditionDesc, timeout, func(pod *v1.Pod) (bool, error) {
+		containerIndex := -1
+		for idx, cname := range pod.Status.ContainerStatuses {
+			if cname.Name == containerName {
+				containerIndex = idx
+				break
+			}
+		}
+		if containerIndex == -1 {
+			return false, nil
+		}
+		containerStatus := pod.Status.ContainerStatuses[containerIndex]
+		return containerStatus.RestartCount >= desiredRestartCount, nil
+	})
+}
+
 // WaitForPodInitContainerToFail waits for the given Pod init container to fail with the given reason, specifically due to
 // invalid container configuration. In this case, the container will remain in a waiting state with a specific
 // reason set, which should match the given reason.

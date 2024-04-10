@@ -76,7 +76,17 @@ func ExecCommand(name string, c execCommand) []string {
 	}
 
 	fmt.Fprintf(&cmd, "echo %s '%s Starting %d' | tee -a %s >> /proc/1/fd/1; ", timeCmd, name, c.StartDelay, containerLog)
-	fmt.Fprintf(&cmd, "_term() { sleep %d; echo %s '%s Exiting' | tee -a %s >> /proc/1/fd/1; exit %d; }; ", c.TerminationSeconds, timeCmd, name, containerLog, c.ExitCode)
+	fmt.Fprintf(&cmd, `
+_term() {
+  echo %s '%s SIGTERM' | tee -a %s >> /proc/1/fd/1
+  sleep %d
+  echo %s '%s Exiting' | tee -a %s >> /proc/1/fd/1
+  exit %d
+}; `,
+		timeCmd, name, containerLog,
+		c.TerminationSeconds,
+		timeCmd, name, containerLog,
+		c.ExitCode)
 	fmt.Fprintf(&cmd, "trap _term TERM; ")
 	if c.StartDelay != 0 {
 		fmt.Fprint(&cmd, sleepCommand(c.StartDelay))

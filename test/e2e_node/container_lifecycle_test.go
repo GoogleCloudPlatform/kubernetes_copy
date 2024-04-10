@@ -1151,6 +1151,77 @@ var _ = SIGDescribe(framework.WithNodeConformance(), "Containers Lifecycle", fun
 			})
 		})
 	})
+
+	ginkgo.It("should restart a container while there is a terminating container", func(ctx context.Context) {
+		terminatingContainer := "terminating-container"
+		restartContainer := "restart-container"
+
+		podSpec := &v1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "test-pod",
+			},
+			Spec: v1.PodSpec{
+				RestartPolicy: v1.RestartPolicyAlways,
+				Containers: []v1.Container{
+					{
+						Name:  terminatingContainer,
+						Image: busyboxImage,
+						Command: ExecCommand(terminatingContainer, execCommand{
+							Delay:              100,
+							TerminationSeconds: 30,
+							ExitCode:           0,
+						}),
+						LivenessProbe: &v1.Probe{
+							ProbeHandler: v1.ProbeHandler{
+								Exec: &v1.ExecAction{
+									Command: []string{
+										"false",
+									},
+								},
+							},
+							PeriodSeconds:    3,
+							FailureThreshold: 1,
+						},
+					},
+					{
+						Name:  restartContainer,
+						Image: busyboxImage,
+						Command: ExecCommand(restartContainer, execCommand{
+							Delay:              1,
+							TerminationSeconds: 1,
+							ExitCode:           0,
+						}),
+					},
+				},
+			},
+		}
+
+		preparePod(podSpec)
+
+		client := e2epod.NewPodClient(f)
+		podSpec = client.Create(ctx, podSpec)
+
+		ginkgo.By("Waiting for the pod to restart containers a few times")
+		err := WaitForPodContainerRestartCountByContainerName(ctx, f.ClientSet, podSpec.Namespace, podSpec.Name, restartContainer, 3, 2*time.Minute)
+		framework.ExpectNoError(err)
+
+		ginkgo.By("Parsing results")
+		podSpec, err = client.Get(ctx, podSpec.Name, metav1.GetOptions{})
+		framework.ExpectNoError(err)
+		results := parseOutput(ctx, f, podSpec)
+
+		ginkgo.By("Analyzing results")
+		framework.ExpectNoError(results.Starts(terminatingContainer))
+		framework.ExpectNoError(results.Starts(restartContainer))
+		terminatingContainerSIGTERM, err := results.FindIndex(terminatingContainer, "SIGTERM", 0)
+		framework.ExpectNoError(err)
+		restartContainerRestarting, err := results.FindIndex(restartContainer, "Starting", terminatingContainerSIGTERM)
+		framework.ExpectNoError(err)
+		terminatingContainerRestarting, err := results.FindIndex(terminatingContainer, "Starting", terminatingContainerSIGTERM)
+		framework.ExpectNoError(err)
+
+		framework.ExpectNoError(restartContainerRestarting.IsBefore(terminatingContainerRestarting))
+	})
 })
 
 var _ = SIGDescribe(framework.WithSerial(), "Containers Lifecycle", func() {
