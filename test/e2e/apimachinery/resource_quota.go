@@ -46,6 +46,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	watchtools "k8s.io/client-go/tools/watch"
 	"k8s.io/client-go/util/retry"
+	"k8s.io/kubernetes/pkg/features"
 	"k8s.io/kubernetes/pkg/quota/v1/evaluator/core"
 	"k8s.io/kubernetes/test/e2e/feature"
 	"k8s.io/kubernetes/test/e2e/framework"
@@ -53,6 +54,7 @@ import (
 	imageutils "k8s.io/kubernetes/test/utils/image"
 	admissionapi "k8s.io/pod-security-admission/api"
 	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
@@ -65,6 +67,7 @@ const (
 )
 
 var classGold = "gold"
+var classSilver = "silver"
 var extendedResourceName = "example.com/dongle"
 
 var _ = SIGDescribe("ResourceQuota", func() {
@@ -1270,6 +1273,183 @@ var _ = SIGDescribe("ResourceQuota", func() {
 	})
 })
 
+var _ = SIGDescribe("ResourceQuota", feature.VolumeAttributesClass, framework.WithFeatureGate(features.VolumeAttributesClass), func() {
+	f := framework.NewDefaultFramework("resourcequota-volumeattributesclass")
+	f.NamespacePodSecurityLevel = admissionapi.LevelBaseline
+
+	ginkgo.It("should verify ResourceQuota's volume attributes class scope (quota set to pvc count: 1) against a pvc with same volume attributes class.", func(ctx context.Context) {
+		hard := v1.ResourceList{}
+		hard[v1.ResourcePersistentVolumeClaims] = resource.MustParse("1")
+
+		ginkgo.By("Creating a ResourceQuota with volume attributes class scope")
+		quota, err := createResourceQuota(ctx, f.ClientSet, f.Namespace.Name, newTestResourceQuotaWithScopeForVolumeAttributesClass("quota-volumeattributesclass", hard, v1.ScopeSelectorOpIn, []string{classGold}))
+		framework.ExpectNoError(err)
+
+		ginkgo.By("Ensuring ResourceQuota status is calculated")
+		usedResources := v1.ResourceList{}
+		usedResources[v1.ResourcePersistentVolumeClaims] = resource.MustParse("0")
+		err = waitForResourceQuota(ctx, f.ClientSet, f.Namespace.Name, quota.Name, usedResources)
+		framework.ExpectNoError(err)
+
+		ginkgo.By("Creating a pvc with volume attributes class")
+		pvc1 := newTestPersistentVolumeClaimForQuota("test-claim-1")
+		pvc1.Spec.StorageClassName = ptr.To("")
+		pvc1.Spec.VolumeAttributesClassName = &classGold
+		pvc1, err = f.ClientSet.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Create(ctx, pvc1, metav1.CreateOptions{})
+		framework.ExpectNoError(err)
+
+		ginkgo.By("Ensuring resource quota with volume attributes class scope captures the pvc usage")
+		usedResources[v1.ResourcePersistentVolumeClaims] = resource.MustParse("1")
+		err = waitForResourceQuota(ctx, f.ClientSet, f.Namespace.Name, quota.Name, usedResources)
+		framework.ExpectNoError(err)
+
+		ginkgo.By("Updating the pvc modify volume status with volume attributes class")
+		pvc1.Status.ModifyVolumeStatus = &v1.ModifyVolumeStatus{
+			TargetVolumeAttributesClassName: classGold,
+			Status:                          v1.PersistentVolumeClaimModifyVolumePending,
+		}
+		pvc1, err = f.ClientSet.CoreV1().PersistentVolumeClaims(f.Namespace.Name).UpdateStatus(ctx, pvc1, metav1.UpdateOptions{})
+		framework.ExpectNoError(err)
+
+		ginkgo.By("Ensuring resource quota not changed after updating the pvc status")
+		gomega.Consistently(ctx,
+			framework.GetObject(f.ClientSet.CoreV1().ResourceQuotas(f.Namespace.Name).Get, quota.Name, metav1.GetOptions{})).
+			WithPolling(5 * time.Second).
+			WithTimeout(30 * time.Second).
+			Should(gomega.HaveField("Status.Used", gomega.Equal(usedResources)))
+
+		ginkgo.By("Updating the pvc status with volume attributes class")
+		pvc1.Status.ModifyVolumeStatus = nil
+		pvc1.Status.CurrentVolumeAttributesClassName = &classGold
+		pvc1, err = f.ClientSet.CoreV1().PersistentVolumeClaims(f.Namespace.Name).UpdateStatus(ctx, pvc1, metav1.UpdateOptions{})
+		framework.ExpectNoError(err)
+
+		ginkgo.By("Ensuring resource quota not changed after updating the pvc status")
+		gomega.Consistently(ctx,
+			framework.GetObject(f.ClientSet.CoreV1().ResourceQuotas(f.Namespace.Name).Get, quota.Name, metav1.GetOptions{})).
+			WithPolling(5 * time.Second).
+			WithTimeout(30 * time.Second).
+			Should(gomega.HaveField("Status.Used", gomega.Equal(usedResources)))
+
+		ginkgo.By("Deleting the pvc")
+		err = f.ClientSet.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Delete(ctx, pvc1.Name, metav1.DeleteOptions{})
+		framework.ExpectNoError(err)
+
+		ginkgo.By("Ensuring resource quota status released the pvc usage")
+		usedResources[v1.ResourcePersistentVolumeClaims] = resource.MustParse("0")
+		err = waitForResourceQuota(ctx, f.ClientSet, f.Namespace.Name, quota.Name, usedResources)
+		framework.ExpectNoError(err)
+	})
+
+	ginkgo.It("should verify ResourceQuota's volume attributes class scope (quota set to pvc count: 1) against a pvc with different volume attributes class.", func(ctx context.Context) {
+		hard := v1.ResourceList{}
+		hard[v1.ResourcePersistentVolumeClaims] = resource.MustParse("1")
+
+		ginkgo.By("Creating 2 ResourceQuotas with volume attributes class scope")
+		quotaGold, err := createResourceQuota(ctx, f.ClientSet, f.Namespace.Name, newTestResourceQuotaWithScopeForVolumeAttributesClass("quota-volumeattributesclass-gold", hard, v1.ScopeSelectorOpIn, []string{classGold}))
+		framework.ExpectNoError(err)
+		quotaSilver, err := createResourceQuota(ctx, f.ClientSet, f.Namespace.Name, newTestResourceQuotaWithScopeForVolumeAttributesClass("quota-volumeattributesclass-silver", hard, v1.ScopeSelectorOpIn, []string{classSilver}))
+		framework.ExpectNoError(err)
+
+		ginkgo.By("Ensuring all ResourceQuotas status is calculated")
+		usedResources := v1.ResourceList{}
+		usedResources[v1.ResourcePersistentVolumeClaims] = resource.MustParse("0")
+		err = waitForResourceQuota(ctx, f.ClientSet, f.Namespace.Name, quotaGold.Name, usedResources)
+		framework.ExpectNoError(err)
+		err = waitForResourceQuota(ctx, f.ClientSet, f.Namespace.Name, quotaSilver.Name, usedResources)
+		framework.ExpectNoError(err)
+
+		ginkgo.By("Creating a pvc with gold volume attributes class")
+		pvc1 := newTestPersistentVolumeClaimForQuota("test-claim-1")
+		pvc1.Spec.StorageClassName = ptr.To("")
+		pvc1.Spec.VolumeAttributesClassName = &classGold
+		pvc1, err = f.ClientSet.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Create(ctx, pvc1, metav1.CreateOptions{})
+		framework.ExpectNoError(err)
+
+		ginkgo.By("Ensuring first resource quota with volume attributes class scope captures the pvc usage")
+		usedResources[v1.ResourcePersistentVolumeClaims] = resource.MustParse("1")
+		err = waitForResourceQuota(ctx, f.ClientSet, f.Namespace.Name, quotaGold.Name, usedResources)
+		framework.ExpectNoError(err)
+
+		ginkgo.By("Updating the pvc status with volume attributes class")
+		pvc1.Status.ModifyVolumeStatus = nil
+		pvc1.Status.CurrentVolumeAttributesClassName = &classGold
+		pvc1, err = f.ClientSet.CoreV1().PersistentVolumeClaims(f.Namespace.Name).UpdateStatus(ctx, pvc1, metav1.UpdateOptions{})
+		framework.ExpectNoError(err)
+
+		ginkgo.By("Updating the pvc with silver volume attributes class")
+		pvc1.Spec.VolumeAttributesClassName = &classSilver
+		pvc1, err = f.ClientSet.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Update(ctx, pvc1, metav1.UpdateOptions{})
+		framework.ExpectNoError(err)
+
+		ginkgo.By("Ensuring resource quota not changed after updating the pvc status and spec")
+		gomega.Consistently(ctx,
+			framework.GetObject(f.ClientSet.CoreV1().ResourceQuotas(f.Namespace.Name).Get, quotaGold.Name, metav1.GetOptions{})).
+			WithPolling(5 * time.Second).
+			WithTimeout(30 * time.Second).
+			Should(gomega.HaveField("Status.Used", gomega.Equal(usedResources)))
+
+		ginkgo.By("Ensuring 2nd resource quota with volume attributes class scope captures the pvc usage")
+		usedResources[v1.ResourcePersistentVolumeClaims] = resource.MustParse("1")
+		err = waitForResourceQuota(ctx, f.ClientSet, f.Namespace.Name, quotaSilver.Name, usedResources)
+		framework.ExpectNoError(err)
+
+		ginkgo.By("Replacing the pvc status with silver volume attributes class")
+		pvc1.Status.ModifyVolumeStatus = nil
+		pvc1.Status.CurrentVolumeAttributesClassName = &classSilver
+		_, err = f.ClientSet.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Update(ctx, pvc1, metav1.UpdateOptions{})
+		framework.ExpectNoError(err)
+
+		ginkgo.By("Ensuring first resource quota status released the pvc usage")
+		usedResources[v1.ResourcePersistentVolumeClaims] = resource.MustParse("0")
+		err = waitForResourceQuota(ctx, f.ClientSet, f.Namespace.Name, quotaGold.Name, usedResources)
+		framework.ExpectNoError(err)
+	})
+
+	ginkgo.It("should verify ResourceQuota's volume attributes class scope (quota set to pvc count: 1) against 2 pvcs with same volume attributes class.", func(ctx context.Context) {
+		hard := v1.ResourceList{}
+		hard[v1.ResourcePersistentVolumeClaims] = resource.MustParse("1")
+
+		ginkgo.By("Creating a ResourceQuota with volume attributes class scope")
+		quota, err := createResourceQuota(ctx, f.ClientSet, f.Namespace.Name, newTestResourceQuotaWithScopeForVolumeAttributesClass("quota-volumeattributesclass", hard, v1.ScopeSelectorOpIn, []string{classGold}))
+		framework.ExpectNoError(err)
+
+		ginkgo.By("Ensuring ResourceQuota status is calculated")
+		usedResources := v1.ResourceList{}
+		usedResources[v1.ResourcePersistentVolumeClaims] = resource.MustParse("0")
+		err = waitForResourceQuota(ctx, f.ClientSet, f.Namespace.Name, quota.Name, usedResources)
+		framework.ExpectNoError(err)
+
+		ginkgo.By("Creating a pvc with volume attributes class")
+		pvc1 := newTestPersistentVolumeClaimForQuota("test-claim-1")
+		pvc1.Spec.StorageClassName = ptr.To("")
+		pvc1.Spec.VolumeAttributesClassName = &classGold
+		pvc1, err = f.ClientSet.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Create(ctx, pvc1, metav1.CreateOptions{})
+		framework.ExpectNoError(err)
+
+		ginkgo.By("Ensuring resource quota with volume attributes class scope captures the pvc usage")
+		usedResources[v1.ResourcePersistentVolumeClaims] = resource.MustParse("1")
+		err = waitForResourceQuota(ctx, f.ClientSet, f.Namespace.Name, quota.Name, usedResources)
+		framework.ExpectNoError(err)
+
+		ginkgo.By("Creating 2nd pod with priority class should fail")
+		pvc2 := newTestPersistentVolumeClaimForQuota("test-claim-2")
+		pvc2.Spec.StorageClassName = ptr.To("")
+		pvc2.Spec.VolumeAttributesClassName = &classGold
+		_, err = f.ClientSet.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Create(ctx, pvc2, metav1.CreateOptions{})
+		gomega.Expect(err).To(gomega.MatchError(apierrors.IsForbidden, "expect a forbidden error when creating a PVC that exceeds quota"))
+
+		ginkgo.By("Deleting first pvc")
+		err = f.ClientSet.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Delete(ctx, pvc1.Name, metav1.DeleteOptions{})
+		framework.ExpectNoError(err)
+
+		ginkgo.By("Ensuring resource quota status released the pvc usage")
+		usedResources[v1.ResourcePersistentVolumeClaims] = resource.MustParse("0")
+		err = waitForResourceQuota(ctx, f.ClientSet, f.Namespace.Name, quota.Name, usedResources)
+		framework.ExpectNoError(err)
+	})
+})
+
 var _ = SIGDescribe("ResourceQuota", func() {
 	f := framework.NewDefaultFramework("scope-selectors")
 	f.NamespacePodSecurityLevel = admissionapi.LevelBaseline
@@ -1920,6 +2100,25 @@ func newTestResourceQuotaWithScopeForPriorityClass(name string, hard v1.Resource
 				MatchExpressions: []v1.ScopedResourceSelectorRequirement{
 					{
 						ScopeName: v1.ResourceQuotaScopePriorityClass,
+						Operator:  op,
+						Values:    values,
+					},
+				},
+			},
+		},
+	}
+}
+
+// newTestResourceQuotaWithScopeForVolumeAttributesClass returns a quota
+// that enforces default constraints for testing with ResourceQuotaScopeVolumeAttributesClass scope
+func newTestResourceQuotaWithScopeForVolumeAttributesClass(name string, hard v1.ResourceList, op v1.ScopeSelectorOperator, values []string) *v1.ResourceQuota {
+	return &v1.ResourceQuota{
+		ObjectMeta: metav1.ObjectMeta{Name: name},
+		Spec: v1.ResourceQuotaSpec{Hard: hard,
+			ScopeSelector: &v1.ScopeSelector{
+				MatchExpressions: []v1.ScopedResourceSelectorRequirement{
+					{
+						ScopeName: v1.ResourceQuotaScopeVolumeAttributesClass,
 						Operator:  op,
 						Values:    values,
 					},
