@@ -1661,6 +1661,11 @@ func (m *kubeGenericRuntimeManager) syncTerminatingContainers(ctx context.Contex
 		return true, nil
 	}
 
+	if len(actions.containerIDsToKill) == 0 {
+		klog.V(3).InfoS("No containers to kill for pod", "pod", klog.KObj(pod))
+		return true, nil
+	}
+
 	var termOrdering *terminationOrdering
 	// we only care about container termination ordering if the sidecars feature is enabled
 	if utilfeature.DefaultFeatureGate.Enabled(features.SidecarContainers) {
