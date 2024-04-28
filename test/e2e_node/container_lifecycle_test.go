@@ -5545,7 +5545,9 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 		framework.ExpectNoError(results.StartsBefore(slowTerminatingRestartableInit2, regular1))
 
 		framework.ExpectNoError(results.ExitsBefore(regular1, slowTerminatingRestartableInit2))
-		framework.ExpectNoError(results.ExitsBefore(slowTerminatingRestartableInit2, restartableInit1))
+		// Cannot guarantee that restartableInit2 will exit before
+		// restartableInit1, as the restartableInit1 may be in exit state right
+		// after the restartableInit2 exits.
 
 		regular1Exited, err := results.FindIndex(regular1, "Exiting", 0)
 		framework.ExpectNoError(err)
