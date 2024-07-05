@@ -2600,7 +2600,7 @@ func handleProbeSync(kl *Kubelet, update proberesults.Update, handler SyncHandle
 // a config source.
 func (kl *Kubelet) HandlePodAdditions(pods []*v1.Pod) {
 	start := kl.clock.Now()
-	sort.Sort(sliceutils.PodsByCreationTime(pods))
+	sort.Sort(sliceutils.PodsByPriority(pods))
 	if utilfeature.DefaultFeatureGate.Enabled(features.InPlacePodVerticalScaling) {
 		kl.podResizeMutex.Lock()
 		defer kl.podResizeMutex.Unlock()
