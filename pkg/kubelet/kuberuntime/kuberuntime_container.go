@@ -319,7 +319,7 @@ func (m *kubeGenericRuntimeManager) startContainer(ctx context.Context, podSandb
 				"podUID", pod.UID, "containerName", container.Name, "containerID", kubeContainerID.String())
 			// do not record the message in the event so that secrets won't leak from the server.
 			m.recordContainerEvent(pod, container, kubeContainerID.ID, v1.EventTypeWarning, events.FailedPostStartHook, "PostStartHook failed")
-			if err := m.killContainer(ctx, pod, kubeContainerID, container.Name, "FailedPostStartHook", reasonFailedPostStartHook, nil, nil); err != nil {
+			if err := m.killContainer(ctx, pod, kubeContainerID, container.Name, "FailedPostStartHook", kubecontainer.ReasonFailedPostStartHook, nil, nil); err != nil {
 				klog.ErrorS(err, "Failed to kill container", "pod", klog.KObj(pod),
 					"podUID", pod.UID, "containerName", container.Name, "containerID", kubeContainerID.String())
 			}
@@ -762,7 +762,7 @@ func (m *kubeGenericRuntimeManager) restoreSpecsFromContainerLabels(ctx context.
 // * Run the pre-stop lifecycle hooks (if applicable).
 // * Stop the container.
 // TODO: Remove this and use containerLifecycle.requestTermination instead.
-func (m *kubeGenericRuntimeManager) killContainer(ctx context.Context, pod *v1.Pod, containerID kubecontainer.ContainerID, containerName string, message string, reason containerKillReason, gracePeriodOverride *int64, ordering *terminationOrdering) error {
+func (m *kubeGenericRuntimeManager) killContainer(ctx context.Context, pod *v1.Pod, containerID kubecontainer.ContainerID, containerName string, message string, reason kubecontainer.ContainerKillReason, gracePeriodOverride *int64, ordering *terminationOrdering) error {
 	var containerSpec *v1.Container
 	if pod != nil {
 		if containerSpec = kubecontainer.GetContainerSpec(pod, containerName); containerSpec == nil {
@@ -850,7 +850,7 @@ func (m *kubeGenericRuntimeManager) killContainersWithSyncResult(ctx context.Con
 			defer wg.Done()
 
 			killContainerResult := kubecontainer.NewSyncResult(kubecontainer.KillContainer, container.Name)
-			if err := m.killContainer(ctx, pod, container.ID, container.Name, "", reasonUnknown, gracePeriodOverride, termOrdering); err != nil {
+			if err := m.killContainer(ctx, pod, container.ID, container.Name, "", kubecontainer.ReasonUnknown, gracePeriodOverride, termOrdering); err != nil {
 				killContainerResult.Fail(kubecontainer.ErrKillContainer, err.Error())
 				// Use runningPod for logging as the pod passed in could be *nil*.
 				klog.ErrorS(err, "Kill container failed", "pod", klog.KRef(runningPod.Namespace, runningPod.Name), "podUID", runningPod.ID,
@@ -1116,7 +1116,7 @@ func (m *kubeGenericRuntimeManager) computeInitContainerActions(pod *v1.Pod, pod
 								name:      container.Name,
 								container: container,
 								message:   fmt.Sprintf("Init container %s failed startup probe", container.Name),
-								reason:    reasonStartupProbe,
+								reason:    kubecontainer.ReasonStartupProbe,
 							}
 							changes.InitContainersToStart = append(changes.InitContainersToStart, i)
 						}
@@ -1159,7 +1159,7 @@ func (m *kubeGenericRuntimeManager) computeInitContainerActions(pod *v1.Pod, pod
 							name:      container.Name,
 							container: container,
 							message:   fmt.Sprintf("Init container %s failed liveness probe", container.Name),
-							reason:    reasonLivenessProbe,
+							reason:    kubecontainer.ReasonLivenessProbe,
 						}
 						changes.InitContainersToStart = append(changes.InitContainersToStart, i)
 					}
@@ -1202,7 +1202,7 @@ func (m *kubeGenericRuntimeManager) computeInitContainerActions(pod *v1.Pod, pod
 					container: container,
 					message: fmt.Sprintf("Init container is in %q state, try killing it before restart",
 						status.State),
-					reason: reasonUnknown,
+					reason: kubecontainer.ReasonUnknown,
 				}
 				changes.InitContainersToStart = append(changes.InitContainersToStart, i)
 			} else { // init container
@@ -1222,7 +1222,7 @@ func (m *kubeGenericRuntimeManager) computeInitContainerActions(pod *v1.Pod, pod
 					container: container,
 					message: fmt.Sprintf("Init container is in %q state, try killing it before restart",
 						status.State),
-					reason: reasonUnknown,
+					reason: kubecontainer.ReasonUnknown,
 				}
 				changes.InitContainersToStart = append(changes.InitContainersToStart, i)
 			}
@@ -1365,18 +1365,18 @@ func (m *kubeGenericRuntimeManager) DeleteContainer(ctx context.Context, contain
 }
 
 // setTerminationGracePeriod determines the grace period to use when killing a container
-func setTerminationGracePeriod(pod *v1.Pod, containerSpec *v1.Container, containerName string, containerID kubecontainer.ContainerID, reason containerKillReason) int64 {
+func setTerminationGracePeriod(pod *v1.Pod, containerSpec *v1.Container, containerName string, containerID kubecontainer.ContainerID, reason kubecontainer.ContainerKillReason) int64 {
 	gracePeriod := int64(minimumGracePeriodInSeconds)
 	switch {
 	case pod.DeletionGracePeriodSeconds != nil:
 		return *pod.DeletionGracePeriodSeconds
 	case pod.Spec.TerminationGracePeriodSeconds != nil:
 		switch reason {
-		case reasonStartupProbe:
+		case kubecontainer.ReasonStartupProbe:
 			if isProbeTerminationGracePeriodSecondsSet(pod, containerSpec, containerSpec.StartupProbe, containerName, containerID, "StartupProbe") {
 				return *containerSpec.StartupProbe.TerminationGracePeriodSeconds
 			}
-		case reasonLivenessProbe:
+		case kubecontainer.ReasonLivenessProbe:
 			if isProbeTerminationGracePeriodSecondsSet(pod, containerSpec, containerSpec.LivenessProbe, containerName, containerID, "LivenessProbe") {
 				return *containerSpec.LivenessProbe.TerminationGracePeriodSeconds
 			}

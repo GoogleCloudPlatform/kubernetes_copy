@@ -445,16 +445,6 @@ func (m *kubeGenericRuntimeManager) GetPods(ctx context.Context, all bool) ([]*k
 	return result, nil
 }
 
-// containerKillReason explains what killed a given container
-type containerKillReason string
-
-const (
-	reasonStartupProbe        containerKillReason = "StartupProbe"
-	reasonLivenessProbe       containerKillReason = "LivenessProbe"
-	reasonFailedPostStartHook containerKillReason = "FailedPostStartHook"
-	reasonUnknown             containerKillReason = "Unknown"
-)
-
 // containerToKillInfo contains necessary information to kill a container.
 type containerToKillInfo struct {
 	// The spec of the container.
@@ -465,7 +455,7 @@ type containerToKillInfo struct {
 	message string
 	// The reason is a clearer source of info on why a container will be killed
 	// TODO: replace message with reason?
-	reason containerKillReason
+	reason kubecontainer.ContainerKillReason
 }
 
 // containerResources holds the set of resources applicable to the running container
@@ -1014,7 +1004,7 @@ func (m *kubeGenericRuntimeManager) computePodActions(ctx context.Context, pod *
 							container: next,
 							message: fmt.Sprintf("Init container is in %q state, try killing it before restart",
 								initLastStatus.State),
-							reason: reasonUnknown,
+							reason: kubecontainer.ReasonUnknown,
 						}
 					}
 					changes.NextInitContainerToStart = next
@@ -1068,7 +1058,7 @@ func (m *kubeGenericRuntimeManager) computePodActions(ctx context.Context, pod *
 						container: &pod.Spec.Containers[idx],
 						message: fmt.Sprintf("Container is in %q state, try killing it before restart",
 							containerStatus.State),
-						reason: reasonUnknown,
+						reason: kubecontainer.ReasonUnknown,
 					}
 				}
 			}
@@ -1076,7 +1066,7 @@ func (m *kubeGenericRuntimeManager) computePodActions(ctx context.Context, pod *
 		}
 		// The container is running, but kill the container if any of the following condition is met.
 		var message string
-		var reason containerKillReason
+		var reason kubecontainer.ContainerKillReason
 		restart := shouldRestartOnFailure(pod)
 		if _, _, changed := containerChanged(&container, containerStatus); changed {
 			message = fmt.Sprintf("Container %s definition changed", container.Name)
@@ -1086,11 +1076,11 @@ func (m *kubeGenericRuntimeManager) computePodActions(ctx context.Context, pod *
 		} else if liveness, found := m.livenessManager.Get(containerStatus.ID); found && liveness == proberesults.Failure {
 			// If the container failed the liveness probe, we should kill it.
 			message = fmt.Sprintf("Container %s failed liveness probe", container.Name)
-			reason = reasonLivenessProbe
+			reason = kubecontainer.ReasonLivenessProbe
 		} else if startup, found := m.startupManager.Get(containerStatus.ID); found && startup == proberesults.Failure {
 			// If the container failed the startup probe, we should kill it.
 			message = fmt.Sprintf("Container %s failed startup probe", container.Name)
-			reason = reasonStartupProbe
+			reason = kubecontainer.ReasonStartupProbe
 		} else if IsInPlacePodVerticalScalingAllowed(pod) && !m.computePodResizeAction(pod, idx, containerStatus, &changes) {
 			// computePodResizeAction updates 'changes' if resize policy requires restarting this container
 			continue
@@ -1677,7 +1667,7 @@ func (m *kubeGenericRuntimeManager) syncTerminatingContainers(ctx context.Contex
 	}
 
 	for cName, containerID := range actions.containerIDsToKill {
-		m.containerLifecycle.requestTermination(pod, containerID, cName, "", reasonUnknown, gracePeriodOverride, termOrdering)
+		m.containerLifecycle.requestTermination(pod, containerID, cName, "", kubecontainer.ReasonUnknown, gracePeriodOverride, termOrdering)
 	}
 
 	var stopped bool

@@ -74,7 +74,7 @@ func (cl *containerLifecycle) startContainerDuringPodTermination(ctx context.Con
 
 // requestTermination requests the termination of a container so that it can
 // terminate the container in a non-blocking manner.
-func (cl *containerLifecycle) requestTermination(pod *v1.Pod, containerID kubecontainer.ContainerID, containerName, message string, reason containerKillReason, gracePeriodOverride *int64, ordering *terminationOrdering) {
+func (cl *containerLifecycle) requestTermination(pod *v1.Pod, containerID kubecontainer.ContainerID, containerName, message string, reason kubecontainer.ContainerKillReason, gracePeriodOverride *int64, ordering *terminationOrdering) {
 	c := cl.ensureContainer(pod.UID, containerName)
 
 	c.requestTermination(pod, containerID, containerName, message, reason, gracePeriodOverride, ordering)
@@ -229,7 +229,7 @@ func (c *containerWorker) startContainerDuringPodTermination(ctx context.Context
 	return msg, nil
 }
 
-func (c *containerWorker) requestTermination(pod *v1.Pod, containerID kubecontainer.ContainerID, containerName, message string, reason containerKillReason, gracePeriodOverride *int64, ordering *terminationOrdering) {
+func (c *containerWorker) requestTermination(pod *v1.Pod, containerID kubecontainer.ContainerID, containerName, message string, reason kubecontainer.ContainerKillReason, gracePeriodOverride *int64, ordering *terminationOrdering) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
@@ -259,7 +259,7 @@ func (c *containerWorker) requestTermination(pod *v1.Pod, containerID kubecontai
 	c.restartCh = restartCh
 }
 
-func (c *containerWorker) terminationWorkerLoop(ctx context.Context, ch <-chan containerTermination, pod *v1.Pod, containerName, message string, reason containerKillReason, gracePeriodOverride *int64, ordering *terminationOrdering) {
+func (c *containerWorker) terminationWorkerLoop(ctx context.Context, ch <-chan containerTermination, pod *v1.Pod, containerName, message string, reason kubecontainer.ContainerKillReason, gracePeriodOverride *int64, ordering *terminationOrdering) {
 	defer func() {
 		c.lock.Lock()
 		defer c.lock.Unlock()
@@ -311,7 +311,7 @@ func (c *containerWorker) terminationWorkerLoop(ctx context.Context, ch <-chan c
 
 // prepareForTermination prepares for the termination of a container and returns
 // the grace period to terminate the container.
-func (c *containerWorker) prepareForTermination(ctx context.Context, pod *v1.Pod, containerID kubecontainer.ContainerID, containerName string, message string, reason containerKillReason, gracePeriodOverride *int64) (int64, error) {
+func (c *containerWorker) prepareForTermination(ctx context.Context, pod *v1.Pod, containerID kubecontainer.ContainerID, containerName string, message string, reason kubecontainer.ContainerKillReason, gracePeriodOverride *int64) (int64, error) {
 	var containerSpec *v1.Container
 	if pod != nil {
 		if containerSpec = kubecontainer.GetContainerSpec(pod, containerName); containerSpec == nil {

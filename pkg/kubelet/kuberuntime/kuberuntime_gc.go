@@ -141,7 +141,7 @@ func (cgc *containerGC) removeOldestN(ctx context.Context, containers []containe
 				ID:   containers[i].id,
 			}
 			message := "Container is in unknown state, try killing it before removal"
-			if err := cgc.manager.killContainer(ctx, nil, id, containers[i].name, message, reasonUnknown, nil, nil); err != nil {
+			if err := cgc.manager.killContainer(ctx, nil, id, containers[i].name, message, kubecontainer.ReasonUnknown, nil, nil); err != nil {
 				klog.ErrorS(err, "Failed to stop container", "containerID", containers[i].id)
 				continue
 			}

@@ -38,6 +38,16 @@ import (
 	utilsnet "k8s.io/utils/net"
 )
 
+// ContainerKillReason explains what killed a given container
+type ContainerKillReason string
+
+const (
+	ReasonStartupProbe        ContainerKillReason = "StartupProbe"
+	ReasonLivenessProbe       ContainerKillReason = "LivenessProbe"
+	ReasonFailedPostStartHook ContainerKillReason = "FailedPostStartHook"
+	ReasonUnknown             ContainerKillReason = "Unknown"
+)
+
 // HandlerRunner runs a lifecycle handler for a container.
 type HandlerRunner interface {
 	Run(ctx context.Context, containerID ContainerID, pod *v1.Pod, container *v1.Container, handler *v1.LifecycleHandler) (string, error)
@@ -100,7 +110,9 @@ func ShouldContainerBeRestarted(container *v1.Container, pod *v1.Pod, podStatus 
 	}
 	if pod.Spec.RestartPolicy == v1.RestartPolicyOnFailure {
 		// Check the exit code.
-		if status.ExitCode == 0 {
+		if status.ExitCode == 0 &&
+			status.Reason != string(ReasonLivenessProbe) &&
+			status.Reason != string(ReasonStartupProbe) {
 			klog.V(4).InfoS("Already successfully ran container, do nothing", "pod", klog.KObj(pod), "containerName", container.Name)
 			return false
 		}
