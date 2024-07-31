@@ -22,7 +22,7 @@ import (
 	cryptorand "crypto/rand"
 	"testing"
 
-	certificatesv1alpha1 "k8s.io/api/certificates/v1alpha1"
+	certificatesv1beta1 "k8s.io/api/certificates/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apiserver/pkg/server/dynamiccertificates"
@@ -44,7 +44,7 @@ func TestCTBPublisherSync(t *testing.T) {
 
 		createAction := expectAction[clienttesting.CreateAction](t, filteredActions[0], "create")
 
-		ctb, ok := createAction.GetObject().(*certificatesv1alpha1.ClusterTrustBundle)
+		ctb, ok := createAction.GetObject().(*certificatesv1beta1.ClusterTrustBundle)
 		if !ok {
 			t.Fatalf("expected ClusterTrustBundle create, got %v", createAction.GetObject())
 		}
@@ -63,7 +63,7 @@ func TestCTBPublisherSync(t *testing.T) {
 
 			updateAction := expectAction[clienttesting.UpdateAction](t, filteredActions[0], "update")
 
-			ctb, ok := updateAction.GetObject().(*certificatesv1alpha1.ClusterTrustBundle)
+			ctb, ok := updateAction.GetObject().(*certificatesv1beta1.ClusterTrustBundle)
 			if !ok {
 				t.Fatalf("expected ClusterTrustBundle update, got %v", updateAction.GetObject())
 			}
@@ -109,19 +109,19 @@ func TestCTBPublisherSync(t *testing.T) {
 		{
 			name: "no CTBs for the current signer exist",
 			existingCTBs: []runtime.Object{
-				&certificatesv1alpha1.ClusterTrustBundle{
+				&certificatesv1beta1.ClusterTrustBundle{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "nosigner",
 					},
-					Spec: certificatesv1alpha1.ClusterTrustBundleSpec{
+					Spec: certificatesv1beta1.ClusterTrustBundleSpec{
 						TrustBundle: "somedatahere",
 					},
 				},
-				&certificatesv1alpha1.ClusterTrustBundle{
+				&certificatesv1beta1.ClusterTrustBundle{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "signer:one",
 					},
-					Spec: certificatesv1alpha1.ClusterTrustBundleSpec{
+					Spec: certificatesv1beta1.ClusterTrustBundleSpec{
 						SignerName:  "signer",
 						TrustBundle: "signerdata",
 					},
@@ -132,11 +132,11 @@ func TestCTBPublisherSync(t *testing.T) {
 		{
 			name: "CTB for the signer exists with different content",
 			existingCTBs: []runtime.Object{
-				&certificatesv1alpha1.ClusterTrustBundle{
+				&certificatesv1beta1.ClusterTrustBundle{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: testBundleName,
 					},
-					Spec: certificatesv1alpha1.ClusterTrustBundleSpec{
+					Spec: certificatesv1beta1.ClusterTrustBundleSpec{
 						SignerName:  testSignerName,
 						TrustBundle: "olddata",
 					},
@@ -147,20 +147,20 @@ func TestCTBPublisherSync(t *testing.T) {
 		{
 			name: "multiple CTBs for the signer",
 			existingCTBs: []runtime.Object{
-				&certificatesv1alpha1.ClusterTrustBundle{
+				&certificatesv1beta1.ClusterTrustBundle{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: testBundleName,
 					},
-					Spec: certificatesv1alpha1.ClusterTrustBundleSpec{
+					Spec: certificatesv1beta1.ClusterTrustBundleSpec{
 						SignerName:  testSignerName,
 						TrustBundle: string(testCAProvider.CurrentCABundleContent()),
 					},
 				},
-				&certificatesv1alpha1.ClusterTrustBundle{
+				&certificatesv1beta1.ClusterTrustBundle{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "test.test/testSigner:name2",
 					},
-					Spec: certificatesv1alpha1.ClusterTrustBundleSpec{
+					Spec: certificatesv1beta1.ClusterTrustBundleSpec{
 						SignerName:  testSignerName,
 						TrustBundle: string(testCAProvider.CurrentCABundleContent()),
 					},
@@ -171,20 +171,20 @@ func TestCTBPublisherSync(t *testing.T) {
 		{
 			name: "multiple CTBs for the signer - the one with the proper name needs changing",
 			existingCTBs: []runtime.Object{
-				&certificatesv1alpha1.ClusterTrustBundle{
+				&certificatesv1beta1.ClusterTrustBundle{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: testBundleName,
 					},
-					Spec: certificatesv1alpha1.ClusterTrustBundleSpec{
+					Spec: certificatesv1beta1.ClusterTrustBundleSpec{
 						SignerName:  testSignerName,
 						TrustBundle: "olddata",
 					},
 				},
-				&certificatesv1alpha1.ClusterTrustBundle{
+				&certificatesv1beta1.ClusterTrustBundle{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "test.test/testSigner:name2",
 					},
-					Spec: certificatesv1alpha1.ClusterTrustBundleSpec{
+					Spec: certificatesv1beta1.ClusterTrustBundleSpec{
 						SignerName:  testSignerName,
 						TrustBundle: string(testCAProvider.CurrentCABundleContent()),
 					},
@@ -202,11 +202,11 @@ func TestCTBPublisherSync(t *testing.T) {
 		{
 			name: "another CTB with a different name exists for the signer",
 			existingCTBs: []runtime.Object{
-				&certificatesv1alpha1.ClusterTrustBundle{
+				&certificatesv1beta1.ClusterTrustBundle{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "test.test/testSigner:preexisting",
 					},
-					Spec: certificatesv1alpha1.ClusterTrustBundleSpec{
+					Spec: certificatesv1beta1.ClusterTrustBundleSpec{
 						SignerName:  testSignerName,
 						TrustBundle: string(testCAProvider.CurrentCABundleContent()),
 					},
@@ -224,28 +224,28 @@ func TestCTBPublisherSync(t *testing.T) {
 		{
 			name: "CTB at the correct state - noop",
 			existingCTBs: []runtime.Object{
-				&certificatesv1alpha1.ClusterTrustBundle{
+				&certificatesv1beta1.ClusterTrustBundle{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "nosigner",
 					},
-					Spec: certificatesv1alpha1.ClusterTrustBundleSpec{
+					Spec: certificatesv1beta1.ClusterTrustBundleSpec{
 						TrustBundle: "somedatahere",
 					},
 				},
-				&certificatesv1alpha1.ClusterTrustBundle{
+				&certificatesv1beta1.ClusterTrustBundle{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "signer:one",
 					},
-					Spec: certificatesv1alpha1.ClusterTrustBundleSpec{
+					Spec: certificatesv1beta1.ClusterTrustBundleSpec{
 						SignerName:  "signer",
 						TrustBundle: "signerdata",
 					},
 				},
-				&certificatesv1alpha1.ClusterTrustBundle{
+				&certificatesv1beta1.ClusterTrustBundle{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: testBundleName,
 					},
-					Spec: certificatesv1alpha1.ClusterTrustBundleSpec{
+					Spec: certificatesv1beta1.ClusterTrustBundleSpec{
 						SignerName:  testSignerName,
 						TrustBundle: string(testCAProvider.CurrentCABundleContent()),
 					},
@@ -297,9 +297,9 @@ func fakeKubeClientSetWithCTBList(t *testing.T, signerName string, ctbs ...runti
 			return false, nil, nil
 		}
 
-		retList := &certificatesv1alpha1.ClusterTrustBundleList{}
+		retList := &certificatesv1beta1.ClusterTrustBundleList{}
 		for _, ctb := range ctbs {
-			ctbObj, ok := ctb.(*certificatesv1alpha1.ClusterTrustBundle)
+			ctbObj, ok := ctb.(*certificatesv1beta1.ClusterTrustBundle)
 			if !ok {
 				continue
 			}

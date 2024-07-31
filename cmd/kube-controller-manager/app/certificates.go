@@ -23,7 +23,7 @@ import (
 	"context"
 	"fmt"
 
-	certificatesv1alpha1 "k8s.io/api/certificates/v1alpha1"
+	certificatesv1beta1 "k8s.io/api/certificates/v1beta1"
 	"k8s.io/apiserver/pkg/server/dynamiccertificates"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/client-go/kubernetes"
@@ -272,7 +272,7 @@ func newKubeAPIServerSignerClusterTrustBundledPublisherController(ctx context.Co
 }
 
 func clusterTrustBundlesAvailable(client kubernetes.Interface) (bool, error) {
-	resList, err := client.Discovery().ServerResourcesForGroupVersion(certificatesv1alpha1.SchemeGroupVersion.String())
+	resList, err := client.Discovery().ServerResourcesForGroupVersion(certificatesv1beta1.SchemeGroupVersion.String())
 
 	if resList != nil {
 		// even in case of an error above there might be a partial list for APIs that

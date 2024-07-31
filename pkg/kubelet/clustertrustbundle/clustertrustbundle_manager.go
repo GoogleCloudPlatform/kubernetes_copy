@@ -25,13 +25,13 @@ import (
 	"math/rand"
 	"time"
 
-	certificatesv1alpha1 "k8s.io/api/certificates/v1alpha1"
+	certificatesv1beta1 "k8s.io/api/certificates/v1beta1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	lrucache "k8s.io/apimachinery/pkg/util/cache"
 	"k8s.io/apimachinery/pkg/util/sets"
-	certinformersv1alpha1 "k8s.io/client-go/informers/certificates/v1alpha1"
-	certlistersv1alpha1 "k8s.io/client-go/listers/certificates/v1alpha1"
+	certinformersv1beta1 "k8s.io/client-go/informers/certificates/v1beta1"
+	certlistersv1beta1 "k8s.io/client-go/listers/certificates/v1beta1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/klog/v2"
 )
@@ -50,7 +50,7 @@ type Manager interface {
 // ClusterTrustBundle objects.
 type InformerManager struct {
 	ctbInformer cache.SharedIndexInformer
-	ctbLister   certlistersv1alpha1.ClusterTrustBundleLister
+	ctbLister   certlistersv1beta1.ClusterTrustBundleLister
 
 	normalizationCache *lrucache.LRUExpireCache
 	cacheTTL           time.Duration
@@ -59,7 +59,7 @@ type InformerManager struct {
 var _ Manager = (*InformerManager)(nil)
 
 // NewInformerManager returns an initialized InformerManager.
-func NewInformerManager(ctx context.Context, bundles certinformersv1alpha1.ClusterTrustBundleInformer, cacheSize int, cacheTTL time.Duration) (*InformerManager, error) {
+func NewInformerManager(ctx context.Context, bundles certinformersv1beta1.ClusterTrustBundleInformer, cacheSize int, cacheTTL time.Duration) (*InformerManager, error) {
 	// We need to call Informer() before calling start on the shared informer
 	// factory, or the informer won't be registered to be started.
 	m := &InformerManager{
@@ -74,7 +74,7 @@ func NewInformerManager(ctx context.Context, bundles certinformersv1alpha1.Clust
 	// apply to them.
 	_, err := m.ctbInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj any) {
-			ctb, ok := obj.(*certificatesv1alpha1.ClusterTrustBundle)
+			ctb, ok := obj.(*certificatesv1beta1.ClusterTrustBundle)
 			if !ok {
 				return
 			}
@@ -82,21 +82,21 @@ func NewInformerManager(ctx context.Context, bundles certinformersv1alpha1.Clust
 			m.dropCacheFor(ctb)
 		},
 		UpdateFunc: func(old, new any) {
-			ctb, ok := new.(*certificatesv1alpha1.ClusterTrustBundle)
+			ctb, ok := new.(*certificatesv1beta1.ClusterTrustBundle)
 			if !ok {
 				return
 			}
 			logger.Info("Dropping cache for ClusterTrustBundle", "signerName", ctb.Spec.SignerName)
-			m.dropCacheFor(new.(*certificatesv1alpha1.ClusterTrustBundle))
+			m.dropCacheFor(new.(*certificatesv1beta1.ClusterTrustBundle))
 		},
 		DeleteFunc: func(obj any) {
-			ctb, ok := obj.(*certificatesv1alpha1.ClusterTrustBundle)
+			ctb, ok := obj.(*certificatesv1beta1.ClusterTrustBundle)
 			if !ok {
 				tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
 				if !ok {
 					return
 				}
-				ctb, ok = tombstone.Obj.(*certificatesv1alpha1.ClusterTrustBundle)
+				ctb, ok = tombstone.Obj.(*certificatesv1beta1.ClusterTrustBundle)
 				if !ok {
 					return
 				}
@@ -112,7 +112,7 @@ func NewInformerManager(ctx context.Context, bundles certinformersv1alpha1.Clust
 	return m, nil
 }
 
-func (m *InformerManager) dropCacheFor(ctb *certificatesv1alpha1.ClusterTrustBundle) {
+func (m *InformerManager) dropCacheFor(ctb *certificatesv1beta1.ClusterTrustBundle) {
 	if ctb.Spec.SignerName != "" {
 		m.normalizationCache.RemoveAll(func(key any) bool {
 			return key.(cacheKeyType).signerName == ctb.Spec.SignerName
@@ -145,7 +145,7 @@ func (m *InformerManager) GetTrustAnchorsByName(name string, allowMissing bool) 
 		return nil, fmt.Errorf("while getting ClusterTrustBundle: %w", err)
 	}
 
-	pemTrustAnchors, err := m.normalizeTrustAnchors([]*certificatesv1alpha1.ClusterTrustBundle{ctb})
+	pemTrustAnchors, err := m.normalizeTrustAnchors([]*certificatesv1beta1.ClusterTrustBundle{ctb})
 	if err != nil {
 		return nil, fmt.Errorf("while normalizing trust anchors: %w", err)
 	}
@@ -184,7 +184,7 @@ func (m *InformerManager) GetTrustAnchorsBySigner(signerName string, labelSelect
 		return nil, fmt.Errorf("while listing ClusterTrustBundles matching label selector %v: %w", labelSelector, err)
 	}
 
-	ctbList := []*certificatesv1alpha1.ClusterTrustBundle{}
+	ctbList := []*certificatesv1beta1.ClusterTrustBundle{}
 	for _, ctb := range rawCTBList {
 		if ctb.Spec.SignerName == signerName {
 			ctbList = append(ctbList, ctb)
@@ -208,7 +208,7 @@ func (m *InformerManager) GetTrustAnchorsBySigner(signerName string, labelSelect
 	return pemTrustAnchors, nil
 }
 
-func (m *InformerManager) normalizeTrustAnchors(ctbList []*certificatesv1alpha1.ClusterTrustBundle) ([]byte, error) {
+func (m *InformerManager) normalizeTrustAnchors(ctbList []*certificatesv1beta1.ClusterTrustBundle) ([]byte, error) {
 	// Deduplicate trust anchors from all ClusterTrustBundles.
 	trustAnchorSet := sets.Set[string]{}
 	for _, ctb := range ctbList {

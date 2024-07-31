@@ -37,6 +37,7 @@ import (
 	batchapiv1 "k8s.io/api/batch/v1"
 	certificatesapiv1 "k8s.io/api/certificates/v1"
 	certificatesv1alpha1 "k8s.io/api/certificates/v1alpha1"
+	certificatesv1beta1 "k8s.io/api/certificates/v1beta1"
 	coordinationapiv1 "k8s.io/api/coordination/v1"
 	coordinationv1alpha2 "k8s.io/api/coordination/v1alpha2"
 	apiv1 "k8s.io/api/core/v1"
@@ -457,6 +458,7 @@ var (
 	betaAPIGroupVersionsDisabledByDefault = []schema.GroupVersion{
 		admissionregistrationv1beta1.SchemeGroupVersion,
 		authenticationv1beta1.SchemeGroupVersion,
+		certificatesv1beta1.SchemeGroupVersion,
 		storageapiv1beta1.SchemeGroupVersion,
 		flowcontrolv1beta1.SchemeGroupVersion,
 		flowcontrolv1beta2.SchemeGroupVersion,

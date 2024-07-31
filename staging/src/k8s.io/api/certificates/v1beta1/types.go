@@ -265,7 +265,7 @@ const (
 
 // +genclient
 // +genclient:nonNamespaced
-// +k8s:prerelease-lifecycle-gen:introduced=1.32
+// +k8s:prerelease-lifecycle-gen:introduced=1.33
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // ClusterTrustBundle is a cluster-scoped container for X.509 trust anchors
@@ -332,7 +332,7 @@ type ClusterTrustBundleSpec struct {
 	TrustBundle string `json:"trustBundle" protobuf:"bytes,2,opt,name=trustBundle"`
 }
 
-// +k8s:prerelease-lifecycle-gen:introduced=1.32
+// +k8s:prerelease-lifecycle-gen:introduced=1.33
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // ClusterTrustBundleList is a collection of ClusterTrustBundle objects

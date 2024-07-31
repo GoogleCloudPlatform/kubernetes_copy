@@ -23,7 +23,7 @@ import (
 	"strings"
 	"time"
 
-	certificatesv1alpha1 "k8s.io/api/certificates/v1alpha1"
+	certificatesv1beta1 "k8s.io/api/certificates/v1beta1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
@@ -31,9 +31,9 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apiserver/pkg/server/dynamiccertificates"
-	certinformers "k8s.io/client-go/informers/certificates/v1alpha1"
+	certinformers "k8s.io/client-go/informers/certificates/v1beta1"
 	clientset "k8s.io/client-go/kubernetes"
-	certlisters "k8s.io/client-go/listers/certificates/v1alpha1"
+	certlisters "k8s.io/client-go/listers/certificates/v1beta1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
@@ -174,11 +174,11 @@ func (p *ClusterTrustBundlePublisher) syncClusterTrustBundle(ctx context.Context
 
 	bundle, err := p.ctbLister.Get(bundleName)
 	if apierrors.IsNotFound(err) {
-		_, err = p.client.CertificatesV1alpha1().ClusterTrustBundles().Create(ctx, &certificatesv1alpha1.ClusterTrustBundle{
+		_, err = p.client.CertificatesV1beta1().ClusterTrustBundles().Create(ctx, &certificatesv1beta1.ClusterTrustBundle{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: bundleName,
 			},
-			Spec: certificatesv1alpha1.ClusterTrustBundleSpec{
+			Spec: certificatesv1beta1.ClusterTrustBundleSpec{
 				SignerName:  p.signerName,
 				TrustBundle: caBundle,
 			},
@@ -186,7 +186,7 @@ func (p *ClusterTrustBundlePublisher) syncClusterTrustBundle(ctx context.Context
 	} else if err == nil && bundle.Spec.TrustBundle != caBundle {
 		bundle = bundle.DeepCopy()
 		bundle.Spec.TrustBundle = caBundle
-		_, err = p.client.CertificatesV1alpha1().ClusterTrustBundles().Update(ctx, bundle, metav1.UpdateOptions{})
+		_, err = p.client.CertificatesV1beta1().ClusterTrustBundles().Update(ctx, bundle, metav1.UpdateOptions{})
 	}
 
 	if err != nil {
@@ -205,7 +205,7 @@ func (p *ClusterTrustBundlePublisher) syncClusterTrustBundle(ctx context.Context
 			continue
 		}
 
-		if err := p.client.CertificatesV1alpha1().ClusterTrustBundles().Delete(ctx, bundleObject.Name, metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
+		if err := p.client.CertificatesV1beta1().ClusterTrustBundles().Delete(ctx, bundleObject.Name, metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
 			klog.FromContext(ctx).Error(err, "failed to remove a cluster trust bundle", "bundleName", bundleObject.Name)
 			deletionError = err
 		}

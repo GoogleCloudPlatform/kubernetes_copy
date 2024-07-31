@@ -215,10 +215,20 @@ func GetEtcdStorageDataForNamespaceServedAt(namespace string, v string, removeAl
 
 		// k8s.io/kubernetes/pkg/apis/certificates/v1alpha1
 		gvr("certificates.k8s.io", "v1alpha1", "clustertrustbundles"): {
-			Stub:              `{"metadata": {"name": "example.com:signer:abc"}, "spec": {"signerName":"example.com/signer", "trustBundle": "-----BEGIN CERTIFICATE-----\nMIIBBDCBt6ADAgECAgEAMAUGAytlcDAQMQ4wDAYDVQQDEwVyb290MTAiGA8wMDAx\nMDEwMTAwMDAwMFoYDzAwMDEwMTAxMDAwMDAwWjAQMQ4wDAYDVQQDEwVyb290MTAq\nMAUGAytlcAMhAF2MoFeGa97gK2NGT1h6p1/a1GlMXAXbcjI/OShyIobPozIwMDAP\nBgNVHRMBAf8EBTADAQH/MB0GA1UdDgQWBBTWDdK2CNQiHqRjPaAWYPPtIykQgjAF\nBgMrZXADQQCtom9WGl7m2SAa4tXM9Soo/mbInBsRhn187BMoqTAHInHchKup5/3y\nl1tYJSZZsEXnXrCvw2qLCBNif6+2YYgE\n-----END CERTIFICATE-----\n"}}`,
-			ExpectedEtcdPath:  "/registry/clustertrustbundles/example.com:signer:abc",
+			Stub:              `{"metadata": {"name": "example.com:signer:abcd"}, "spec": {"signerName":"example.com/signer", "trustBundle": "-----BEGIN CERTIFICATE-----\nMIIBBDCBt6ADAgECAgEAMAUGAytlcDAQMQ4wDAYDVQQDEwVyb290MTAiGA8wMDAx\nMDEwMTAwMDAwMFoYDzAwMDEwMTAxMDAwMDAwWjAQMQ4wDAYDVQQDEwVyb290MTAq\nMAUGAytlcAMhAF2MoFeGa97gK2NGT1h6p1/a1GlMXAXbcjI/OShyIobPozIwMDAP\nBgNVHRMBAf8EBTADAQH/MB0GA1UdDgQWBBTWDdK2CNQiHqRjPaAWYPPtIykQgjAF\nBgMrZXADQQCtom9WGl7m2SAa4tXM9Soo/mbInBsRhn187BMoqTAHInHchKup5/3y\nl1tYJSZZsEXnXrCvw2qLCBNif6+2YYgE\n-----END CERTIFICATE-----\n"}}`,
+			ExpectedEtcdPath:  "/registry/clustertrustbundles/example.com:signer:abcd",
+			ExpectedGVK:       gvkP("certificates.k8s.io", "v1beta1", "ClusterTrustBundle"),
 			IntroducedVersion: "1.26",
 			RemovedVersion:    "1.37",
+		},
+		// --
+
+		// k8s.io/kubernetes/pkg/apis/certificates/v1beta1
+		gvr("certificates.k8s.io", "v1beta1", "clustertrustbundles"): {
+			Stub:              `{"metadata": {"name": "example.com:signer:abc"}, "spec": {"signerName":"example.com/signer", "trustBundle": "-----BEGIN CERTIFICATE-----\nMIIBBDCBt6ADAgECAgEAMAUGAytlcDAQMQ4wDAYDVQQDEwVyb290MTAiGA8wMDAx\nMDEwMTAwMDAwMFoYDzAwMDEwMTAxMDAwMDAwWjAQMQ4wDAYDVQQDEwVyb290MTAq\nMAUGAytlcAMhAF2MoFeGa97gK2NGT1h6p1/a1GlMXAXbcjI/OShyIobPozIwMDAP\nBgNVHRMBAf8EBTADAQH/MB0GA1UdDgQWBBTWDdK2CNQiHqRjPaAWYPPtIykQgjAF\nBgMrZXADQQCtom9WGl7m2SAa4tXM9Soo/mbInBsRhn187BMoqTAHInHchKup5/3y\nl1tYJSZZsEXnXrCvw2qLCBNif6+2YYgE\n-----END CERTIFICATE-----\n"}}`,
+			ExpectedEtcdPath:  "/registry/clustertrustbundles/example.com:signer:abc",
+			IntroducedVersion: "1.33",
+			RemovedVersion:    "1.39",
 		},
 		// --
 

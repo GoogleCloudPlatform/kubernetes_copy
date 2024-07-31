@@ -878,7 +878,7 @@ func NewMainKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 	var clusterTrustBundleManager clustertrustbundle.Manager
 	if kubeDeps.KubeClient != nil && utilfeature.DefaultFeatureGate.Enabled(features.ClusterTrustBundleProjection) {
 		kubeInformers := informers.NewSharedInformerFactoryWithOptions(kubeDeps.KubeClient, 0)
-		clusterTrustBundleManager, err = clustertrustbundle.NewInformerManager(ctx, kubeInformers.Certificates().V1alpha1().ClusterTrustBundles(), 2*int(kubeCfg.MaxPods), 5*time.Minute)
+		clusterTrustBundleManager, err = clustertrustbundle.NewInformerManager(ctx, kubeInformers.Certificates().V1beta1().ClusterTrustBundles(), 2*int(kubeCfg.MaxPods), 5*time.Minute)
 		if err != nil {
 			return nil, fmt.Errorf("while starting informer-based ClusterTrustBundle manager: %w", err)
 		}
