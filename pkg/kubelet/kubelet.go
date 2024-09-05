@@ -2821,15 +2821,25 @@ func isPodResizeInProgress(pod *v1.Pod, podStatus *kubecontainer.PodStatus) bool
 			if c.Resources.Requests != nil {
 				if cs.Resources.CPURequest != nil && !cs.Resources.CPURequest.Equal(*c.Resources.Requests.Cpu()) {
 					return true
+				} else if cs.Resources.CPURequest == nil && !c.Resources.Requests.Cpu().IsZero() {
+					return true
 				}
+			} else if cs.Resources.CPURequest != nil {
+				return true
 			}
 			if c.Resources.Limits != nil {
 				if cs.Resources.CPULimit != nil && !cs.Resources.CPULimit.Equal(*c.Resources.Limits.Cpu()) {
 					return true
+				} else if cs.Resources.CPULimit == nil && !c.Resources.Limits.Cpu().IsZero() {
+					return true
 				}
 				if cs.Resources.MemoryLimit != nil && !cs.Resources.MemoryLimit.Equal(*c.Resources.Limits.Memory()) {
 					return true
+				} else if cs.Resources.MemoryLimit == nil && !c.Resources.Limits.Memory().IsZero() {
+					return true
 				}
+			} else if cs.Resources.CPULimit != nil || cs.Resources.MemoryLimit != nil {
+				return true
 			}
 		}
 	}

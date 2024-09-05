@@ -968,6 +968,132 @@ func doPodResizeTests() {
 				},
 			},
 		},
+		{
+			name: "Burstable QoS pod, one container with cpu & memory requests + limits - remove memory limits",
+			containers: []e2epod.ResizableContainerInfo{
+				{
+					Name:      "c1",
+					Resources: &e2epod.ContainerResources{CPUReq: originalCPU, CPULim: originalCPULimit, MemReq: originalMem, MemLim: originalMemLimit},
+				},
+			},
+			patchString: `{"spec":{"containers":[
+						{"name":"c1", "resources":{"limits":{"memory": null}}}
+					]}}`,
+			expected: []e2epod.ResizableContainerInfo{
+				{
+					Name:      "c1",
+					Resources: &e2epod.ContainerResources{CPUReq: originalCPU, CPULim: originalCPULimit, MemReq: originalMem},
+				},
+			},
+		},
+		{
+			name: "Burstable QoS pod, one container with cpu & memory requests + limits - remove CPU limits",
+			containers: []e2epod.ResizableContainerInfo{
+				{
+					Name:      "c1",
+					Resources: &e2epod.ContainerResources{CPUReq: originalCPU, CPULim: originalCPULimit, MemReq: originalMem, MemLim: originalMemLimit},
+				},
+			},
+			patchString: `{"spec":{"containers":[
+						{"name":"c1", "resources":{"limits":{"cpu": null}}}
+					]}}`,
+			expected: []e2epod.ResizableContainerInfo{
+				{
+					Name:      "c1",
+					Resources: &e2epod.ContainerResources{CPUReq: originalCPU, MemReq: originalMem, MemLim: originalMemLimit},
+				},
+			},
+		},
+		{
+			name: "Burstable QoS pod, one container with memory requests + limits, cpu requests - remove CPU requests",
+			containers: []e2epod.ResizableContainerInfo{
+				{
+					Name:      "c1",
+					Resources: &e2epod.ContainerResources{CPUReq: originalCPU, MemReq: originalMem, MemLim: originalMemLimit},
+				},
+			},
+			patchString: `{"spec":{"containers":[
+						{"name":"c1", "resources":{"requests":{"cpu": null}}}
+					]}}`,
+			expected: []e2epod.ResizableContainerInfo{
+				{
+					Name:      "c1",
+					Resources: &e2epod.ContainerResources{MemReq: originalMem, MemLim: originalMemLimit},
+				},
+			},
+		},
+		{
+			name: "Burstable QoS pod, one container with CPU requests + limits, cpu requests - remove memory requests",
+			containers: []e2epod.ResizableContainerInfo{
+				{
+					Name:      "c1",
+					Resources: &e2epod.ContainerResources{CPUReq: originalCPU, CPULim: originalCPULimit, MemReq: originalMem},
+				},
+			},
+			patchString: `{"spec":{"containers":[
+						{"name":"c1", "resources":{"requests":{"memory": null}}}
+					]}}`,
+			expected: []e2epod.ResizableContainerInfo{
+				{
+					Name:      "c1",
+					Resources: &e2epod.ContainerResources{CPUReq: originalCPU, CPULim: originalCPULimit},
+				},
+			},
+		},
+		{
+			name: "Burstable QoS pod, one container with cpu & memory requests + limits - remove all limits",
+			containers: []e2epod.ResizableContainerInfo{
+				{
+					Name:      "c1",
+					Resources: &e2epod.ContainerResources{CPUReq: originalCPU, CPULim: originalCPULimit, MemReq: originalMem, MemLim: originalMemLimit},
+				},
+			},
+			patchString: `{"spec":{"containers":[
+						{"name":"c1", "resources":{"limits":null}}
+					]}}`,
+			expected: []e2epod.ResizableContainerInfo{
+				{
+					Name:      "c1",
+					Resources: &e2epod.ContainerResources{CPUReq: originalCPU, MemReq: originalMem},
+				},
+			},
+		},
+		{
+			name: "Burstable QoS pod, one container with cpu & memory requests + limits - remove cpu request + limits",
+			containers: []e2epod.ResizableContainerInfo{
+				{
+					Name:      "c1",
+					Resources: &e2epod.ContainerResources{CPUReq: originalCPU, CPULim: originalCPULimit, MemReq: originalMem, MemLim: originalMemLimit},
+				},
+			},
+			patchString: `{"spec":{"containers":[
+						{"name":"c1", "resources":{"requests":{"cpu":null},"limits":{"cpu":null}}}
+					]}}`,
+			expected: []e2epod.ResizableContainerInfo{
+				{
+					Name:      "c1",
+					Resources: &e2epod.ContainerResources{MemReq: originalMem, MemLim: originalMemLimit},
+				},
+			},
+		},
+		{
+			name: "Burstable QoS pod, one container with cpu & memory requests + limits - remove memory request + limits",
+			containers: []e2epod.ResizableContainerInfo{
+				{
+					Name:      "c1",
+					Resources: &e2epod.ContainerResources{CPUReq: originalCPU, CPULim: originalCPULimit, MemReq: originalMem, MemLim: originalMemLimit},
+				},
+			},
+			patchString: `{"spec":{"containers":[
+						{"name":"c1", "resources":{"requests":{"memory":null},"limits":{"memory":null}}}
+					]}}`,
+			expected: []e2epod.ResizableContainerInfo{
+				{
+					Name:      "c1",
+					Resources: &e2epod.ContainerResources{CPUReq: originalCPU, CPULim: originalCPULimit},
+				},
+			},
+		},
 	}
 
 	for idx := range tests {

@@ -47,6 +47,13 @@ func (m *kubeGenericRuntimeManager) generateContainerResources(pod *v1.Pod, cont
 	}
 }
 
+// generateContainerResourcesForUpdate generates platform specific (windows) container resources config for runtime
+// with setting special values to parameters that will be updated to max.
+func (m *kubeGenericRuntimeManager) generateContainerResourcesForUpdate(pod *v1.Pod, container *v1.Container) *runtimeapi.ContainerResources {
+	// TODO: Set values for updating resources to max.
+	return m.generateContainerResources(pod, container)
+}
+
 // generateWindowsContainerResources generates windows container resources config for runtime
 func (m *kubeGenericRuntimeManager) generateWindowsContainerResources(pod *v1.Pod, container *v1.Container) *runtimeapi.WindowsContainerResources {
 	wcr := m.calculateWindowsResources(container.Resources.Limits.Cpu(), container.Resources.Limits.Memory())
