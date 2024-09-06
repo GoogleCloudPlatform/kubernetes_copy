@@ -20,13 +20,11 @@ import (
 	"context"
 	"fmt"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	kubecm "k8s.io/kubernetes/pkg/kubelet/cm"
@@ -37,15 +35,6 @@ import (
 	e2eskipper "k8s.io/kubernetes/test/e2e/framework/skipper"
 	imageutils "k8s.io/kubernetes/test/utils/image"
 	admissionapi "k8s.io/pod-security-admission/api"
-)
-
-const (
-	cgroupv2CPUWeight string = "cpu.weight"
-	cgroupv2CPULimit  string = "cpu.max"
-	cgroupv2MemLimit  string = "memory.max"
-	cgroupFsPath      string = "/sys/fs/cgroup"
-	CPUPeriod         string = "100000"
-	mountPath         string = "/sysfscgroup"
 )
 
 var (
@@ -78,6 +67,7 @@ var _ = SIGDescribe("Pod Level Resources", framework.WithSerial(), feature.PodLe
 // the label in the test job, to tun this test on a node with cgroupv2.
 func isCgroupv2Node(f *framework.Framework, ctx context.Context) bool {
 	podClient := e2epod.NewPodClient(f)
+	containerResources := e2epod.ContainerResources{CPULim: "1m", MemReq: "1Mi"}
 	cgroupv2Testpod := &v1.Pod{
 		ObjectMeta: makeObjectMetadata("cgroupv2-check", f.Namespace.Name),
 		Spec: v1.PodSpec{
@@ -86,7 +76,7 @@ func isCgroupv2Node(f *framework.Framework, ctx context.Context) bool {
 					Name:      "cgroupv2-check",
 					Image:     imageutils.GetE2EImage(imageutils.BusyBox),
 					Command:   cmd,
-					Resources: getResourceRequirements(&resourceInfo{CPULim: "1m", MemReq: "1Mi"}),
+					Resources: *containerResources.ResourceRequirements(),
 				},
 			},
 		},
@@ -111,59 +101,27 @@ func makeObjectMetadata(name, namespace string) metav1.ObjectMeta {
 
 type containerInfo struct {
 	Name      string
-	Resources *resourceInfo
-}
-type resourceInfo struct {
-	CPUReq string
-	CPULim string
-	MemReq string
-	MemLim string
+	Resources *e2epod.ContainerResources
 }
 
 func makeContainer(info containerInfo) v1.Container {
 	cmd := []string{"/bin/sh", "-c", "sleep 1d"}
-	res := getResourceRequirements(info.Resources)
+	var resources v1.ResourceRequirements
+	if info.Resources != nil {
+		resources = *info.Resources.ResourceRequirements()
+	}
 	return v1.Container{
 		Name:      info.Name,
 		Command:   cmd,
-		Resources: res,
+		Resources: resources,
 		Image:     imageutils.GetE2EImage(imageutils.BusyBox),
 		VolumeMounts: []v1.VolumeMount{
-			{
-				Name:      "sysfscgroup",
-				MountPath: mountPath,
-			},
+			e2epod.CreateVolumeMountForCgroup(),
 		},
 	}
 }
 
-func getResourceRequirements(info *resourceInfo) v1.ResourceRequirements {
-	var res v1.ResourceRequirements
-	if info != nil {
-		if info.CPUReq != "" || info.MemReq != "" {
-			res.Requests = make(v1.ResourceList)
-		}
-		if info.CPUReq != "" {
-			res.Requests[v1.ResourceCPU] = resource.MustParse(info.CPUReq)
-		}
-		if info.MemReq != "" {
-			res.Requests[v1.ResourceMemory] = resource.MustParse(info.MemReq)
-		}
-
-		if info.CPULim != "" || info.MemLim != "" {
-			res.Limits = make(v1.ResourceList)
-		}
-		if info.CPULim != "" {
-			res.Limits[v1.ResourceCPU] = resource.MustParse(info.CPULim)
-		}
-		if info.MemLim != "" {
-			res.Limits[v1.ResourceMemory] = resource.MustParse(info.MemLim)
-		}
-	}
-	return res
-}
-
-func makePod(metadata *metav1.ObjectMeta, podResources *resourceInfo, containers []containerInfo) *v1.Pod {
+func makePod(metadata *metav1.ObjectMeta, podResources *e2epod.ContainerResources, containers []containerInfo) *v1.Pod {
 	var testContainers []v1.Container
 	for _, container := range containers {
 		testContainers = append(testContainers, makeContainer(container))
@@ -175,32 +133,26 @@ func makePod(metadata *metav1.ObjectMeta, podResources *resourceInfo, containers
 		Spec: v1.PodSpec{
 			Containers: testContainers,
 			Volumes: []v1.Volume{
-				{
-					Name: "sysfscgroup",
-					VolumeSource: v1.VolumeSource{
-						HostPath: &v1.HostPathVolumeSource{Path: cgroupFsPath},
-					},
-				},
+				e2epod.CreateHostPathVolumeForCgroup(),
 			},
 		},
 	}
 
 	if podResources != nil {
-		res := getResourceRequirements(podResources)
-		pod.Spec.Resources = &res
+		res := podResources.ResourceRequirements()
+		pod.Spec.Resources = res
 	}
 
 	return pod
 }
 
-func verifyPodResources(gotPod v1.Pod, inputInfo, expectedInfo *resourceInfo) {
+func verifyPodResources(gotPod v1.Pod, inputInfo, expectedInfo *e2epod.ContainerResources) {
 	ginkgo.GinkgoHelper()
 	var expectedResources *v1.ResourceRequirements
 	// expectedResources will be nil if pod-level resources are not set in the test
 	// case input.
 	if inputInfo != nil {
-		resourceInfo := getResourceRequirements(expectedInfo)
-		expectedResources = &resourceInfo
+		expectedResources = expectedInfo.ResourceRequirements()
 	}
 	gomega.Expect(expectedResources).To(gomega.Equal(gotPod.Spec.Resources))
 }
@@ -208,46 +160,6 @@ func verifyPodResources(gotPod v1.Pod, inputInfo, expectedInfo *resourceInfo) {
 func verifyQoS(gotPod v1.Pod, expectedQoS v1.PodQOSClass) {
 	ginkgo.GinkgoHelper()
 	gomega.Expect(expectedQoS).To(gomega.Equal(gotPod.Status.QOSClass))
-}
-
-// TODO(ndixita): dedup the conversion logic in pod resize test and move to helpers/utils.
-func verifyPodCgroups(ctx context.Context, f *framework.Framework, pod *v1.Pod, info *resourceInfo) error {
-	ginkgo.GinkgoHelper()
-	cmd := fmt.Sprintf("find %s -name '*%s*'", mountPath, strings.ReplaceAll(string(pod.UID), "-", "_"))
-	framework.Logf("Namespace %s Pod %s - looking for Pod cgroup directory path: %q", f.Namespace, pod.Name, cmd)
-	podCgPath, stderr, err := e2epod.ExecCommandInContainerWithFullOutput(f, pod.Name, pod.Spec.Containers[0].Name, []string{"/bin/sh", "-c", cmd}...)
-	if err != nil || len(stderr) > 0 {
-		return fmt.Errorf("encountered error while running command: %q, \nerr: %w \nstdErr: %q", cmd, err, stderr)
-	}
-
-	expectedResources := getResourceRequirements(info)
-	cpuWeightCgPath := fmt.Sprintf("%s/%s", podCgPath, cgroupv2CPUWeight)
-	expectedCPUShares := int64(kubecm.MilliCPUToShares(expectedResources.Requests.Cpu().MilliValue()))
-	expectedCPUShares = int64(1 + ((expectedCPUShares-2)*9999)/262142)
-	// convert cgroup v1 cpu.shares value to cgroup v2 cpu.weight value
-	// https://github.com/kubernetes/enhancements/tree/master/keps/sig-node/2254-cgroup-v2#phase-1-convert-from-cgroups-v1-settings-to-v2
-	var errs []error
-	err = e2epod.VerifyCgroupValue(f, pod, pod.Spec.Containers[0].Name, cpuWeightCgPath, strconv.FormatInt(expectedCPUShares, 10))
-	if err != nil {
-		errs = append(errs, fmt.Errorf("failed to verify cpu request cgroup value: %w", err))
-	}
-
-	cpuLimCgPath := fmt.Sprintf("%s/%s", podCgPath, cgroupv2CPULimit)
-	cpuQuota := kubecm.MilliCPUToQuota(expectedResources.Limits.Cpu().MilliValue(), kubecm.QuotaPeriod)
-	expectedCPULimit := strconv.FormatInt(cpuQuota, 10)
-	expectedCPULimit = fmt.Sprintf("%s %s", expectedCPULimit, CPUPeriod)
-	err = e2epod.VerifyCgroupValue(f, pod, pod.Spec.Containers[0].Name, cpuLimCgPath, expectedCPULimit)
-	if err != nil {
-		errs = append(errs, fmt.Errorf("failed to verify cpu limit cgroup value: %w", err))
-	}
-
-	memLimCgPath := fmt.Sprintf("%s/%s", podCgPath, cgroupv2MemLimit)
-	expectedMemLim := strconv.FormatInt(expectedResources.Limits.Memory().Value(), 10)
-	err = e2epod.VerifyCgroupValue(f, pod, pod.Spec.Containers[0].Name, memLimCgPath, expectedMemLim)
-	if err != nil {
-		errs = append(errs, fmt.Errorf("failed to verify memory limit cgroup value: %w", err))
-	}
-	return utilerrors.NewAggregate(errs)
 }
 
 func podLevelResourcesTests(f *framework.Framework) {
@@ -258,12 +170,12 @@ func podLevelResourcesTests(f *framework.Framework) {
 		// are specified, totalPodResources is equal to pod-level resources.
 		// Otherwise, it is calculated by aggregating resource requests and
 		// limits from all containers within the pod..
-		totalPodResources *resourceInfo
+		totalPodResources *e2epod.ContainerResources
 	}
 
 	type testCase struct {
 		name         string
-		podResources *resourceInfo
+		podResources *e2epod.ContainerResources
 		containers   []containerInfo
 		expected     expectedPodConfig
 	}
@@ -272,81 +184,81 @@ func podLevelResourcesTests(f *framework.Framework) {
 		{
 			name: "Guaranteed QoS pod with container resources",
 			containers: []containerInfo{
-				{Name: "c1", Resources: &resourceInfo{CPUReq: "50m", CPULim: "50m", MemReq: "70Mi", MemLim: "70Mi"}},
-				{Name: "c2", Resources: &resourceInfo{CPUReq: "70m", CPULim: "70m", MemReq: "50Mi", MemLim: "50Mi"}},
+				{Name: "c1", Resources: &e2epod.ContainerResources{CPUReq: "50m", CPULim: "50m", MemReq: "70Mi", MemLim: "70Mi"}},
+				{Name: "c2", Resources: &e2epod.ContainerResources{CPUReq: "70m", CPULim: "70m", MemReq: "50Mi", MemLim: "50Mi"}},
 			},
 			expected: expectedPodConfig{
 				qos:               v1.PodQOSGuaranteed,
-				totalPodResources: &resourceInfo{CPUReq: "120m", CPULim: "120m", MemReq: "120Mi", MemLim: "120Mi"},
+				totalPodResources: &e2epod.ContainerResources{CPUReq: "120m", CPULim: "120m", MemReq: "120Mi", MemLim: "120Mi"},
 			},
 		},
 		{
 			name:         "Guaranteed QoS pod, no container resources",
-			podResources: &resourceInfo{CPUReq: "100m", CPULim: "100m", MemReq: "100Mi", MemLim: "100Mi"},
+			podResources: &e2epod.ContainerResources{CPUReq: "100m", CPULim: "100m", MemReq: "100Mi", MemLim: "100Mi"},
 			containers:   []containerInfo{{Name: "c1"}, {Name: "c2"}},
 			expected: expectedPodConfig{
 				qos:               v1.PodQOSGuaranteed,
-				totalPodResources: &resourceInfo{CPUReq: "100m", CPULim: "100m", MemReq: "100Mi", MemLim: "100Mi"},
+				totalPodResources: &e2epod.ContainerResources{CPUReq: "100m", CPULim: "100m", MemReq: "100Mi", MemLim: "100Mi"},
 			},
 		},
 		{
 			name:         "Guaranteed QoS pod with container resources",
-			podResources: &resourceInfo{CPUReq: "100m", CPULim: "100m", MemReq: "100Mi", MemLim: "100Mi"},
+			podResources: &e2epod.ContainerResources{CPUReq: "100m", CPULim: "100m", MemReq: "100Mi", MemLim: "100Mi"},
 			containers: []containerInfo{
-				{Name: "c1", Resources: &resourceInfo{CPUReq: "50m", CPULim: "100m", MemReq: "50Mi", MemLim: "100Mi"}},
-				{Name: "c2", Resources: &resourceInfo{CPUReq: "50m", CPULim: "100m", MemReq: "50Mi", MemLim: "100Mi"}},
+				{Name: "c1", Resources: &e2epod.ContainerResources{CPUReq: "50m", CPULim: "100m", MemReq: "50Mi", MemLim: "100Mi"}},
+				{Name: "c2", Resources: &e2epod.ContainerResources{CPUReq: "50m", CPULim: "100m", MemReq: "50Mi", MemLim: "100Mi"}},
 			},
 			expected: expectedPodConfig{
 				qos:               v1.PodQOSGuaranteed,
-				totalPodResources: &resourceInfo{CPUReq: "100m", CPULim: "100m", MemReq: "100Mi", MemLim: "100Mi"},
+				totalPodResources: &e2epod.ContainerResources{CPUReq: "100m", CPULim: "100m", MemReq: "100Mi", MemLim: "100Mi"},
 			},
 		},
 		{
 			name:         "Guaranteed QoS pod, 1 container with resources",
-			podResources: &resourceInfo{CPUReq: "100m", CPULim: "100m", MemReq: "100Mi", MemLim: "100Mi"},
+			podResources: &e2epod.ContainerResources{CPUReq: "100m", CPULim: "100m", MemReq: "100Mi", MemLim: "100Mi"},
 			containers: []containerInfo{
-				{Name: "c1", Resources: &resourceInfo{CPUReq: "50m", CPULim: "100m", MemReq: "50Mi", MemLim: "100Mi"}},
+				{Name: "c1", Resources: &e2epod.ContainerResources{CPUReq: "50m", CPULim: "100m", MemReq: "50Mi", MemLim: "100Mi"}},
 				{Name: "c2"},
 			},
 			expected: expectedPodConfig{
 				qos:               v1.PodQOSGuaranteed,
-				totalPodResources: &resourceInfo{CPUReq: "100m", CPULim: "100m", MemReq: "100Mi", MemLim: "100Mi"},
+				totalPodResources: &e2epod.ContainerResources{CPUReq: "100m", CPULim: "100m", MemReq: "100Mi", MemLim: "100Mi"},
 			},
 		},
 		{
 			name:         "Burstable QoS pod, no container resources",
-			podResources: &resourceInfo{CPUReq: "50m", CPULim: "100m", MemReq: "50Mi", MemLim: "100Mi"},
+			podResources: &e2epod.ContainerResources{CPUReq: "50m", CPULim: "100m", MemReq: "50Mi", MemLim: "100Mi"},
 			containers: []containerInfo{
 				{Name: "c1"},
 				{Name: "c2"},
 			},
 			expected: expectedPodConfig{
 				qos:               v1.PodQOSBurstable,
-				totalPodResources: &resourceInfo{CPUReq: "50m", CPULim: "100m", MemReq: "50Mi", MemLim: "100Mi"},
+				totalPodResources: &e2epod.ContainerResources{CPUReq: "50m", CPULim: "100m", MemReq: "50Mi", MemLim: "100Mi"},
 			},
 		},
 		{
 			name:         "Burstable QoS pod with container resources",
-			podResources: &resourceInfo{CPUReq: "50m", CPULim: "100m", MemReq: "50Mi", MemLim: "100Mi"},
+			podResources: &e2epod.ContainerResources{CPUReq: "50m", CPULim: "100m", MemReq: "50Mi", MemLim: "100Mi"},
 			containers: []containerInfo{
-				{Name: "c1", Resources: &resourceInfo{CPUReq: "20m", CPULim: "100m", MemReq: "20Mi", MemLim: "100Mi"}},
-				{Name: "c2", Resources: &resourceInfo{CPUReq: "30m", CPULim: "100m", MemReq: "30Mi", MemLim: "100Mi"}},
+				{Name: "c1", Resources: &e2epod.ContainerResources{CPUReq: "20m", CPULim: "100m", MemReq: "20Mi", MemLim: "100Mi"}},
+				{Name: "c2", Resources: &e2epod.ContainerResources{CPUReq: "30m", CPULim: "100m", MemReq: "30Mi", MemLim: "100Mi"}},
 			},
 			expected: expectedPodConfig{
 				qos:               v1.PodQOSBurstable,
-				totalPodResources: &resourceInfo{CPUReq: "50m", CPULim: "100m", MemReq: "50Mi", MemLim: "100Mi"},
+				totalPodResources: &e2epod.ContainerResources{CPUReq: "50m", CPULim: "100m", MemReq: "50Mi", MemLim: "100Mi"},
 			},
 		},
 		{
 			name:         "Burstable QoS pod, 1 container with resources",
-			podResources: &resourceInfo{CPUReq: "50m", CPULim: "100m", MemReq: "50Mi", MemLim: "100Mi"},
+			podResources: &e2epod.ContainerResources{CPUReq: "50m", CPULim: "100m", MemReq: "50Mi", MemLim: "100Mi"},
 			containers: []containerInfo{
-				{Name: "c1", Resources: &resourceInfo{CPUReq: "20m", CPULim: "100m", MemReq: "50Mi", MemLim: "100Mi"}},
+				{Name: "c1", Resources: &e2epod.ContainerResources{CPUReq: "20m", CPULim: "100m", MemReq: "50Mi", MemLim: "100Mi"}},
 				{Name: "c2"},
 			},
 			expected: expectedPodConfig{
 				qos:               v1.PodQOSBurstable,
-				totalPodResources: &resourceInfo{CPUReq: "50m", CPULim: "100m", MemReq: "50Mi", MemLim: "100Mi"},
+				totalPodResources: &e2epod.ContainerResources{CPUReq: "50m", CPULim: "100m", MemReq: "50Mi", MemLim: "100Mi"},
 			},
 		},
 	}
@@ -367,7 +279,7 @@ func podLevelResourcesTests(f *framework.Framework) {
 			verifyQoS(*pod, tc.expected.qos)
 
 			ginkgo.By("verifying pod cgroup values")
-			err := verifyPodCgroups(ctx, f, pod, tc.expected.totalPodResources)
+			err := e2epod.VerifyPodCgroups(ctx, f, pod, tc.expected.totalPodResources)
 			framework.ExpectNoError(err, "failed to verify pod's cgroup values: %v", err)
 
 			ginkgo.By("verifying containers cgroup limits are same as pod container's cgroup limits")
@@ -387,7 +299,7 @@ func verifyContainersCgroupLimits(f *framework.Framework, pod *v1.Pod) error {
 		if pod.Spec.Resources != nil && pod.Spec.Resources.Limits.Memory() != nil &&
 			container.Resources.Limits.Memory() == nil {
 			expectedCgroupMemLimit := strconv.FormatInt(pod.Spec.Resources.Limits.Memory().Value(), 10)
-			err := e2epod.VerifyCgroupValue(f, pod, container.Name, fmt.Sprintf("%s/%s", cgroupFsPath, cgroupv2MemLimit), expectedCgroupMemLimit)
+			err := e2epod.VerifyCgroupValue(f, pod, container.Name, e2epod.Cgroupv2MemLimit, expectedCgroupMemLimit)
 			if err != nil {
 				errs = append(errs, fmt.Errorf("failed to verify memory limit cgroup value: %w", err))
 			}
@@ -397,8 +309,8 @@ func verifyContainersCgroupLimits(f *framework.Framework, pod *v1.Pod) error {
 			container.Resources.Limits.Cpu() == nil {
 			cpuQuota := kubecm.MilliCPUToQuota(pod.Spec.Resources.Limits.Cpu().MilliValue(), kubecm.QuotaPeriod)
 			expectedCPULimit := strconv.FormatInt(cpuQuota, 10)
-			expectedCPULimit = fmt.Sprintf("%s %s", expectedCPULimit, CPUPeriod)
-			err := e2epod.VerifyCgroupValue(f, pod, container.Name, fmt.Sprintf("%s/%s", cgroupFsPath, cgroupv2CPULimit), expectedCPULimit)
+			expectedCPULimit = fmt.Sprintf("%s %s", expectedCPULimit, e2epod.CPUPeriod)
+			err := e2epod.VerifyCgroupValue(f, pod, container.Name, e2epod.Cgroupv2CPULimit, expectedCPULimit)
 			if err != nil {
 				errs = append(errs, fmt.Errorf("failed to verify cpu limit cgroup value: %w", err))
 			}
