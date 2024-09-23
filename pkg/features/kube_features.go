@@ -275,6 +275,14 @@ const (
 	// deletion ordering.
 	HonorPVReclaimPolicy featuregate.Feature = "HonorPVReclaimPolicy"
 
+	// owner: @vaibhav2107
+	// GA: v1.32
+	//
+	// Add support for the eviction hard parameters to inherit their default values in
+	// case any of the paramter is changed. Earlier if any paramter is changed, the other
+	// paramters were set to 0. Disable it to use this behaviour
+	InheritDefaultEvictionValues featuregate.Feature = "InheritDefaultEvictionValues"
+
 	// owner: @vinaykul,@tallclair
 	// kep: http://kep.k8s.io/1287
 	//
