@@ -279,8 +279,8 @@ const (
 	// GA: v1.32
 	//
 	// Add support for the eviction hard parameters to inherit their default values in
-	// case any of the paramter is changed. Earlier if any paramter is changed, the other
-	// paramters were set to 0. Disable it to use this behaviour
+	// case any of the parameter is changed. Earlier if any parameter is changed, the other
+	// parameters were set to 0. Disable it to use this behaviour
 	InheritDefaultEvictionValues featuregate.Feature = "InheritDefaultEvictionValues"
 
 	// owner: @vinaykul,@tallclair
