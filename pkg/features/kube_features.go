@@ -276,7 +276,7 @@ const (
 	HonorPVReclaimPolicy featuregate.Feature = "HonorPVReclaimPolicy"
 
 	// owner: @vaibhav2107
-	// GA: v1.32
+	// beta: v1.32
 	//
 	// Add support for the eviction hard parameters to inherit their default values in
 	// case any of the parameter is changed. Earlier if any parameter is changed, the other
