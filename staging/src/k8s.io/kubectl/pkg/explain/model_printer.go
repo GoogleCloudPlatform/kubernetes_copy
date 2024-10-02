@@ -38,6 +38,7 @@ type modelPrinter struct {
 	Writer       *Formatter
 	Builder      fieldsPrinterBuilder
 	GVK          schema.GroupVersionKind
+	Depth        int
 	Error        error
 }
 
@@ -156,8 +157,8 @@ func (m *modelPrinter) VisitReference(r proto.Reference) {
 }
 
 // PrintModel prints the description of a schema in writer.
-func PrintModel(name string, writer *Formatter, builder fieldsPrinterBuilder, schema proto.Schema, gvk schema.GroupVersionKind) error {
-	m := &modelPrinter{Name: name, Writer: writer, Builder: builder, GVK: gvk}
+func PrintModel(name string, writer *Formatter, builder fieldsPrinterBuilder, schema proto.Schema, gvk schema.GroupVersionKind, depth int) error {
+	m := &modelPrinter{Name: name, Writer: writer, Builder: builder, GVK: gvk, Depth: depth}
 	schema.Accept(m)
 	return m.Error
 }

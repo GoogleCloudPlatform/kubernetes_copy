@@ -116,6 +116,15 @@ func (c checkContains) doCheck(output string, err error) error {
 	return nil
 }
 
+type checkNotContains string
+
+func (c checkNotContains) doCheck(output string, err error) error {
+	if strings.Contains(output, string(c)) {
+		return fmt.Errorf("not expected substring: '%v' in string:\n%v", string(c), output)
+	}
+	return nil
+}
+
 type checkEquals string
 
 func (c checkEquals) doCheck(output string, err error) error {
@@ -378,6 +387,40 @@ func TestPlaintext(t *testing.T) {
 			Checks: ReduceDict(apiExtensionsV1OpenAPISpec.Components.Schemas["io.k8s.apiextensions-apiserver.pkg.apis.apiextensions.v1.CustomResourceValidation"].Properties, []check{}, func(checks []check, k string, v spec.Schema) []check {
 				return append(checks, checkContains(k))
 			}),
+		},
+		{
+			Name: "SchemaAllFieldsRecursiveWithDepthLimit1",
+			Context: v2.TemplateContext{
+				Document: apiExtensionsV1OpenAPI,
+				GVR: schema.GroupVersionResource{
+					Group:    "apiextensions.k8s.io",
+					Version:  "v1",
+					Resource: "customresourcedefinitions",
+				},
+				FieldPath: []string{"spec", "versions", "schema"},
+				Recursive: true,
+				Depth:     1,
+			},
+			Checks: []check{
+				checkNotContains(`x-kubernetes-embedded-resource`),
+			},
+		},
+		{
+			Name: "SchemaAllFieldsRecursiveWithDepthLimit2",
+			Context: v2.TemplateContext{
+				Document: apiExtensionsV1OpenAPI,
+				GVR: schema.GroupVersionResource{
+					Group:    "apiextensions.k8s.io",
+					Version:  "v1",
+					Resource: "customresourcedefinitions",
+				},
+				FieldPath: []string{"spec", "versions", "schema"},
+				Recursive: true,
+				Depth:     2,
+			},
+			Checks: []check{
+				checkContains(`x-kubernetes-embedded-resource`),
+			},
 		},
 		{
 			// Shows that the typeguess template works with scalars

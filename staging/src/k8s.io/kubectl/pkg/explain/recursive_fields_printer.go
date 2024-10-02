@@ -16,7 +16,9 @@ limitations under the License.
 
 package explain
 
-import "k8s.io/kube-openapi/pkg/util/proto"
+import (
+	"k8s.io/kube-openapi/pkg/util/proto"
+)
 
 // indentPerLevel is the level of indentation for each field recursion.
 const indentPerLevel = 3
@@ -24,8 +26,10 @@ const indentPerLevel = 3
 // recursiveFieldsPrinter recursively prints all the fields for a given
 // schema.
 type recursiveFieldsPrinter struct {
-	Writer *Formatter
-	Error  error
+	Writer       *Formatter
+	Error        error
+	Depth        int
+	CurrentDepth int
 }
 
 var _ proto.SchemaVisitor = &recursiveFieldsPrinter{}
@@ -41,10 +45,16 @@ func (f *recursiveFieldsPrinter) VisitArray(a *proto.Array) {
 // inside each of these (pre-order).
 func (f *recursiveFieldsPrinter) VisitKind(k *proto.Kind) {
 	for _, key := range k.Keys() {
+		if f.Depth > 0 && f.CurrentDepth >= f.Depth {
+			continue
+		}
+
 		v := k.Fields[key]
 		f.Writer.Write("%s\t<%s>", key, GetTypeName(v))
 		subFields := &recursiveFieldsPrinter{
-			Writer: f.Writer.Indent(indentPerLevel),
+			Writer:       f.Writer.Indent(indentPerLevel),
+			Depth:        f.Depth,
+			CurrentDepth: f.CurrentDepth + 1, // Increment the current depth
 		}
 		if err := subFields.PrintFields(v); err != nil {
 			f.Error = err

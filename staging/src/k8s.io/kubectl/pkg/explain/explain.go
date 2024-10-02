@@ -151,7 +151,7 @@ func SplitAndParseResourceRequestWithMatchingPrefix(inResource string, mapper me
 // PrintModelDescription prints the description of a specific model or dot path.
 // If recursive, all components nested within the fields of the schema will be
 // printed.
-func PrintModelDescription(fieldsPath []string, w io.Writer, schema proto.Schema, gvk schema.GroupVersionKind, recursive bool) error {
+func PrintModelDescription(fieldsPath []string, w io.Writer, schema proto.Schema, gvk schema.GroupVersionKind, recursive bool, depth int) error {
 	fieldName := ""
 	if len(fieldsPath) != 0 {
 		fieldName = fieldsPath[len(fieldsPath)-1]
@@ -162,7 +162,7 @@ func PrintModelDescription(fieldsPath []string, w io.Writer, schema proto.Schema
 	if err != nil {
 		return err
 	}
-	b := fieldsPrinterBuilder{Recursive: recursive}
+	b := fieldsPrinterBuilder{Recursive: recursive, Depth: depth}
 	f := &Formatter{Writer: w, Wrap: 80}
-	return PrintModel(fieldName, f, b, schema, gvk)
+	return PrintModel(fieldName, f, b, schema, gvk, depth)
 }

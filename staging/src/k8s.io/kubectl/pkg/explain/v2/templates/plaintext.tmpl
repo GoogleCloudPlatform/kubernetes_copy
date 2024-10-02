@@ -36,7 +36,7 @@
     VERSION:    {{ $gvk.version }}{{"\n" -}}
     {{- "\n" -}}
 
-    {{- with include "schema" (dict "gvk" $gvk "Document" $.Document "FieldPath" $.FieldPath "Recursive" $.Recursive) -}}
+    {{- with include "schema" (dict "gvk" $gvk "Document" $.Document "FieldPath" $.FieldPath "Recursive" $.Recursive "Depth" $.Depth) -}}
         {{- . -}}
     {{- else -}}
         {{- throw "error: GVK %v not found in OpenAPI schema" $gvk -}}
@@ -98,7 +98,7 @@ Takes dictionary as argument with keys:
     {{- if not $.FieldPath -}}
         DESCRIPTION:{{- "\n" -}}
         {{- or (include "description" (dict "schema" $resolved "Document" $.Document)) "<empty>" | wrap 76 | indent 4 -}}{{- "\n" -}}
-        {{- with include "fieldList" (dict "schema" $resolved "level" 1 "Document" $.Document "Recursive" $.Recursive) -}}
+        {{- with include "fieldList" (dict "schema" $resolved "level" 1 "Document" $.Document "Recursive" $.Recursive "Depth" $.Depth) -}}
             FIELDS:{{- "\n" -}}
             {{- . -}}
         {{- end -}}
@@ -171,20 +171,26 @@ Takes dictionary as argument with keys:
     {{- else -}}
         {{- $nextContext := set $ "history" (set $.history $refString 1) -}}
         {{- $resolved := or (resolveRef $refString $.Document) $.schema -}}
-        {{- range $k, $v := $resolved.properties -}}
-            {{- template "fieldDetail" (dict "name" $k "schema" $resolved "short" $.Recursive "level" $.level "Document" $.Document) -}}
-            {{- if $.Recursive -}}
-                {{- /* Check if we already know about this element */}}
-                {{- template "fieldList" (set $nextContext "schema" $v "level" (add $.level 1)) -}}
+        
+        {{- if or (le $.level $.Depth) (le $.Depth 0) -}}  {{/* Check if current level is less than max level */}}
+            {{- range $k, $v := $resolved.properties -}}
+                {{- /* Print field name with indentation */ -}} 
+                {{- template "fieldDetail" (dict "name" $k "schema" $resolved "short" $.Recursive "level" $.level "Document" $.Document) -}}
+                {{- if $.Recursive -}}
+                    {{- /* Check if we already know about this element */}}
+                    {{- template "fieldList" (set $nextContext "schema" $v "level" (add $.level 1) "Depth" $.Depth) -}}
+                {{- end -}}
             {{- end -}}
-        {{- end -}}
-        {{- range $resolved.allOf -}}
-            {{- template "fieldList" (set $nextContext "schema" .)}}
-        {{- end -}}
-        {{- if $resolved.items}}{{- template "fieldList" (set $nextContext "schema" $resolved.items)}}{{end}}
-        {{- if and $resolved.additionalProperties (not (eq "bool" (printf "%T" $resolved.additionalProperties))) -}}
-            {{- template "fieldList" (set $nextContext "schema" $resolved.additionalProperties)}}
-        {{- end -}}
+            {{- range $resolved.allOf -}}
+                {{- template "fieldList" (set $nextContext "schema" . "Depth" $.Depth) -}}
+            {{- end -}}
+            {{- if $resolved.items -}}
+                {{- template "fieldList" (set $nextContext "schema" $resolved.items "Depth" $.Depth) -}}
+            {{- end -}}
+            {{- if and $resolved.additionalProperties (not (eq "bool" (printf "%T" $resolved.additionalProperties))) -}}
+                {{- template "fieldList" (set $nextContext "schema" $resolved.additionalProperties "Depth" $.Depth) -}}
+            {{- end -}}
+        {{- end -}} 
     {{- end -}}
 {{- end -}}
 

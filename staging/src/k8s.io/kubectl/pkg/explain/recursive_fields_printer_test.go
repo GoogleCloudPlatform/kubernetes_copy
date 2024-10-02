@@ -52,7 +52,7 @@ field2	<[]map[string]string>
 	if err != nil {
 		t.Fatalf("Invalid path %v: %v", []string{}, err)
 	}
-	if err := (fieldsPrinterBuilder{Recursive: true}).BuildFieldsPrinter(&f).PrintFields(s); err != nil {
+	if err := (fieldsPrinterBuilder{Recursive: true, Depth: 0}).BuildFieldsPrinter(&f).PrintFields(s); err != nil {
 		t.Fatalf("Failed to print fields: %v", err)
 	}
 	got := buf.String()
@@ -91,7 +91,44 @@ field2	<Object>
 	if err != nil {
 		t.Fatalf("Invalid path %v: %v", []string{}, err)
 	}
-	if err := (fieldsPrinterBuilder{Recursive: true}).BuildFieldsPrinter(&f).PrintFields(s); err != nil {
+	if err := (fieldsPrinterBuilder{Recursive: true, Depth: 0}).BuildFieldsPrinter(&f).PrintFields(s); err != nil {
+		t.Fatalf("Failed to print fields: %v", err)
+	}
+	got := buf.String()
+	if got != want {
+		t.Errorf("Got:\n%v\nWant:\n%v\n", buf.String(), want)
+	}
+}
+
+func TestRecursiveFieldsWithDepthTwo(t *testing.T) {
+	var resources = tst.NewFakeResources("test-recursive-swagger.json")
+	schema := resources.LookupResource(schema.GroupVersionKind{
+		Group:   "",
+		Version: "v2",
+		Kind:    "OneKind",
+	})
+	if schema == nil {
+		t.Fatal("Couldn't find schema v2.OneKind")
+	}
+
+	want := `field1	<Object>
+   referencefield	<Object>
+   referencesarray	<[]Object>
+field2	<Object>
+   reference	<Object>
+   string	<string>
+`
+
+	buf := bytes.Buffer{}
+	f := Formatter{
+		Writer: &buf,
+		Wrap:   80,
+	}
+	s, err := LookupSchemaForField(schema, []string{})
+	if err != nil {
+		t.Fatalf("Invalid path %v: %v", []string{}, err)
+	}
+	if err := (fieldsPrinterBuilder{Recursive: true, Depth: 2}).BuildFieldsPrinter(&f).PrintFields(s); err != nil {
 		t.Fatalf("Failed to print fields: %v", err)
 	}
 	got := buf.String()

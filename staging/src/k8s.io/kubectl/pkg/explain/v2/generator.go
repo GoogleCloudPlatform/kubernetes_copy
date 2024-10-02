@@ -41,6 +41,7 @@ type Generator interface {
 		recursive bool,
 		// Output writer
 		writer io.Writer,
+		depth int,
 	) error
 }
 
@@ -49,6 +50,7 @@ type TemplateContext struct {
 	Document  map[string]interface{}
 	Recursive bool
 	FieldPath []string
+	Depth     int
 }
 
 type generator struct {
@@ -86,6 +88,7 @@ func (g *generator) Render(
 	recursive bool,
 	// Output writer
 	writer io.Writer,
+	depth int,
 ) error {
 	compiledTemplate, ok := g.templates[templateName]
 	if !ok {
@@ -97,6 +100,7 @@ func (g *generator) Render(
 		Recursive: recursive,
 		FieldPath: fieldSelector,
 		GVR:       gvr,
+		Depth:     depth,
 	})
 	return err
 }
