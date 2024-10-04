@@ -29,9 +29,11 @@ import (
 	runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1"
 	admissionapi "k8s.io/pod-security-admission/api"
 
+	kubefeatures "k8s.io/kubernetes/pkg/features"
 	"k8s.io/kubernetes/test/e2e/feature"
 	"k8s.io/kubernetes/test/e2e/framework"
 	e2epod "k8s.io/kubernetes/test/e2e/framework/pod"
+	e2eskipper "k8s.io/kubernetes/test/e2e/framework/skipper"
 	imageutils "k8s.io/kubernetes/test/utils/image"
 	"k8s.io/utils/ptr"
 )
@@ -4649,6 +4651,10 @@ var _ = SIGDescribe(feature.SidecarContainers, "Containers Lifecycle", func() {
 				framework.ExpectNoError(err)
 
 				buffer := int64(2)
+				// FIXME: When EventedPLEG is enabled, because of #124704, a pod worker is blocked for five seconds three times at most during pod deletion.
+				if e2eskipper.IsFeatureGateEnabled(kubefeatures.EventedPLEG) {
+					buffer = int64(15)
+				}
 				deleteTime := time.Since(start).Seconds()
 				// should delete quickly and not try to start/wait on any sidecars since they never started
 				gomega.Expect(deleteTime).To(gomega.BeNumerically("<", grace+buffer), fmt.Sprintf("should delete in < %d seconds, took %f", grace+buffer, deleteTime))
