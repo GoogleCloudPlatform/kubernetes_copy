@@ -17,6 +17,8 @@ limitations under the License.
 package app
 
 import (
+	"context"
+
 	"k8s.io/component-base/featuregate"
 	"k8s.io/csi-translation-lib/plugins"
 	"k8s.io/klog/v2"
@@ -28,18 +30,19 @@ import (
 
 type probeFn func() []volume.VolumePlugin
 
-func appendPluginBasedOnFeatureFlags(plugins []volume.VolumePlugin, inTreePluginName string,
+func appendPluginBasedOnFeatureFlags(ctx context.Context, plugins []volume.VolumePlugin, inTreePluginName string,
 	featureGate featuregate.FeatureGate, pluginInfo pluginInfo) ([]volume.VolumePlugin, error) {
+	logger := klog.FromContext(ctx)
 	_, err := csimigration.CheckMigrationFeatureFlags(featureGate, pluginInfo.pluginMigrationFeature, pluginInfo.pluginUnregisterFeature)
 	if err != nil {
-		klog.InfoS("Unexpected CSI Migration Feature Flags combination detected, CSI Migration may not take effect", "err", err)
+		logger.Info("Unexpected CSI Migration Feature Flags combination detected, CSI Migration may not take effect", "err", err)
 		// TODO: fail and return here once alpha only tests can set the feature flags for a plugin correctly
 	}
 
 	// Skip appending the in-tree plugin to the list of plugins to be probed/initialized
 	// if the plugin unregister feature flag is set
 	if featureGate.Enabled(pluginInfo.pluginUnregisterFeature) {
-		klog.InfoS("Skipped registration of plugin since feature flag is enabled", "pluginName", inTreePluginName, "featureFlag", pluginInfo.pluginUnregisterFeature)
+		logger.Info("Skipped registration of plugin since feature flag is enabled", "pluginName", inTreePluginName, "featureFlag", pluginInfo.pluginUnregisterFeature)
 		return plugins, nil
 	}
 
@@ -53,12 +56,12 @@ type pluginInfo struct {
 	pluginProbeFunction     probeFn
 }
 
-func appendLegacyProviderVolumes(allPlugins []volume.VolumePlugin, featureGate featuregate.FeatureGate) ([]volume.VolumePlugin, error) {
+func appendLegacyProviderVolumes(ctx context.Context, allPlugins []volume.VolumePlugin, featureGate featuregate.FeatureGate) ([]volume.VolumePlugin, error) {
 	pluginMigrationStatus := make(map[string]pluginInfo)
 	pluginMigrationStatus[plugins.PortworxVolumePluginName] = pluginInfo{pluginMigrationFeature: features.CSIMigrationPortworx, pluginUnregisterFeature: features.InTreePluginPortworxUnregister, pluginProbeFunction: portworx.ProbeVolumePlugins}
 	var err error
 	for pluginName, pluginInfo := range pluginMigrationStatus {
-		allPlugins, err = appendPluginBasedOnFeatureFlags(allPlugins, pluginName, featureGate, pluginInfo)
+		allPlugins, err = appendPluginBasedOnFeatureFlags(ctx, allPlugins, pluginName, featureGate, pluginInfo)
 		if err != nil {
 			return allPlugins, err
 		}

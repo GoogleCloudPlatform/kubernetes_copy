@@ -20,12 +20,13 @@ limitations under the License.
 package app
 
 import (
+	"context"
 	"fmt"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
-	"k8s.io/klog/v2"
 
+	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/windows/service"
 )
 
@@ -73,13 +74,14 @@ func createWindowsJobObject(pc uint32) (windows.Handle, error) {
 	return job, nil
 }
 
-func initForOS(windowsService bool, windowsPriorityClass string) error {
+func initForOS(ctx context.Context, windowsService bool, windowsPriorityClass string) error {
+	logger := klog.FromContext(ctx)
 	priority := getPriorityValue(windowsPriorityClass)
 	if priority == 0 {
 		return fmt.Errorf("unknown priority class %s, valid ones are available at "+
 			"https://docs.microsoft.com/en-us/windows/win32/procthread/scheduling-priorities", windowsPriorityClass)
 	}
-	klog.InfoS("Creating a Windows job object and adding kubelet process to it", "windowsPriorityClass", windowsPriorityClass)
+	logger.Info("Creating a Windows job object and adding kubelet process to it", "windowsPriorityClass", windowsPriorityClass)
 	job, err := createWindowsJobObject(priority)
 	if err != nil {
 		return err

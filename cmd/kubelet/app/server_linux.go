@@ -17,27 +17,30 @@ limitations under the License.
 package app
 
 import (
+	"context"
+
 	"k8s.io/klog/v2"
 	"k8s.io/utils/inotify"
 )
 
-func watchForLockfileContention(path string, done chan struct{}) error {
+func watchForLockfileContention(ctx context.Context, path string, done chan struct{}) error {
+	logger := klog.FromContext(ctx)
 	watcher, err := inotify.NewWatcher()
 	if err != nil {
-		klog.ErrorS(err, "Unable to create watcher for lockfile")
+		logger.Error(err, "Unable to create watcher for lockfile")
 		return err
 	}
 	if err = watcher.AddWatch(path, inotify.InOpen|inotify.InDeleteSelf); err != nil {
-		klog.ErrorS(err, "Unable to watch lockfile")
+		logger.Error(err, "Unable to watch lockfile")
 		watcher.Close()
 		return err
 	}
 	go func() {
 		select {
 		case ev := <-watcher.Event:
-			klog.InfoS("Inotify event", "event", ev)
+			logger.Info("Inotify event", "event", ev)
 		case err = <-watcher.Error:
-			klog.ErrorS(err, "inotify watcher error")
+			logger.Error(err, "inotify watcher error")
 		}
 		close(done)
 		watcher.Close()
