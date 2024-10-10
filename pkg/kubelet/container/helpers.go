@@ -23,7 +23,9 @@ import (
 	"hash/fnv"
 	"strings"
 
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/klog/v2"
+	"k8s.io/kubernetes/pkg/features"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -110,11 +112,18 @@ func ShouldContainerBeRestarted(container *v1.Container, pod *v1.Pod, podStatus 
 	}
 	if pod.Spec.RestartPolicy == v1.RestartPolicyOnFailure {
 		// Check the exit code.
-		if status.ExitCode == 0 &&
-			status.Reason != string(ReasonLivenessProbe) &&
-			status.Reason != string(ReasonStartupProbe) {
-			klog.V(4).InfoS("Already successfully ran container, do nothing", "pod", klog.KObj(pod), "containerName", container.Name)
-			return false
+		if !utilfeature.DefaultFeatureGate.Enabled(features.RestartContainerDuringTermination) {
+			if status.ExitCode == 0 {
+				klog.V(4).InfoS("Already successfully ran container, do nothing", "pod", klog.KObj(pod), "containerName", container.Name)
+				return false
+			}
+		} else {
+			if status.ExitCode == 0 &&
+				status.Reason != string(ReasonLivenessProbe) &&
+				status.Reason != string(ReasonStartupProbe) {
+				klog.V(4).InfoS("Already successfully ran container, do nothing", "pod", klog.KObj(pod), "containerName", container.Name)
+				return false
+			}
 		}
 	}
 	return true

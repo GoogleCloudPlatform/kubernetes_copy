@@ -2080,28 +2080,27 @@ func (kl *Kubelet) SyncTerminatingPod(_ context.Context, pod *v1.Pod, podStatus 
 
 	kl.probeManager.StopLivenessAndStartup(pod)
 
-	var podStopped bool
-	var err error
 	if !utilfeature.DefaultFeatureGate.Enabled(features.RestartContainerDuringTermination) {
 		p := kubecontainer.ConvertPodStatusToRunningPod(kl.getRuntime().Type(), podStatus)
-		err = kl.killPod(ctx, pod, p, gracePeriod)
-		if err == nil {
-			podStopped = true
+		if err := kl.killPod(ctx, pod, p, gracePeriod); err != nil {
+			kl.recorder.Eventf(pod, v1.EventTypeWarning, events.FailedToKillPod, "error killing pod: %v", err)
+			// there was an error killing the pod, so we return that error directly
+			utilruntime.HandleError(err)
+			return err
 		}
 	} else {
-		podStopped, err = kl.syncTerminatingPod(ctx, pod, podStatus, gracePeriod, kl.getPullSecretsForPod(pod), kl.backOff)
-	}
-	if err != nil {
-		kl.recorder.Eventf(pod, v1.EventTypeWarning, events.FailedToKillPod, "error killing pod: %v", err)
-		// there was an error killing the pod, so we return that error directly
-		utilruntime.HandleError(err)
-		return err
-	}
-
-	if !podStopped {
-		// If the pod is not yet stopped, we should return an error to signal
-		// that the sync loop should back off.
-		return fmt.Errorf("pod is not yet stopped")
+		podStopped, err := kl.syncTerminatingPod(ctx, pod, podStatus, gracePeriod, kl.getPullSecretsForPod(pod), kl.backOff)
+		if err != nil {
+			kl.recorder.Eventf(pod, v1.EventTypeWarning, events.FailedToKillPod, "error killing pod: %v", err)
+			// there was an error killing the pod, so we return that error directly
+			utilruntime.HandleError(err)
+			return err
+		}
+		if !podStopped {
+			// If the pod is not yet stopped, we should return an error to signal
+			// that the sync loop should back off.
+			return fmt.Errorf("pod is not yet stopped")
+		}
 	}
 
 	// Once the containers are stopped, we can stop probing for liveness and readiness.
