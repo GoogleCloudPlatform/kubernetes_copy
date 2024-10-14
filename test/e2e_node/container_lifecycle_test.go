@@ -95,7 +95,7 @@ var _ = SIGDescribe(framework.WithNodeConformance(), "Containers Lifecycle", fun
 						InitContainers: []v1.Container{
 							{
 								Name:  init1,
-								Image: busyboxImage,
+								Image: agnhostImage,
 								Command: ExecCommand(init1, execCommand{
 									Delay:    1,
 									ExitCode: 0,
@@ -103,7 +103,7 @@ var _ = SIGDescribe(framework.WithNodeConformance(), "Containers Lifecycle", fun
 							},
 							{
 								Name:  init2,
-								Image: busyboxImage,
+								Image: agnhostImage,
 								Command: ExecCommand(init2, execCommand{
 									Delay:    1,
 									ExitCode: 0,
@@ -111,7 +111,7 @@ var _ = SIGDescribe(framework.WithNodeConformance(), "Containers Lifecycle", fun
 							},
 							{
 								Name:  init3,
-								Image: busyboxImage,
+								Image: agnhostImage,
 								Command: ExecCommand(init3, execCommand{
 									Delay:    1,
 									ExitCode: 0,
@@ -121,7 +121,7 @@ var _ = SIGDescribe(framework.WithNodeConformance(), "Containers Lifecycle", fun
 						Containers: []v1.Container{
 							{
 								Name:  regular1,
-								Image: busyboxImage,
+								Image: agnhostImage,
 								Command: ExecCommand(regular1, execCommand{
 									StartDelay: 5,
 									Delay:      1,
@@ -203,7 +203,7 @@ var _ = SIGDescribe(framework.WithNodeConformance(), "Containers Lifecycle", fun
 						InitContainers: []v1.Container{
 							{
 								Name:  init1,
-								Image: busyboxImage,
+								Image: agnhostImage,
 								Command: ExecCommand(init1, execCommand{
 									Delay:    1,
 									ExitCode: 1,
@@ -213,7 +213,7 @@ var _ = SIGDescribe(framework.WithNodeConformance(), "Containers Lifecycle", fun
 						Containers: []v1.Container{
 							{
 								Name:  regular1,
-								Image: busyboxImage,
+								Image: agnhostImage,
 								Command: ExecCommand(regular1, execCommand{
 									Delay:    1,
 									ExitCode: 0,
@@ -259,7 +259,7 @@ var _ = SIGDescribe(framework.WithNodeConformance(), "Containers Lifecycle", fun
 						InitContainers: []v1.Container{
 							{
 								Name:  init1,
-								Image: busyboxImage,
+								Image: agnhostImage,
 								Command: ExecCommand(init1, execCommand{
 									Delay:    1,
 									ExitCode: 0,
@@ -269,7 +269,7 @@ var _ = SIGDescribe(framework.WithNodeConformance(), "Containers Lifecycle", fun
 						Containers: []v1.Container{
 							{
 								Name:  regular1,
-								Image: busyboxImage,
+								Image: agnhostImage,
 								Command: ExecCommand(regular1, execCommand{
 									// Allocate sufficient time for its postStart hook
 									// to complete.
@@ -331,7 +331,7 @@ var _ = SIGDescribe(framework.WithNodeConformance(), "Containers Lifecycle", fun
 						Containers: []v1.Container{
 							{
 								Name:  regular1,
-								Image: busyboxImage,
+								Image: agnhostImage,
 								Command: ExecCommand(regular1, execCommand{
 									Delay:    1,
 									ExitCode: 1,
@@ -377,7 +377,7 @@ var _ = SIGDescribe(framework.WithNodeConformance(), "Containers Lifecycle", fun
 						Containers: []v1.Container{
 							{
 								Name:  regular1,
-								Image: busyboxImage,
+								Image: agnhostImage,
 								Command: ExecCommand(regular1, execCommand{
 									// Allocate sufficient time for its postStart hook
 									// to complete.
@@ -401,7 +401,7 @@ var _ = SIGDescribe(framework.WithNodeConformance(), "Containers Lifecycle", fun
 							},
 							{
 								Name:  regular2,
-								Image: busyboxImage,
+								Image: agnhostImage,
 								Command: ExecCommand(regular2, execCommand{
 									Delay:    1,
 									ExitCode: 0,
@@ -456,7 +456,7 @@ var _ = SIGDescribe(framework.WithNodeConformance(), "Containers Lifecycle", fun
 						Containers: []v1.Container{
 							{
 								Name:  regular1,
-								Image: busyboxImage,
+								Image: agnhostImage,
 								Command: ExecCommand(regular1, execCommand{
 									Delay:    1,
 									ExitCode: 0,
@@ -505,7 +505,7 @@ var _ = SIGDescribe(framework.WithNodeConformance(), "Containers Lifecycle", fun
 						InitContainers: []v1.Container{
 							{
 								Name:  init1,
-								Image: busyboxImage,
+								Image: agnhostImage,
 								Command: ExecCommand(init1, execCommand{
 									Delay:    1,
 									ExitCode: 0,
@@ -513,7 +513,7 @@ var _ = SIGDescribe(framework.WithNodeConformance(), "Containers Lifecycle", fun
 							},
 							{
 								Name:  init2,
-								Image: busyboxImage,
+								Image: agnhostImage,
 								Command: ExecCommand(init2, execCommand{
 									Delay:    1,
 									ExitCode: 0,
@@ -521,7 +521,7 @@ var _ = SIGDescribe(framework.WithNodeConformance(), "Containers Lifecycle", fun
 							},
 							{
 								Name:  init3,
-								Image: busyboxImage,
+								Image: agnhostImage,
 								Command: ExecCommand(init3, execCommand{
 									Delay:    1,
 									ExitCode: 0,
@@ -531,7 +531,7 @@ var _ = SIGDescribe(framework.WithNodeConformance(), "Containers Lifecycle", fun
 						Containers: []v1.Container{
 							{
 								Name:  regular1,
-								Image: busyboxImage,
+								Image: agnhostImage,
 								Command: ExecCommand(regular1, execCommand{
 									Delay:    10,
 									ExitCode: -1,
@@ -582,8 +582,8 @@ var _ = SIGDescribe(framework.WithNodeConformance(), "Containers Lifecycle", fun
 					Spec: v1.PodSpec{
 						Containers: []v1.Container{
 							{
-								Name:  "busybox",
-								Image: imageutils.GetE2EImage(imageutils.BusyBox),
+								Name:  "agnhost",
+								Image: agnhostImage,
 								Command: []string{
 									"sleep",
 									"10000",
@@ -667,7 +667,7 @@ var _ = SIGDescribe(framework.WithNodeConformance(), "Containers Lifecycle", fun
 							Containers: []v1.Container{
 								{
 									Name:  regular1,
-									Image: busyboxImage,
+									Image: agnhostImage,
 									Command: ExecCommand(regular1, execCommand{
 										Delay:              100,
 										TerminationSeconds: 15,
@@ -736,7 +736,7 @@ var _ = SIGDescribe(framework.WithNodeConformance(), "Containers Lifecycle", fun
 							Containers: []v1.Container{
 								{
 									Name:  regular1,
-									Image: busyboxImage,
+									Image: agnhostImage,
 									Command: ExecCommand(regular1, execCommand{
 										Delay:              100,
 										TerminationSeconds: 15,
@@ -805,7 +805,7 @@ var _ = SIGDescribe(framework.WithNodeConformance(), "Containers Lifecycle", fun
 								Containers: []v1.Container{
 									{
 										Name:  regular1,
-										Image: imageutils.GetE2EImage(imageutils.BusyBox),
+										Image: agnhostImage,
 										Command: ExecCommand(regular1, execCommand{
 											Delay:              100,
 											TerminationSeconds: 15,
@@ -889,7 +889,7 @@ var _ = SIGDescribe(framework.WithNodeConformance(), "Containers Lifecycle", fun
 						podSpec.Spec.InitContainers = []v1.Container{{
 							RestartPolicy: &containerRestartPolicyAlways,
 							Name:          restartableInit1,
-							Image:         imageutils.GetE2EImage(imageutils.BusyBox),
+							Image:         agnhostImage,
 							Command: ExecCommand(restartableInit1, execCommand{
 								Delay:              100,
 								TerminationSeconds: 1,
@@ -1179,7 +1179,7 @@ var _ = SIGDescribe(framework.WithSerial(), "Containers Lifecycle", func() {
 					InitContainers: []v1.Container{
 						{
 							Name:  init1,
-							Image: busyboxImage,
+							Image: agnhostImage,
 							Command: ExecCommand(init1, execCommand{
 								Delay:    5,
 								ExitCode: 0,
@@ -1187,7 +1187,7 @@ var _ = SIGDescribe(framework.WithSerial(), "Containers Lifecycle", func() {
 						},
 						{
 							Name:  init2,
-							Image: busyboxImage,
+							Image: agnhostImage,
 							Command: ExecCommand(init2, execCommand{
 								Delay:    5,
 								ExitCode: 0,
@@ -1195,7 +1195,7 @@ var _ = SIGDescribe(framework.WithSerial(), "Containers Lifecycle", func() {
 						},
 						{
 							Name:  init3,
-							Image: busyboxImage,
+							Image: agnhostImage,
 							Command: ExecCommand(init3, execCommand{
 								Delay:    5,
 								ExitCode: 0,
@@ -1205,7 +1205,7 @@ var _ = SIGDescribe(framework.WithSerial(), "Containers Lifecycle", func() {
 					Containers: []v1.Container{
 						{
 							Name:  regular1,
-							Image: busyboxImage,
+							Image: agnhostImage,
 							Command: ExecCommand(regular1, execCommand{
 								Delay:    30,
 								ExitCode: 0,
@@ -1312,7 +1312,7 @@ var _ = SIGDescribe(framework.WithSerial(), "Containers Lifecycle", func() {
 						InitContainers: []v1.Container{
 							{
 								Name:  init1,
-								Image: busyboxImage,
+								Image: agnhostImage,
 								Command: ExecCommand(init1, execCommand{
 									Delay:    1,
 									ExitCode: 0,
@@ -1320,7 +1320,7 @@ var _ = SIGDescribe(framework.WithSerial(), "Containers Lifecycle", func() {
 							},
 							{
 								Name:  init2,
-								Image: busyboxImage,
+								Image: agnhostImage,
 								Command: ExecCommand(init2, execCommand{
 									Delay:    1,
 									ExitCode: 0,
@@ -1328,7 +1328,7 @@ var _ = SIGDescribe(framework.WithSerial(), "Containers Lifecycle", func() {
 							},
 							{
 								Name:  init3,
-								Image: busyboxImage,
+								Image: agnhostImage,
 								Command: ExecCommand(init3, execCommand{
 									Delay:    1,
 									ExitCode: 0,
@@ -1338,7 +1338,7 @@ var _ = SIGDescribe(framework.WithSerial(), "Containers Lifecycle", func() {
 						Containers: []v1.Container{
 							{
 								Name:  regular1,
-								Image: busyboxImage,
+								Image: agnhostImage,
 								Command: ExecCommand(regular1, execCommand{
 									Delay:    300,
 									ExitCode: 0,
@@ -1477,7 +1477,7 @@ var _ = SIGDescribe(framework.WithSerial(), "Containers Lifecycle", func() {
 						InitContainers: []v1.Container{
 							{
 								Name:  init1,
-								Image: busyboxImage,
+								Image: agnhostImage,
 								Command: ExecCommand(init1, execCommand{
 									Delay:    1,
 									ExitCode: 0,
@@ -1485,7 +1485,7 @@ var _ = SIGDescribe(framework.WithSerial(), "Containers Lifecycle", func() {
 							},
 							{
 								Name:  init2,
-								Image: busyboxImage,
+								Image: agnhostImage,
 								Command: ExecCommand(init2, execCommand{
 									Delay:    1,
 									ExitCode: 0,
@@ -1493,7 +1493,7 @@ var _ = SIGDescribe(framework.WithSerial(), "Containers Lifecycle", func() {
 							},
 							{
 								Name:  longRunningInit3,
-								Image: busyboxImage,
+								Image: agnhostImage,
 								Command: ExecCommand(longRunningInit3, execCommand{
 									Delay:    300,
 									ExitCode: 0,
@@ -1503,7 +1503,7 @@ var _ = SIGDescribe(framework.WithSerial(), "Containers Lifecycle", func() {
 						Containers: []v1.Container{
 							{
 								Name:  regular1,
-								Image: busyboxImage,
+								Image: agnhostImage,
 								Command: ExecCommand(regular1, execCommand{
 									Delay:    300,
 									ExitCode: 0,
@@ -1644,7 +1644,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 				InitContainers: []v1.Container{
 					{
 						Name:  init1,
-						Image: busyboxImage,
+						Image: agnhostImage,
 						Command: ExecCommand(init1, execCommand{
 							Delay:    1,
 							ExitCode: 0,
@@ -1652,7 +1652,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 					},
 					{
 						Name:  restartableInit1,
-						Image: busyboxImage,
+						Image: agnhostImage,
 						Command: ExecCommand(restartableInit1, execCommand{
 							Delay:    600,
 							ExitCode: 0,
@@ -1661,7 +1661,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 					},
 					{
 						Name:  init2,
-						Image: busyboxImage,
+						Image: agnhostImage,
 						Command: ExecCommand(init2, execCommand{
 							Delay:    1,
 							ExitCode: 0,
@@ -1669,7 +1669,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 					},
 					{
 						Name:  restartableInit2,
-						Image: busyboxImage,
+						Image: agnhostImage,
 						Command: ExecCommand(restartableInit2, execCommand{
 							Delay:    600,
 							ExitCode: 0,
@@ -1678,7 +1678,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 					},
 					{
 						Name:  init3,
-						Image: busyboxImage,
+						Image: agnhostImage,
 						Command: ExecCommand(init3, execCommand{
 							Delay:    1,
 							ExitCode: 0,
@@ -1688,7 +1688,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 				Containers: []v1.Container{
 					{
 						Name:  regular1,
-						Image: busyboxImage,
+						Image: agnhostImage,
 						Command: ExecCommand(regular1, execCommand{
 							Delay:    1,
 							ExitCode: 0,
@@ -2043,7 +2043,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 					InitContainers: []v1.Container{
 						{
 							Name:  restartableInit1,
-							Image: busyboxImage,
+							Image: agnhostImage,
 							Command: ExecCommand(restartableInit1, execCommand{
 								Delay:    600,
 								ExitCode: 0,
@@ -2054,7 +2054,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 					Containers: []v1.Container{
 						{
 							Name:  regular1,
-							Image: busyboxImage,
+							Image: agnhostImage,
 							Command: ExecCommand(regular1, execCommand{
 								Delay:    1,
 								ExitCode: 0,
@@ -2200,7 +2200,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 					Containers: []v1.Container{
 						{
 							Name:  regular1,
-							Image: busyboxImage,
+							Image: agnhostImage,
 							Command: ExecCommand(regular1, execCommand{
 								Delay:    1,
 								ExitCode: 0,
@@ -2248,7 +2248,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 					InitContainers: []v1.Container{
 						{
 							Name:  restartableInit1,
-							Image: busyboxImage,
+							Image: agnhostImage,
 							Command: ExecCommand(restartableInit1, execCommand{
 								Delay:    5,
 								ExitCode: 0,
@@ -2257,7 +2257,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 						},
 						{
 							Name:  init1,
-							Image: busyboxImage,
+							Image: agnhostImage,
 							Command: ExecCommand(init1, execCommand{
 								Delay:    5,
 								ExitCode: 0,
@@ -2267,7 +2267,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 					Containers: []v1.Container{
 						{
 							Name:  regular1,
-							Image: busyboxImage,
+							Image: agnhostImage,
 							Command: ExecCommand(regular1, execCommand{
 								Delay:    60,
 								ExitCode: 0,
@@ -2319,7 +2319,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 					InitContainers: []v1.Container{
 						{
 							Name:  restartableInit1,
-							Image: busyboxImage,
+							Image: agnhostImage,
 							Command: ExecCommand(restartableInit1, execCommand{
 								Delay:    5,
 								ExitCode: 1,
@@ -2328,7 +2328,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 						},
 						{
 							Name:  init1,
-							Image: busyboxImage,
+							Image: agnhostImage,
 							Command: ExecCommand(init1, execCommand{
 								Delay:    5,
 								ExitCode: 0,
@@ -2338,7 +2338,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 					Containers: []v1.Container{
 						{
 							Name:  regular1,
-							Image: busyboxImage,
+							Image: agnhostImage,
 							Command: ExecCommand(regular1, execCommand{
 								Delay:    60,
 								ExitCode: 0,
@@ -2392,7 +2392,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 					InitContainers: []v1.Container{
 						{
 							Name:  init1,
-							Image: busyboxImage,
+							Image: agnhostImage,
 							Command: ExecCommand(init1, execCommand{
 								Delay:    1,
 								ExitCode: 1,
@@ -2400,7 +2400,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 						},
 						{
 							Name:  restartableInit1,
-							Image: busyboxImage,
+							Image: agnhostImage,
 							Command: ExecCommand(restartableInit1, execCommand{
 								Delay:    600,
 								ExitCode: 0,
@@ -2411,7 +2411,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 					Containers: []v1.Container{
 						{
 							Name:  regular1,
-							Image: busyboxImage,
+							Image: agnhostImage,
 							Command: ExecCommand(regular1, execCommand{
 								Delay:    600,
 								ExitCode: 0,
@@ -2458,7 +2458,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 					InitContainers: []v1.Container{
 						{
 							Name:  restartableInit1,
-							Image: busyboxImage,
+							Image: agnhostImage,
 							Command: ExecCommand(restartableInit1, execCommand{
 								Delay:    5,
 								ExitCode: 1,
@@ -2467,7 +2467,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 						},
 						{
 							Name:  init1,
-							Image: busyboxImage,
+							Image: agnhostImage,
 							Command: ExecCommand(init1, execCommand{
 								Delay:    1,
 								ExitCode: 1,
@@ -2477,7 +2477,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 					Containers: []v1.Container{
 						{
 							Name:  regular1,
-							Image: busyboxImage,
+							Image: agnhostImage,
 							Command: ExecCommand(regular1, execCommand{
 								Delay:    600,
 								ExitCode: 0,
@@ -2529,7 +2529,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 					InitContainers: []v1.Container{
 						{
 							Name:  restartableInit1,
-							Image: busyboxImage,
+							Image: agnhostImage,
 							Command: ExecCommand(restartableInit1, execCommand{
 								Delay:    600,
 								ExitCode: 0,
@@ -2540,7 +2540,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 					Containers: []v1.Container{
 						{
 							Name:  regular1,
-							Image: busyboxImage,
+							Image: agnhostImage,
 							Command: ExecCommand(regular1, execCommand{
 								Delay:    1,
 								ExitCode: 0,
@@ -2688,7 +2688,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 					Containers: []v1.Container{
 						{
 							Name:  regular1,
-							Image: busyboxImage,
+							Image: agnhostImage,
 							Command: ExecCommand(regular1, execCommand{
 								Delay:    1,
 								ExitCode: 0,
@@ -2737,7 +2737,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 					InitContainers: []v1.Container{
 						{
 							Name:  restartableInit1,
-							Image: busyboxImage,
+							Image: agnhostImage,
 							Command: ExecCommand(restartableInit1, execCommand{
 								Delay:    5,
 								ExitCode: 0,
@@ -2746,7 +2746,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 						},
 						{
 							Name:  init1,
-							Image: busyboxImage,
+							Image: agnhostImage,
 							Command: ExecCommand(init1, execCommand{
 								Delay:    5,
 								ExitCode: 0,
@@ -2756,7 +2756,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 					Containers: []v1.Container{
 						{
 							Name:  regular1,
-							Image: busyboxImage,
+							Image: agnhostImage,
 							Command: ExecCommand(regular1, execCommand{
 								Delay:    60,
 								ExitCode: 0,
@@ -2811,7 +2811,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 					InitContainers: []v1.Container{
 						{
 							Name:  restartableInit1,
-							Image: busyboxImage,
+							Image: agnhostImage,
 							Command: ExecCommand(restartableInit1, execCommand{
 								Delay:    5,
 								ExitCode: 1,
@@ -2820,7 +2820,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 						},
 						{
 							Name:  init1,
-							Image: busyboxImage,
+							Image: agnhostImage,
 							Command: ExecCommand(init1, execCommand{
 								Delay:    5,
 								ExitCode: 0,
@@ -2830,7 +2830,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 					Containers: []v1.Container{
 						{
 							Name:  regular1,
-							Image: busyboxImage,
+							Image: agnhostImage,
 							Command: ExecCommand(regular1, execCommand{
 								Delay:    60,
 								ExitCode: 0,
@@ -2884,7 +2884,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 					InitContainers: []v1.Container{
 						{
 							Name:  init1,
-							Image: busyboxImage,
+							Image: agnhostImage,
 							Command: ExecCommand(init1, execCommand{
 								Delay:    1,
 								ExitCode: 1,
@@ -2892,7 +2892,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 						},
 						{
 							Name:  restartableInit1,
-							Image: busyboxImage,
+							Image: agnhostImage,
 							Command: ExecCommand(restartableInit1, execCommand{
 								Delay:    600,
 								ExitCode: 0,
@@ -2903,7 +2903,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 					Containers: []v1.Container{
 						{
 							Name:  regular1,
-							Image: busyboxImage,
+							Image: agnhostImage,
 							Command: ExecCommand(regular1, execCommand{
 								Delay:    600,
 								ExitCode: 0,
@@ -2959,7 +2959,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 					InitContainers: []v1.Container{
 						{
 							Name:  restartableInit1,
-							Image: busyboxImage,
+							Image: agnhostImage,
 							Command: ExecCommand(restartableInit1, execCommand{
 								Delay:    5,
 								ExitCode: 1,
@@ -2968,7 +2968,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 						},
 						{
 							Name:  init1,
-							Image: busyboxImage,
+							Image: agnhostImage,
 							Command: ExecCommand(init1, execCommand{
 								Delay:    1,
 								ExitCode: 1,
@@ -2978,7 +2978,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 					Containers: []v1.Container{
 						{
 							Name:  regular1,
-							Image: busyboxImage,
+							Image: agnhostImage,
 							Command: ExecCommand(regular1, execCommand{
 								Delay:    600,
 								ExitCode: 0,
@@ -3036,7 +3036,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 					InitContainers: []v1.Container{
 						{
 							Name:  restartableInit1,
-							Image: busyboxImage,
+							Image: agnhostImage,
 							Command: ExecCommand(restartableInit1, execCommand{
 								Delay:    600,
 								ExitCode: 0,
@@ -3047,7 +3047,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 					Containers: []v1.Container{
 						{
 							Name:  regular1,
-							Image: busyboxImage,
+							Image: agnhostImage,
 							Command: ExecCommand(regular1, execCommand{
 								Delay:    1,
 								ExitCode: 0,
@@ -3193,7 +3193,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 					Containers: []v1.Container{
 						{
 							Name:  regular1,
-							Image: busyboxImage,
+							Image: agnhostImage,
 							Command: ExecCommand(regular1, execCommand{
 								Delay:    1,
 								ExitCode: 0,
@@ -3241,7 +3241,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 					InitContainers: []v1.Container{
 						{
 							Name:  restartableInit1,
-							Image: busyboxImage,
+							Image: agnhostImage,
 							Command: ExecCommand(restartableInit1, execCommand{
 								Delay:    5,
 								ExitCode: 0,
@@ -3250,7 +3250,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 						},
 						{
 							Name:  init1,
-							Image: busyboxImage,
+							Image: agnhostImage,
 							Command: ExecCommand(init1, execCommand{
 								Delay:    5,
 								ExitCode: 0,
@@ -3260,7 +3260,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 					Containers: []v1.Container{
 						{
 							Name:  regular1,
-							Image: busyboxImage,
+							Image: agnhostImage,
 							Command: ExecCommand(regular1, execCommand{
 								Delay:    60,
 								ExitCode: 0,
@@ -3311,7 +3311,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 					InitContainers: []v1.Container{
 						{
 							Name:  restartableInit1,
-							Image: busyboxImage,
+							Image: agnhostImage,
 							Command: ExecCommand(restartableInit1, execCommand{
 								Delay:    5,
 								ExitCode: 1,
@@ -3320,7 +3320,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 						},
 						{
 							Name:  init1,
-							Image: busyboxImage,
+							Image: agnhostImage,
 							Command: ExecCommand(init1, execCommand{
 								Delay:    5,
 								ExitCode: 0,
@@ -3330,7 +3330,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 					Containers: []v1.Container{
 						{
 							Name:  regular1,
-							Image: busyboxImage,
+							Image: agnhostImage,
 							Command: ExecCommand(regular1, execCommand{
 								Delay:    60,
 								ExitCode: 0,
@@ -3380,7 +3380,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 					InitContainers: []v1.Container{
 						{
 							Name:  init1,
-							Image: busyboxImage,
+							Image: agnhostImage,
 							Command: ExecCommand(init1, execCommand{
 								Delay:    1,
 								ExitCode: 1,
@@ -3388,7 +3388,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 						},
 						{
 							Name:  restartableInit1,
-							Image: busyboxImage,
+							Image: agnhostImage,
 							Command: ExecCommand(restartableInit1, execCommand{
 								Delay:    600,
 								ExitCode: 0,
@@ -3399,7 +3399,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 					Containers: []v1.Container{
 						{
 							Name:  regular1,
-							Image: busyboxImage,
+							Image: agnhostImage,
 							Command: ExecCommand(regular1, execCommand{
 								Delay:    600,
 								ExitCode: 0,
@@ -3455,7 +3455,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 					InitContainers: []v1.Container{
 						{
 							Name:  restartableInit1,
-							Image: busyboxImage,
+							Image: agnhostImage,
 							Command: ExecCommand(restartableInit1, execCommand{
 								Delay:    5,
 								ExitCode: 1,
@@ -3464,7 +3464,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 						},
 						{
 							Name:  init1,
-							Image: busyboxImage,
+							Image: agnhostImage,
 							Command: ExecCommand(init1, execCommand{
 								Delay:    1,
 								ExitCode: 1,
@@ -3474,7 +3474,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 					Containers: []v1.Container{
 						{
 							Name:  regular1,
-							Image: busyboxImage,
+							Image: agnhostImage,
 							Command: ExecCommand(regular1, execCommand{
 								Delay:    600,
 								ExitCode: 0,
@@ -3533,7 +3533,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 					InitContainers: []v1.Container{
 						{
 							Name:  restartableInit1,
-							Image: busyboxImage,
+							Image: agnhostImage,
 							Command: ExecCommand(restartableInit1, execCommand{
 								StartDelay: 10,
 								Delay:      600,
@@ -3550,7 +3550,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 						},
 						{
 							Name:  restartableInit2,
-							Image: busyboxImage,
+							Image: agnhostImage,
 							Command: ExecCommand(restartableInit2, execCommand{
 								StartDelay: 10,
 								Delay:      600,
@@ -3569,7 +3569,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 					Containers: []v1.Container{
 						{
 							Name:  regular1,
-							Image: busyboxImage,
+							Image: agnhostImage,
 							Command: ExecCommand(regular1, execCommand{
 								Delay:    1,
 								ExitCode: 0,
@@ -3738,7 +3738,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 						InitContainers: []v1.Container{
 							{
 								Name:  restartableInit1,
-								Image: busyboxImage,
+								Image: agnhostImage,
 								Command: ExecCommand(restartableInit1, execCommand{
 									Delay:              600,
 									TerminationSeconds: 15,
@@ -3774,7 +3774,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 						Containers: []v1.Container{
 							{
 								Name:  regular1,
-								Image: busyboxImage,
+								Image: agnhostImage,
 								Command: ExecCommand(regular1, execCommand{
 									Delay:    1,
 									ExitCode: 0,
@@ -3826,7 +3826,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 					InitContainers: []v1.Container{
 						{
 							Name:  restartableInit1,
-							Image: busyboxImage,
+							Image: agnhostImage,
 							Command: ExecCommand(restartableInit1, execCommand{
 								Delay:              600,
 								TerminationSeconds: 15,
@@ -3862,7 +3862,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 					Containers: []v1.Container{
 						{
 							Name:  regular1,
-							Image: busyboxImage,
+							Image: agnhostImage,
 							Command: ExecCommand(regular1, execCommand{
 								Delay:    1,
 								ExitCode: 0,
@@ -4059,7 +4059,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 						InitContainers: []v1.Container{
 							{
 								Name:          restartableInit1,
-								Image:         busyboxImage,
+								Image:         agnhostImage,
 								RestartPolicy: &containerRestartPolicyAlways,
 								Command: ExecCommand(restartableInit1, execCommand{
 									Delay:              60,
@@ -4069,7 +4069,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 							},
 							{
 								Name:          restartableInit2,
-								Image:         busyboxImage,
+								Image:         agnhostImage,
 								RestartPolicy: &containerRestartPolicyAlways,
 								Command: ExecCommand(restartableInit2, execCommand{
 									Delay:              60,
@@ -4079,7 +4079,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 							},
 							{
 								Name:          restartableInit3,
-								Image:         busyboxImage,
+								Image:         agnhostImage,
 								RestartPolicy: &containerRestartPolicyAlways,
 								Command: ExecCommand(restartableInit3, execCommand{
 									Delay:              60,
@@ -4091,7 +4091,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 						Containers: []v1.Container{
 							{
 								Name:  regular1,
-								Image: busyboxImage,
+								Image: agnhostImage,
 								Command: ExecCommand(regular1, execCommand{
 									Delay:    5,
 									ExitCode: 0,
@@ -4299,7 +4299,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 						InitContainers: []v1.Container{
 							{
 								Name:          restartableInit1,
-								Image:         busyboxImage,
+								Image:         agnhostImage,
 								RestartPolicy: &containerRestartPolicyAlways,
 								Command: ExecCommand(restartableInit1, execCommand{
 									Delay:              60,
@@ -4310,7 +4310,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 							},
 							{
 								Name:          restartableInit2,
-								Image:         busyboxImage,
+								Image:         agnhostImage,
 								RestartPolicy: &containerRestartPolicyAlways,
 								Command: ExecCommand(restartableInit2, execCommand{
 									Delay:              60,
@@ -4321,7 +4321,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 							},
 							{
 								Name:          restartableInit3,
-								Image:         busyboxImage,
+								Image:         agnhostImage,
 								RestartPolicy: &containerRestartPolicyAlways,
 								Command: ExecCommand(restartableInit3, execCommand{
 									Delay:              60,
@@ -4334,7 +4334,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 						Containers: []v1.Container{
 							{
 								Name:  regular1,
-								Image: busyboxImage,
+								Image: agnhostImage,
 								Command: ExecCommand(regular1, execCommand{
 									Delay:    5,
 									ExitCode: 0,
@@ -4437,7 +4437,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 						InitContainers: []v1.Container{
 							{
 								Name:          restartableInit1,
-								Image:         busyboxImage,
+								Image:         agnhostImage,
 								RestartPolicy: &containerRestartPolicyAlways,
 								Command: ExecCommand(restartableInit1, execCommand{
 									Delay:              60,
@@ -4448,7 +4448,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 							},
 							{
 								Name:          restartableInit2,
-								Image:         busyboxImage,
+								Image:         agnhostImage,
 								RestartPolicy: &containerRestartPolicyAlways,
 								Command: ExecCommand(restartableInit2, execCommand{
 									Delay:              60,
@@ -4459,7 +4459,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 							},
 							{
 								Name:          restartableInit3,
-								Image:         busyboxImage,
+								Image:         agnhostImage,
 								RestartPolicy: &containerRestartPolicyAlways,
 								Command: ExecCommand(restartableInit3, execCommand{
 									Delay:              60,
@@ -4472,7 +4472,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 						Containers: []v1.Container{
 							{
 								Name:  regular1,
-								Image: busyboxImage,
+								Image: agnhostImage,
 								Command: ExecCommand(regular1, execCommand{
 									Delay:    5,
 									ExitCode: 0,
@@ -4567,7 +4567,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 						InitContainers: []v1.Container{
 							{
 								Name:  startInit,
-								Image: busyboxImage,
+								Image: agnhostImage,
 								Command: ExecCommand(startInit, execCommand{
 									Delay:              300,
 									TerminationSeconds: 0,
@@ -4576,7 +4576,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 							},
 							{
 								Name:          restartableInit1,
-								Image:         busyboxImage,
+								Image:         agnhostImage,
 								RestartPolicy: &containerRestartPolicyAlways,
 								Command: ExecCommand(restartableInit1, execCommand{
 									Delay:              60,
@@ -4587,7 +4587,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 							},
 							{
 								Name:          restartableInit2,
-								Image:         busyboxImage,
+								Image:         agnhostImage,
 								RestartPolicy: &containerRestartPolicyAlways,
 								Command: ExecCommand(restartableInit2, execCommand{
 									Delay:              60,
@@ -4598,7 +4598,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 							},
 							{
 								Name:          restartableInit3,
-								Image:         busyboxImage,
+								Image:         agnhostImage,
 								RestartPolicy: &containerRestartPolicyAlways,
 								Command: ExecCommand(restartableInit3, execCommand{
 									Delay:              60,
@@ -4611,7 +4611,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 						Containers: []v1.Container{
 							{
 								Name:  regular1,
-								Image: busyboxImage,
+								Image: agnhostImage,
 								Command: ExecCommand(regular1, execCommand{
 									Delay:    5,
 									ExitCode: 0,
@@ -4675,7 +4675,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 						InitContainers: []v1.Container{
 							{
 								Name:  init1,
-								Image: busyboxImage,
+								Image: agnhostImage,
 								Command: ExecCommand(init1, execCommand{
 									Delay:              1,
 									TerminationSeconds: 5,
@@ -4684,7 +4684,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 							},
 							{
 								Name:  restartableInit2,
-								Image: busyboxImage,
+								Image: agnhostImage,
 								Command: ExecCommand(restartableInit2, execCommand{
 									Delay:              600,
 									TerminationSeconds: containerTerminationSeconds,
@@ -4702,7 +4702,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 							},
 							{
 								Name:  restartableInit3,
-								Image: busyboxImage,
+								Image: agnhostImage,
 								Command: ExecCommand(restartableInit3, execCommand{
 									Delay:              600,
 									TerminationSeconds: 1,
@@ -4714,7 +4714,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 						Containers: []v1.Container{
 							{
 								Name:  regular1,
-								Image: busyboxImage,
+								Image: agnhostImage,
 								Command: ExecCommand(regular1, execCommand{
 									Delay:              600,
 									TerminationSeconds: 1,
@@ -4778,7 +4778,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 						InitContainers: []v1.Container{
 							{
 								Name:          restartableInit1,
-								Image:         busyboxImage,
+								Image:         agnhostImage,
 								RestartPolicy: &containerRestartPolicyAlways,
 								Command: ExecCommand(restartableInit1, execCommand{
 									Delay:              600,
@@ -4788,7 +4788,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 							},
 							{
 								Name:          restartableInit2,
-								Image:         busyboxImage,
+								Image:         agnhostImage,
 								RestartPolicy: &containerRestartPolicyAlways,
 								Command: ExecCommand(restartableInit2, execCommand{
 									Delay:              600,
@@ -4798,7 +4798,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 							},
 							{
 								Name:          restartableInit3,
-								Image:         busyboxImage,
+								Image:         agnhostImage,
 								RestartPolicy: &containerRestartPolicyAlways,
 								Command: ExecCommand(restartableInit3, execCommand{
 									Delay:              600,
@@ -4810,7 +4810,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 						Containers: []v1.Container{
 							{
 								Name:  regular1,
-								Image: busyboxImage,
+								Image: agnhostImage,
 								Command: ExecCommand(regular1, execCommand{
 									Delay:              600,
 									TerminationSeconds: 1,
@@ -4891,7 +4891,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 						InitContainers: []v1.Container{
 							{
 								Name:          restartableInit1,
-								Image:         busyboxImage,
+								Image:         agnhostImage,
 								RestartPolicy: &containerRestartPolicyAlways,
 								Command: ExecCommand(restartableInit1, execCommand{
 									Delay:              600,
@@ -4902,7 +4902,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 							},
 							{
 								Name:          restartableInit2,
-								Image:         busyboxImage,
+								Image:         agnhostImage,
 								RestartPolicy: &containerRestartPolicyAlways,
 								Command: ExecCommand(restartableInit2, execCommand{
 									Delay:              600,
@@ -4913,7 +4913,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 							},
 							{
 								Name:          restartableInit3,
-								Image:         busyboxImage,
+								Image:         agnhostImage,
 								RestartPolicy: &containerRestartPolicyAlways,
 								Command: ExecCommand(restartableInit3, execCommand{
 									Delay:              600,
@@ -4926,7 +4926,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 						Containers: []v1.Container{
 							{
 								Name:  regular1,
-								Image: busyboxImage,
+								Image: agnhostImage,
 								Command: ExecCommand(regular1, execCommand{
 									Delay:              600,
 									TerminationSeconds: 1,
@@ -4994,7 +4994,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 						InitContainers: []v1.Container{
 							{
 								Name:          restartableInit1,
-								Image:         busyboxImage,
+								Image:         agnhostImage,
 								RestartPolicy: &containerRestartPolicyAlways,
 								Command: ExecCommand(restartableInit1, execCommand{
 									Delay:              600,
@@ -5004,7 +5004,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 							},
 							{
 								Name:          restartableInit2,
-								Image:         busyboxImage,
+								Image:         agnhostImage,
 								RestartPolicy: &containerRestartPolicyAlways,
 								Command: ExecCommand(restartableInit2, execCommand{
 									Delay: 600,
@@ -5015,7 +5015,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 							},
 							{
 								Name:          restartableInit3,
-								Image:         busyboxImage,
+								Image:         agnhostImage,
 								RestartPolicy: &containerRestartPolicyAlways,
 								Command: ExecCommand(restartableInit3, execCommand{
 									Delay:              600,
@@ -5027,7 +5027,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 						Containers: []v1.Container{
 							{
 								Name:  regular1,
-								Image: busyboxImage,
+								Image: agnhostImage,
 								Command: ExecCommand(regular1, execCommand{
 									Delay:              600,
 									TerminationSeconds: 20,
@@ -5096,7 +5096,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 						InitContainers: []v1.Container{
 							{
 								Name:          restartableInit1,
-								Image:         busyboxImage,
+								Image:         agnhostImage,
 								RestartPolicy: &containerRestartPolicyAlways,
 								Command: ExecCommand(restartableInit1, execCommand{
 									Delay:              600,
@@ -5106,7 +5106,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 							},
 							{
 								Name:          restartableInit2,
-								Image:         busyboxImage,
+								Image:         agnhostImage,
 								RestartPolicy: &containerRestartPolicyAlways,
 								Command: ExecCommand(restartableInit2, execCommand{
 									Delay:              600,
@@ -5116,7 +5116,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 							},
 							{
 								Name:          restartableInit3,
-								Image:         busyboxImage,
+								Image:         agnhostImage,
 								RestartPolicy: &containerRestartPolicyAlways,
 								Command: ExecCommand(restartableInit3, execCommand{
 									Delay:              600,
@@ -5128,7 +5128,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 						Containers: []v1.Container{
 							{
 								Name:  regular1,
-								Image: busyboxImage,
+								Image: agnhostImage,
 								Command: ExecCommand(regular1, execCommand{
 									Delay:              600,
 									TerminationSeconds: 1,
@@ -5197,7 +5197,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 						InitContainers: []v1.Container{
 							{
 								Name:          restartableInit1,
-								Image:         busyboxImage,
+								Image:         agnhostImage,
 								RestartPolicy: &containerRestartPolicyAlways,
 								Command: ExecCommand(restartableInit1, execCommand{
 									Delay:              600,
@@ -5207,7 +5207,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 							},
 							{
 								Name:          restartableInit2,
-								Image:         busyboxImage,
+								Image:         agnhostImage,
 								RestartPolicy: &containerRestartPolicyAlways,
 								Command: ExecCommand(restartableInit2, execCommand{
 									Delay:              600,
@@ -5217,7 +5217,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 							},
 							{
 								Name:          restartableInit3,
-								Image:         busyboxImage,
+								Image:         agnhostImage,
 								RestartPolicy: &containerRestartPolicyAlways,
 								Command: ExecCommand(restartableInit3, execCommand{
 									Delay:              600,
@@ -5229,7 +5229,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 						Containers: []v1.Container{
 							{
 								Name:  regular1,
-								Image: busyboxImage,
+								Image: agnhostImage,
 								Command: ExecCommand(regular1, execCommand{
 									Delay:              600,
 									TerminationSeconds: 20,
@@ -5321,7 +5321,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 						InitContainers: []v1.Container{
 							{
 								Name:          restartableInit1,
-								Image:         busyboxImage,
+								Image:         agnhostImage,
 								RestartPolicy: &containerRestartPolicyAlways,
 								Command: ExecCommand(restartableInit1, execCommand{
 									Delay:              600,
@@ -5332,7 +5332,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 							},
 							{
 								Name:          restartableInit2,
-								Image:         busyboxImage,
+								Image:         agnhostImage,
 								RestartPolicy: &containerRestartPolicyAlways,
 								Command: ExecCommand(restartableInit2, execCommand{
 									Delay:              600,
@@ -5343,7 +5343,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 							},
 							{
 								Name:          restartableInit3,
-								Image:         busyboxImage,
+								Image:         agnhostImage,
 								RestartPolicy: &containerRestartPolicyAlways,
 								Command: ExecCommand(restartableInit3, execCommand{
 									Delay:              600,
@@ -5356,7 +5356,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, "Containers Lifecycle", func(
 						Containers: []v1.Container{
 							{
 								Name:  regular1,
-								Image: busyboxImage,
+								Image: agnhostImage,
 								Command: ExecCommand(regular1, execCommand{
 									Delay:              600,
 									TerminationSeconds: 1,
@@ -5434,7 +5434,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, framework.WithSerial(), "Cont
 					InitContainers: []v1.Container{
 						{
 							Name:  init1,
-							Image: busyboxImage,
+							Image: agnhostImage,
 							Command: ExecCommand(init1, execCommand{
 								Delay:    5,
 								ExitCode: 0,
@@ -5442,7 +5442,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, framework.WithSerial(), "Cont
 						},
 						{
 							Name:  restartableInit2,
-							Image: busyboxImage,
+							Image: agnhostImage,
 							Command: ExecCommand(restartableInit2, execCommand{
 								Delay:    300,
 								ExitCode: 0,
@@ -5451,7 +5451,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, framework.WithSerial(), "Cont
 						},
 						{
 							Name:  init3,
-							Image: busyboxImage,
+							Image: agnhostImage,
 							Command: ExecCommand(init3, execCommand{
 								Delay:    5,
 								ExitCode: 0,
@@ -5461,7 +5461,7 @@ var _ = SIGDescribe(nodefeature.SidecarContainers, framework.WithSerial(), "Cont
 					Containers: []v1.Container{
 						{
 							Name:  regular1,
-							Image: busyboxImage,
+							Image: agnhostImage,
 							Command: ExecCommand(regular1, execCommand{
 								Delay:    300,
 								ExitCode: 0,
