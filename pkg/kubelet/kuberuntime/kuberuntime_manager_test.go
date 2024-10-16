@@ -52,7 +52,7 @@ import (
 	cmtesting "k8s.io/kubernetes/pkg/kubelet/cm/testing"
 	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
 	containertest "k8s.io/kubernetes/pkg/kubelet/container/testing"
-	imagetypes "k8s.io/kubernetes/pkg/kubelet/images"
+	"k8s.io/kubernetes/pkg/kubelet/images"
 	proberesults "k8s.io/kubernetes/pkg/kubelet/prober/results"
 	kubelettypes "k8s.io/kubernetes/pkg/kubelet/types"
 	"k8s.io/utils/ptr"
@@ -2815,7 +2815,7 @@ func TestGetImageVolumes(t *testing.T) {
 			}}},
 			expectedImageVolumePulls: imageVolumePulls{
 				volume1: imageVolumePullResult{spec: imageSpec1},
-				volume2: imageVolumePullResult{err: imagetypes.ErrImageNeverPull, msg: `Container image "image" is not present with pull policy of Never`},
+				volume2: imageVolumePullResult{err: images.ErrImageNeverPull, msg: `Container image "image" is not present with pull policy of Never`},
 			},
 		},
 	} {

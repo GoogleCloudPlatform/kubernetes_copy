@@ -50,6 +50,7 @@ import (
 	"k8s.io/kubernetes/pkg/credentialprovider"
 	"k8s.io/kubernetes/pkg/credentialprovider/plugin"
 	"k8s.io/kubernetes/pkg/features"
+	kubeletconfiginternal "k8s.io/kubernetes/pkg/kubelet/apis/config"
 	"k8s.io/kubernetes/pkg/kubelet/cm"
 	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
 	"k8s.io/kubernetes/pkg/kubelet/events"
@@ -200,6 +201,8 @@ func NewKubeGenericRuntimeManager(
 	maxParallelImagePulls *int32,
 	imagePullQPS float32,
 	imagePullBurst int,
+	imagePullsCredentialVerificationPolicy string,
+	preloadedImagesCredentialVerificationWhitelist []string,
 	imageCredentialProviderConfigFile string,
 	imageCredentialProviderBinDir string,
 	singleProcessOOMKill *bool,
@@ -275,12 +278,25 @@ func NewKubeGenericRuntimeManager(
 		}
 	}
 
-	nodeKeyring := credentialprovider.NewDockerKeyring()
+	imagePullCredentialsVerificationPolicy, err := images.NewImagePullCredentialVerificationPolicy(
+		kubeletconfiginternal.ImagePullCredentialsVerificationPolicy(imagePullsCredentialVerificationPolicy),
+		preloadedImagesCredentialVerificationWhitelist)
 
+	if err != nil {
+		return nil, err
+	}
+
+	imagePullManager, err := images.NewFileBasedImagePullManager(ctx, rootDirectory, imagePullCredentialsVerificationPolicy, kubeRuntimeManager)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create image pull manager: %w", err)
+	}
+
+	nodeKeyring := credentialprovider.NewDockerKeyring()
 	kubeRuntimeManager.imagePuller = images.NewImageManager(
 		kubecontainer.FilterEventRecorder(recorder),
 		nodeKeyring,
 		kubeRuntimeManager,
+		imagePullManager,
 		imageBackOff,
 		serializeImagePulls,
 		maxParallelImagePulls,
