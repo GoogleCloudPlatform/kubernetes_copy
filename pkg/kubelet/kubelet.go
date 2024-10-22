@@ -2103,11 +2103,13 @@ func (kl *Kubelet) SyncTerminatingPod(_ context.Context, pod *v1.Pod, podStatus 
 		}
 	}
 
-	// Once the containers are stopped, we can stop probing for liveness and readiness.
-	// TODO: once a pod is terminal, certain probes (liveness exec) could be stopped immediately after
-	//   the detection of a container shutdown or (for readiness) after the first failure. Tracked as
-	//   https://github.com/kubernetes/kubernetes/issues/107894 although may not be worth optimizing.
-	kl.probeManager.RemovePod(pod)
+	if !utilfeature.DefaultFeatureGate.Enabled(features.RestartContainerDuringTermination) {
+		// Once the containers are stopped, we can stop probing for liveness and readiness.
+		// TODO: once a pod is terminal, certain probes (liveness exec) could be stopped immediately after
+		//   the detection of a container shutdown or (for readiness) after the first failure. Tracked as
+		//   https://github.com/kubernetes/kubernetes/issues/107894 although may not be worth optimizing.
+		kl.probeManager.RemovePod(pod)
+	}
 
 	// Guard against consistency issues in KillPod implementations by checking that there are no
 	// running containers. This method is invoked infrequently so this is effectively free and can
@@ -2144,6 +2146,14 @@ func (kl *Kubelet) SyncTerminatingPod(_ context.Context, pod *v1.Pod, podStatus 
 	}
 	if len(runningContainers) > 0 {
 		return fmt.Errorf("detected running containers after a successful KillPod, CRI violation: %v", runningContainers)
+	}
+
+	if utilfeature.DefaultFeatureGate.Enabled(features.RestartContainerDuringTermination) {
+		// Once the containers are stopped, we can stop probing for liveness and readiness.
+		// TODO: once a pod is terminal, certain probes (liveness exec) could be stopped immediately after
+		//   the detection of a container shutdown or (for readiness) after the first failure. Tracked as
+		//   https://github.com/kubernetes/kubernetes/issues/107894 although may not be worth optimizing.
+		kl.probeManager.RemovePod(pod)
 	}
 
 	// NOTE: resources must be unprepared AFTER all containers have stopped
