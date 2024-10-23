@@ -32,6 +32,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/klog/v2"
 	kubeletconfigv1alpha1 "k8s.io/kubelet/config/v1alpha1"
 	kubeletconfiginternal "k8s.io/kubernetes/pkg/kubelet/apis/config"
@@ -42,28 +43,60 @@ import (
 
 var _ ImagePullManager = &FileBasedImagePullManager{}
 
-// NamedLockSet stores named locks in order to allow to partition context access
+// namedLockSet stores named locks in order to allow to partition context access
 // such that callers that are mutually exclusive based on a string value can
 // access the same context at the same time, compared to a global lock that
 // would create an unnecessary bottleneck.
-type NamedLockSet struct {
-	locks sync.Map
+type namedLockSet struct {
+	globalLock sync.Mutex
+	locks      map[string]*sync.Mutex
 }
 
-func NewNamedLockSet() *NamedLockSet {
-	return &NamedLockSet{
-		locks: sync.Map{},
+func NewNamedLockSet() *namedLockSet {
+	return &namedLockSet{
+		globalLock: sync.Mutex{},
+		locks:      map[string]*sync.Mutex{},
 	}
 }
 
-func (n *NamedLockSet) Lock(name string) {
-	lock, _ := n.locks.LoadOrStore(name, &sync.Mutex{})
-	lock.(*sync.Mutex).Lock()
+func (n *namedLockSet) Lock(name string) {
+	func() {
+		n.globalLock.Lock()
+		defer n.globalLock.Unlock()
+		if _, ok := n.locks[name]; !ok {
+			n.locks[name] = &sync.Mutex{}
+		}
+	}()
+	// This call cannot be guarded by the global lock as it would block the access
+	// to the other locks
+	n.locks[name].Lock()
 }
 
-func (n *NamedLockSet) Unlock(name string) {
-	lock, _ := n.locks.Load(name)
-	lock.(*sync.Mutex).Unlock()
+// Unlock unlocks the named lock. Can only be called after a previous Lock() call
+// for the same named lock.
+func (n *namedLockSet) Unlock(name string) {
+	// cannot be locked by the global lock as it would deadlock once GlobalLock() gets activated
+	if _, ok := n.locks[name]; ok {
+		n.locks[name].Unlock()
+	}
+}
+
+// GlobalLock first locks access to the named locks and then locks all of the
+// set locks
+func (n *namedLockSet) GlobalLock() {
+	n.globalLock.Lock()
+	for _, l := range n.locks {
+		l.Lock()
+	}
+}
+
+// GlobalUnlock should only be called after GlobalLock(). It unlocks all the locks
+// of the set and then it also unlocks the global lock gating access to the set locks.
+func (n *namedLockSet) GlobalUnlock() {
+	for _, l := range n.locks {
+		l.Unlock()
+	}
+	n.globalLock.Unlock()
 }
 
 // FileBasedImagePullManager is an implementation of the ImagePullManager. It
@@ -80,10 +113,10 @@ type FileBasedImagePullManager struct {
 
 	imageService kubecontainer.ImageService
 
-	intentAccessors *NamedLockSet  // image -> sync.Mutex
+	intentAccessors *namedLockSet  // image -> sync.Mutex
 	intentCounters  map[string]int // image -> number of current in-flight pulls
 
-	pulledAccessors *NamedLockSet // imageRef -> sync.Mutex
+	pulledAccessors *namedLockSet // imageRef -> sync.Mutex
 
 	encoder runtime.Encoder
 	decoder runtime.Decoder
@@ -337,8 +370,41 @@ func (f *FileBasedImagePullManager) MustAttemptImagePull(image, imageRef string,
 }
 
 func (f *FileBasedImagePullManager) PruneUnknownRecords(imageList []string, until time.Time) {
-	// TODO: also cleanup the lock maps for intent/pull records?
-	panic("implement me")
+	f.pulledAccessors.GlobalLock()
+	defer f.pulledAccessors.GlobalUnlock()
+
+	var imageRecords []string
+	err := processDirFiles(f.pulledDir,
+		func(filePath string, fileContent []byte) error {
+			pullRecord, err := decodePulledRecord(f.decoder, fileContent)
+			if err != nil {
+				klog.V(5).InfoS("failed to deserialize, skipping file", "filePath", filePath, "error", err)
+				return nil
+			}
+
+			if pullRecord.LastUpdatedTime.Time.Before(until) {
+				imageRecords = append(imageRecords, pullRecord.ImageRef)
+			}
+			return nil
+		})
+
+	if err != nil {
+		klog.ErrorS(err, "failed to garbage collect ImagePulledRecord files")
+		return
+	}
+
+	imagesInUse := sets.New(imageList...)
+	for _, ir := range imageRecords {
+		if imagesInUse.Has(ir) {
+			continue
+		}
+
+		recordToRemovePath := filepath.Join(f.pulledDir, cacheFilename(ir))
+		if err := os.Remove(recordToRemovePath); err != nil {
+			klog.ErrorS(err, "failed to remove an ImagePulledRecord file", "filePath", recordToRemovePath)
+		}
+	}
+
 }
 
 // initialize gathers all the images from pull intent records that exist
