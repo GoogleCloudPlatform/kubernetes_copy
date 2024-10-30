@@ -102,12 +102,12 @@ func (v VolumePathHandler) MapDevice(devicePath string, mapPath string, linkName
 	}
 
 	if bindMount {
-		return mapBindMountDevice(v, devicePath, mapPath, linkName)
+		return mapBindMountDevice(devicePath, mapPath, linkName)
 	}
-	return mapSymlinkDevice(v, devicePath, mapPath, linkName)
+	return mapSymlinkDevice(devicePath, mapPath, linkName)
 }
 
-func mapBindMountDevice(v VolumePathHandler, devicePath string, mapPath string, linkName string) error {
+func mapBindMountDevice(devicePath string, mapPath string, linkName string) error {
 	// Check bind mount exists
 	linkPath := filepath.Join(mapPath, string(linkName))
 
@@ -145,7 +145,7 @@ func mapBindMountDevice(v VolumePathHandler, devicePath string, mapPath string, 
 	return nil
 }
 
-func mapSymlinkDevice(v VolumePathHandler, devicePath string, mapPath string, linkName string) error {
+func mapSymlinkDevice(devicePath string, mapPath string, linkName string) error {
 	// Remove old symbolic link(or file) then create new one.
 	// This should be done because current symbolic link is
 	// stale across node reboot.
