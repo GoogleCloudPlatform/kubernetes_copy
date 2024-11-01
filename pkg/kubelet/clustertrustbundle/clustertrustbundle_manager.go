@@ -23,14 +23,18 @@ import (
 	"encoding/pem"
 	"fmt"
 	"math/rand"
+	"sync"
 	"time"
 
+	"github.com/go-logr/logr"
 	certificatesv1beta1 "k8s.io/api/certificates/v1beta1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	lrucache "k8s.io/apimachinery/pkg/util/cache"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/client-go/informers"
 	certinformersv1beta1 "k8s.io/client-go/informers/certificates/v1beta1"
+	clientset "k8s.io/client-go/kubernetes"
 	certlistersv1beta1 "k8s.io/client-go/listers/certificates/v1beta1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/klog/v2"
@@ -260,4 +264,89 @@ func (m *NoopManager) GetTrustAnchorsByName(name string, allowMissing bool) ([]b
 // GetTrustAnchorsBySigner implements Manager.
 func (m *NoopManager) GetTrustAnchorsBySigner(signerName string, labelSelector *metav1.LabelSelector, allowMissing bool) ([]byte, error) {
 	return nil, fmt.Errorf("ClusterTrustBundle projection is not supported in static kubelet mode")
+}
+
+// LazyInformerManager decides whether to use the noop or the actual manager on a call to
+// the manager's methods.
+// We cannot determine this upon startup because some may rely on the kubelet to be fully
+// running in order to setup their kube-apiserver.
+type LazyInformerManager struct {
+	manager           Manager
+	managerLock       sync.Mutex
+	client            clientset.Interface
+	cacheSize         int
+	contextWithLogger context.Context
+	logger            logr.Logger
+}
+
+func NewLazyInformerManager(ctx context.Context, kubeClient clientset.Interface, cacheSize int) Manager {
+	return &LazyInformerManager{
+		client:            kubeClient,
+		cacheSize:         cacheSize,
+		contextWithLogger: ctx,
+		logger:            klog.FromContext(ctx),
+		managerLock:       sync.Mutex{},
+	}
+}
+
+func (m *LazyInformerManager) GetTrustAnchorsByName(name string, allowMissing bool) ([]byte, error) {
+	if m.manager == nil {
+		// the above check is thread-unsafe but we don't want to sync over it. It should
+		// be attempted again in a locked context
+		m.determineManager()
+	}
+	return m.manager.GetTrustAnchorsByName(name, allowMissing)
+}
+
+func (m *LazyInformerManager) GetTrustAnchorsBySigner(signerName string, labelSelector *metav1.LabelSelector, allowMissing bool) ([]byte, error) {
+	if m.manager == nil {
+		// the above check is thread-unsafe but we don't want to sync over it. It should
+		// be attempted again in a locked context
+		m.determineManager()
+	}
+	return m.manager.GetTrustAnchorsBySigner(signerName, labelSelector, allowMissing)
+}
+
+func (m *LazyInformerManager) determineManager() {
+	m.managerLock.Lock()
+	defer m.managerLock.Unlock()
+	if m.manager != nil {
+		return
+	}
+
+	ctbAPIAvailable, err := clusterTrustBundlesAvailable(m.client)
+	if err != nil {
+		m.logger.Error(err, "failed to determine which informer manager to choose, falling back to no-op")
+		return
+	}
+
+	if !ctbAPIAvailable {
+		m.manager = &NoopManager{}
+		return
+	}
+
+	kubeInformers := informers.NewSharedInformerFactoryWithOptions(m.client, 0)
+	clusterTrustBundleManager, err := NewInformerManager(m.contextWithLogger, kubeInformers.Certificates().V1beta1().ClusterTrustBundles(), m.cacheSize, 5*time.Minute)
+	if err != nil {
+		m.logger.Error(err, "error starting informer-based ClusterTrustBundle manager, falling back to noop")
+		return
+	}
+	m.manager = clusterTrustBundleManager
+	kubeInformers.Start(m.contextWithLogger.Done())
+	m.logger.Info("Started ClusterTrustBundle informer")
+}
+
+func clusterTrustBundlesAvailable(client clientset.Interface) (bool, error) {
+	resList, err := client.Discovery().ServerResourcesForGroupVersion(certificatesv1beta1.SchemeGroupVersion.String())
+
+	if resList != nil {
+		// even in case of an error above there might be a partial list for APIs that
+		// were already successfully discovered
+		for _, r := range resList.APIResources {
+			if r.Name == "clustertrustbundles" {
+				return true, nil
+			}
+		}
+	}
+	return false, err
 }
