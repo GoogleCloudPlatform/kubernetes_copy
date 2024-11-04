@@ -53,10 +53,18 @@ func (dc *DeploymentController) sync(ctx context.Context, d *apps.Deployment, rs
 	if err != nil {
 		return err
 	}
-	if err := dc.scale(ctx, d, newRS, oldRSs); err != nil {
-		// If we get an error while trying to scale, the deployment will be requeued
-		// so we can abort this resync
-		return err
+	if utilfeature.DefaultFeatureGate.Enabled(features.DeploymentPodReplacementPolicy) {
+		if err := dc.scaleV2(ctx, d, newRS, oldRSs); err != nil {
+			// If we get an error while trying to scale, the deployment will be requeued
+			// so we can abort this resync
+			return err
+		}
+	} else {
+		if err := dc.scale(ctx, d, newRS, oldRSs); err != nil {
+			// If we get an error while trying to scale, the deployment will be requeued
+			// so we can abort this resync
+			return err
+		}
 	}
 
 	// Clean up the deployment when it's paused and no rollback is in flight.
@@ -298,6 +306,7 @@ func (dc *DeploymentController) getNewReplicaSet(ctx context.Context, d *apps.De
 // have the effect of hastening the rollout progress, which could produce a higher proportion of unavailable
 // replicas in the event of a problem with the rolled out template. Should run only on scaling events or
 // when a deployment is paused and not during the normal rollout process.
+// Deprecated: will be removed in favor of scaleV2 in the future
 func (dc *DeploymentController) scale(ctx context.Context, deployment *apps.Deployment, newRS *apps.ReplicaSet, oldRSs []*apps.ReplicaSet) error {
 	// If there is only one active replica set then we should scale that up to the full count of the
 	// deployment. If there is no active replica set, then we should scale up the newest replica set.
@@ -394,15 +403,185 @@ func (dc *DeploymentController) scale(ctx context.Context, deployment *apps.Depl
 	return nil
 }
 
+// scaleV2 scales proportionally in order to mitigate risk. Otherwise, scaling up can increase the size
+// of the new replica set and scaling down can decrease the sizes of the old ones, both of which would
+// have the effect of hastening the rollout progress, which could produce a higher proportion of unavailable
+// replicas in the event of a problem with the rolled out template. Should run only on scaling events or
+// when a deployment is paused and not during the normal rollout process.
+//
+// Scaling events can be made partial by specifying .Spec.PodReplacementPolicy=TerminationComplete.
+// If there is a larger number of terminating pods or surge pods, this may result in a smaller number of new pods
+// or no scaling at all. Scaling of the remaining pods will be postponed until an empty slot for a new pod appears.
+// The scaleV2 will then be reconciled again and again (on RS updates) until all partial scaling is completed.
+func (dc *DeploymentController) scaleV2(ctx context.Context, deployment *apps.Deployment, newRS *apps.ReplicaSet, oldRSs []*apps.ReplicaSet) error {
+	// If there is only one active replica set then we should scale that up to the full count of the
+	// deployment. If there is no active replica set, then we should scale up the newest replica set.
+	if activeOrLatest := deploymentutil.FindActiveOrLatest(newRS, oldRSs); activeOrLatest != nil {
+		if *(activeOrLatest.Spec.Replicas) == *(deployment.Spec.Replicas) {
+			return nil
+		}
+		var err error
+		newScale := *(deployment.Spec.Replicas)
+		partialScaling := false
+		if utilfeature.DefaultFeatureGate.Enabled(features.DeploymentPodReplacementPolicy) && deploymentutil.HasTerminationCompletePodReplacement(deployment) {
+			// terminating and surge pods need to be considered when scaling up
+			if *(activeOrLatest.Spec.Replicas) < *(deployment.Spec.Replicas) {
+				allRSs := append([]*apps.ReplicaSet{newRS}, oldRSs...)
+				newScale, err = deploymentutil.NewRSNewReplicas(deployment, allRSs, activeOrLatest)
+				if err != nil {
+					return err
+				}
+				// if there are still replicas to be scaled, we will need to reconcile again to scale the latest replica set fully
+				partialScaling = newScale != *(deployment.Spec.Replicas)
+			}
+		}
+
+		_, _, err = dc.scaleReplicaSetV2(ctx, activeOrLatest, newScale, deployment, partialScaling)
+		return err
+	}
+
+	// If the new replica set is saturated, old replica sets should be fully scaled down.
+	// This case handles replica set adoption during a saturated new replica set.
+	if deploymentutil.IsSaturated(deployment, newRS) {
+		for _, old := range controller.FilterActiveReplicaSets(oldRSs) {
+			if _, _, err := dc.scaleReplicaSetAndRecordEvent(ctx, old, 0, deployment); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	// There are old replica sets with pods and the new replica set is not saturated.
+	// We need to proportionally scale all replica sets (new and old) in case of a
+	// rolling deployment.
+	if deploymentutil.IsRollingUpdate(deployment) {
+		allRSs := append([]*apps.ReplicaSet{newRS}, oldRSs...)
+		allActiveRSs := controller.FilterActiveReplicaSets(allRSs)
+		allRSsReplicas := deploymentutil.GetReplicaCountForReplicaSets(allActiveRSs)
+
+		allowedSize := int32(0)
+		if *(deployment.Spec.Replicas) > 0 {
+			allowedSize = *(deployment.Spec.Replicas) + deploymentutil.MaxSurge(*deployment)
+		}
+
+		// Number of additional replicas that can be either added or removed from the total
+		// replicas count. These replicas should be distributed proportionally to the active
+		// replica sets.
+		deploymentReplicasToAdd := allowedSize - allRSsReplicas
+		deploymentReplicasToAddFullScaleSimulation := deploymentReplicasToAdd
+
+		if utilfeature.DefaultFeatureGate.Enabled(features.DeploymentPodReplacementPolicy) {
+			// Terminating and surge pods need to be considered when scaling up.
+			if deploymentReplicasToAdd > 0 && deploymentutil.HasTerminationCompletePodReplacement(deployment) {
+				// Find the highest number of pods that the current replica sets can transiently reach.
+				rsSurgeCapacityCount := deploymentutil.GetReplicaSurgeCapacityCountForReplicaSets(allRSs)
+				rsTerminatingPodCount := deploymentutil.GetTerminatingReplicaCountForReplicaSets(allRSs)
+				if rsTerminatingPodCount == nil {
+					// Unknown number of terminating replicas, so we cannot assess the number of transient replicas to scale correctly.
+					return fmt.Errorf("failed to calculate terminating replicas ")
+				}
+				maxTransientPodCount := rsSurgeCapacityCount + *rsTerminatingPodCount
+				deploymentReplicasToAdd = allowedSize - maxTransientPodCount
+				if deploymentReplicasToAdd < 0 {
+					// do not scale down if there are too many extra pods, and we actually want to scale up
+					deploymentReplicasToAdd = 0
+				}
+			}
+		}
+
+		// The additional replicas should be distributed proportionally amongst the active
+		// replica sets from the larger to the smaller in size replica set. Scaling direction
+		// drives what happens in case we are trying to scale replica sets of the same size.
+		// In such a case when scaling up, we should scale up newer replica sets first, and
+		// when scaling down, we should scale down older replica sets first.
+		switch {
+		// 0 replicas to add can occur during a partial scaling.
+		// We also need to sort in this case to be consistent when running a simulation.
+		case deploymentReplicasToAdd >= 0:
+			sort.Sort(controller.ReplicaSetsBySizeNewer(allActiveRSs))
+		case deploymentReplicasToAdd < 0:
+			sort.Sort(controller.ReplicaSetsBySizeOlder(allActiveRSs))
+		}
+
+		logger := klog.FromContext(ctx)
+		nameToSizeScalePlan := deploymentutil.PrepareProportionalScalePlan(logger, allActiveRSs, deployment, deploymentReplicasToAdd)
+		nameToSizeScalePlanFullScaleSimulation := nameToSizeScalePlan
+		if utilfeature.DefaultFeatureGate.Enabled(features.DeploymentPodReplacementPolicy) {
+			// Run a simulation of what would happen during a full scale with empty or TerminationStarted pod replacement policy.
+			// Important only when using the TerminationComplete policy during scaling up to assess partial scaling.
+			if deploymentReplicasToAddFullScaleSimulation > 0 && deploymentutil.HasTerminationCompletePodReplacement(deployment) {
+				nameToSizeScalePlanFullScaleSimulation = deploymentutil.PrepareProportionalScalePlan(logger, allActiveRSs, deployment, deploymentReplicasToAddFullScaleSimulation)
+			}
+		}
+
+		// Update all replica sets
+		for i := range allActiveRSs {
+			rs := allActiveRSs[i]
+
+			newScale := nameToSizeScalePlan[rs.Name]
+			newScaleFullSimulation := nameToSizeScalePlanFullScaleSimulation[rs.Name]
+			// partialScaling is true if there are replica sets that will have to be scaled later due to terminating or surge pods.
+			partialScaling := newScale != newScaleFullSimulation
+
+			// scaleReplicaSet should be called even if there is no replica count update; to update the annotations.
+			// 1. During partial scaling the "deployment.kubernetes.io/replicaset-replicas-before-scale" annotation has to
+			//    be updated to proceed with scaling in the future when terminating pods terminate.
+			// 2. During full scaling the "deployment.kubernetes.io/desired-replicas" annotation has to be updated to mark
+			//    this replica set as fully scaled. When all replica sets are fully scaled, scaling operations will stop.
+			// 3. During full scaling the "deployment.kubernetes.io/max-replicas" has to be updated to prepare the
+			//    replica set for future scaling operation.
+			if _, _, err := dc.scaleReplicaSetV2(ctx, rs, newScale, deployment, partialScaling); err != nil {
+				// Return as soon as we fail, the deployment is requeued
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 func (dc *DeploymentController) scaleReplicaSetAndRecordEvent(ctx context.Context, rs *apps.ReplicaSet, newScale int32, deployment *apps.Deployment) (bool, *apps.ReplicaSet, error) {
 	// No need to scale
 	if *(rs.Spec.Replicas) == newScale {
 		return false, rs, nil
 	}
-	scaled, newRS, err := dc.scaleReplicaSet(ctx, rs, newScale, deployment)
-	return scaled, newRS, err
+	if utilfeature.DefaultFeatureGate.Enabled(features.DeploymentPodReplacementPolicy) {
+		scaled, newRS, err := dc.scaleReplicaSetV2(ctx, rs, newScale, deployment, false)
+		return scaled, newRS, err
+	} else {
+		scaled, newRS, err := dc.scaleReplicaSet(ctx, rs, newScale, deployment)
+		return scaled, newRS, err
+	}
 }
 
+func (dc *DeploymentController) scaleReplicaSetV2(ctx context.Context, rs *apps.ReplicaSet, newScale int32, deployment *apps.Deployment, partialScaling bool) (bool, *apps.ReplicaSet, error) {
+
+	sizeNeedsUpdate := *(rs.Spec.Replicas) != newScale
+
+	annotationsUpdate, annotationsNeedUpdate := deploymentutil.ComputeReplicaSetScaleAnnotationsV2(rs, deployment, partialScaling)
+
+	scaled := false
+	var err error
+	if sizeNeedsUpdate || annotationsNeedUpdate {
+		oldScale := *(rs.Spec.Replicas)
+		rsCopy := rs.DeepCopy()
+		*(rsCopy.Spec.Replicas) = newScale
+		deploymentutil.SetReplicaSetScaleAnnotationsV2(rsCopy, annotationsUpdate)
+		rs, err = dc.client.AppsV1().ReplicaSets(rsCopy.Namespace).Update(ctx, rsCopy, metav1.UpdateOptions{})
+		if err == nil && sizeNeedsUpdate {
+			var scalingOperation string
+			if oldScale < newScale {
+				scalingOperation = "up"
+			} else {
+				scalingOperation = "down"
+			}
+			scaled = true
+			dc.eventRecorder.Eventf(deployment, v1.EventTypeNormal, "ScalingReplicaSet", "Scaled %s replica set %s from %d to %d", scalingOperation, rs.Name, oldScale, newScale)
+		}
+	}
+	return scaled, rs, err
+}
+
+// Deprecated: will be removed in favor of scaleReplicaSetV2 in the future
 func (dc *DeploymentController) scaleReplicaSet(ctx context.Context, rs *apps.ReplicaSet, newScale int32, deployment *apps.Deployment) (bool, *apps.ReplicaSet, error) {
 
 	sizeNeedsUpdate := *(rs.Spec.Replicas) != newScale
@@ -459,6 +638,14 @@ func (dc *DeploymentController) cleanupDeployment(ctx context.Context, oldRSs []
 		// Avoid delete replica set with non-zero replica counts
 		if rs.Status.Replicas != 0 || *(rs.Spec.Replicas) != 0 || rs.Generation > rs.Status.ObservedGeneration || rs.DeletionTimestamp != nil {
 			continue
+		}
+		if utilfeature.DefaultFeatureGate.Enabled(features.DeploymentPodReplacementPolicy) {
+			// Avoid delete replica set with non-zero or unknown terminating replica counts.
+			// Even if the deployment does not consider TerminatingReplicas, deployment's podReplacementPolicy
+			// can be updated to TerminationComplete in the meantime.
+			if terminatingReplicas := deploymentutil.GetTerminatingReplicaCountForReplicaSets([]*apps.ReplicaSet{rs}); terminatingReplicas == nil || *terminatingReplicas > 0 {
+				continue
+			}
 		}
 		logger.V(4).Info("Trying to cleanup replica set for deployment", "replicaSet", klog.KObj(rs), "deployment", klog.KObj(deployment))
 		if err := dc.client.AppsV1().ReplicaSets(rs.Namespace).Delete(ctx, rs.Name, metav1.DeleteOptions{}); err != nil && !errors.IsNotFound(err) {
@@ -545,6 +732,13 @@ func (dc *DeploymentController) isScalingEvent(ctx context.Context, d *apps.Depl
 		}
 		if desired != *(d.Spec.Replicas) {
 			return true, nil
+		}
+		if utilfeature.DefaultFeatureGate.Enabled(features.DeploymentPodReplacementPolicy) {
+			_, ok = deploymentutil.GetRSReplicasBeforeScaleAnnotation(logger, rs)
+			// presence of the annotation indicates that partial scaling is still in progress
+			if ok {
+				return true, nil
+			}
 		}
 	}
 	return false, nil

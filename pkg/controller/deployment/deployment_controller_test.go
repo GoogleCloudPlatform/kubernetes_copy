@@ -30,10 +30,12 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/uuid"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes/fake"
 	core "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/record"
+	featuregatetesting "k8s.io/component-base/featuregate/testing"
 	"k8s.io/klog/v2"
 	"k8s.io/klog/v2/ktesting"
 	_ "k8s.io/kubernetes/pkg/apis/apps/install"
@@ -49,6 +51,7 @@ import (
 	"k8s.io/kubernetes/pkg/controller"
 	"k8s.io/kubernetes/pkg/controller/deployment/util"
 	"k8s.io/kubernetes/pkg/controller/testutil"
+	"k8s.io/kubernetes/pkg/features"
 	"k8s.io/utils/ptr"
 )
 
@@ -75,8 +78,16 @@ func rs(name string, replicas int32, selector map[string]string, timestamp metav
 func newRSWithStatus(name string, specReplicas, statusReplicas int32, selector map[string]string) *apps.ReplicaSet {
 	rs := rs(name, specReplicas, selector, noTimestamp)
 	rs.Status = apps.ReplicaSetStatus{
-		Replicas: statusReplicas,
+		ObservedGeneration: 1,
+		Replicas:           statusReplicas,
 	}
+	return rs
+}
+
+func newRSWithFullStatus(name string, specReplicas int32, status apps.ReplicaSetStatus, annotations, selector map[string]string, timestamp metav1.Time) *apps.ReplicaSet {
+	rs := rs(name, specReplicas, selector, timestamp)
+	rs.Annotations = annotations
+	rs.Status = status
 	return rs
 }
 
@@ -408,6 +419,18 @@ func TestPodDeletionEnqueuesRecreateDeployment(t *testing.T) {
 
 	if !enqueued {
 		t.Errorf("expected deployment %q to be queued after pod deletion", foo.Name)
+	}
+
+	// do a second check for DeploymentPodReplacementPolicy
+	featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.DeploymentPodReplacementPolicy, true)
+	enqueued = false
+	rsUpdate := rs.DeepCopy()
+	rsUpdate.ResourceVersion += "1"
+	rsUpdate.Status.TerminatingReplicas = ptr.To[int32](1)
+	c.updateReplicaSet(logger, rs, rsUpdate)
+
+	if !enqueued {
+		t.Errorf("expected deployment %q to be queued after pod deletion via a replica set", foo.Name)
 	}
 }
 
