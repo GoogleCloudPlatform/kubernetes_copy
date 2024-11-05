@@ -80,6 +80,12 @@ func TestNodeAuthorizer(t *testing.T) {
 	featuregatetesting.SetFeatureGateDuringTest(t, selectorAuthzEnabled, genericfeatures.AuthorizeWithSelectors, true)
 	featuregatetesting.SetFeatureGateDuringTest(t, selectorAuthzEnabled, features.AuthorizeNodeWithSelectors, true)
 
+	serviceAccountTokenForCredentialProvidersDisabled := utilfeature.DefaultFeatureGate.DeepCopy()
+	featuregatetesting.SetFeatureGateDuringTest(t, serviceAccountTokenForCredentialProvidersDisabled, features.KubeletServiceAccountTokenForCredentialProviders, false)
+
+	serviceAccountTokenForCredentialProvidersEnabled := utilfeature.DefaultFeatureGate.DeepCopy()
+	featuregatetesting.SetFeatureGateDuringTest(t, serviceAccountTokenForCredentialProvidersEnabled, features.KubeletServiceAccountTokenForCredentialProviders, true)
+
 	featureVariants := []struct {
 		suffix   string
 		features featuregate.FeatureGate
@@ -89,10 +95,11 @@ func TestNodeAuthorizer(t *testing.T) {
 	}
 
 	tests := []struct {
-		name     string
-		attrs    authorizer.AttributesRecord
-		expect   authorizer.Decision
-		features featuregate.FeatureGate
+		name         string
+		attrs        authorizer.AttributesRecord
+		expect       authorizer.Decision
+		expectReason string
+		features     featuregate.FeatureGate
 	}{
 		{
 			name:   "allowed configmap",
@@ -115,19 +122,22 @@ func TestNodeAuthorizer(t *testing.T) {
 			expect: authorizer.DecisionAllow,
 		},
 		{
-			name:   "disallowed list many secrets",
-			attrs:  authorizer.AttributesRecord{User: node0, ResourceRequest: true, Verb: "list", Resource: "secrets", Name: "", Namespace: "ns0"},
-			expect: authorizer.DecisionNoOpinion,
+			name:         "disallowed list many secrets",
+			attrs:        authorizer.AttributesRecord{User: node0, ResourceRequest: true, Verb: "list", Resource: "secrets", Name: "", Namespace: "ns0"},
+			expect:       authorizer.DecisionNoOpinion,
+			expectReason: "No Object name found,",
 		},
 		{
-			name:   "disallowed watch many secrets",
-			attrs:  authorizer.AttributesRecord{User: node0, ResourceRequest: true, Verb: "watch", Resource: "secrets", Name: "", Namespace: "ns0"},
-			expect: authorizer.DecisionNoOpinion,
+			name:         "disallowed watch many secrets",
+			attrs:        authorizer.AttributesRecord{User: node0, ResourceRequest: true, Verb: "watch", Resource: "secrets", Name: "", Namespace: "ns0"},
+			expect:       authorizer.DecisionNoOpinion,
+			expectReason: "No Object name found,",
 		},
 		{
-			name:   "disallowed list secrets from all namespaces with name",
-			attrs:  authorizer.AttributesRecord{User: node0, ResourceRequest: true, Verb: "list", Resource: "secrets", Name: "secret0-pod0-node0", Namespace: ""},
-			expect: authorizer.DecisionNoOpinion,
+			name:         "disallowed list secrets from all namespaces with name",
+			attrs:        authorizer.AttributesRecord{User: node0, ResourceRequest: true, Verb: "list", Resource: "secrets", Name: "secret0-pod0-node0", Namespace: ""},
+			expect:       authorizer.DecisionNoOpinion,
+			expectReason: "can only read namespaced object of this type",
 		},
 		{
 			name:   "allowed shared secret via pod",
@@ -218,6 +228,33 @@ func TestNodeAuthorizer(t *testing.T) {
 			name:   "disallowed svcacct token create - non create",
 			attrs:  authorizer.AttributesRecord{User: node0, ResourceRequest: true, Verb: "update", Resource: "serviceaccounts", Subresource: "token", Name: "svcacct0-node0", Namespace: "ns0"},
 			expect: authorizer.DecisionNoOpinion,
+		},
+		{
+			name:     "get allowed svcacct via pod - feature enabled",
+			attrs:    authorizer.AttributesRecord{User: node0, ResourceRequest: true, Verb: "get", Resource: "serviceaccounts", Name: "svcacct0-node0", Namespace: "ns0"},
+			expect:   authorizer.DecisionAllow,
+			features: serviceAccountTokenForCredentialProvidersEnabled,
+		},
+		{
+			name:         "disallowed get svcacct via pod - feature disabled",
+			attrs:        authorizer.AttributesRecord{User: node0, ResourceRequest: true, Verb: "get", Resource: "serviceaccounts", Name: "svcacct0-node0", Namespace: "ns0"},
+			expect:       authorizer.DecisionNoOpinion,
+			features:     serviceAccountTokenForCredentialProvidersDisabled,
+			expectReason: "not allowed to get service accounts",
+		},
+		{
+			name:         "disallowed list svcacct via pod - feature disabled",
+			attrs:        authorizer.AttributesRecord{User: node0, ResourceRequest: true, Verb: "list", Resource: "serviceaccounts", Name: "svcacct0-node0", Namespace: "ns0"},
+			expect:       authorizer.DecisionNoOpinion,
+			features:     serviceAccountTokenForCredentialProvidersDisabled,
+			expectReason: "can only create tokens for individual service accounts",
+		},
+		{
+			name:         "disallowed watch svcacct via pod - feature disabled",
+			attrs:        authorizer.AttributesRecord{User: node0, ResourceRequest: true, Verb: "watch", Resource: "serviceaccounts", Name: "svcacct0-node0", Namespace: "ns0"},
+			expect:       authorizer.DecisionNoOpinion,
+			features:     serviceAccountTokenForCredentialProvidersDisabled,
+			expectReason: "can only create tokens for individual service accounts",
 		},
 		{
 			name:   "disallowed get lease in namespace other than kube-node-lease - feature enabled",
@@ -398,10 +435,11 @@ func TestNodeAuthorizer(t *testing.T) {
 			features: selectorAuthzDisabled,
 		},
 		{
-			name:     "disallowed unfiltered list ResourceSlices - selector authz enabled",
-			attrs:    authorizer.AttributesRecord{User: node0, ResourceRequest: true, Verb: "list", Resource: "resourceslices", APIGroup: "resource.k8s.io"},
-			expect:   authorizer.DecisionNoOpinion,
-			features: selectorAuthzEnabled,
+			name:         "disallowed unfiltered list ResourceSlices - selector authz enabled",
+			attrs:        authorizer.AttributesRecord{User: node0, ResourceRequest: true, Verb: "list", Resource: "resourceslices", APIGroup: "resource.k8s.io"},
+			expect:       authorizer.DecisionNoOpinion,
+			features:     selectorAuthzEnabled,
+			expectReason: "can only list/watch/deletecollection resourceslices with nodeName field selector",
 		},
 		{
 			name:   "allowed filtered watch ResourceSlices",
@@ -415,10 +453,11 @@ func TestNodeAuthorizer(t *testing.T) {
 			features: selectorAuthzDisabled,
 		},
 		{
-			name:     "disallowed unfiltered watch ResourceSlices - selector authz enabled",
-			attrs:    authorizer.AttributesRecord{User: node0, ResourceRequest: true, Verb: "watch", Resource: "resourceslices", APIGroup: "resource.k8s.io"},
-			expect:   authorizer.DecisionNoOpinion,
-			features: selectorAuthzEnabled,
+			name:         "disallowed unfiltered watch ResourceSlices - selector authz enabled",
+			attrs:        authorizer.AttributesRecord{User: node0, ResourceRequest: true, Verb: "watch", Resource: "resourceslices", APIGroup: "resource.k8s.io"},
+			expect:       authorizer.DecisionNoOpinion,
+			features:     selectorAuthzEnabled,
+			expectReason: "can only list/watch/deletecollection resourceslices with nodeName field selector",
 		},
 		{
 			name:   "allowed get ResourceSlice",
@@ -460,10 +499,11 @@ func TestNodeAuthorizer(t *testing.T) {
 			features: selectorAuthzDisabled,
 		},
 		{
-			name:     "get unrelated pod - selector enabled",
-			attrs:    authorizer.AttributesRecord{User: node0, ResourceRequest: true, Verb: "get", Resource: "pods", APIGroup: "", Name: "pod0-node1", Namespace: "ns0"},
-			expect:   authorizer.DecisionNoOpinion, // stricter with selector authz enabled
-			features: selectorAuthzEnabled,
+			name:         "get unrelated pod - selector enabled",
+			attrs:        authorizer.AttributesRecord{User: node0, ResourceRequest: true, Verb: "get", Resource: "pods", APIGroup: "", Name: "pod0-node1", Namespace: "ns0"},
+			expect:       authorizer.DecisionNoOpinion, // stricter with selector authz enabled
+			features:     selectorAuthzEnabled,
+			expectReason: "no relationship found between node 'node0' and this object",
 		},
 		// list pods
 		{
@@ -488,10 +528,11 @@ func TestNodeAuthorizer(t *testing.T) {
 			features: selectorAuthzDisabled,
 		},
 		{
-			name:     "list unrelated pods - selector enabled",
-			attrs:    authorizer.AttributesRecord{User: node0, ResourceRequest: true, Verb: "list", Resource: "pods", APIGroup: ""},
-			expect:   authorizer.DecisionNoOpinion, // stricter with selector authz enabled
-			features: selectorAuthzEnabled,
+			name:         "list unrelated pods - selector enabled",
+			attrs:        authorizer.AttributesRecord{User: node0, ResourceRequest: true, Verb: "list", Resource: "pods", APIGroup: ""},
+			expect:       authorizer.DecisionNoOpinion, // stricter with selector authz enabled
+			features:     selectorAuthzEnabled,
+			expectReason: "can only list/watch pods with spec.nodeName field selector",
 		},
 		// watch pods
 		{
@@ -516,10 +557,11 @@ func TestNodeAuthorizer(t *testing.T) {
 			features: selectorAuthzDisabled,
 		},
 		{
-			name:     "watch unrelated pods - selector enabled",
-			attrs:    authorizer.AttributesRecord{User: node0, ResourceRequest: true, Verb: "watch", Resource: "pods", APIGroup: ""},
-			expect:   authorizer.DecisionNoOpinion, // stricter with selector authz enabled
-			features: selectorAuthzEnabled,
+			name:         "watch unrelated pods - selector enabled",
+			attrs:        authorizer.AttributesRecord{User: node0, ResourceRequest: true, Verb: "watch", Resource: "pods", APIGroup: ""},
+			expect:       authorizer.DecisionNoOpinion, // stricter with selector authz enabled
+			features:     selectorAuthzEnabled,
+			expectReason: "can only list/watch pods with spec.nodeName field selector",
 		},
 		// create, delete pods
 		{
@@ -604,10 +646,11 @@ func TestNodeAuthorizer(t *testing.T) {
 			features: selectorAuthzDisabled,
 		},
 		{
-			name:     "get unrelated pod - selector enabled",
-			attrs:    authorizer.AttributesRecord{User: node0, ResourceRequest: true, Verb: "get", Resource: "nodes", APIGroup: "", Name: "node1"},
-			expect:   authorizer.DecisionNoOpinion, // stricter with selector authz enabled
-			features: selectorAuthzEnabled,
+			name:         "get unrelated pod - selector enabled",
+			attrs:        authorizer.AttributesRecord{User: node0, ResourceRequest: true, Verb: "get", Resource: "nodes", APIGroup: "", Name: "node1"},
+			expect:       authorizer.DecisionNoOpinion, // stricter with selector authz enabled
+			features:     selectorAuthzEnabled,
+			expectReason: "node 'node0' cannot read 'node1', only its own Node object",
 		},
 		// list nodes
 		{
@@ -622,10 +665,11 @@ func TestNodeAuthorizer(t *testing.T) {
 			features: selectorAuthzDisabled,
 		},
 		{
-			name:     "list single unrelated node - selector enabled",
-			attrs:    authorizer.AttributesRecord{User: node0, ResourceRequest: true, Verb: "list", Resource: "nodes", APIGroup: "", Name: "node1"},
-			expect:   authorizer.DecisionNoOpinion, // stricter with selector authz enabled
-			features: selectorAuthzEnabled,
+			name:         "list single unrelated node - selector enabled",
+			attrs:        authorizer.AttributesRecord{User: node0, ResourceRequest: true, Verb: "list", Resource: "nodes", APIGroup: "", Name: "node1"},
+			expect:       authorizer.DecisionNoOpinion, // stricter with selector authz enabled
+			features:     selectorAuthzEnabled,
+			expectReason: "node 'node0' cannot read 'node1', only its own Node object",
 		},
 		{
 			name:     "list all nodes - selector disabled",
@@ -634,10 +678,11 @@ func TestNodeAuthorizer(t *testing.T) {
 			features: selectorAuthzDisabled,
 		},
 		{
-			name:     "list all nodes - selector enabled",
-			attrs:    authorizer.AttributesRecord{User: node0, ResourceRequest: true, Verb: "list", Resource: "nodes", APIGroup: ""},
-			expect:   authorizer.DecisionNoOpinion, // stricter with selector authz enabled
-			features: selectorAuthzEnabled,
+			name:         "list all nodes - selector enabled",
+			attrs:        authorizer.AttributesRecord{User: node0, ResourceRequest: true, Verb: "list", Resource: "nodes", APIGroup: ""},
+			expect:       authorizer.DecisionNoOpinion, // stricter with selector authz enabled
+			features:     selectorAuthzEnabled,
+			expectReason: "node 'node0' cannot read all nodes, only its own Node object",
 		},
 		// watch nodes
 		{
@@ -652,10 +697,11 @@ func TestNodeAuthorizer(t *testing.T) {
 			features: selectorAuthzDisabled,
 		},
 		{
-			name:     "watch single unrelated node - selector enabled",
-			attrs:    authorizer.AttributesRecord{User: node0, ResourceRequest: true, Verb: "watch", Resource: "nodes", APIGroup: "", Name: "node1"},
-			expect:   authorizer.DecisionNoOpinion, // stricter with selector authz enabled
-			features: selectorAuthzEnabled,
+			name:         "watch single unrelated node - selector enabled",
+			attrs:        authorizer.AttributesRecord{User: node0, ResourceRequest: true, Verb: "watch", Resource: "nodes", APIGroup: "", Name: "node1"},
+			expect:       authorizer.DecisionNoOpinion, // stricter with selector authz enabled
+			features:     selectorAuthzEnabled,
+			expectReason: "node 'node0' cannot read 'node1', only its own Node object",
 		},
 		{
 			name:     "watch all nodes - selector disabled",
@@ -664,10 +710,11 @@ func TestNodeAuthorizer(t *testing.T) {
 			features: selectorAuthzDisabled,
 		},
 		{
-			name:     "watch all nodes - selector enabled",
-			attrs:    authorizer.AttributesRecord{User: node0, ResourceRequest: true, Verb: "watch", Resource: "nodes", APIGroup: ""},
-			expect:   authorizer.DecisionNoOpinion, // stricter with selector authz enabled
-			features: selectorAuthzEnabled,
+			name:         "watch all nodes - selector enabled",
+			attrs:        authorizer.AttributesRecord{User: node0, ResourceRequest: true, Verb: "watch", Resource: "nodes", APIGroup: ""},
+			expect:       authorizer.DecisionNoOpinion, // stricter with selector authz enabled
+			features:     selectorAuthzEnabled,
+			expectReason: "node 'node0' cannot read all nodes, only its own Node object",
 		},
 		// create nodes
 		{
@@ -736,6 +783,9 @@ func TestNodeAuthorizer(t *testing.T) {
 				decision, reason, _ := authz.Authorize(context.Background(), tc.attrs)
 				if decision != tc.expect {
 					t.Errorf("expected %v, got %v (%s)", tc.expect, decision, reason)
+				}
+				if reason != tc.expectReason {
+					t.Errorf("expected reason %q, got %q", tc.expectReason, reason)
 				}
 			})
 		}

@@ -189,6 +189,11 @@ func NodeRules() []rbacv1.PolicyRule {
 	if utilfeature.DefaultFeatureGate.Enabled(features.ClusterTrustBundle) {
 		nodePolicyRules = append(nodePolicyRules, rbacv1helpers.NewRule("get", "list", "watch").Groups(certificatesGroup).Resources("clustertrustbundles").RuleOrDie())
 	}
+	// Kubelet needs access to ServiceAccounts to support sending service account tokens to the credential provider.
+	// Use the Node authorizer to limit get to service accounts related to the node.
+	if utilfeature.DefaultFeatureGate.Enabled(features.KubeletServiceAccountTokenForCredentialProviders) {
+		nodePolicyRules = append(nodePolicyRules, rbacv1helpers.NewRule("get").Groups(legacyGroup).Resources("serviceaccounts").RuleOrDie())
+	}
 
 	return nodePolicyRules
 }
