@@ -264,17 +264,22 @@ func TestCTBPublisherSync(t *testing.T) {
 
 			fakeClient := fakeKubeClientSetWithCTBList(t, testSignerName, tt.existingCTBs...)
 
-			p, err := NewClusterTrustBundlePublisher(testSignerName, testCAProvider, fakeClient)
+			p, err := NewBetaClusterTrustBundlePublisher(testSignerName, testCAProvider, fakeClient)
 			if err != nil {
 				t.Fatalf("failed to set up a new cluster trust bundle publisher: %v", err)
 			}
 
-			go p.ctbInformer.Run(testCtx.Done())
-			if !cache.WaitForCacheSync(testCtx.Done(), p.ctbInformer.HasSynced) {
+			controller, ok := p.(*ClusterTrustBundlePublisher[certificatesv1beta1.ClusterTrustBundle])
+			if !ok {
+				t.Fatalf("failed to assert the controller for the beta API")
+			}
+
+			go controller.ctbInformer.Run(testCtx.Done())
+			if !cache.WaitForCacheSync(testCtx.Done(), controller.ctbInformer.HasSynced) {
 				t.Fatal("timed out waiting for informer to sync")
 			}
 
-			if err := p.syncClusterTrustBundle(testCtx); (err != nil) != tt.wantErr {
+			if err := controller.syncClusterTrustBundle(testCtx); (err != nil) != tt.wantErr {
 				t.Errorf("syncClusterTrustBundle() error = %v, wantErr %v", err, tt.wantErr)
 			}
 

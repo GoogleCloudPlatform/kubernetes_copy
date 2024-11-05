@@ -23,7 +23,9 @@ import (
 	"context"
 	"fmt"
 
+	certificatesv1alpha1 "k8s.io/api/certificates/v1alpha1"
 	certificatesv1beta1 "k8s.io/api/certificates/v1beta1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apiserver/pkg/server/dynamiccertificates"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/client-go/kubernetes"
@@ -233,6 +235,8 @@ func newKubeAPIServerSignerClusterTrustBundledPublisherDescriptor() *ControllerD
 	}
 }
 
+type controllerConstructor func(string, dynamiccertificates.CAContentProvider, kubernetes.Interface) (ctbpublisher.PublisherRunner, error)
+
 func newKubeAPIServerSignerClusterTrustBundledPublisherController(ctx context.Context, controllerContext ControllerContext, controllerName string) (controller.Interface, bool, error) {
 	rootCA, err := getKubeAPIServerCAFileContents(controllerContext)
 	if err != nil {
@@ -243,36 +247,50 @@ func newKubeAPIServerSignerClusterTrustBundledPublisherController(ctx context.Co
 		return nil, false, nil
 	}
 
-	apiserverSignerClient := controllerContext.ClientBuilder.ClientOrDie("kube-apiserver-serving-clustertrustbundle-publisher")
-	ctbAvailable, err := clusterTrustBundlesAvailable(apiserverSignerClient)
-	if err != nil {
-		return nil, false, fmt.Errorf("discovery failed for ClusterTrustBundle: %w", err)
-	}
-
-	if !ctbAvailable {
-		return nil, false, nil
-	}
-
 	servingSigners, err := dynamiccertificates.NewStaticCAContent("kube-apiserver-serving", rootCA)
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to create a static CA content provider for the kube-apiserver-serving signer: %w", err)
 	}
 
-	ctbPublisher, err := ctbpublisher.NewClusterTrustBundlePublisher(
-		"kubernetes.io/kube-apiserver-serving",
-		servingSigners,
-		apiserverSignerClient,
-	)
-	if err != nil {
-		return nil, false, fmt.Errorf("error creating kube-apiserver-serving signer certificates publisher: %w", err)
+	schemaControllerMapping := map[schema.GroupVersion]controllerConstructor{
+		certificatesv1alpha1.SchemeGroupVersion: ctbpublisher.NewAlphaClusterTrustBundlePublisher,
+		certificatesv1beta1.SchemeGroupVersion:  ctbpublisher.NewBetaClusterTrustBundlePublisher,
 	}
 
-	go ctbPublisher.Run(ctx)
+	apiserverSignerClient := controllerContext.ClientBuilder.ClientOrDie("kube-apiserver-serving-clustertrustbundle-publisher")
+	var runner ctbpublisher.PublisherRunner
+	for _, gv := range []schema.GroupVersion{certificatesv1beta1.SchemeGroupVersion, certificatesv1alpha1.SchemeGroupVersion} {
+		ctbAvailable, err := clusterTrustBundlesAvailable(apiserverSignerClient, gv)
+		if err != nil {
+			return nil, false, fmt.Errorf("discovery failed for ClusterTrustBundle: %w", err)
+		}
+
+		if !ctbAvailable {
+			continue
+		}
+
+		runner, err = schemaControllerMapping[gv](
+			"kubernetes.io/kube-apiserver-serving",
+			servingSigners,
+			apiserverSignerClient,
+		)
+		if err != nil {
+			return nil, false, fmt.Errorf("error creating kube-apiserver-serving signer certificates publisher: %w", err)
+		}
+		break
+	}
+
+	if runner == nil {
+		klog.Info("no known scheme version was found for clustertrustbundles, cannot start kube-apiserver-serving-clustertrustbundle-publisher-controller")
+		return nil, false, nil
+	}
+
+	go runner.Run(ctx)
 	return nil, true, nil
 }
 
-func clusterTrustBundlesAvailable(client kubernetes.Interface) (bool, error) {
-	resList, err := client.Discovery().ServerResourcesForGroupVersion(certificatesv1beta1.SchemeGroupVersion.String())
+func clusterTrustBundlesAvailable(client kubernetes.Interface, schemaVersion schema.GroupVersion) (bool, error) {
+	resList, err := client.Discovery().ServerResourcesForGroupVersion(schemaVersion.String())
 
 	if resList != nil {
 		// even in case of an error above there might be a partial list for APIs that
