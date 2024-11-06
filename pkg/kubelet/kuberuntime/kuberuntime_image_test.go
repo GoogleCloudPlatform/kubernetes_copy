@@ -33,6 +33,7 @@ import (
 	"k8s.io/kubernetes/pkg/credentialprovider"
 	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
 	"k8s.io/kubernetes/pkg/kubelet/images"
+	imagepullmanager "k8s.io/kubernetes/pkg/kubelet/images/pullmanager"
 	"k8s.io/utils/ptr"
 )
 
@@ -311,12 +312,12 @@ func TestPullWithSecrets(t *testing.T) {
 		_, fakeImageService, fakeManager, err := createTestRuntimeManager()
 		require.NoError(t, err)
 
-		fsRecordAccessor, err := images.NewFSPullRecordsAccessor(t.TempDir())
+		fsRecordAccessor, err := imagepullmanager.NewFSPullRecordsAccessor(t.TempDir())
 		if err != nil {
 			t.Fatal("failed to setup an file pull records accessor")
 		}
 
-		imagePullManager, err := images.NewImagePullManager(context.Background(), fsRecordAccessor, images.AlwaysVerifyImagePullPolicy, fakeManager)
+		imagePullManager, err := imagepullmanager.NewImagePullManager(context.Background(), fsRecordAccessor, imagepullmanager.AlwaysVerifyImagePullPolicy, fakeManager)
 		if err != nil {
 			t.Fatal("failed to setup an image pull manager")
 		}
@@ -385,12 +386,12 @@ func TestPullWithSecretsWithError(t *testing.T) {
 				fakeImageService.InjectError("PullImage", fmt.Errorf("test-error"))
 			}
 
-			fsRecordAccessor, err := images.NewFSPullRecordsAccessor(t.TempDir())
+			fsRecordAccessor, err := imagepullmanager.NewFSPullRecordsAccessor(t.TempDir())
 			if err != nil {
 				t.Fatal("failed to setup an file pull records accessor")
 			}
 
-			imagePullManager, err := images.NewImagePullManager(context.Background(), fsRecordAccessor, images.AlwaysVerifyImagePullPolicy, fakeManager)
+			imagePullManager, err := imagepullmanager.NewImagePullManager(context.Background(), fsRecordAccessor, imagepullmanager.AlwaysVerifyImagePullPolicy, fakeManager)
 			if err != nil {
 				t.Fatal("failed to setup an image pull manager")
 			}

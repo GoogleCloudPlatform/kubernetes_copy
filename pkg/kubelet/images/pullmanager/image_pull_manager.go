@@ -14,14 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package images
+package pullmanager
 
 import (
 	"context"
 	"fmt"
 	"reflect"
 	"slices"
-	"sync"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -33,62 +32,6 @@ import (
 )
 
 var _ ImagePullManager = &PullManager{}
-
-// namedLockSet stores named locks in order to allow to partition context access
-// such that callers that are mutually exclusive based on a string value can
-// access the same context at the same time, compared to a global lock that
-// would create an unnecessary bottleneck.
-type namedLockSet struct {
-	globalLock sync.Mutex
-	locks      map[string]*sync.Mutex
-}
-
-func NewNamedLockSet() *namedLockSet {
-	return &namedLockSet{
-		globalLock: sync.Mutex{},
-		locks:      map[string]*sync.Mutex{},
-	}
-}
-
-func (n *namedLockSet) Lock(name string) {
-	func() {
-		n.globalLock.Lock()
-		defer n.globalLock.Unlock()
-		if _, ok := n.locks[name]; !ok {
-			n.locks[name] = &sync.Mutex{}
-		}
-	}()
-	// This call cannot be guarded by the global lock as it would block the access
-	// to the other locks
-	n.locks[name].Lock()
-}
-
-// Unlock unlocks the named lock. Can only be called after a previous Lock() call
-// for the same named lock.
-func (n *namedLockSet) Unlock(name string) {
-	// cannot be locked by the global lock as it would deadlock once GlobalLock() gets activated
-	if _, ok := n.locks[name]; ok {
-		n.locks[name].Unlock()
-	}
-}
-
-// GlobalLock first locks access to the named locks and then locks all of the
-// set locks
-func (n *namedLockSet) GlobalLock() {
-	n.globalLock.Lock()
-	for _, l := range n.locks {
-		l.Lock()
-	}
-}
-
-// GlobalUnlock should only be called after GlobalLock(). It unlocks all the locks
-// of the set and then it also unlocks the global lock gating access to the set locks.
-func (n *namedLockSet) GlobalUnlock() {
-	for _, l := range n.locks {
-		l.Unlock()
-	}
-	n.globalLock.Unlock()
-}
 
 // PullManager is an implementation of the ImagePullManager. It
 // tracks images pulled by the kubelet by creating records about ongoing and
@@ -383,19 +326,6 @@ func (f *PullManager) initialize(ctx context.Context) {
 
 	}
 }
-
-var _ ImagePullManager = &NoopImagePullManager{}
-
-type NoopImagePullManager struct{}
-
-func (m *NoopImagePullManager) RecordPullIntent(_ string) error { return nil }
-func (m *NoopImagePullManager) RecordImagePulled(_, _ string, _ *kubeletconfiginternal.ImagePullCredentials) {
-}
-func (m *NoopImagePullManager) RecordImagePullFailed(image string) {}
-func (m *NoopImagePullManager) MustAttemptImagePull(_, _ string, _ []kubeletconfiginternal.ImagePullSecret) bool {
-	return false
-}
-func (m *NoopImagePullManager) PruneUnknownRecords(_ []string, _ time.Time) {}
 
 // searchForExistingTagDigest loop through the `image` RepoDigests and RepoTags
 // and tries to find a digest/tag in `trackedImages`, which is a map of

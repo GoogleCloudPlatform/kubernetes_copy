@@ -55,6 +55,7 @@ import (
 	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
 	"k8s.io/kubernetes/pkg/kubelet/events"
 	"k8s.io/kubernetes/pkg/kubelet/images"
+	imagepullmanager "k8s.io/kubernetes/pkg/kubelet/images/pullmanager"
 	runtimeutil "k8s.io/kubernetes/pkg/kubelet/kuberuntime/util"
 	"k8s.io/kubernetes/pkg/kubelet/lifecycle"
 	"k8s.io/kubernetes/pkg/kubelet/logs"
@@ -279,9 +280,9 @@ func NewKubeGenericRuntimeManager(
 	}
 
 	var imageGCHooks []images.PostImageGCHook
-	var imagePullManager images.ImagePullManager = &images.NoopImagePullManager{}
+	var imagePullManager imagepullmanager.ImagePullManager = &imagepullmanager.NoopImagePullManager{}
 	if utilfeature.DefaultFeatureGate.Enabled(features.KubeletEnsureSecretPulledImages) {
-		imagePullCredentialsVerificationPolicy, err := images.NewImagePullCredentialVerificationPolicy(
+		imagePullCredentialsVerificationPolicy, err := imagepullmanager.NewImagePullCredentialVerificationPolicy(
 			kubeletconfiginternal.ImagePullCredentialsVerificationPolicy(imagePullsCredentialVerificationPolicy),
 			preloadedImagesCredentialVerificationWhitelist)
 
@@ -289,12 +290,12 @@ func NewKubeGenericRuntimeManager(
 			return nil, nil, err
 		}
 
-		fsRecordAccessor, err := images.NewFSPullRecordsAccessor(rootDirectory)
+		fsRecordAccessor, err := imagepullmanager.NewFSPullRecordsAccessor(rootDirectory)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to setup the FSPullRecordsAccessor: %w", err)
 		}
 
-		imagePullManager, err = images.NewImagePullManager(ctx, fsRecordAccessor, imagePullCredentialsVerificationPolicy, kubeRuntimeManager)
+		imagePullManager, err = imagepullmanager.NewImagePullManager(ctx, fsRecordAccessor, imagePullCredentialsVerificationPolicy, kubeRuntimeManager)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to create image pull manager: %w", err)
 		}

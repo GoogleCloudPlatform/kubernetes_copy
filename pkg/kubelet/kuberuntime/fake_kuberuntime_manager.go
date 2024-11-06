@@ -35,6 +35,7 @@ import (
 	"k8s.io/kubernetes/pkg/kubelet/cm"
 	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
 	"k8s.io/kubernetes/pkg/kubelet/images"
+	imagepullmanager "k8s.io/kubernetes/pkg/kubelet/images/pullmanager"
 	"k8s.io/kubernetes/pkg/kubelet/lifecycle"
 	"k8s.io/kubernetes/pkg/kubelet/logs"
 	proberesults "k8s.io/kubernetes/pkg/kubelet/prober/results"
@@ -132,7 +133,7 @@ func newFakeKubeRuntimeManager(runtimeService internalapi.RuntimeService, imageS
 		kubecontainer.FilterEventRecorder(recorder),
 		&credentialprovider.BasicDockerKeyring{},
 		kubeRuntimeManager,
-		&images.NoopImagePullManager{},
+		&imagepullmanager.NoopImagePullManager{},
 		flowcontrol.NewBackOff(time.Second, 300*time.Second),
 		false,
 		ptr.To[int32](0), // No limit on max parallel image pulls,

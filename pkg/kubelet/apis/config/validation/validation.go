@@ -32,7 +32,7 @@ import (
 	tracingapi "k8s.io/component-base/tracing/api/v1"
 	"k8s.io/kubernetes/pkg/features"
 	kubeletconfig "k8s.io/kubernetes/pkg/kubelet/apis/config"
-	"k8s.io/kubernetes/pkg/kubelet/images"
+	imagepullmanager "k8s.io/kubernetes/pkg/kubelet/images/pullmanager"
 	kubetypes "k8s.io/kubernetes/pkg/kubelet/types"
 	utilfs "k8s.io/kubernetes/pkg/util/filesystem"
 	utiltaints "k8s.io/kubernetes/pkg/util/taints"
@@ -301,7 +301,7 @@ func ValidateKubeletConfiguration(kc *kubeletconfig.KubeletConfiguration, featur
 
 		if len(kc.PreloadedImagesVerificationAllowlist) > 0 && kc.ImagePullCredentialsVerificationPolicy != "NeverVerifyAllowlistedImages" {
 			allErrors = append(allErrors, fmt.Errorf("invalid configuration: can't set `preloadedImagesVerificationAllowlist` if `imagePullCredentialsVertificationPolicy` is not \"NeverVerifyAllowlistedImages\""))
-		} else if err := images.ValidateAllowlistImagesPatterns(kc.PreloadedImagesVerificationAllowlist); err != nil {
+		} else if err := imagepullmanager.ValidateAllowlistImagesPatterns(kc.PreloadedImagesVerificationAllowlist); err != nil {
 			allErrors = append(allErrors, fmt.Errorf("invalid configuration: invalid image pattern in `preloadedImagesVerificationAllowlist`: %w", err))
 		}
 	} else {

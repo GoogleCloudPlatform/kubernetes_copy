@@ -42,6 +42,7 @@ import (
 	kubeletconfiginternal "k8s.io/kubernetes/pkg/kubelet/apis/config"
 	. "k8s.io/kubernetes/pkg/kubelet/container"
 	ctest "k8s.io/kubernetes/pkg/kubelet/container/testing"
+	"k8s.io/kubernetes/pkg/kubelet/images/pullmanager"
 	"k8s.io/kubernetes/test/utils/ktesting"
 	testingclock "k8s.io/utils/clock/testing"
 	"k8s.io/utils/ptr"
@@ -513,7 +514,7 @@ func (m *mockPodPullingTimeRecorder) reset() {
 }
 
 type mockImagePullManager struct {
-	NoopImagePullManager
+	pullmanager.NoopImagePullManager
 
 	imageAllowlist map[string]sets.Set[kubeletconfiginternal.ImagePullSecret]
 	allowAll       bool

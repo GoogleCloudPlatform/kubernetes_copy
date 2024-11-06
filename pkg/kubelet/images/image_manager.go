@@ -38,6 +38,7 @@ import (
 	kubeletconfiginternal "k8s.io/kubernetes/pkg/kubelet/apis/config"
 	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
 	"k8s.io/kubernetes/pkg/kubelet/events"
+	"k8s.io/kubernetes/pkg/kubelet/images/pullmanager"
 	"k8s.io/kubernetes/pkg/kubelet/metrics"
 	"k8s.io/kubernetes/pkg/util/parsers"
 )
@@ -51,7 +52,7 @@ type ImagePodPullingTimeRecorder interface {
 type imageManager struct {
 	recorder         record.EventRecorder
 	imageService     kubecontainer.ImageService
-	imagePullManager ImagePullManager
+	imagePullManager pullmanager.ImagePullManager
 	backOff          *flowcontrol.Backoff
 	prevPullErrMsg   sync.Map
 
@@ -69,7 +70,7 @@ func NewImageManager(
 	recorder record.EventRecorder,
 	nodeKeyring credentialprovider.DockerKeyring,
 	imageService kubecontainer.ImageService,
-	imagePullManager ImagePullManager,
+	imagePullManager pullmanager.ImagePullManager,
 	imageBackOff *flowcontrol.Backoff,
 	serialized bool,
 	maxParallelImagePulls *int32,
