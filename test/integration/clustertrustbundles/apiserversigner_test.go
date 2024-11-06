@@ -30,7 +30,7 @@ import (
 	"testing"
 	"time"
 
-	"k8s.io/api/certificates/v1alpha1"
+	"k8s.io/api/certificates/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured/unstructuredscheme"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -107,12 +107,12 @@ func TestClusterTrustBundlesPublisherController(t *testing.T) {
 	unrelatedPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: unrelatedSigner})
 	// set up a signer that's completely unrelated to the controller to check
 	// it's not anyhow handled by it
-	unrelatedCTB, err := clientSet.CertificatesV1alpha1().ClusterTrustBundles().Create(ctx,
-		&v1alpha1.ClusterTrustBundle{
+	unrelatedCTB, err := clientSet.CertificatesV1beta1().ClusterTrustBundles().Create(ctx,
+		&v1beta1.ClusterTrustBundle{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "test.test:unrelated:0",
 			},
-			Spec: v1alpha1.ClusterTrustBundleSpec{
+			Spec: v1beta1.ClusterTrustBundleSpec{
 				SignerName:  "test.test/unrelated",
 				TrustBundle: string(unrelatedPEM),
 			},
@@ -126,11 +126,11 @@ func TestClusterTrustBundlesPublisherController(t *testing.T) {
 	waitUntilSingleKASSignerCTB(ctx, t, clientSet, certPEM)
 
 	t.Log("check that the controller deletes any additional bundles for the same signer")
-	if _, err := clientSet.CertificatesV1alpha1().ClusterTrustBundles().Create(ctx, &v1alpha1.ClusterTrustBundle{
+	if _, err := clientSet.CertificatesV1beta1().ClusterTrustBundles().Create(ctx, &v1beta1.ClusterTrustBundle{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "kubernetes.io:kube-apiserver-serving:testname",
 		},
-		Spec: v1alpha1.ClusterTrustBundleSpec{
+		Spec: v1beta1.ClusterTrustBundleSpec{
 			SignerName:  "kubernetes.io/kube-apiserver-serving",
 			TrustBundle: string(certPEM),
 		},
@@ -151,7 +151,7 @@ func TestClusterTrustBundlesPublisherController(t *testing.T) {
 	})
 	differentSignerPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: differentSigner})
 
-	ctbList, err := clientSet.CertificatesV1alpha1().ClusterTrustBundles().List(ctx, metav1.ListOptions{
+	ctbList, err := clientSet.CertificatesV1beta1().ClusterTrustBundles().List(ctx, metav1.ListOptions{
 		FieldSelector: "spec.signerName=kubernetes.io/kube-apiserver-serving",
 	})
 	if err != nil || len(ctbList.Items) != 1 {
@@ -161,13 +161,13 @@ func TestClusterTrustBundlesPublisherController(t *testing.T) {
 	ctbToUpdate := ctbList.Items[0].DeepCopy()
 	ctbToUpdate.Spec.TrustBundle = string(differentSignerPEM)
 
-	if _, err = clientSet.CertificatesV1alpha1().ClusterTrustBundles().Update(ctx, ctbToUpdate, metav1.UpdateOptions{}); err != nil {
+	if _, err = clientSet.CertificatesV1beta1().ClusterTrustBundles().Update(ctx, ctbToUpdate, metav1.UpdateOptions{}); err != nil {
 		t.Fatalf("failed to update ctb with new PEM bundle: %v", err)
 	}
 
 	waitUntilSingleKASSignerCTB(ctx, t, clientSet, certPEM)
 
-	unrelatedCTB, err = clientSet.CertificatesV1alpha1().ClusterTrustBundles().Get(ctx, unrelatedCTB.Name, metav1.GetOptions{})
+	unrelatedCTB, err = clientSet.CertificatesV1beta1().ClusterTrustBundles().Get(ctx, unrelatedCTB.Name, metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("failed to get the unrelated CTB back: %v", err)
 	}
@@ -183,7 +183,7 @@ func TestClusterTrustBundlesPublisherController(t *testing.T) {
 
 func waitUntilSingleKASSignerCTB(ctx context.Context, t *testing.T, clientSet *clientset.Clientset, caPEM []byte) {
 	err := wait.PollUntilContextTimeout(ctx, 200*time.Millisecond, 30*time.Second, true, func(ctx context.Context) (done bool, err error) {
-		ctbList, err := clientSet.CertificatesV1alpha1().ClusterTrustBundles().List(ctx, metav1.ListOptions{
+		ctbList, err := clientSet.CertificatesV1beta1().ClusterTrustBundles().List(ctx, metav1.ListOptions{
 			FieldSelector: "spec.signerName=kubernetes.io/kube-apiserver-serving",
 		})
 
