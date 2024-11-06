@@ -72,6 +72,21 @@ func (n *NodeE2ERemote) SetupTestPackage(tardir, systemSpecName string) error {
 		}
 	}
 
+	// create a symlink of gcp-credential-provider binary to use for testing
+	// service account token for credential providers.
+	// feature-gate: KubeletServiceAccountTokenForCredentialProviders=true
+	binary := "gcp-credential-provider" // Use relative path instead of full path
+	symlink := filepath.Join(tardir, "gcp-credential-provider-with-sa")
+	if _, err := os.Lstat(symlink); err == nil {
+		if err := os.Remove(symlink); err != nil {
+			return fmt.Errorf("failed to remove symlink %q: %w", symlink, err)
+		}
+	}
+	klog.V(2).Infof("Creating symlink %s -> %s", symlink, binary)
+	if err := os.Symlink(binary, symlink); err != nil {
+		return fmt.Errorf("failed to create symlink %q: %w", symlink, err)
+	}
+
 	if systemSpecName != "" {
 		// Copy system spec file
 		source := filepath.Join(rootDir, system.SystemSpecPath, systemSpecName+".yaml")
@@ -97,7 +112,7 @@ func prependMemcgNotificationFlag(args string) string {
 // a credential provider plugin.
 func prependCredentialProviderFlag(args, workspace string) string {
 	credentialProviderConfig := filepath.Join(workspace, "credential-provider.yaml")
-	featureGateFlag := "--kubelet-flags=--feature-gates=DisableKubeletCloudCredentialProviders=true"
+	featureGateFlag := "--kubelet-flags=--feature-gates=DisableKubeletCloudCredentialProviders=true,KubeletServiceAccountTokenForCredentialProviders=true"
 	configFlag := fmt.Sprintf("--kubelet-flags=--image-credential-provider-config=%s", credentialProviderConfig)
 	binFlag := fmt.Sprintf("--kubelet-flags=--image-credential-provider-bin-dir=%s", workspace)
 	return fmt.Sprintf("%s %s %s %s", featureGateFlag, configFlag, binFlag, args)

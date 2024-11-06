@@ -24,6 +24,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/uuid"
+	typedcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/kubernetes/test/e2e/feature"
 	"k8s.io/kubernetes/test/e2e/framework"
 	e2epod "k8s.io/kubernetes/test/e2e/framework/pod"
@@ -34,10 +35,12 @@ import (
 var _ = SIGDescribe("ImageCredentialProvider", feature.KubeletCredentialProviders, func() {
 	f := framework.NewDefaultFramework("image-credential-provider")
 	f.NamespacePodSecurityLevel = admissionapi.LevelPrivileged
+	var serviceAccountClient typedcorev1.ServiceAccountInterface
 	var podClient *e2epod.PodClient
 
 	ginkgo.BeforeEach(func() {
 		podClient = e2epod.NewPodClient(f)
+		serviceAccountClient = f.ClientSet.CoreV1().ServiceAccounts(f.Namespace.Name)
 	})
 
 	/*
@@ -48,11 +51,28 @@ var _ = SIGDescribe("ImageCredentialProvider", feature.KubeletCredentialProvider
 	ginkgo.It("should be able to create pod with image credentials fetched from external credential provider ", func(ctx context.Context) {
 		privateimage := imageutils.GetConfig(imageutils.AgnhostPrivate)
 		name := "pod-auth-image-" + string(uuid.NewUUID())
+
+		// The service account is required to exist for the credential provider plugin that's configured to use service account token.
+		serviceAccount := &v1.ServiceAccount{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "test-service-account",
+				// these annotations are validated by the test gcp-credential-provider-with-sa plugin
+				// that runs in service account token mode.
+				Annotations: map[string]string{
+					"domain.io/identity-id":   "123456",
+					"domain.io/identity-type": "serviceaccount",
+				},
+			},
+		}
+		_, err := serviceAccountClient.Create(ctx, serviceAccount, metav1.CreateOptions{})
+		framework.ExpectNoError(err)
+
 		pod := &v1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: name,
 			},
 			Spec: v1.PodSpec{
+				ServiceAccountName: "test-service-account",
 				Containers: []v1.Container{
 					{
 						Name:            "container-auth-image",
