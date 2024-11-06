@@ -28,12 +28,18 @@ import (
 	"math/big"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/require"
+
+	certificatesv1alpha1 "k8s.io/api/certificates/v1alpha1"
 	certificatesv1beta1 "k8s.io/api/certificates/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/discovery"
+	fakediscovery "k8s.io/client-go/discovery/fake"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/cache"
@@ -46,8 +52,7 @@ func TestBeforeSynced(t *testing.T) {
 
 	informerFactory := informers.NewSharedInformerFactoryWithOptions(kc, 0)
 
-	ctbInformer := informerFactory.Certificates().V1beta1().ClusterTrustBundles()
-	ctbManager, _ := NewInformerManager(tCtx, ctbInformer, 256, 5*time.Minute)
+	ctbManager, _ := NewBetaInformerManager(tCtx, informerFactory, 256, 5*time.Minute)
 
 	_, err := ctbManager.GetTrustAnchorsByName("foo", false)
 	if err == nil {
@@ -82,10 +87,10 @@ func TestGetTrustAnchorsByName(t *testing.T) {
 
 	informerFactory := informers.NewSharedInformerFactoryWithOptions(kc, 0)
 
-	ctbInformer := informerFactory.Certificates().V1beta1().ClusterTrustBundles()
-	ctbManager, _ := NewInformerManager(tCtx, ctbInformer, 256, 5*time.Minute)
+	ctbManager, _ := NewBetaInformerManager(tCtx, informerFactory, 256, 5*time.Minute)
 
 	informerFactory.Start(ctx.Done())
+	ctbInformer := informerFactory.Certificates().V1beta1().ClusterTrustBundles()
 	if !cache.WaitForCacheSync(ctx.Done(), ctbInformer.Informer().HasSynced) {
 		t.Fatalf("Timed out waiting for informer to sync")
 	}
@@ -146,10 +151,10 @@ func TestGetTrustAnchorsByNameCaching(t *testing.T) {
 
 	informerFactory := informers.NewSharedInformerFactoryWithOptions(kc, 0)
 
-	ctbInformer := informerFactory.Certificates().V1beta1().ClusterTrustBundles()
-	ctbManager, _ := NewInformerManager(tCtx, ctbInformer, 256, 5*time.Minute)
+	ctbManager, _ := NewBetaInformerManager(tCtx, informerFactory, 256, 5*time.Minute)
 
 	informerFactory.Start(ctx.Done())
+	ctbInformer := informerFactory.Certificates().V1beta1().ClusterTrustBundles()
 	if !cache.WaitForCacheSync(ctx.Done(), ctbInformer.Informer().HasSynced) {
 		t.Fatalf("Timed out waiting for informer to sync")
 	}
@@ -221,10 +226,10 @@ func TestGetTrustAnchorsBySignerName(t *testing.T) {
 
 	informerFactory := informers.NewSharedInformerFactoryWithOptions(kc, 0)
 
-	ctbInformer := informerFactory.Certificates().V1beta1().ClusterTrustBundles()
-	ctbManager, _ := NewInformerManager(tCtx, ctbInformer, 256, 5*time.Minute)
+	ctbManager, _ := NewBetaInformerManager(tCtx, informerFactory, 256, 5*time.Minute)
 
 	informerFactory.Start(ctx.Done())
+	ctbInformer := informerFactory.Certificates().V1beta1().ClusterTrustBundles()
 	if !cache.WaitForCacheSync(ctx.Done(), ctbInformer.Informer().HasSynced) {
 		t.Fatalf("Timed out waiting for informer to sync")
 	}
@@ -335,10 +340,10 @@ func TestGetTrustAnchorsBySignerNameCaching(t *testing.T) {
 
 	informerFactory := informers.NewSharedInformerFactoryWithOptions(kc, 0)
 
-	ctbInformer := informerFactory.Certificates().V1beta1().ClusterTrustBundles()
-	ctbManager, _ := NewInformerManager(tCtx, ctbInformer, 256, 5*time.Minute)
+	ctbManager, _ := NewBetaInformerManager(tCtx, informerFactory, 256, 5*time.Minute)
 
 	informerFactory.Start(ctx.Done())
+	ctbInformer := informerFactory.Certificates().V1beta1().ClusterTrustBundles()
 	if !cache.WaitForCacheSync(ctx.Done(), ctbInformer.Informer().HasSynced) {
 		t.Fatalf("Timed out waiting for informer to sync")
 	}
@@ -477,4 +482,129 @@ func diffBundles(a, b []byte) string {
 	})
 
 	return cmp.Diff(aBlocks, bBlocks)
+}
+
+func TestLazyInformerManager_determineManager(t *testing.T) {
+	tests := []struct {
+		name             string
+		injectError      error
+		ctbsAvailableGVs []string
+		wantManager      string
+	}{
+		{
+			name:        "API unavailable",
+			wantManager: "noop",
+		},
+		{
+			name:        "err in discovery",
+			injectError: fmt.Errorf("unexpected discovery error"),
+			wantManager: "nil",
+		},
+		{
+			name:             "API available in v1alpha1",
+			ctbsAvailableGVs: []string{"v1alpha1"},
+			wantManager:      "v1alpha1",
+		},
+		{
+			name:             "API available in an unhandled version",
+			ctbsAvailableGVs: []string{"v1beta2"},
+			wantManager:      "noop",
+		},
+		{
+			name:             "API available in v1beta1",
+			ctbsAvailableGVs: []string{"v1beta1"},
+			wantManager:      "v1beta1",
+		},
+		{
+			name:             "API available in v1 - currently unhandled",
+			ctbsAvailableGVs: []string{"v1"},
+			wantManager:      "noop",
+		},
+		{
+			name:             "err in discovery but beta API shard discovered",
+			injectError:      fmt.Errorf("unexpected discovery error"),
+			ctbsAvailableGVs: []string{"v1beta1"},
+			wantManager:      "v1beta1",
+		},
+		{
+			name:             "API available in alpha and beta - prefer beta",
+			ctbsAvailableGVs: []string{"v1alpha1", "v1beta1"},
+			wantManager:      "v1beta1",
+		},
+		{
+			name:             "API available in multiple handled and unhandled versions - prefer the most-GA handled version",
+			ctbsAvailableGVs: []string{"v1alpha1", "v1", "v2", "v1beta1", "v1alpha2"},
+			wantManager:      "v1beta1",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			logger, loggerCtx := ktesting.NewTestContext(t)
+
+			fakeDisc := fakeDiscovery{
+				err:         tt.injectError,
+				gvResources: make(map[string]*metav1.APIResourceList),
+			}
+
+			for _, gv := range tt.ctbsAvailableGVs {
+				fakeDisc.gvResources["certificates.k8s.io/"+gv] = &metav1.APIResourceList{
+					APIResources: []metav1.APIResource{
+						{Name: "certificatesigningrequests"},
+						{Name: "clustertrustbundles"},
+					},
+				}
+			}
+
+			m := &LazyInformerManager{
+				managerLock:       sync.Mutex{},
+				client:            NewFakeClientset(fakeDisc),
+				cacheSize:         128,
+				contextWithLogger: loggerCtx,
+				logger:            logger,
+			}
+			m.determineManager()
+
+			switch manager := m.manager.(type) {
+			case *InformerManager[certificatesv1alpha1.ClusterTrustBundle]:
+				require.Equal(t, tt.wantManager, "v1alpha1")
+			case *InformerManager[certificatesv1beta1.ClusterTrustBundle]:
+				require.Equal(t, tt.wantManager, "v1beta1")
+			case *NoopManager:
+				require.Equal(t, tt.wantManager, "noop")
+			case nil:
+				require.Equal(t, tt.wantManager, "nil")
+			default:
+				t.Fatalf("unknown manager type: %T", manager)
+			}
+		})
+	}
+}
+
+// fakeDiscovery inherits DiscoveryInterface(via FakeDiscovery) with some methods serving testing data.
+type fakeDiscovery struct {
+	fakediscovery.FakeDiscovery
+	gvResources map[string]*metav1.APIResourceList
+	err         error
+}
+
+func (d fakeDiscovery) ServerResourcesForGroupVersion(groupVersion string) (*metav1.APIResourceList, error) {
+	return d.gvResources[groupVersion], d.err
+}
+
+type fakeDiscoveryClientSet struct {
+	*fake.Clientset
+	DiscoveryObj *fakeDiscovery
+}
+
+func (c *fakeDiscoveryClientSet) Discovery() discovery.DiscoveryInterface {
+	return c.DiscoveryObj
+}
+
+// Create a fake Clientset with its Discovery method overridden.
+func NewFakeClientset(fakeDiscovery fakeDiscovery) *fakeDiscoveryClientSet {
+	cs := &fakeDiscoveryClientSet{
+		Clientset:    fake.NewClientset(),
+		DiscoveryObj: &fakeDiscovery,
+	}
+	return cs
 }
