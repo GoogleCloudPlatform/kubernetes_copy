@@ -103,3 +103,33 @@ type ImagePullManager interface {
 	// `until` is a timestamp created _before_ the `imageList` was requested from the CRI.
 	PruneUnknownRecords(imageList []string, until time.Time)
 }
+
+// PullRecordsAccessor allows unified access to ImagePullIntents/ImagePulledRecords
+// irregardless of the backing database implementation
+type PullRecordsAccessor interface {
+	// ListImagePullIntents lists all the ImagePullIntents in the database.
+	// ImagePullIntents that cannot be decoded will not appear in the list.
+	// Returns nil and an error if there was a problem reading from the database.
+	ListImagePullIntents() ([]*kubeletconfiginternal.ImagePullIntent, error)
+	// ImagePullIntentExists returns whether a valid ImagePullIntent is present
+	// for the given image.
+	ImagePullIntentExists(image string) (bool, error)
+	// WriteImagePullIntent writes a an intent record for the image into the database
+	WriteImagePullIntent(image string) error
+	// DeleteImagePullIntent removes an `image` intent record from the database
+	DeleteImagePullIntent(image string) error
+
+	// ListImagePulledRecords lists the database ImagePulledRecords.
+	// Records that cannot be decoded will be ignored.
+	// Returns an error if there was a problem reading from the database.
+	ListImagePulledRecords() ([]*kubeletconfiginternal.ImagePulledRecord, error)
+	// GetImagePulledRecord fetches an ImagePulledRecord for the given `imageRef`.
+	// If a file for the `imageRef` is present but the contents cannot be decoded,
+	// it returns a exists=true with err equal to the decoding error.
+	GetImagePulledRecord(imageRef string) (record *kubeletconfiginternal.ImagePulledRecord, exists bool, err error)
+	// WriteImagePulledRecord writes an ImagePulledRecord into the database.
+	WriteImagePulledRecord(record *kubeletconfiginternal.ImagePulledRecord) error
+	// DeleteImagePulledRecord removes an ImagePulledRecord for `imageRef` from the
+	// database.
+	DeleteImagePulledRecord(imageRef string) error
+}

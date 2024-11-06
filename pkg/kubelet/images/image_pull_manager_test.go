@@ -408,15 +408,19 @@ func TestFileBasedImagePullManager_MustAttemptImagePull(t *testing.T) {
 			copyTestData(t, pullingDir, "pulling", tt.pullingFiles)
 			copyTestData(t, pulledDir, "pulled", tt.pulledFiles)
 
-			f := &FileBasedImagePullManager{
-				pullingDir:                    pullingDir,
-				pulledDir:                     pulledDir,
+			fsRecordAccessor := &fsPullRecordsAccessor{
+				pullingDir: pullingDir,
+				pulledDir:  pulledDir,
+				encoder:    encoder,
+				decoder:    decoder,
+			}
+
+			f := &PullManager{
+				recordsAccessor:               fsRecordAccessor,
 				requireCredentialVerification: tt.imagePullPolicy,
 				intentAccessors:               NewNamedLockSet(),
 				intentCounters:                map[string]int{},
 				pulledAccessors:               NewNamedLockSet(),
-				encoder:                       encoder,
-				decoder:                       decoder,
 			}
 			if got := f.MustAttemptImagePull(tt.image, tt.imageRef, tt.podSecrets); got != tt.want {
 				t.Errorf("FileBasedImagePullManager.MustAttemptImagePull() = %v, want %v", got, tt.want)
@@ -455,12 +459,16 @@ func TestFileBasedImagePullManager_RecordPullIntent(t *testing.T) {
 			testDir := t.TempDir()
 			pullingDir := filepath.Join(testDir, "pulling")
 
-			f := &FileBasedImagePullManager{
-				pullingDir:      pullingDir,
+			fsRecordAccessor := &fsPullRecordsAccessor{
+				pullingDir: pullingDir,
+				encoder:    encoder,
+				decoder:    decoder,
+			}
+
+			f := &PullManager{
+				recordsAccessor: fsRecordAccessor,
 				intentAccessors: NewNamedLockSet(),
 				intentCounters:  make(map[string]int),
-				encoder:         encoder,
-				decoder:         decoder,
 			}
 
 			if tt.startCounter > 0 {
@@ -622,16 +630,20 @@ func TestFileBasedImagePullManager_RecordImagePulled(t *testing.T) {
 			copyTestData(t, pullingDir, "pulling", tt.existingPulling)
 			copyTestData(t, pulledDir, "pulled", tt.existingPulled)
 
-			f := &FileBasedImagePullManager{
-				pullingDir:      pullingDir,
-				pulledDir:       pulledDir,
+			fsRecordAccessor := &fsPullRecordsAccessor{
+				pullingDir: pullingDir,
+				pulledDir:  pulledDir,
+				encoder:    encoder,
+				decoder:    decoder,
+			}
+
+			f := &PullManager{
+				recordsAccessor: fsRecordAccessor,
 				intentAccessors: NewNamedLockSet(),
 				intentCounters: map[string]int{
 					tt.image: 1,
 				},
 				pulledAccessors: NewNamedLockSet(),
-				encoder:         encoder,
-				decoder:         decoder,
 			}
 			origIntentCounter := f.intentCounters[tt.image]
 			f.RecordImagePulled(tt.image, tt.imageRef, tt.creds)
@@ -794,15 +806,19 @@ func TestFileBasedImagePullManager_initialize(t *testing.T) {
 			copyTestData(t, pullingDir, "pulling", tt.existingIntents)
 			copyTestData(t, pulledDir, "pulled", tt.existingPulledRecords)
 
-			f := &FileBasedImagePullManager{
-				pullingDir:      pullingDir,
-				pulledDir:       pulledDir,
+			fsRecordAccessor := &fsPullRecordsAccessor{
+				pullingDir: pullingDir,
+				pulledDir:  pulledDir,
+				encoder:    encoder,
+				decoder:    decoder,
+			}
+
+			f := &PullManager{
+				recordsAccessor: fsRecordAccessor,
 				imageService:    imageService,
 				intentAccessors: NewNamedLockSet(),
 				intentCounters:  make(map[string]int),
 				pulledAccessors: NewNamedLockSet(),
-				encoder:         encoder,
-				decoder:         decoder,
 			}
 			f.initialize(testCtx)
 
@@ -905,11 +921,15 @@ func TestFileBasedImagePullManager_PruneUnknownRecords(t *testing.T) {
 
 			copyTestData(t, pulledDir, "pulled", tt.pulledFiles)
 
-			f := &FileBasedImagePullManager{
-				pulledDir:       pulledDir,
+			fsRecordAccessor := &fsPullRecordsAccessor{
+				pulledDir: pulledDir,
+				encoder:   encoder,
+				decoder:   decoder,
+			}
+
+			f := &PullManager{
+				recordsAccessor: fsRecordAccessor,
 				pulledAccessors: NewNamedLockSet(),
-				encoder:         encoder,
-				decoder:         decoder,
 			}
 			f.PruneUnknownRecords(tt.imageList, tt.gcStartTime)
 

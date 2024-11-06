@@ -311,7 +311,12 @@ func TestPullWithSecrets(t *testing.T) {
 		_, fakeImageService, fakeManager, err := createTestRuntimeManager()
 		require.NoError(t, err)
 
-		imagePullManager, err := images.NewFileBasedImagePullManager(context.Background(), t.TempDir(), images.AlwaysVerifyImagePullPolicy, fakeManager)
+		fsRecordAccessor, err := images.NewFSPullRecordsAccessor(t.TempDir())
+		if err != nil {
+			t.Fatal("failed to setup an file pull records accessor")
+		}
+
+		imagePullManager, err := images.NewImagePullManager(context.Background(), fsRecordAccessor, images.AlwaysVerifyImagePullPolicy, fakeManager)
 		if err != nil {
 			t.Fatal("failed to setup an image pull manager")
 		}
@@ -380,7 +385,12 @@ func TestPullWithSecretsWithError(t *testing.T) {
 				fakeImageService.InjectError("PullImage", fmt.Errorf("test-error"))
 			}
 
-			imagePullManager, err := images.NewFileBasedImagePullManager(context.Background(), t.TempDir(), images.AlwaysVerifyImagePullPolicy, fakeManager)
+			fsRecordAccessor, err := images.NewFSPullRecordsAccessor(t.TempDir())
+			if err != nil {
+				t.Fatal("failed to setup an file pull records accessor")
+			}
+
+			imagePullManager, err := images.NewImagePullManager(context.Background(), fsRecordAccessor, images.AlwaysVerifyImagePullPolicy, fakeManager)
 			if err != nil {
 				t.Fatal("failed to setup an image pull manager")
 			}

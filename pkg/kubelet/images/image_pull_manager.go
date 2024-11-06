@@ -17,31 +17,22 @@ limitations under the License.
 package images
 
 import (
-	"bytes"
 	"context"
-	"crypto/sha256"
 	"fmt"
-	"io/fs"
-	"os"
-	"path/filepath"
 	"reflect"
 	"slices"
 	"sync"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/klog/v2"
-	kubeletconfigv1alpha1 "k8s.io/kubelet/config/v1alpha1"
 	kubeletconfiginternal "k8s.io/kubernetes/pkg/kubelet/apis/config"
-	kubeletconfigvint1alpha1 "k8s.io/kubernetes/pkg/kubelet/apis/config/v1alpha1"
 	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
 	"k8s.io/kubernetes/pkg/util/parsers"
 )
 
-var _ ImagePullManager = &FileBasedImagePullManager{}
+var _ ImagePullManager = &PullManager{}
 
 // namedLockSet stores named locks in order to allow to partition context access
 // such that callers that are mutually exclusive based on a string value can
@@ -99,15 +90,14 @@ func (n *namedLockSet) GlobalUnlock() {
 	n.globalLock.Unlock()
 }
 
-// FileBasedImagePullManager is an implementation of the ImagePullManager. It
+// PullManager is an implementation of the ImagePullManager. It
 // tracks images pulled by the kubelet by creating records about ongoing and
 // successful pulls.
 // It tracks the credentials used with each successful pull in order to be able
 // to distinguish tenants requesting access to an image that exists on the kubelet's
 // node.
-type FileBasedImagePullManager struct {
-	pullingDir string
-	pulledDir  string
+type PullManager struct {
+	recordsAccessor PullRecordsAccessor
 
 	requireCredentialVerification ImagePullPolicyEnforcer
 
@@ -117,20 +107,11 @@ type FileBasedImagePullManager struct {
 	intentCounters  map[string]int // image -> number of current in-flight pulls
 
 	pulledAccessors *namedLockSet // imageRef -> sync.Mutex
-
-	encoder runtime.Encoder
-	decoder runtime.Decoder
 }
 
-func NewFileBasedImagePullManager(ctx context.Context, kubeletDir string, imagePullPolicy ImagePullPolicyEnforcer, imageService kubecontainer.ImageService) (*FileBasedImagePullManager, error) {
-	kubeletConfigEncoder, kubeletConfigDecoder, err := createKubeletConfigSchemeEncoderDecoder()
-	if err != nil {
-		return nil, err
-	}
-
-	m := &FileBasedImagePullManager{
-		pullingDir: filepath.Join(kubeletDir, "image_manager", "pulling"),
-		pulledDir:  filepath.Join(kubeletDir, "image_manager", "pulled"),
+func NewImagePullManager(ctx context.Context, recordsAccessor PullRecordsAccessor, imagePullPolicy ImagePullPolicyEnforcer, imageService kubecontainer.ImageService) (*PullManager, error) {
+	m := &PullManager{
+		recordsAccessor: recordsAccessor,
 
 		requireCredentialVerification: imagePullPolicy,
 
@@ -140,17 +121,6 @@ func NewFileBasedImagePullManager(ctx context.Context, kubeletDir string, imageP
 		intentCounters:  make(map[string]int),
 
 		pulledAccessors: NewNamedLockSet(),
-
-		encoder: kubeletConfigEncoder,
-		decoder: kubeletConfigDecoder,
-	}
-
-	if err := os.MkdirAll(m.pullingDir, 0700); err != nil {
-		return nil, err
-	}
-
-	if err := os.MkdirAll(m.pulledDir, 0700); err != nil {
-		return nil, err
 	}
 
 	m.initialize(ctx)
@@ -158,28 +128,19 @@ func NewFileBasedImagePullManager(ctx context.Context, kubeletDir string, imageP
 	return m, nil
 }
 
-func (f *FileBasedImagePullManager) RecordPullIntent(image string) error {
+func (f *PullManager) RecordPullIntent(image string) error {
 	f.intentAccessors.Lock(image)
 	defer f.intentAccessors.Unlock(image)
 
-	intent := kubeletconfigv1alpha1.ImagePullIntent{
-		Image: image,
-	}
-
-	intentBytes := bytes.NewBuffer([]byte{})
-	if err := f.encoder.Encode(&intent, intentBytes); err != nil {
-		return err
-	}
-
-	if err := writeFile(f.pullingDir, cacheFilename(image), intentBytes.Bytes()); err != nil {
-		return err
+	if err := f.recordsAccessor.WriteImagePullIntent(image); err != nil {
+		return fmt.Errorf("failed to record image pull intent: %w", err)
 	}
 
 	f.intentCounters[image]++
 	return nil
 }
 
-func (f *FileBasedImagePullManager) RecordImagePulled(image, imageRef string, credentials *kubeletconfiginternal.ImagePullCredentials) {
+func (f *PullManager) RecordImagePulled(image, imageRef string, credentials *kubeletconfiginternal.ImagePullCredentials) {
 	if err := f.writePulledRecord(image, imageRef, credentials); err != nil {
 		klog.ErrorS(err, "failed to write image pulled record", "imageRef", imageRef)
 		return
@@ -198,21 +159,22 @@ func (f *FileBasedImagePullManager) RecordImagePulled(image, imageRef string, cr
 // unknown circumstances. We should record the image as tracked but no credentials
 // should be written in order to force credential verification when the image is
 // accessed the next time.
-func (f *FileBasedImagePullManager) writePulledRecord(image, imageRef string, credentials *kubeletconfiginternal.ImagePullCredentials) error {
+func (f *PullManager) writePulledRecord(image, imageRef string, credentials *kubeletconfiginternal.ImagePullCredentials) error {
 	f.pulledAccessors.Lock(imageRef)
 	defer f.pulledAccessors.Unlock(imageRef)
 
-	var pulledRecord *kubeletconfiginternal.ImagePulledRecord
-	var pulledRecordChanged bool
-
 	sanitizedImage, err := trimImageTagDigest(image)
 	if err != nil {
-		return fmt.Errorf("invalidate image name %q: %w", image, err)
+		return fmt.Errorf("invalid image name %q: %w", image, err)
 	}
 
-	pulledRecordPath := filepath.Join(f.pulledDir, cacheFilename(imageRef))
-	pulledFile, err := os.ReadFile(pulledRecordPath)
-	if os.IsNotExist(err) {
+	pulledRecord, _, err := f.recordsAccessor.GetImagePulledRecord(imageRef)
+	if err != nil {
+		return err
+	}
+
+	var pulledRecordChanged bool
+	if pulledRecord == nil {
 		pulledRecordChanged = true
 		pulledRecord = &kubeletconfiginternal.ImagePulledRecord{
 			LastUpdatedTime:   metav1.Time{Time: time.Now()},
@@ -222,41 +184,25 @@ func (f *FileBasedImagePullManager) writePulledRecord(image, imageRef string, cr
 		if credentials != nil {
 			pulledRecord.CredentialMapping[sanitizedImage] = *credentials
 		}
-	} else if err == nil {
-		pulledRecord, err = decodePulledRecord(f.decoder, pulledFile)
-		if err != nil {
-			return fmt.Errorf("failed to decode ImagePulledRecord: %w", err)
-		}
-
-		pulledRecord, pulledRecordChanged = pulledRecordMergeNewCreds(pulledRecord, sanitizedImage, credentials)
 	} else {
-		return fmt.Errorf("failed to open %q for reading: %w", pulledRecordPath, err)
+		pulledRecord, pulledRecordChanged = pulledRecordMergeNewCreds(pulledRecord, sanitizedImage, credentials)
 	}
 
 	if !pulledRecordChanged {
 		return nil
 	}
-	recordBytes := bytes.NewBuffer([]byte{})
-	if err := f.encoder.Encode(pulledRecord, recordBytes); err != nil {
-		return fmt.Errorf("failed to serialize ImagePulledRecord: %w", err)
-	}
 
-	if err := writeFile(f.pulledDir, cacheFilename(imageRef), recordBytes.Bytes()); err != nil {
-		return fmt.Errorf("failed to write ImagePulledRecord file: %w", err)
-	}
-
-	return nil
-
+	return f.recordsAccessor.WriteImagePulledRecord(pulledRecord)
 }
 
-func (f *FileBasedImagePullManager) RecordImagePullFailed(image string) {
+func (f *PullManager) RecordImagePullFailed(image string) {
 	f.decrementImagePullIntent(image)
 }
 
 // decrementImagePullIntent decreses the number of how many times image pull
 // intent for a given `image` was requested, and removes the ImagePullIntent file
 // if the reference counter for the image reaches zero.
-func (f *FileBasedImagePullManager) decrementImagePullIntent(image string) {
+func (f *PullManager) decrementImagePullIntent(image string) {
 	f.intentAccessors.Lock(image)
 	defer f.intentAccessors.Unlock(image)
 
@@ -266,21 +212,18 @@ func (f *FileBasedImagePullManager) decrementImagePullIntent(image string) {
 	}
 	delete(f.intentCounters, image)
 
-	intentRecordPath := filepath.Join(f.pullingDir, cacheFilename(image))
-	if err := os.Remove(intentRecordPath); err != nil && !os.IsNotExist(err) {
-		klog.ErrorS(err, "failed to remove file", "filePath", intentRecordPath)
+	if err := f.recordsAccessor.DeleteImagePullIntent(image); err != nil {
+		klog.ErrorS(err, "failed to remove image pull intent", "image", image)
 	}
 }
 
-func (f *FileBasedImagePullManager) MustAttemptImagePull(image, imageRef string, podSecrets []kubeletconfiginternal.ImagePullSecret) bool {
+func (f *PullManager) MustAttemptImagePull(image, imageRef string, podSecrets []kubeletconfiginternal.ImagePullSecret) bool {
 	if len(imageRef) == 0 {
 		return true
 	}
 
-	pulledFilePath := filepath.Join(f.pulledDir, cacheFilename(imageRef))
-
 	var imagePulledByKubelet bool
-	var pulledFile []byte
+	var pulledRecord *kubeletconfiginternal.ImagePulledRecord
 
 	err := func() error {
 		// don't allow changes to the files we're using for our decision
@@ -290,26 +233,27 @@ func (f *FileBasedImagePullManager) MustAttemptImagePull(image, imageRef string,
 		defer f.intentAccessors.Unlock(image)
 
 		var err error
-		pulledFile, err = os.ReadFile(pulledFilePath)
-		if err == nil {
-			imagePulledByKubelet = true
-		} else if !os.IsNotExist(err) {
-			return fmt.Errorf("failed to open %q for reading: %w", pulledFilePath, err)
-		} else {
-			pullIntentPath := filepath.Join(f.pullingDir, cacheFilename(image))
-			_, err := os.ReadFile(pullIntentPath)
-			if err == nil {
+		var exists bool
+		pulledRecord, exists, err = f.recordsAccessor.GetImagePulledRecord(imageRef)
+		switch {
+		case err == nil && pulledRecord == nil:
+			if exists, err := f.recordsAccessor.ImagePullIntentExists(image); err != nil {
+				return fmt.Errorf("failed to check existence of an image pull intent: %w", err)
+			} else if exists {
 				imagePulledByKubelet = true
-			} else if !os.IsNotExist(err) {
-				return fmt.Errorf("failed to open %q for reading: %w", pullIntentPath, err)
-
 			}
+		case err == nil && pulledRecord != nil:
+			imagePulledByKubelet = true
+		case err != nil && exists: // record exists but has invalid format
+		default:
+			return fmt.Errorf("failed to retrieve image pulled record: %w", err)
 		}
+
 		return nil
 	}()
 
 	if err != nil {
-		klog.ErrorS(err, "Unable to read files in directories containing records about image pulls")
+		klog.ErrorS(err, "Unable to access cache records about image pulls")
 		return true
 	}
 
@@ -317,14 +261,8 @@ func (f *FileBasedImagePullManager) MustAttemptImagePull(image, imageRef string,
 		return false
 	}
 
-	if len(pulledFile) == 0 {
+	if pulledRecord == nil {
 		// we have no proper records of the image being pulled in the past, we can short-circuit here
-		return true
-	}
-
-	pulledDeserialized, err := decodePulledRecord(f.decoder, pulledFile)
-	if err != nil {
-		klog.ErrorS(err, "failed to decode ImagePulledRecord")
 		return true
 	}
 
@@ -334,7 +272,7 @@ func (f *FileBasedImagePullManager) MustAttemptImagePull(image, imageRef string,
 		return true
 	}
 
-	cachedCreds, ok := pulledDeserialized.CredentialMapping[sanitizedImage]
+	cachedCreds, ok := pulledRecord.CredentialMapping[sanitizedImage]
 	if !ok {
 		return true
 	}
@@ -369,39 +307,29 @@ func (f *FileBasedImagePullManager) MustAttemptImagePull(image, imageRef string,
 	return true
 }
 
-func (f *FileBasedImagePullManager) PruneUnknownRecords(imageList []string, until time.Time) {
+func (f *PullManager) PruneUnknownRecords(imageList []string, until time.Time) {
 	f.pulledAccessors.GlobalLock()
 	defer f.pulledAccessors.GlobalUnlock()
 
-	var imageRecords []string
-	err := processDirFiles(f.pulledDir,
-		func(filePath string, fileContent []byte) error {
-			pullRecord, err := decodePulledRecord(f.decoder, fileContent)
-			if err != nil {
-				klog.V(5).InfoS("failed to deserialize, skipping file", "filePath", filePath, "error", err)
-				return nil
-			}
-
-			if pullRecord.LastUpdatedTime.Time.Before(until) {
-				imageRecords = append(imageRecords, pullRecord.ImageRef)
-			}
-			return nil
-		})
-
+	pulledRecords, err := f.recordsAccessor.ListImagePulledRecords()
 	if err != nil {
-		klog.ErrorS(err, "failed to garbage collect ImagePulledRecord files")
+		klog.ErrorS(err, "failed to garbage collect ImagePulledRecords")
 		return
 	}
 
 	imagesInUse := sets.New(imageList...)
-	for _, ir := range imageRecords {
-		if imagesInUse.Has(ir) {
+	for _, ir := range pulledRecords {
+		if !ir.LastUpdatedTime.Time.Before(until) {
+			// the image record was only update after the GC started
 			continue
 		}
 
-		recordToRemovePath := filepath.Join(f.pulledDir, cacheFilename(ir))
-		if err := os.Remove(recordToRemovePath); err != nil {
-			klog.ErrorS(err, "failed to remove an ImagePulledRecord file", "filePath", recordToRemovePath)
+		if imagesInUse.Has(ir.ImageRef) {
+			continue
+		}
+
+		if err := f.recordsAccessor.DeleteImagePulledRecord(ir.ImageRef); err != nil {
+			klog.ErrorS(err, "failed to remove an ImagePulledRecord", "imageRef", ir.ImageRef)
 		}
 	}
 
@@ -414,36 +342,25 @@ func (f *FileBasedImagePullManager) PruneUnknownRecords(imageList []string, unti
 //
 // This method is not thread-safe and it should only be called upon the creation
 // of the FileBasedImagePullManager.
-func (f *FileBasedImagePullManager) initialize(ctx context.Context) {
-	inFlightPulls := make(map[string]string) // image -> path
-
-	// walk the pulling directory for any pull intent records
-	err := processDirFiles(f.pullingDir,
-		func(filePath string, fileContent []byte) error {
-			intent, err := decodeIntent(f.decoder, fileContent)
-			if err != nil {
-				klog.V(4).InfoS("deleting file, failed to deserialize to ImagePullIntent", "filePath", filePath, "err", err)
-				if err := os.Remove(filePath); err != nil {
-					klog.ErrorS(err, "failed to remove ImagePullIntent file", "filePath", filePath)
-				}
-				return nil
-			}
-
-			inFlightPulls[intent.Image] = filePath
-			return nil
-		})
+func (f *PullManager) initialize(ctx context.Context) {
+	pullIntents, err := f.recordsAccessor.ListImagePullIntents()
 	if err != nil {
-		klog.ErrorS(err, "there was an error walking the directory", "directoryPath", f.pullingDir)
+		klog.ErrorS(err, "there was an error listing ImagePullIntents")
 		return
 	}
 
-	if len(inFlightPulls) == 0 {
+	if len(pullIntents) == 0 {
 		return
 	}
 
 	images, err := f.imageService.ListImages(ctx)
 	if err != nil {
 		klog.ErrorS(err, "failed to list images")
+	}
+
+	inFlightPulls := sets.New[string]()
+	for _, intent := range pullIntents {
+		inFlightPulls.Insert(intent.Image)
 	}
 
 	// Each of the images known to the CRI might consist of multiple tags and digests,
@@ -459,9 +376,9 @@ func (f *FileBasedImagePullManager) initialize(ctx context.Context) {
 			klog.ErrorS(err, "failed to write an image pull record", "imageRef", image.ID)
 			continue
 		}
-		removePath := inFlightPulls[imageName]
-		if err := os.Remove(removePath); err != nil {
-			klog.V(2).InfoS("failed to remove image pull intent file", "filePath", removePath, "error", err)
+
+		if err := f.recordsAccessor.DeleteImagePullIntent(imageName); err != nil {
+			klog.V(2).InfoS("failed to remove image pull intent file", "imageName", imageName, "error", err)
 		}
 
 	}
@@ -480,39 +397,18 @@ func (m *NoopImagePullManager) MustAttemptImagePull(_, _ string, _ []kubeletconf
 }
 func (m *NoopImagePullManager) PruneUnknownRecords(_ []string, _ time.Time) {}
 
-func createKubeletConfigSchemeEncoderDecoder() (runtime.Encoder, runtime.Decoder, error) {
-	const mediaType = runtime.ContentTypeJSON
-
-	scheme := runtime.NewScheme()
-	if err := kubeletconfigvint1alpha1.AddToScheme(scheme); err != nil {
-		return nil, nil, err
-	}
-	if err := kubeletconfiginternal.AddToScheme(scheme); err != nil {
-		return nil, nil, err
-	}
-
-	// use the strict scheme to fail on unknown fields
-	codecs := serializer.NewCodecFactory(scheme, serializer.EnableStrict)
-
-	info, ok := runtime.SerializerInfoForMediaType(codecs.SupportedMediaTypes(), mediaType)
-	if !ok {
-		return nil, nil, fmt.Errorf("unable to locate encoder -- %q is not a supported media type", mediaType)
-	}
-	return codecs.EncoderForVersion(info.Serializer, kubeletconfigv1alpha1.SchemeGroupVersion), codecs.UniversalDecoder(), nil
-}
-
 // searchForExistingTagDigest loop through the `image` RepoDigests and RepoTags
 // and tries to find a digest/tag in `trackedImages`, which is a map of
 // containerImage -> pulling intent path.
-func searchForExistingTagDigest(trackedImages map[string]string, image kubecontainer.Image) string {
+func searchForExistingTagDigest(trackedImages sets.Set[string], image kubecontainer.Image) string {
 	for _, digest := range image.RepoDigests {
-		if _, ok := trackedImages[digest]; ok {
+		if ok := trackedImages.Has(digest); ok {
 			return digest
 		}
 	}
 
 	for _, tag := range image.RepoTags {
-		if _, ok := trackedImages[tag]; ok {
+		if ok := trackedImages.Has(tag); ok {
 			return tag
 		}
 	}
@@ -595,10 +491,6 @@ func mergePullSecrets(orig, new []kubeletconfiginternal.ImagePullSecret) []kubel
 	return ret
 }
 
-func cacheFilename(image string) string {
-	return fmt.Sprintf("sha256-%x", sha256.Sum256([]byte(image)))
-}
-
 // imagePullSecretLess is a helper function to define ordering in a slice of
 // ImagePullSecret objects.
 func imagePullSecretLess(a, b kubeletconfiginternal.ImagePullSecret) int {
@@ -620,83 +512,8 @@ func imagePullSecretLess(a, b kubeletconfiginternal.ImagePullSecret) int {
 	return 1
 }
 
-// writeFile writes `content` to the file with name `filename` in directory `dir`.
-// It assures write atomicity by creating a temporary file first and only after
-// a successful write, it move the temp file in place of the target.
-func writeFile(dir, filename string, content []byte) error {
-	// create target folder if it does not exists yet
-	if err := os.MkdirAll(dir, 0700); err != nil {
-		return fmt.Errorf("failed to create directory %q: %w", dir, err)
-	}
-
-	targetPath := filepath.Join(dir, filename)
-	tmpPath := targetPath + ".tmp"
-	if err := os.WriteFile(tmpPath, content, 0600); err != nil {
-		return fmt.Errorf("failed to create temporary file %q: %w", tmpPath, err)
-	}
-
-	return os.Rename(tmpPath, targetPath)
-}
-
 // trimImageTagDigest removes the tag and digest from an image name
 func trimImageTagDigest(containerImage string) (string, error) {
 	imageName, _, _, err := parsers.ParseImageName(containerImage)
 	return imageName, err
-}
-
-func processDirFiles(dirName string, fileAction func(filePath string, fileContent []byte) error) error {
-	return filepath.WalkDir(dirName, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-
-		if path == dirName {
-			return nil
-		}
-
-		if d.IsDir() {
-			klog.V(4).InfoS("path is a directory, skipping", "path", path)
-			return nil
-		}
-
-		fileContent, err := os.ReadFile(path)
-		if err != nil {
-			klog.ErrorS(err, "skipping file, failed to read", "filePath", path)
-			return nil
-		}
-
-		if err := fileAction(path, fileContent); err != nil {
-			return err
-		}
-
-		return nil
-	})
-}
-
-func decodeIntent(d runtime.Decoder, objBytes []byte) (*kubeletconfiginternal.ImagePullIntent, error) {
-	obj, _, err := d.Decode(objBytes, nil, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	intentObj, ok := obj.(*kubeletconfiginternal.ImagePullIntent)
-	if !ok {
-		return nil, fmt.Errorf("failed to convert object to *ImagePullIntent: %v", obj)
-	}
-
-	return intentObj, nil
-}
-
-func decodePulledRecord(d runtime.Decoder, objBytes []byte) (*kubeletconfiginternal.ImagePulledRecord, error) {
-	obj, _, err := d.Decode(objBytes, nil, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	pulledRecord, ok := obj.(*kubeletconfiginternal.ImagePulledRecord)
-	if !ok {
-		return nil, fmt.Errorf("failed to convert object to *ImagePulledRecord: %v", obj)
-	}
-
-	return pulledRecord, nil
 }
