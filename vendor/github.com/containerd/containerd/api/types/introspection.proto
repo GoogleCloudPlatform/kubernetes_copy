@@ -1,0 +1,46 @@
+/*
+	Copyright The containerd Authors.
+
+	Licensed under the Apache License, Version 2.0 (the "License");
+	you may not use this file except in compliance with the License.
+	You may obtain a copy of the License at
+
+		http://www.apache.org/licenses/LICENSE-2.0
+
+	Unless required by applicable law or agreed to in writing, software
+	distributed under the License is distributed on an "AS IS" BASIS,
+	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	See the License for the specific language governing permissions and
+	limitations under the License.
+*/
+
+syntax = "proto3";
+
+package containerd.types;
+
+import "google/protobuf/any.proto";
+
+option go_package = "github.com/containerd/containerd/api/types;types";
+
+message RuntimeRequest {
+	string runtime_path = 1;
+	// Options correspond to CreateTaskRequest.options.
+	// This is needed to pass the runc binary path, etc.
+	google.protobuf.Any options = 2;
+}
+
+message RuntimeVersion {
+	string version = 1;
+	string revision = 2;
+}
+
+message RuntimeInfo {
+	string name = 1;
+	RuntimeVersion version = 2;
+	// Options correspond to RuntimeInfoRequest.Options (contains runc binary path, etc.)
+	google.protobuf.Any options = 3;
+	// OCI-compatible runtimes should use https://github.com/opencontainers/runtime-spec/blob/main/features.md
+	google.protobuf.Any features = 4;
+	// Annotations of the shim. Irrelevant to features.Annotations.
+	map<string, string> annotations = 5;
+}

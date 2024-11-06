@@ -41,11 +41,14 @@ message Sandbox {
 	// bundle directory (similary to OCI spec).
 	google.protobuf.Any spec = 3;
 	// Labels provides an area to include arbitrary data on containers.
-	map<string, string> labels  = 4;
+	map<string, string> labels = 4;
 	// CreatedAt is the time the container was first created.
 	google.protobuf.Timestamp created_at = 5;
 	// UpdatedAt is the last time the container was mutated.
 	google.protobuf.Timestamp updated_at = 6;
 	// Extensions allow clients to provide optional blobs that can be handled by runtime.
 	map<string, google.protobuf.Any> extensions = 7;
+	// Sandboxer is the name of the sandbox controller who manages the sandbox.
+	string sandboxer = 10;
+
 }
