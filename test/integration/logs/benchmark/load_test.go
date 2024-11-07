@@ -152,12 +152,12 @@ func TestData(t *testing.T) {
 					},
 				},
 			},
-			printf:     `[RemoteRuntimeService] Version Response: [apiVersion &VersionResponse{Version:0.1.0,RuntimeName:containerd,RuntimeVersion:v1.6.18,RuntimeApiVersion:v1,}]`,
-			structured: `"[RemoteRuntimeService] Version Response" apiVersion="&VersionResponse{Version:0.1.0,RuntimeName:containerd,RuntimeVersion:v1.6.18,RuntimeApiVersion:v1,}"`,
+			printf:     `[RemoteRuntimeService] Version Response: [apiVersion version:"0.1.0"`,
+			structured: `"[RemoteRuntimeService] Version Response" apiVersion="version:\"0.1.0\"`,
 			// Because of
 			// https://github.com/kubernetes/kubernetes/issues/106652
 			// we get the string instead of a JSON struct.
-			json: `"msg":"[RemoteRuntimeService] Version Response","v":0,"apiVersion":"&VersionResponse{Version:0.1.0,RuntimeName:containerd,RuntimeVersion:v1.6.18,RuntimeApiVersion:v1,}"`,
+			json: `"msg":"[RemoteRuntimeService] Version Response","v":0,"apiVersion":"version:\"0.1.0\"`,
 			stats: logStats{
 				TotalLines: 1,
 				JsonLines:  1,

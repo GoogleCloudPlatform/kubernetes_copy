@@ -525,7 +525,7 @@ func Test_criStatsProvider_makeWinContainerStats(t *testing.T) {
 		Uid:       "sb0-uid",
 	}
 
-	got, err := p.makeWinContainerStats(inputStats, inputContainer, inputRootFsInfo, make(map[runtimeapi.FilesystemIdentifier]*cadvisorapiv2.FsInfo), inputPodSandboxMetadata)
+	got, err := p.makeWinContainerStats(inputStats, inputContainer, inputRootFsInfo, make(map[*runtimeapi.FilesystemIdentifier]*cadvisorapiv2.FsInfo), inputPodSandboxMetadata)
 
 	expected := &statsapi.ContainerStats{
 		Name:      "c0",

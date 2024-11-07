@@ -165,7 +165,7 @@ func (r *remoteImageService) imageStatusV1(ctx context.Context, image *runtimeap
 	}
 
 	if resp.Image != nil {
-		if resp.Image.Id == "" || resp.Image.Size_ == 0 {
+		if resp.Image.Id == "" || resp.Image.GetSize() == 0 {
 			errorMessage := fmt.Sprintf("Id or size of image %q is not set", image.Image)
 			err := errors.New(errorMessage)
 			r.logErr(err, "ImageStatus failed", "image", image.Image)

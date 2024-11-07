@@ -114,7 +114,7 @@ func NewFakeImageService() *FakeImageService {
 func (r *FakeImageService) makeFakeImage(image *runtimeapi.ImageSpec) *runtimeapi.Image {
 	return &runtimeapi.Image{
 		Id:       image.Image,
-		Size_:    r.FakeImageSize,
+		Size:     r.FakeImageSize,
 		Spec:     image,
 		RepoTags: []string{image.Image},
 		Pinned:   r.Pinned[image.Image],

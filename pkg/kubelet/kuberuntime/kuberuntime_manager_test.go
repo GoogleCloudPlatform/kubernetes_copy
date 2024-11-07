@@ -158,7 +158,9 @@ func makeFakePodSandbox(t *testing.T, m *kubeGenericRuntimeManager, template san
 			Ip: ip,
 		})
 	}
-	podSandBoxStatus.Network.AdditionalIps = additionalPodIPs
+	if len(additionalPodIPs) > 0 {
+		podSandBoxStatus.Network.AdditionalIps = additionalPodIPs
+	}
 	return podSandBoxStatus
 
 }
@@ -2728,8 +2730,8 @@ func TestToKubeContainerImageVolumes(t *testing.T) {
 		"empty volumes": {},
 		"multiple volumes": {
 			pullResults: imageVolumePulls{
-				volume1: imageVolumePullResult{spec: imageSpec1},
-				volume2: imageVolumePullResult{spec: imageSpec2},
+				volume1: imageVolumePullResult{spec: &imageSpec1},
+				volume2: imageVolumePullResult{spec: &imageSpec2},
 			},
 			container: &v1.Container{
 				VolumeMounts: []v1.VolumeMount{
@@ -2744,7 +2746,7 @@ func TestToKubeContainerImageVolumes(t *testing.T) {
 		},
 		"not matching volume": {
 			pullResults: imageVolumePulls{
-				"different": imageVolumePullResult{spec: imageSpec1},
+				"different": imageVolumePullResult{spec: &imageSpec1},
 			},
 			container: &v1.Container{
 				VolumeMounts: []v1.VolumeMount{{Name: volume1}},
@@ -2803,8 +2805,8 @@ func TestGetImageVolumes(t *testing.T) {
 				{Name: volume2, VolumeSource: v1.VolumeSource{Image: &v1.ImageVolumeSource{Reference: image2, PullPolicy: v1.PullAlways}}},
 			}}},
 			expectedImageVolumePulls: imageVolumePulls{
-				volume1: imageVolumePullResult{spec: imageSpec1},
-				volume2: imageVolumePullResult{spec: imageSpec2},
+				volume1: imageVolumePullResult{spec: &imageSpec1},
+				volume2: imageVolumePullResult{spec: &imageSpec2},
 			},
 		},
 		"different than image volumes": {
@@ -2819,7 +2821,7 @@ func TestGetImageVolumes(t *testing.T) {
 				{Name: volume2, VolumeSource: v1.VolumeSource{Image: &v1.ImageVolumeSource{Reference: "image", PullPolicy: v1.PullNever}}}, // fails
 			}}},
 			expectedImageVolumePulls: imageVolumePulls{
-				volume1: imageVolumePullResult{spec: imageSpec1},
+				volume1: imageVolumePullResult{spec: &imageSpec1},
 				volume2: imageVolumePullResult{err: imagetypes.ErrImageNeverPull, msg: `Container image "image" is not present with pull policy of Never`},
 			},
 		},

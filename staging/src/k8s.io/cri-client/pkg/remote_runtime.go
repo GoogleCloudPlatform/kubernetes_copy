@@ -181,7 +181,7 @@ func (r *remoteRuntimeService) versionV1(ctx context.Context, apiVersion string)
 	r.log(10, "[RemoteRuntimeService] Version Response", "apiVersion", typedVersion)
 
 	if typedVersion.Version == "" || typedVersion.RuntimeName == "" || typedVersion.RuntimeApiVersion == "" || typedVersion.RuntimeVersion == "" {
-		return nil, fmt.Errorf("not all fields are set in VersionResponse (%q)", *typedVersion)
+		return nil, fmt.Errorf("not all fields are set in VersionResponse (%q)", typedVersion)
 	}
 
 	return typedVersion, err

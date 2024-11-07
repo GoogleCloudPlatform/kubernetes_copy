@@ -83,7 +83,7 @@ func (p *criStatsProvider) listContainerNetworkStats() (map[string]*statsapi.Net
 }
 
 func (p *criStatsProvider) addCRIPodContainerStats(criSandboxStat *runtimeapi.PodSandboxStats,
-	ps *statsapi.PodStats, fsIDtoInfo map[runtimeapi.FilesystemIdentifier]*cadvisorapiv2.FsInfo,
+	ps *statsapi.PodStats, fsIDtoInfo map[*runtimeapi.FilesystemIdentifier]*cadvisorapiv2.FsInfo,
 	containerMap map[string]*runtimeapi.Container,
 	podSandbox *runtimeapi.PodSandbox,
 	rootFsInfo *cadvisorapiv2.FsInfo,
@@ -109,7 +109,7 @@ func (p *criStatsProvider) makeWinContainerStats(
 	stats *runtimeapi.WindowsContainerStats,
 	container *runtimeapi.Container,
 	rootFsInfo *cadvisorapiv2.FsInfo,
-	fsIDtoInfo map[runtimeapi.FilesystemIdentifier]*cadvisorapiv2.FsInfo,
+	fsIDtoInfo map[*runtimeapi.FilesystemIdentifier]*cadvisorapiv2.FsInfo,
 	meta *runtimeapi.PodSandboxMetadata) (*statsapi.ContainerStats, error) {
 	result := &statsapi.ContainerStats{
 		Name: stats.Attributes.Metadata.Name,
@@ -159,13 +159,13 @@ func (p *criStatsProvider) makeWinContainerStats(
 	var err error
 	fsID := stats.GetWritableLayer().GetFsId()
 	if fsID != nil {
-		imageFsInfo, found := fsIDtoInfo[*fsID]
+		imageFsInfo, found := fsIDtoInfo[fsID]
 		if !found {
 			imageFsInfo, err = p.getFsInfo(fsID)
 			if err != nil {
 				return nil, fmt.Errorf("get filesystem info: %w", err)
 			}
-			fsIDtoInfo[*fsID] = imageFsInfo
+			fsIDtoInfo[fsID] = imageFsInfo
 		}
 		if imageFsInfo != nil {
 			// The image filesystem id is unknown to the local node or there's

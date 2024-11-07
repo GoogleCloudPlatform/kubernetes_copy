@@ -32,12 +32,27 @@ PROTOC_VERSION=23.4
 # $1: Full path to the directory where the api.proto file is
 function kube::protoc::generate_proto() {
   kube::golang::setup_env
-  GOPROXY=off go install k8s.io/code-generator/cmd/go-to-protobuf/protoc-gen-gogo
+  go -C "${KUBE_ROOT}/hack/tools" install google.golang.org/protobuf/cmd/protoc-gen-go
+  go -C "${KUBE_ROOT}/hack/tools" install google.golang.org/grpc/cmd/protoc-gen-go-grpc
 
   kube::protoc::check_protoc
 
   local package=${1}
   kube::protoc::protoc "${package}"
+  kube::protoc::format "${package}"
+}
+
+# Generates $1/api.pb.go from the protobuf file $1/api.proto
+# and formats it correctly
+# $1: Full path to the directory where the api.proto file is
+function kube::protoc::generate_proto_gogo() {
+  kube::golang::setup_env
+  GOPROXY=off go install k8s.io/code-generator/cmd/go-to-protobuf/protoc-gen-gogo
+
+  kube::protoc::check_protoc
+
+  local package=${1}
+  kube::protoc::protoc_gogo "${package}"
   kube::protoc::format "${package}"
 }
 
@@ -55,7 +70,7 @@ function kube::protoc::check_protoc() {
 
 # Generates $1/api.pb.go from the protobuf file $1/api.proto
 # $1: Full path to the directory where the api.proto file is
-function kube::protoc::protoc() {
+function kube::protoc::protoc_gogo() {
   local package=${1}
   gogopath=$(dirname "$(kube::util::find-binary "protoc-gen-gogo")")
 
@@ -76,17 +91,36 @@ function kube::protoc::protoc() {
   )
 }
 
+# Generates $1/api.pb.go from the protobuf file $1/api.proto without using gogo
+# $1: Full path to the directory where the api.proto file is
+function kube::protoc::protoc() {
+  local package=${1}
+
+  protoc \
+    --proto_path="$(pwd -P)" \
+    --proto_path="${KUBE_ROOT}/vendor" \
+    --proto_path="${KUBE_ROOT}/staging/src" \
+    --proto_path="${KUBE_ROOT}/third_party/protobuf" \
+    --go_out=. \
+    --go_opt=paths=source_relative \
+    --go-grpc_out=. \
+    --go-grpc_opt=paths=source_relative \
+    "${package}"/api.proto
+}
+
 # Formats $1/api.pb.go, adds the boilerplate comments and run gofmt on it
 # $1: Full path to the directory where the api.proto file is
 function kube::protoc::format() {
   local package=${1}
 
-  # Update boilerplate for the generated file.
-  cat hack/boilerplate/boilerplate.generatego.txt "${package}/api.pb.go" > tmpfile && mv tmpfile "${package}/api.pb.go"
-
   # Run gofmt to clean up the generated code.
   kube::golang::setup_env
-  gofmt -s -w "${package}/api.pb.go"
+
+  # Update boilerplate for the generated files.
+  for file in "${package}"/api*.pb.go ; do
+    cat hack/boilerplate/boilerplate.generatego.txt "${file}" > tmpfile && mv tmpfile "${file}"
+    gofmt -s -w "${file}"
+  done
 }
 
 # Compares the contents of $1 and $2
