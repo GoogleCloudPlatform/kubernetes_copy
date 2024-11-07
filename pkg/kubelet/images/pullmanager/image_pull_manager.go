@@ -33,6 +33,11 @@ import (
 
 var _ ImagePullManager = &PullManager{}
 
+// writeRecordWhileMatchingLimit is a limit at which we stop writing yet-uncached
+// records that we found when we were checking if an image pull must be attempted.
+// This is to prevent unbounded writes in cases of high namespace turnover.
+const writeRecordWhileMatchingLimit = 100
+
 // PullManager is an implementation of the ImagePullManager. It
 // tracks images pulled by the kubelet by creating records about ongoing and
 // successful pulls.
@@ -233,16 +238,33 @@ func (f *PullManager) MustAttemptImagePull(image, imageRef string, podSecrets []
 		for _, cachedSecret := range cachedCreds.KubernetesSecrets {
 
 			// we need to check hash len in case hashing failed while storing the record in the keyring
-			if len(cachedSecret.CredentialHash) > 0 && podSecret.CredentialHash == cachedSecret.CredentialHash {
-				// TODO: should we record the new secret in case it has different coordinates? If the secret rotates, we will pull unnecessarily otherwise
+			hashesMatch := len(cachedSecret.CredentialHash) > 0 && podSecret.CredentialHash == cachedSecret.CredentialHash
+			secretCoordinatesMatch := podSecret.UID == cachedSecret.UID &&
+				podSecret.Namespace == cachedSecret.Namespace &&
+				podSecret.Name == cachedSecret.Name
+
+			if hashesMatch {
+				if !secretCoordinatesMatch && len(cachedCreds.KubernetesSecrets) < writeRecordWhileMatchingLimit {
+					// While we're only matching at this point, we want to ensure this secret is considered valid in the future
+					// and so we make an additional write to the cache.
+					// writePulledRecord() is a noop in case the secret with the update hash already appears in the cache.
+					if err := f.writePulledRecord(image, imageRef, &kubeletconfiginternal.ImagePullCredentials{KubernetesSecrets: []kubeletconfiginternal.ImagePullSecret{podSecret}}); err != nil {
+						klog.ErrorS(err, "failed to write an image pulled record", "image", image, "imageRef", imageRef)
+					}
+				}
 				return false
 			}
 
-			if podSecret.UID == cachedSecret.UID &&
-				podSecret.Namespace == cachedSecret.Namespace &&
-				podSecret.Name == cachedSecret.Name {
-				// TODO: should we record the new creds in this case so that we don't pull if these are present in a different secret?
-				return false
+			if secretCoordinatesMatch {
+				if len(cachedCreds.KubernetesSecrets) < writeRecordWhileMatchingLimit { // we already know the hashes did not match, no need to check again
+					// While we're only matching at this point, we want to ensure the updated credentials are considered valid in the future
+					// and so we make an additional write to the cache.
+					// writePulledRecord() is a noop in case the hash got updated in the meantime.
+					if err := f.writePulledRecord(image, imageRef, &kubeletconfiginternal.ImagePullCredentials{KubernetesSecrets: []kubeletconfiginternal.ImagePullSecret{podSecret}}); err != nil {
+						klog.ErrorS(err, "failed to write an image pulled record", "image", image, "imageRef", imageRef)
+					}
+					return false
+				}
 			}
 		}
 	}
