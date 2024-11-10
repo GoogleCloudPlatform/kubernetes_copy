@@ -764,3 +764,7 @@ func countExclusiveCPUs(s state.State) int {
 	}
 	return exclusiveCPUs
 }
+
+func (p *staticPolicy) CanAllocateExclusively() bool {
+	return true
+}

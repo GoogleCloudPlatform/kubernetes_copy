@@ -154,6 +154,9 @@ type ContainerManager interface {
 	// Updates returns a channel that receives an Update when the device changed its status.
 	Updates() <-chan resourceupdates.Update
 
+	// Returns true resource can be allocated exclusively to containers per resource manager configuration
+	CanAllocateExclusively(res v1.ResourceName) bool
+
 	// Implements the PodResources Provider API
 	podresources.CPUsProvider
 	podresources.DevicesProvider

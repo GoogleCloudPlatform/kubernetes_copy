@@ -74,6 +74,10 @@ func (m *fakeManager) State() state.Reader {
 	return m.state
 }
 
+func (m *fakeManager) CanAllocateExclusively(res v1.ResourceName) bool {
+	return false
+}
+
 // GetAllocatableMemory returns the amount of allocatable memory for each NUMA node
 func (m *fakeManager) GetAllocatableMemory() []state.Block {
 	klog.InfoS("Get Allocatable Memory")

@@ -138,3 +138,7 @@ type PodContainerManager interface {
 	// Set resource config values for the specified resource type on the pod cgroup
 	SetPodCgroupConfig(pod *v1.Pod, resourceConfig *ResourceConfig) error
 }
+
+type ResourceManager interface {
+	CanAllocateExclusively(resName v1.ResourceName) bool
+}

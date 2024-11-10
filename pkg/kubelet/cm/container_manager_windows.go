@@ -369,3 +369,8 @@ func (cm *containerManagerImpl) UnprepareDynamicResources(ctx context.Context, p
 func (cm *containerManagerImpl) PodMightNeedToUnprepareResources(UID types.UID) bool {
 	return false
 }
+
+func (cm *containerManagerImpl) CanAllocateExclusively(res v1.ResourceName) bool {
+	// run from the cheapest to the most expensive
+	return cm.cpuManager.CanAllocateExclusively(res) || cm.memoryManager.CanAllocateExclusively(res) || cm.deviceManager.CanAllocateExclusively(res)
+}

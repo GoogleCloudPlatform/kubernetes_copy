@@ -17,8 +17,7 @@ limitations under the License.
 package cpumanager
 
 import (
-	"k8s.io/api/core/v1"
-
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/kubernetes/pkg/kubelet/cm/cpumanager/state"
 	"k8s.io/kubernetes/pkg/kubelet/cm/topologymanager"
 	"k8s.io/utils/cpuset"
@@ -42,4 +41,6 @@ type Policy interface {
 	GetPodTopologyHints(s state.State, pod *v1.Pod) map[string][]topologymanager.TopologyHint
 	// GetAllocatableCPUs returns the total set of CPUs available for allocation.
 	GetAllocatableCPUs(m state.State) cpuset.CPUSet
+	// CanAllocateExclusively returns true if the policy can allocate exclusively CPUs
+	CanAllocateExclusively() bool
 }

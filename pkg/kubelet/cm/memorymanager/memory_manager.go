@@ -92,6 +92,9 @@ type Manager interface {
 
 	// GetMemory returns the memory allocated by a container from NUMA nodes
 	GetMemory(podUID, containerName string) []state.Block
+
+	// Returns true if this manager can allocate exclusively to a container the resource(s) it manages.
+	CanAllocateExclusively(res v1.ResourceName) bool
 }
 
 type manager struct {
@@ -464,4 +467,10 @@ func (m *manager) GetAllocatableMemory() []state.Block {
 // GetMemory returns the memory allocated by a container from NUMA nodes
 func (m *manager) GetMemory(podUID, containerName string) []state.Block {
 	return m.state.GetMemoryBlocks(podUID, containerName)
+}
+func (m *manager) CanAllocateExclusively(res v1.ResourceName) bool {
+	if res != v1.ResourceMemory && !corev1helper.IsHugePageResourceName(res) {
+		return false
+	}
+	return m.policy.CanAllocateExclusively()
 }

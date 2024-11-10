@@ -129,6 +129,10 @@ func (p *mockPolicy) GetAllocatableCPUs(m state.State) cpuset.CPUSet {
 	return cpuset.New()
 }
 
+func (p *mockPolicy) CanAllocateExclusively() bool {
+	return false
+}
+
 type mockRuntimeService struct {
 	err error
 }

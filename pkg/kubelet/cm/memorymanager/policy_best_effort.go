@@ -78,3 +78,8 @@ func (p *bestEffortPolicy) GetTopologyHints(s state.State, pod *v1.Pod, containe
 func (p *bestEffortPolicy) GetAllocatableMemory(s state.State) []state.Block {
 	return p.static.GetAllocatableMemory(s)
 }
+
+// CanAllocateExclusively returns true if the policy can allocate exclusively mmeory blocks
+func (p *bestEffortPolicy) CanAllocateExclusively() bool {
+	return false
+}

@@ -1047,3 +1047,8 @@ func (cm *containerManagerImpl) Updates() <-chan resourceupdates.Update {
 	// TODO(SergeyKanzhelev, https://kep.k8s.io/4680): add support for DRA resources, for now only use device plugin updates. DRA support is planned for the next iteration of a KEP.
 	return cm.deviceManager.Updates()
 }
+
+func (cm *containerManagerImpl) CanAllocateExclusively(res v1.ResourceName) bool {
+	// run from the cheapest to the most expensive
+	return cm.cpuManager.CanAllocateExclusively(res) || cm.memoryManager.CanAllocateExclusively(res) || cm.deviceManager.CanAllocateExclusively(res)
+}
