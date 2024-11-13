@@ -37,10 +37,6 @@ const (
 	MinContainerRuntimeVersion string = "1.6.9"
 )
 
-var (
-	podOnCgroupv2Node *bool
-)
-
 type ResizableContainerInfo struct {
 	Name         string
 	Resources    *ContainerResources
@@ -97,9 +93,6 @@ func makeResizableContainer(tcInfo ResizableContainerInfo) v1.Container {
 		Args:         []string{"-c", cmd},
 		Resources:    res,
 		ResizePolicy: resizePol,
-		VolumeMounts: []v1.VolumeMount{
-			CreateVolumeMountForCgroup(),
-		},
 	}
 
 	return tc
@@ -124,9 +117,6 @@ func MakePodWithResizableContainers(ns, name, timeStamp string, tcInfo []Resizab
 			OS:            &v1.PodOS{Name: v1.Linux},
 			Containers:    testContainers,
 			RestartPolicy: v1.RestartPolicyOnFailure,
-			Volumes: []v1.Volume{
-				CreateHostPathVolumeForCgroup(),
-			},
 		},
 	}
 	return pod
@@ -174,75 +164,6 @@ func VerifyPodStatusResources(gotPod *v1.Pod, wantCtrs []ResizableContainerInfo)
 			errs = append(errs, fmt.Errorf("container[%s] status resources mismatch: %w", ctr.Name, err))
 		}
 	}
-
-	return utilerrors.NewAggregate(errs)
-}
-
-func verifyContainerCgroupValues(f *framework.Framework, pod *v1.Pod, tc *v1.Container, podOnCgroupv2 bool) error {
-	if err := VerifyContainerMemoryLimit(f, pod, tc.Name, &tc.Resources, podOnCgroupv2); err != nil {
-		return err
-	}
-	if err := VerifyContainerCPULimit(f, pod, tc.Name, &tc.Resources, podOnCgroupv2); err != nil {
-		return err
-	}
-	if err := VerifyContainerCPUWeight(f, pod, tc.Name, &tc.Resources, podOnCgroupv2); err != nil {
-		return err
-	}
-	return nil
-}
-
-func buildPodResourceInfo(podCPURequestMilliValue, podCPULimitMilliValue, podMemoryLimitInBytes int64) ContainerResources {
-	podResourceInfo := ContainerResources{}
-	if podCPURequestMilliValue > 0 {
-		podResourceInfo.CPUReq = fmt.Sprintf("%dm", podCPURequestMilliValue)
-	}
-	if podCPULimitMilliValue > 0 {
-		podResourceInfo.CPULim = fmt.Sprintf("%dm", podCPULimitMilliValue)
-	}
-	if podMemoryLimitInBytes > 0 {
-		podResourceInfo.MemLim = fmt.Sprintf("%d", podMemoryLimitInBytes)
-	}
-	return podResourceInfo
-}
-
-func VerifyPodContainersCgroupValues(ctx context.Context, f *framework.Framework, pod *v1.Pod, tcInfo []ResizableContainerInfo) error {
-	ginkgo.GinkgoHelper()
-	if podOnCgroupv2Node == nil {
-		value := IsPodOnCgroupv2Node(f, pod)
-		podOnCgroupv2Node = &value
-	}
-
-	var podCPURequestMilliValue, podCPULimitMilliValue, podMemoryLimitInBytes int64
-	var errs []error
-	for _, ci := range tcInfo {
-		tc := makeResizableContainer(ci)
-		errs = append(errs, verifyContainerCgroupValues(f, pod, &tc, *podOnCgroupv2Node))
-
-		// Accumulate container resources for verifying pod
-		podCPURequestMilliValue += tc.Resources.Requests.Cpu().MilliValue()
-		if podCPULimitMilliValue >= 0 {
-			if tc.Resources.Limits.Cpu().IsZero() {
-				podCPULimitMilliValue = -1
-			} else {
-				podCPULimitMilliValue += tc.Resources.Limits.Cpu().MilliValue()
-			}
-		}
-		if podMemoryLimitInBytes >= 0 {
-			if tc.Resources.Limits.Memory().IsZero() {
-				podMemoryLimitInBytes = -1
-			} else {
-				podMemoryLimitInBytes += tc.Resources.Limits.Memory().Value()
-			}
-		}
-	}
-
-	if !*podOnCgroupv2Node {
-		// cgroup v1 is in maintenance mode. Skip verifying pod cgroup
-		return utilerrors.NewAggregate(errs)
-	}
-
-	podResourceInfo := buildPodResourceInfo(podCPURequestMilliValue, podCPULimitMilliValue, podMemoryLimitInBytes)
-	errs = append(errs, VerifyPodCgroups(ctx, f, pod, &podResourceInfo))
 
 	return utilerrors.NewAggregate(errs)
 }

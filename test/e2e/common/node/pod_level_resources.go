@@ -37,7 +37,7 @@ import (
 )
 
 var (
-	cmd = []string{"/bin/sh", "-c", "sleep 1d"}
+	cmd = []string{"/bin/sh", "-c", e2epod.InfiniteSleepCommand}
 )
 
 var _ = SIGDescribe("Pod Level Resources", framework.WithSerial(), feature.PodLevelResources, func() {
@@ -104,7 +104,6 @@ type containerInfo struct {
 }
 
 func makeContainer(info containerInfo) v1.Container {
-	cmd := []string{"/bin/sh", "-c", "sleep 1d"}
 	var resources v1.ResourceRequirements
 	if info.Resources != nil {
 		resources = *info.Resources.ResourceRequirements()
@@ -114,9 +113,6 @@ func makeContainer(info containerInfo) v1.Container {
 		Command:   cmd,
 		Resources: resources,
 		Image:     imageutils.GetE2EImage(imageutils.BusyBox),
-		VolumeMounts: []v1.VolumeMount{
-			e2epod.CreateVolumeMountForCgroup(),
-		},
 	}
 }
 
@@ -131,11 +127,9 @@ func makePod(metadata *metav1.ObjectMeta, podResources *e2epod.ContainerResource
 
 		Spec: v1.PodSpec{
 			Containers: testContainers,
-			Volumes: []v1.Volume{
-				e2epod.CreateHostPathVolumeForCgroup(),
-			},
 		},
 	}
+	e2epod.ConfigureHostPathForPodCgroup(pod)
 
 	if podResources != nil {
 		res := podResources.ResourceRequirements()
