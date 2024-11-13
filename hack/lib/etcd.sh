@@ -16,7 +16,7 @@
 
 # A set of helpers for starting/running etcd for tests
 
-ETCD_VERSION=${ETCD_VERSION:-3.5.16}
+ETCD_VERSION=${ETCD_VERSION:-3.5.17}
 ETCD_HOST=${ETCD_HOST:-127.0.0.1}
 ETCD_PORT=${ETCD_PORT:-2379}
 # This is intentionally not called ETCD_LOG_LEVEL:
