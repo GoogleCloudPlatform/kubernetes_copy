@@ -27,7 +27,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
-	kubecm "k8s.io/kubernetes/pkg/kubelet/cm"
 	"k8s.io/kubernetes/test/e2e/feature"
 	"k8s.io/kubernetes/test/e2e/framework"
 	e2enode "k8s.io/kubernetes/test/e2e/framework/node"
@@ -298,8 +297,7 @@ func verifyContainersCgroupLimits(f *framework.Framework, pod *v1.Pod) error {
 	for _, container := range pod.Spec.Containers {
 		if pod.Spec.Resources != nil && pod.Spec.Resources.Limits.Memory() != nil &&
 			container.Resources.Limits.Memory() == nil {
-			expectedCgroupMemLimit := strconv.FormatInt(pod.Spec.Resources.Limits.Memory().Value(), 10)
-			err := e2epod.VerifyCgroupValue(f, pod, container.Name, e2epod.Cgroupv2MemLimit, expectedCgroupMemLimit)
+			err := e2epod.VerifyContainerMemoryLimit(f, pod, container.Name, &container.Resources, true)
 			if err != nil {
 				errs = append(errs, fmt.Errorf("failed to verify memory limit cgroup value: %w", err))
 			}
@@ -307,10 +305,7 @@ func verifyContainersCgroupLimits(f *framework.Framework, pod *v1.Pod) error {
 
 		if pod.Spec.Resources != nil && pod.Spec.Resources.Limits.Cpu() != nil &&
 			container.Resources.Limits.Cpu() == nil {
-			cpuQuota := kubecm.MilliCPUToQuota(pod.Spec.Resources.Limits.Cpu().MilliValue(), kubecm.QuotaPeriod)
-			expectedCPULimit := strconv.FormatInt(cpuQuota, 10)
-			expectedCPULimit = fmt.Sprintf("%s %s", expectedCPULimit, e2epod.CPUPeriod)
-			err := e2epod.VerifyCgroupValue(f, pod, container.Name, e2epod.Cgroupv2CPULimit, expectedCPULimit)
+			err := e2epod.VerifyContainerCPULimit(f, pod, container.Name, &container.Resources, true)
 			if err != nil {
 				errs = append(errs, fmt.Errorf("failed to verify cpu limit cgroup value: %w", err))
 			}

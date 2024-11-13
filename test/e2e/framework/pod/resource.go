@@ -28,14 +28,11 @@ import (
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
 
-	kubecm "k8s.io/kubernetes/pkg/kubelet/cm"
 	"k8s.io/kubernetes/test/e2e/framework"
 	testutils "k8s.io/kubernetes/test/utils"
 	imageutils "k8s.io/kubernetes/test/utils/image"
@@ -574,130 +571,4 @@ func IsPodActive(p *v1.Pod) bool {
 	return v1.PodSucceeded != p.Status.Phase &&
 		v1.PodFailed != p.Status.Phase &&
 		p.DeletionTimestamp == nil
-}
-
-const (
-	CPUPeriod             string = "100000"
-	CgroupCPUPeriod       string = "/sys/fs/cgroup/cpu/cpu.cfs_period_us"
-	CgroupCPUShares       string = "/sys/fs/cgroup/cpu/cpu.shares"
-	CgroupCPUQuota        string = "/sys/fs/cgroup/cpu/cpu.cfs_quota_us"
-	CgroupMemLimit        string = "/sys/fs/cgroup/memory/memory.limit_in_bytes"
-	Cgroupv2MemLimit      string = "/sys/fs/cgroup/memory.max"
-	Cgroupv2MemRequest    string = "/sys/fs/cgroup/memory.min"
-	Cgroupv2CPULimit      string = "/sys/fs/cgroup/cpu.max"
-	Cgroupv2CPURequest    string = "/sys/fs/cgroup/cpu.weight"
-	cgroupFsPath          string = "/sys/fs/cgroup"
-	cgroupv2CPUWeightFile string = "cpu.weight"
-	cgroupv2CPULimitFile  string = "cpu.max"
-	cgroupv2MemLimitFile  string = "memory.max"
-	cgroupVolumeName      string = "sysfscgroup"
-	cgroupMountPath       string = "/sysfscgroup"
-)
-
-type ContainerResources struct {
-	CPUReq              string
-	CPULim              string
-	MemReq              string
-	MemLim              string
-	EphStorReq          string
-	EphStorLim          string
-	ExtendedResourceReq string
-	ExtendedResourceLim string
-}
-
-func (cr *ContainerResources) ResourceRequirements() *v1.ResourceRequirements {
-	if cr == nil {
-		return nil
-	}
-
-	var lim, req v1.ResourceList
-	if cr.CPULim != "" || cr.MemLim != "" || cr.EphStorLim != "" {
-		lim = make(v1.ResourceList)
-	}
-	if cr.CPUReq != "" || cr.MemReq != "" || cr.EphStorReq != "" {
-		req = make(v1.ResourceList)
-	}
-	if cr.CPULim != "" {
-		lim[v1.ResourceCPU] = resource.MustParse(cr.CPULim)
-	}
-	if cr.MemLim != "" {
-		lim[v1.ResourceMemory] = resource.MustParse(cr.MemLim)
-	}
-	if cr.EphStorLim != "" {
-		lim[v1.ResourceEphemeralStorage] = resource.MustParse(cr.EphStorLim)
-	}
-	if cr.CPUReq != "" {
-		req[v1.ResourceCPU] = resource.MustParse(cr.CPUReq)
-	}
-	if cr.MemReq != "" {
-		req[v1.ResourceMemory] = resource.MustParse(cr.MemReq)
-	}
-	if cr.EphStorReq != "" {
-		req[v1.ResourceEphemeralStorage] = resource.MustParse(cr.EphStorReq)
-	}
-	return &v1.ResourceRequirements{Limits: lim, Requests: req}
-}
-
-func CreateHostPathVolumeForCgroup() v1.Volume {
-	return v1.Volume{
-		Name: cgroupVolumeName,
-		VolumeSource: v1.VolumeSource{
-			HostPath: &v1.HostPathVolumeSource{Path: cgroupFsPath},
-		},
-	}
-}
-
-func CreateVolumeMountForCgroup() v1.VolumeMount {
-	return v1.VolumeMount{
-		Name:      cgroupVolumeName,
-		MountPath: cgroupMountPath,
-	}
-}
-
-// VerifyPodCgroups verifies pod cgroup is configured on a node as expected.
-func VerifyPodCgroups(ctx context.Context, f *framework.Framework, pod *v1.Pod, info *ContainerResources) error {
-	ginkgo.GinkgoHelper()
-	cmd := fmt.Sprintf("find %s -name '*%s*' -o -name '*%s*'", cgroupMountPath, strings.ReplaceAll(string(pod.UID), "-", "_"), string(pod.UID))
-	framework.Logf("Namespace %s Pod %s - looking for Pod cgroup directory path: %q", f.Namespace, pod.Name, cmd)
-	podCgPath, stderr, err := ExecCommandInContainerWithFullOutput(f, pod.Name, pod.Spec.Containers[0].Name, []string{"/bin/sh", "-c", cmd}...)
-	if err != nil || len(stderr) > 0 {
-		return fmt.Errorf("encountered error while running command: %q, \nerr: %w \nstdErr: %q", cmd, err, stderr)
-	} else if podCgPath == "" {
-		return fmt.Errorf("pod cgroup dirctory not found by command: %q", cmd)
-	}
-
-	expectedResources := info.ResourceRequirements()
-	cpuWeightCgPath := fmt.Sprintf("%s/%s", podCgPath, cgroupv2CPUWeightFile)
-	expectedCPUShares := int64(kubecm.MilliCPUToShares(expectedResources.Requests.Cpu().MilliValue()))
-	expectedCPUShares = int64(1 + ((expectedCPUShares-2)*9999)/262142)
-	// convert cgroup v1 cpu.shares value to cgroup v2 cpu.weight value
-	// https://github.com/kubernetes/enhancements/tree/master/keps/sig-node/2254-cgroup-v2#phase-1-convert-from-cgroups-v1-settings-to-v2
-	var errs []error
-	err = VerifyCgroupValue(f, pod, pod.Spec.Containers[0].Name, cpuWeightCgPath, strconv.FormatInt(expectedCPUShares, 10))
-	if err != nil {
-		errs = append(errs, fmt.Errorf("failed to verify cpu request cgroup value: %w", err))
-	}
-
-	cpuLimCgPath := fmt.Sprintf("%s/%s", podCgPath, cgroupv2CPULimitFile)
-	cpuQuota := kubecm.MilliCPUToQuota(expectedResources.Limits.Cpu().MilliValue(), kubecm.QuotaPeriod)
-	expectedCPULimit := "max"
-	if cpuQuota > 0 {
-		expectedCPULimit = strconv.FormatInt(cpuQuota, 10)
-	}
-	expectedCPULimit = fmt.Sprintf("%s %s", expectedCPULimit, CPUPeriod)
-	err = VerifyCgroupValue(f, pod, pod.Spec.Containers[0].Name, cpuLimCgPath, expectedCPULimit)
-	if err != nil {
-		errs = append(errs, fmt.Errorf("failed to verify cpu limit cgroup value: %w", err))
-	}
-
-	memLimCgPath := fmt.Sprintf("%s/%s", podCgPath, cgroupv2MemLimitFile)
-	expectedMemLim := "max"
-	if !expectedResources.Limits.Memory().IsZero() {
-		expectedMemLim = strconv.FormatInt(expectedResources.Limits.Memory().Value(), 10)
-	}
-	err = VerifyCgroupValue(f, pod, pod.Spec.Containers[0].Name, memLimCgPath, expectedMemLim)
-	if err != nil {
-		errs = append(errs, fmt.Errorf("failed to verify memory limit cgroup value: %w", err))
-	}
-	return utilerrors.NewAggregate(errs)
 }
