@@ -80,7 +80,7 @@ dependencies:
       match: configs\[Etcd\] = Config{list\.GcEtcdRegistry, "etcd", "\d+\.\d+.\d+(-(alpha|beta|rc).\d+)?(-\d+)?"}
 
   - name: "etcd-image"
-    version: 3.5.16
+    version: 3.5.17
     refPaths:
     - path: cluster/images/etcd/Makefile
       match: BUNDLED_ETCD_VERSIONS\?|LATEST_ETCD_VERSION\?
@@ -109,7 +109,7 @@ dependencies:
 
   # From https://github.com/etcd-io/etcd/blob/main/Makefile
   - name: "golang: etcd release version"
-    version: 1.22.7 # https://github.com/etcd-io/etcd/blob/main/CHANGELOG/CHANGELOG-3.5.md
+    version: 1.22.9 # https://github.com/etcd-io/etcd/blob/main/CHANGELOG/CHANGELOG-3.5.md
     refPaths:
     - path: cluster/images/etcd/Makefile
       match: 'GOLANG_VERSION := \d+.\d+(alpha|beta|rc)?\.?(\d+)?'
