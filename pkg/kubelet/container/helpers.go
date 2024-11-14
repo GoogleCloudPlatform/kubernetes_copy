@@ -396,6 +396,8 @@ func MakePortMappings(container *v1.Container) (ports []PortMapping) {
 
 // HasAnyRegularContainerStarted returns true if any regular container has
 // started, which indicates all init containers have been initialized.
+// Deprecated: This function is not accurate when its pod sandbox is recreated.
+// Use HasAnyActiveRegularContainerStarted instead.
 func HasAnyRegularContainerStarted(spec *v1.PodSpec, statuses []v1.ContainerStatus) bool {
 	if len(statuses) == 0 {
 		return false
@@ -413,6 +415,29 @@ func HasAnyRegularContainerStarted(spec *v1.PodSpec, statuses []v1.ContainerStat
 		if status.State.Running != nil || status.State.Terminated != nil {
 			return true
 		}
+	}
+
+	return false
+}
+
+// HasAnyActiveRegularContainerStarted returns true if any regular container of
+// the current pod sandbox has started, which indicates all init containers
+// have been initialized.
+func HasAnyActiveRegularContainerStarted(spec *v1.PodSpec, podStatus *PodStatus) bool {
+	if podStatus == nil {
+		return false
+	}
+
+	containerNames := sets.New[string]()
+	for _, c := range spec.Containers {
+		containerNames.Insert(c.Name)
+	}
+
+	for _, status := range podStatus.ActiveContainerStatuses {
+		if !containerNames.Has(status.Name) {
+			continue
+		}
+		return true
 	}
 
 	return false
