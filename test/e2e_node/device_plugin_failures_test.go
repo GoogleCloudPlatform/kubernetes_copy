@@ -203,6 +203,40 @@ var _ = SIGDescribe("Device Plugin Failures:", framework.WithNodeConformance(), 
 		gomega.Eventually(getNodeResourceValues, devicePluginGracefulTimeout+1*time.Minute, f.Timeouts.Poll).WithContext(ctx).WithArguments(resourceName).Should(gomega.Equal(ResourceValue{Allocatable: 0, Capacity: 1}))
 	})
 
+	ginkgo.It("will set a single device to unhealthy, but pod requesting zero devices will successfully run", func(ctx context.Context) {
+		// randomizing so tests can run in parallel
+		resourceName := fmt.Sprintf("test.device/%s", f.UniqueName)
+		devices := []kubeletdevicepluginv1beta1.Device{{ID: "testdevice", Health: kubeletdevicepluginv1beta1.Unhealthy}}
+		plugin := testdeviceplugin.NewDevicePlugin(nil)
+
+		err := plugin.RegisterDevicePlugin(ctx, f.UniqueName, resourceName, devices)
+		defer plugin.Stop() // should stop even if registration failed
+		gomega.Expect(err).To(gomega.Succeed())
+
+		ginkgo.By("initial state: capacity and allocatable are set")
+		gomega.Eventually(getNodeResourceValues, nodeStatusUpdateTimeout, f.Timeouts.Poll).WithContext(ctx).WithArguments(resourceName).Should(gomega.Equal(ResourceValue{Allocatable: 0, Capacity: 1}))
+
+		// schedule a pod that requests the device
+		client := e2epod.NewPodClient(f)
+		pod := client.Create(ctx, createPod(resourceName, 0))
+
+		// wait for the pod to be running
+		gomega.Expect(e2epod.WaitForPodRunningInNamespace(ctx, f.ClientSet, pod)).To(gomega.Succeed())
+
+		// deleting the pod
+		err = f.ClientSet.CoreV1().Pods(f.Namespace.Name).Delete(ctx, pod.Name, metav1.DeleteOptions{})
+		gomega.Expect(err).To(gomega.Succeed())
+
+		// wait for the pod to be deleted
+		gomega.Eventually(func() error {
+			_, err := f.ClientSet.CoreV1().Pods(f.Namespace.Name).Get(ctx, pod.Name, metav1.GetOptions{})
+			return err
+		}, f.Timeouts.PodDelete, f.Timeouts.Poll).Should(gomega.MatchError((gomega.ContainSubstring("not found"))))
+
+		ginkgo.By("when pod is deleted, nothing changes")
+		gomega.Eventually(getNodeResourceValues, devicePluginGracefulTimeout+1*time.Minute, f.Timeouts.Poll).WithContext(ctx).WithArguments(resourceName).Should(gomega.Equal(ResourceValue{Allocatable: 0, Capacity: 1}))
+	})
+
 	ginkgo.It("will lower allocatable to a number of unhealthy devices and then back if they became healthy again", func(ctx context.Context) {
 		// randomizing so tests can run in parallel
 		resourceName := fmt.Sprintf("test.device/%s", f.UniqueName)
