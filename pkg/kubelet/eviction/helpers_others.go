@@ -24,11 +24,11 @@ import (
 	statsapi "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 )
 
-func makeMemoryAvailableSignalObservation(summary *statsapi.Summary) *signalObservation {
+func makeMemoryAvailableSignalObservation(summary *statsapi.Summary, accessibleSwap, swapUsageBytes uint64) *signalObservation {
 	if memory := summary.Node.Memory; memory != nil && memory.AvailableBytes != nil && memory.WorkingSetBytes != nil {
 		return &signalObservation{
-			available: resource.NewQuantity(int64(*memory.AvailableBytes), resource.BinarySI),
-			capacity:  resource.NewQuantity(int64(*memory.AvailableBytes+*memory.WorkingSetBytes), resource.BinarySI),
+			available: resource.NewQuantity(int64(*memory.AvailableBytes)+int64(accessibleSwap)-int64(swapUsageBytes), resource.BinarySI),
+			capacity:  resource.NewQuantity(int64(*memory.AvailableBytes+*memory.WorkingSetBytes)+int64(accessibleSwap), resource.BinarySI),
 			time:      memory.Time,
 		}
 	}

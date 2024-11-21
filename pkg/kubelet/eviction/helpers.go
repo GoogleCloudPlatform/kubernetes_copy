@@ -19,6 +19,8 @@ package eviction
 import (
 	"errors"
 	"fmt"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	"k8s.io/kubernetes/pkg/features"
 	"sort"
 	"strconv"
 	"strings"
@@ -836,13 +838,19 @@ func (a byEvictionPriority) Less(i, j int) bool {
 }
 
 // makeSignalObservations derives observations using the specified summary provider.
-func makeSignalObservations(summary *statsapi.Summary) (signalObservations, statsFunc) {
+func makeSignalObservations(summary *statsapi.Summary, accessibleSwap uint64) (signalObservations, statsFunc) {
 	// build the function to work against for pod stats
 	statsFunc := cachedStatsFunc(summary.Pods)
 	// build an evaluation context for current eviction signals
 	result := signalObservations{}
 
-	memoryAvailableSignal := makeMemoryAvailableSignalObservation(summary)
+	swapUsageBytes := uint64(0)
+	if utilfeature.DefaultFeatureGate.Enabled(features.NodeSwap) {
+		if summary.Node.Swap != nil && summary.Node.Swap.SwapUsageBytes != nil {
+			swapUsageBytes = *summary.Node.Swap.SwapUsageBytes
+		}
+	}
+	memoryAvailableSignal := makeMemoryAvailableSignalObservation(summary, accessibleSwap, swapUsageBytes)
 	if memoryAvailableSignal != nil {
 		result[evictionapi.SignalMemoryAvailable] = *memoryAvailableSignal
 	}
@@ -852,8 +860,8 @@ func makeSignalObservations(summary *statsapi.Summary) (signalObservations, stat
 	} else {
 		if memory := allocatableContainer.Memory; memory != nil && memory.AvailableBytes != nil && memory.WorkingSetBytes != nil {
 			result[evictionapi.SignalAllocatableMemoryAvailable] = signalObservation{
-				available: resource.NewQuantity(int64(*memory.AvailableBytes), resource.BinarySI),
-				capacity:  resource.NewQuantity(int64(*memory.AvailableBytes+*memory.WorkingSetBytes), resource.BinarySI),
+				available: resource.NewQuantity(int64(*memory.AvailableBytes)+int64(accessibleSwap)-int64(swapUsageBytes), resource.BinarySI),
+				capacity:  resource.NewQuantity(int64(*memory.AvailableBytes+*memory.WorkingSetBytes)+int64(accessibleSwap), resource.BinarySI),
 				time:      memory.Time,
 			}
 		}
@@ -952,6 +960,9 @@ func thresholdsMet(thresholds []evictionapi.Threshold, observations signalObserv
 		case evictionapi.OpLessThan:
 			thresholdMet = thresholdResult > 0
 		}
+		klog.InfoS("thresholds met", "signal", threshold.Signal, "is met?", thresholdMet,
+			"threshold quantity", quantity.String(), "available", observed.available.String(), "capacity", observed.capacity.String(),
+			"used", observed.capacity.Value()-observed.available.Value())
 		if thresholdMet {
 			results = append(results, threshold)
 		}
