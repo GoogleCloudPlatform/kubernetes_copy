@@ -19,6 +19,7 @@ package swap
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"os"
 	sysruntime "runtime"
 	"strings"
@@ -146,4 +147,20 @@ func IsSwapOn() (bool, error) {
 	})
 
 	return swapOn, swapOnErr
+}
+
+// The swap limit is calculated as (<containerMemoryRequest>/<nodeTotalMemory>)*<totalPodsSwapAvailable>.
+// For more info, please look at the following KEP: https://kep.k8s.io/2400
+func CalcSwapForBurstablePods(containerMemoryRequest, nodeTotalMemory, totalPodsSwapAvailable int64) (int64, error) {
+	if nodeTotalMemory <= 0 {
+		return 0, fmt.Errorf("total node memory is 0")
+	}
+	if containerMemoryRequest > nodeTotalMemory {
+		return 0, fmt.Errorf("container request %d is larger than total node memory %d", containerMemoryRequest, nodeTotalMemory)
+	}
+
+	containerMemoryProportion := float64(containerMemoryRequest) / float64(nodeTotalMemory)
+	swapAllocation := containerMemoryProportion * float64(totalPodsSwapAvailable)
+
+	return int64(swapAllocation), nil
 }

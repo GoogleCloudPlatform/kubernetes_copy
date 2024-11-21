@@ -16,7 +16,10 @@ limitations under the License.
 
 package swap
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+)
 
 func TestIsSwapEnabled(t *testing.T) {
 	testCases := []struct {
@@ -60,6 +63,50 @@ Filename				Type		Size		Used		Priority
 			isEnabled := isSwapOnAccordingToProcSwaps([]byte(tc.procSwapsContent))
 			if isEnabled != tc.expectedEnabled {
 				t.Errorf("expected %v, got %v", tc.expectedEnabled, isEnabled)
+			}
+		})
+	}
+}
+
+func TestCalcSwapForBurstablePods(t *testing.T) {
+	const gb int64 = 1024 * 1024 * 1024
+
+	testCases := []struct {
+		containerMemoryRequest int64
+		nodeTotalMemory        int64
+		totalPodsSwapAvailable int64
+		expectedSwap           int64
+	}{
+		{
+			containerMemoryRequest: 1 * gb,
+			nodeTotalMemory:        80 * gb,
+			totalPodsSwapAvailable: 4 * gb,
+			expectedSwap:           53687091,
+		},
+		{
+			containerMemoryRequest: 2 * gb,
+			nodeTotalMemory:        40 * gb,
+			totalPodsSwapAvailable: 2 * gb,
+			expectedSwap:           107374182,
+		},
+		{
+			containerMemoryRequest: 5 * gb,
+			nodeTotalMemory:        150 * gb,
+			totalPodsSwapAvailable: 40 * gb,
+			expectedSwap:           1431655765,
+		},
+	}
+
+	for _, tc := range testCases {
+		name := fmt.Sprintf("memory request bytes: %d, node total memory: %d, total swap available: %d", tc.containerMemoryRequest, tc.nodeTotalMemory, tc.totalPodsSwapAvailable)
+		t.Run(name, func(t *testing.T) {
+			swap, err := CalcSwapForBurstablePods(tc.containerMemoryRequest, tc.nodeTotalMemory, tc.totalPodsSwapAvailable)
+			if err != nil {
+				t.Errorf("received an error: %v", err)
+			}
+
+			if swap != tc.expectedSwap {
+				t.Errorf("expected swap to be %v, got %v", tc.expectedSwap, swap)
 			}
 		})
 	}

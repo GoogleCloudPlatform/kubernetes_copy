@@ -46,6 +46,7 @@ import (
 	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
 	"k8s.io/kubernetes/pkg/kubelet/qos"
 	kubelettypes "k8s.io/kubernetes/pkg/kubelet/types"
+	"k8s.io/kubernetes/pkg/kubelet/util/swap"
 	"k8s.io/utils/ptr"
 )
 
@@ -419,7 +420,7 @@ func (m swapConfigurationHelper) ConfigureLimitedSwap(lcr *runtimeapi.LinuxConta
 	}
 
 	containerMemoryRequest := container.Resources.Requests.Memory()
-	swapLimit, err := calcSwapForBurstablePods(containerMemoryRequest.Value(), int64(m.machineInfo.MemoryCapacity), int64(m.machineInfo.SwapCapacity))
+	swapLimit, err := swap.CalcSwapForBurstablePods(containerMemoryRequest.Value(), int64(m.machineInfo.MemoryCapacity), int64(m.machineInfo.SwapCapacity))
 	if err != nil {
 		klog.ErrorS(err, "cannot calculate swap allocation amount; disallowing swap")
 		m.ConfigureNoSwap(lcr)
@@ -454,22 +455,6 @@ func (m swapConfigurationHelper) configureSwap(lcr *runtimeapi.LinuxContainerRes
 	}
 
 	lcr.Unified[cm.Cgroup2MaxSwapFilename] = fmt.Sprintf("%d", swapMemory)
-}
-
-// The swap limit is calculated as (<containerMemoryRequest>/<nodeTotalMemory>)*<totalPodsSwapAvailable>.
-// For more info, please look at the following KEP: https://kep.k8s.io/2400
-func calcSwapForBurstablePods(containerMemoryRequest, nodeTotalMemory, totalPodsSwapAvailable int64) (int64, error) {
-	if nodeTotalMemory <= 0 {
-		return 0, fmt.Errorf("total node memory is 0")
-	}
-	if containerMemoryRequest > nodeTotalMemory {
-		return 0, fmt.Errorf("container request %d is larger than total node memory %d", containerMemoryRequest, nodeTotalMemory)
-	}
-
-	containerMemoryProportion := float64(containerMemoryRequest) / float64(nodeTotalMemory)
-	swapAllocation := containerMemoryProportion * float64(totalPodsSwapAvailable)
-
-	return int64(swapAllocation), nil
 }
 
 func toKubeContainerUser(statusUser *runtimeapi.ContainerUser) *kubecontainer.ContainerUser {
