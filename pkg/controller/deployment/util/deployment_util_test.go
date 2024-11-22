@@ -1153,7 +1153,7 @@ func TestRemoveCondition(t *testing.T) {
 }
 
 func TestDeploymentComplete(t *testing.T) {
-	deployment := func(desired, current, updated, available, maxUnavailable, maxSurge int32) *apps.Deployment {
+	deployment := func(desired, current, updated, available, maxUnavailable int32, terminating *int32, maxSurge int32) *apps.Deployment {
 		return &apps.Deployment{
 			Spec: apps.DeploymentSpec{
 				Replicas: &desired,
@@ -1166,9 +1166,10 @@ func TestDeploymentComplete(t *testing.T) {
 				},
 			},
 			Status: apps.DeploymentStatus{
-				Replicas:          current,
-				UpdatedReplicas:   updated,
-				AvailableReplicas: available,
+				Replicas:            current,
+				UpdatedReplicas:     updated,
+				AvailableReplicas:   available,
+				TerminatingReplicas: terminating,
 			},
 		}
 	}
@@ -1176,32 +1177,28 @@ func TestDeploymentComplete(t *testing.T) {
 	tests := []struct {
 		name string
 
-		d *apps.Deployment
+		d                                    *apps.Deployment
+		enableDeploymentPodReplacementPolicy bool
+		podReplacementPolicy                 *apps.DeploymentPodReplacementPolicy
 
 		expected bool
 	}{
 		{
 			name: "not complete: min but not all pods become available",
 
-			d:        deployment(5, 5, 5, 4, 1, 0),
+			d:        deployment(5, 5, 5, 4, 1, nil, 0),
 			expected: false,
 		},
 		{
 			name: "not complete: min availability is not honored",
 
-			d:        deployment(5, 5, 5, 3, 1, 0),
+			d:        deployment(5, 5, 5, 3, 1, nil, 0),
 			expected: false,
-		},
-		{
-			name: "complete",
-
-			d:        deployment(5, 5, 5, 5, 0, 0),
-			expected: true,
 		},
 		{
 			name: "not complete: all pods are available but not updated",
 
-			d:        deployment(5, 5, 4, 5, 0, 0),
+			d:        deployment(5, 5, 4, 5, 0, nil, 0),
 			expected: false,
 		},
 		{
@@ -1209,19 +1206,81 @@ func TestDeploymentComplete(t *testing.T) {
 
 			// old replica set: spec.replicas=1, status.replicas=1, status.availableReplicas=1
 			// new replica set: spec.replicas=1, status.replicas=1, status.availableReplicas=0
-			d:        deployment(1, 2, 1, 1, 0, 1),
+			d:        deployment(1, 2, 1, 1, 0, nil, 1),
 			expected: false,
 		},
 		{
 			name: "not complete: one replica deployment never comes up",
 
-			d:        deployment(1, 1, 1, 0, 1, 1),
+			d:        deployment(1, 1, 1, 0, 1, nil, 1),
 			expected: false,
+		},
+		{
+			name: "not complete: unknown terminating pods and TerminationComplete policy",
+
+			d:                                    deployment(5, 5, 5, 5, 0, nil, 0),
+			enableDeploymentPodReplacementPolicy: true,
+			podReplacementPolicy:                 ptr.To(apps.TerminationComplete),
+			expected:                             false,
+		},
+		{
+			name: "not complete: terminating pods and TerminationComplete policy",
+
+			d:                                    deployment(5, 5, 5, 5, 0, ptr.To[int32](3), 0),
+			enableDeploymentPodReplacementPolicy: true,
+			podReplacementPolicy:                 ptr.To(apps.TerminationComplete),
+			expected:                             false,
+		},
+		{
+			name: "complete",
+
+			d:        deployment(5, 5, 5, 5, 0, nil, 0),
+			expected: true,
+		},
+		{
+			name: "complete: enabled DeploymentPodReplacementPolicy",
+
+			d:                                    deployment(5, 5, 5, 5, 0, nil, 0),
+			enableDeploymentPodReplacementPolicy: true,
+			expected:                             true,
+		},
+		{
+			name: "complete: terminating pods and enabled DeploymentPodReplacementPolicy",
+
+			d:                                    deployment(5, 5, 5, 5, 0, ptr.To[int32](3), 0),
+			enableDeploymentPodReplacementPolicy: true,
+			expected:                             true,
+		},
+		{
+			name: "complete: unknown terminating pods and TerminationStarted policy",
+
+			d:                                    deployment(5, 5, 5, 5, 0, nil, 0),
+			enableDeploymentPodReplacementPolicy: true,
+			podReplacementPolicy:                 ptr.To(apps.TerminationStarted),
+			expected:                             true,
+		},
+		{
+			name: "complete: terminating pods and TerminationStarted policy",
+
+			d:                                    deployment(5, 5, 5, 5, 0, ptr.To[int32](3), 0),
+			enableDeploymentPodReplacementPolicy: true,
+			podReplacementPolicy:                 ptr.To(apps.TerminationStarted),
+			expected:                             true,
+		},
+		{
+			name: "complete: no terminating pods and TerminationComplete policy",
+
+			d:                                    deployment(5, 5, 5, 5, 0, ptr.To[int32](0), 0),
+			enableDeploymentPodReplacementPolicy: true,
+			podReplacementPolicy:                 ptr.To(apps.TerminationComplete),
+			expected:                             true,
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.DeploymentPodReplacementPolicy, test.enableDeploymentPodReplacementPolicy)
+			test.d.Spec.PodReplacementPolicy = test.podReplacementPolicy
 			if got, exp := DeploymentComplete(test.d, &test.d.Status), test.expected; got != exp {
 				t.Errorf("expected complete: %t, got: %t", exp, got)
 			}
@@ -1230,93 +1289,170 @@ func TestDeploymentComplete(t *testing.T) {
 }
 
 func TestDeploymentProgressing(t *testing.T) {
-	deployment := func(current, updated, ready, available int32) *apps.Deployment {
+	deployment := func(current, updated, ready, available int32, terminating *int32) *apps.Deployment {
 		return &apps.Deployment{
 			Status: apps.DeploymentStatus{
-				Replicas:          current,
-				UpdatedReplicas:   updated,
-				ReadyReplicas:     ready,
-				AvailableReplicas: available,
+				Replicas:            current,
+				UpdatedReplicas:     updated,
+				ReadyReplicas:       ready,
+				AvailableReplicas:   available,
+				TerminatingReplicas: terminating,
 			},
 		}
 	}
-	newStatus := func(current, updated, ready, available int32) apps.DeploymentStatus {
+	newStatus := func(current, updated, ready, available int32, terminating *int32) apps.DeploymentStatus {
 		return apps.DeploymentStatus{
-			Replicas:          current,
-			UpdatedReplicas:   updated,
-			ReadyReplicas:     ready,
-			AvailableReplicas: available,
+			Replicas:            current,
+			UpdatedReplicas:     updated,
+			ReadyReplicas:       ready,
+			AvailableReplicas:   available,
+			TerminatingReplicas: terminating,
 		}
 	}
 
 	tests := []struct {
 		name string
 
-		d         *apps.Deployment
-		newStatus apps.DeploymentStatus
+		d                                    *apps.Deployment
+		newStatus                            apps.DeploymentStatus
+		enableDeploymentPodReplacementPolicy bool
+		podReplacementPolicy                 *apps.DeploymentPodReplacementPolicy
 
 		expected bool
 	}{
 		{
 			name: "progressing: updated pods",
 
-			d:         deployment(10, 4, 4, 4),
-			newStatus: newStatus(10, 6, 4, 4),
+			d:         deployment(10, 4, 4, 4, nil),
+			newStatus: newStatus(10, 6, 4, 4, nil),
 
 			expected: true,
 		},
 		{
 			name: "not progressing",
 
-			d:         deployment(10, 4, 4, 4),
-			newStatus: newStatus(10, 4, 4, 4),
+			d:         deployment(10, 4, 4, 4, nil),
+			newStatus: newStatus(10, 4, 4, 4, nil),
 
 			expected: false,
 		},
 		{
 			name: "progressing: old pods removed",
 
-			d:         deployment(10, 4, 6, 6),
-			newStatus: newStatus(8, 4, 6, 6),
+			d:         deployment(10, 4, 6, 6, nil),
+			newStatus: newStatus(8, 4, 6, 6, nil),
 
 			expected: true,
 		},
 		{
 			name: "not progressing: less new pods",
 
-			d:         deployment(10, 7, 3, 3),
-			newStatus: newStatus(10, 6, 3, 3),
+			d:         deployment(10, 7, 3, 3, nil),
+			newStatus: newStatus(10, 6, 3, 3, nil),
 
 			expected: false,
 		},
 		{
 			name: "progressing: less overall but more new pods",
 
-			d:         deployment(10, 4, 7, 7),
-			newStatus: newStatus(8, 8, 5, 5),
+			d:         deployment(10, 4, 7, 7, nil),
+			newStatus: newStatus(8, 8, 5, 5, nil),
 
 			expected: true,
 		},
 		{
 			name: "progressing: more ready pods",
 
-			d:         deployment(10, 10, 9, 8),
-			newStatus: newStatus(10, 10, 10, 8),
+			d:         deployment(10, 10, 9, 8, nil),
+			newStatus: newStatus(10, 10, 10, 8, nil),
 
 			expected: true,
 		},
 		{
 			name: "progressing: more available pods",
 
-			d:         deployment(10, 10, 10, 9),
-			newStatus: newStatus(10, 10, 10, 10),
+			d:         deployment(10, 10, 10, 9, nil),
+			newStatus: newStatus(10, 10, 10, 10, nil),
 
 			expected: true,
+		},
+		{
+			name: "not progressing: enabled DeploymentPodReplacementPolicy",
+
+			d:                                    deployment(10, 4, 4, 4, nil),
+			newStatus:                            newStatus(10, 4, 4, 4, nil),
+			enableDeploymentPodReplacementPolicy: true,
+
+			expected: false,
+		},
+		{
+			name: "not progressing: less terminating pods and enabled DeploymentPodReplacementPolicy",
+
+			d:                                    deployment(10, 4, 4, 4, ptr.To[int32](3)),
+			newStatus:                            newStatus(10, 4, 4, 4, ptr.To[int32](2)),
+			enableDeploymentPodReplacementPolicy: true,
+			expected:                             false,
+		},
+		{
+			name: "not progressing: unknown terminating pods and TerminationStarted policy",
+
+			d:                                    deployment(10, 4, 4, 4, nil),
+			newStatus:                            newStatus(10, 4, 4, 4, nil),
+			enableDeploymentPodReplacementPolicy: true,
+			podReplacementPolicy:                 ptr.To(apps.TerminationStarted),
+			expected:                             false,
+		},
+		{
+			name: "not progressing: less terminating pods and TerminationStarted policy",
+
+			d:                                    deployment(10, 4, 4, 4, ptr.To[int32](3)),
+			newStatus:                            newStatus(10, 4, 4, 4, ptr.To[int32](2)),
+			enableDeploymentPodReplacementPolicy: true,
+			podReplacementPolicy:                 ptr.To(apps.TerminationStarted),
+			expected:                             false,
+		},
+		{
+			name: "not progressing: unknown terminating pods and TerminationComplete policy",
+
+			d:                                    deployment(10, 4, 4, 4, nil),
+			newStatus:                            newStatus(10, 4, 4, 4, nil),
+			enableDeploymentPodReplacementPolicy: true,
+			podReplacementPolicy:                 ptr.To(apps.TerminationComplete),
+			expected:                             false,
+		},
+		{
+			name: "not progressing: more terminating pods and TerminationComplete policy",
+
+			d:                                    deployment(10, 4, 4, 4, ptr.To[int32](0)),
+			newStatus:                            newStatus(10, 4, 4, 4, ptr.To[int32](3)),
+			enableDeploymentPodReplacementPolicy: true,
+			podReplacementPolicy:                 ptr.To(apps.TerminationComplete),
+			expected:                             false,
+		},
+		{
+			name: "not progressing: same terminating pods and TerminationComplete policy",
+
+			d:                                    deployment(10, 4, 4, 4, ptr.To[int32](1)),
+			newStatus:                            newStatus(10, 4, 4, 4, ptr.To[int32](1)),
+			enableDeploymentPodReplacementPolicy: true,
+			podReplacementPolicy:                 ptr.To(apps.TerminationComplete),
+			expected:                             false,
+		},
+		{
+			name: "progressing: less terminating pods and TerminationStarted policy",
+
+			d:                                    deployment(10, 4, 4, 4, ptr.To[int32](3)),
+			newStatus:                            newStatus(10, 4, 4, 4, ptr.To[int32](2)),
+			enableDeploymentPodReplacementPolicy: true,
+			podReplacementPolicy:                 ptr.To(apps.TerminationComplete),
+			expected:                             true,
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.DeploymentPodReplacementPolicy, test.enableDeploymentPodReplacementPolicy)
+			test.d.Spec.PodReplacementPolicy = test.podReplacementPolicy
 			if got, exp := DeploymentProgressing(test.d, &test.newStatus), test.expected; got != exp {
 				t.Errorf("expected progressing: %t, got: %t", exp, got)
 			}

@@ -672,6 +672,113 @@ func TestFailedDeployment(t *testing.T) {
 	}
 }
 
+// Deployment should have a timeout condition when it fails to progress after given deadline.
+// If the number of terminating pods decreases, the DeploymentProgressing condition can report
+// a progress if a PodReplacementPolicy is used.
+func TestFailedDeploymentWithTerminatingPods(t *testing.T) {
+	tests := []struct {
+		name                                 string
+		enableDeploymentPodReplacementPolicy bool
+		podReplacementPolicy                 *apps.DeploymentPodReplacementPolicy
+
+		expectedTerminatingReplicas        *int32
+		expectedProgressingConditionReason string
+	}{
+		{
+			name:                                 "decrease of terminating pods should not progress a deployment with DeploymentPodReplacementPolicy=false",
+			enableDeploymentPodReplacementPolicy: false,
+			expectedTerminatingReplicas:          nil,
+			expectedProgressingConditionReason:   deploymentutil.TimedOutReason,
+		},
+		{
+			name:                                 "decrease of terminating pods should not progress a deployment with DeploymentPodReplacementPolicy=true",
+			enableDeploymentPodReplacementPolicy: true,
+			expectedTerminatingReplicas:          ptr.To[int32](2),
+			expectedProgressingConditionReason:   deploymentutil.TimedOutReason,
+		},
+		{
+			name:                                 "decrease of terminating pods should not progress a deployment with TerminationStarted policy",
+			enableDeploymentPodReplacementPolicy: true,
+			podReplacementPolicy:                 ptr.To(apps.TerminationStarted),
+			expectedTerminatingReplicas:          ptr.To[int32](2),
+			expectedProgressingConditionReason:   deploymentutil.TimedOutReason,
+		},
+		{
+			name:                                 "decrease of terminating pods should progress a deployment with TerminationComplete policy",
+			enableDeploymentPodReplacementPolicy: true,
+			podReplacementPolicy:                 ptr.To(apps.TerminationComplete),
+			expectedTerminatingReplicas:          ptr.To[int32](2),
+			expectedProgressingConditionReason:   deploymentutil.ReplicaSetUpdatedReason,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.DeploymentPodReplacementPolicy, test.enableDeploymentPodReplacementPolicy)
+
+			_, ctx := ktesting.NewTestContext(t)
+			ctx, cancel := context.WithCancel(ctx)
+			defer cancel()
+
+			closeFn, rm, dc, informers, c := dcSetup(ctx, t)
+			defer closeFn()
+
+			name := "test-failed-deployment"
+			ns := framework.CreateNamespaceOrDie(c, name, t)
+			defer framework.DeleteNamespaceOrDie(c, ns, t)
+
+			deploymentName := "progress-check"
+			replicas := int32(4)
+			three := int32(3)
+			tester := &deploymentTester{t: t, c: c, deployment: newDeployment(deploymentName, ns.Name, replicas)}
+			tester.deployment.Spec.ProgressDeadlineSeconds = &three
+			tester.deployment.Spec.PodReplacementPolicy = test.podReplacementPolicy
+			tester.deployment.Spec.Template.Spec.NodeName = "fake-node"
+			tester.deployment.Spec.Template.Spec.TerminationGracePeriodSeconds = ptr.To(int64(300))
+			var err error
+			tester.deployment, err = c.AppsV1().Deployments(ns.Name).Create(context.TODO(), tester.deployment, metav1.CreateOptions{})
+			if err != nil {
+				t.Fatalf("failed to create deployment %q: %v", deploymentName, err)
+			}
+
+			// Start informer and controllers
+			stopControllers := runControllersAndInformers(t, rm, dc, informers)
+			defer stopControllers()
+
+			if err = tester.waitForDeploymentUpdatedReplicasGTE(replicas); err != nil {
+				t.Fatal(err)
+			}
+			// Record current replicaset
+			rs, err := tester.expectNewReplicaSet()
+			if err != nil {
+				t.Fatal(err)
+			}
+			// Terminate 2 replicas
+			err = tester.removeRSPods(ctx, rs, 2, false, 300)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err = tester.waitForDeploymentStatusReplicasFields(ctx, replicas, replicas, 0, 0, replicas, test.expectedTerminatingReplicas); err != nil {
+				t.Fatal(err)
+			}
+			// Pods are not marked as Ready, therefore the deployment progress will eventually timeout after progressDeadlineSeconds has passed.
+			// Wait for the deployment to have a progress timeout condition.
+			if err = tester.waitForDeploymentWithCondition(deploymentutil.TimedOutReason, apps.DeploymentProgressing); err != nil {
+				t.Fatal(err)
+			}
+
+			// remove terminating pods and skip graceful termination of the RS
+			if err := tester.removeRSPods(ctx, rs, math.MaxInt, true, 0); err != nil {
+				t.Fatal(err)
+			}
+			// Check for a potential change in the progressing condition
+			if err = tester.waitForDeploymentWithCondition(test.expectedProgressingConditionReason, apps.DeploymentProgressing); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
 func TestOverlappingDeployments(t *testing.T) {
 	_, ctx := ktesting.NewTestContext(t)
 	ctx, cancel := context.WithCancel(ctx)
@@ -1919,9 +2026,35 @@ func TestRollingUpdateAndProportionalScalingForDeploymentPodReplacementPolicy(t 
 			if err != nil {
 				t.Fatal(err)
 			}
-			// Ensure the deployment completes while marking its pods as ready simultaneously
-			if err := tester.waitForDeploymentCompleteAndMarkPodsReady(); err != nil {
-				t.Fatal(err)
+			// Check and test deployment completion.
+			if test.enableDeploymentPodReplacementPolicy && ptr.Equal(test.podReplacementPolicy, ptr.To(apps.TerminationComplete)) {
+				// We cannot wait for a complete deployment because TerminationComplete policy requires that no terminating pods should be present.
+				// Wait for the new pods to appear.
+				expectedReadyReplicas := test.expectedFirstRSReplicasDuringNewRollout - *test.expectedTerminatingReplicasDuringNewRollout
+				if err = tester.waitForDeploymentStatusReplicasFields(ctx, test.expectedFirstRSReplicasDuringNewRollout, test.expectedFirstRSReplicasDuringNewRollout, expectedReadyReplicas, expectedReadyReplicas, *test.expectedTerminatingReplicasDuringNewRollout, test.expectedTerminatingReplicasDuringNewRollout); err != nil {
+					t.Fatal(err)
+				}
+				if err := tester.markUpdatedPodsReadyWithoutComplete(); err != nil {
+					t.Fatal(err)
+				}
+				// Wait for the deployment status to sync.
+				if err = tester.waitForDeploymentStatusReplicasFields(ctx, test.expectedFirstRSReplicasDuringNewRollout, test.expectedFirstRSReplicasDuringNewRollout, test.expectedFirstRSReplicasDuringNewRollout, test.expectedFirstRSReplicasDuringNewRollout, 0, test.expectedTerminatingReplicasDuringNewRollout); err != nil {
+					t.Fatal(err)
+				}
+				// Make sure that the deployment is not complete, due to presence of terminating pods.
+				isDeploymentComplete, err := tester.deploymentComplete()
+				if err != nil {
+					t.Fatal(err)
+				}
+				if isDeploymentComplete {
+					t.Fatalf("deployment %q should not be complete when terminating pods are present", deploymentName)
+				}
+			} else {
+				// Ensure the deployment completes while marking its pods as ready simultaneously
+				// Terminating pods should not prevent the deployment from become complete.
+				if err := tester.waitForDeploymentCompleteAndMarkPodsReady(); err != nil {
+					t.Fatal(err)
+				}
 			}
 
 			// Trigger a new rollout

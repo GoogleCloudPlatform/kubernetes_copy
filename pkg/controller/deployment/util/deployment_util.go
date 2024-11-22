@@ -903,17 +903,25 @@ func IsRollingUpdate(deployment *apps.Deployment) bool {
 
 // DeploymentComplete considers a deployment to be complete once all of its desired replicas
 // are updated and available, and no old pods are running.
+// If TerminationComplete .spec.podReplacementPolicy is used, there should not be no
+// terminating pods to reach the deployment completion.
 func DeploymentComplete(deployment *apps.Deployment, newStatus *apps.DeploymentStatus) bool {
-	return newStatus.UpdatedReplicas == *(deployment.Spec.Replicas) &&
+	deploymentComplete := newStatus.UpdatedReplicas == *(deployment.Spec.Replicas) &&
 		newStatus.Replicas == *(deployment.Spec.Replicas) &&
 		newStatus.AvailableReplicas == *(deployment.Spec.Replicas) &&
 		newStatus.ObservedGeneration >= deployment.Generation
+	if utilfeature.DefaultFeatureGate.Enabled(features.DeploymentPodReplacementPolicy) && HasTerminationCompletePodReplacement(deployment) {
+		deploymentComplete = deploymentComplete && newStatus.TerminatingReplicas != nil && *newStatus.TerminatingReplicas == 0
+	}
+	return deploymentComplete
 }
 
 // DeploymentProgressing reports progress for a deployment. Progress is estimated by comparing the
 // current with the new status of the deployment that the controller is observing. More specifically,
 // when new pods are scaled up or become ready or available, or old pods are scaled down, then we
 // consider the deployment is progressing.
+// If TerminationComplete .spec.podReplacementPolicy is used, the reduction in the number of
+// terminating pods is also reported as progress.
 func DeploymentProgressing(deployment *apps.Deployment, newStatus *apps.DeploymentStatus) bool {
 	oldStatus := deployment.Status
 
@@ -921,10 +929,21 @@ func DeploymentProgressing(deployment *apps.Deployment, newStatus *apps.Deployme
 	oldStatusOldReplicas := oldStatus.Replicas - oldStatus.UpdatedReplicas
 	newStatusOldReplicas := newStatus.Replicas - newStatus.UpdatedReplicas
 
-	return (newStatus.UpdatedReplicas > oldStatus.UpdatedReplicas) ||
+	deploymentProgressing := (newStatus.UpdatedReplicas > oldStatus.UpdatedReplicas) ||
 		(newStatusOldReplicas < oldStatusOldReplicas) ||
 		newStatus.ReadyReplicas > deployment.Status.ReadyReplicas ||
 		newStatus.AvailableReplicas > deployment.Status.AvailableReplicas
+	if utilfeature.DefaultFeatureGate.Enabled(features.DeploymentPodReplacementPolicy) && HasTerminationCompletePodReplacement(deployment) {
+		// If any of the terminatingReplicas fields is nil we cannot estimate progress.
+		if newStatus.TerminatingReplicas != nil && deployment.Status.TerminatingReplicas != nil {
+			// The start of the termination is covered by measuring the scale down of old (non-terminating) replicas above.
+			// We report progress as pods complete termination (terminating replicas decrease).
+			// This is important because once all the pods have been updated to the latest revision,
+			// there may still be old revision pods holding connections that we need to wait for to be terminated.
+			deploymentProgressing = deploymentProgressing || *newStatus.TerminatingReplicas < *deployment.Status.TerminatingReplicas
+		}
+	}
+	return deploymentProgressing
 }
 
 // used for unit testing
