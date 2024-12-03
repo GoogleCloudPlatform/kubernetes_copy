@@ -103,23 +103,12 @@ type containerInfo struct {
 	Resources *e2epod.ContainerResources
 }
 
-func makeContainer(info containerInfo) v1.Container {
-	var resources v1.ResourceRequirements
-	if info.Resources != nil {
-		resources = *info.Resources.ResourceRequirements()
-	}
-	return v1.Container{
-		Name:      info.Name,
-		Command:   cmd,
-		Resources: resources,
-		Image:     imageutils.GetE2EImage(imageutils.BusyBox),
-	}
-}
-
 func makePod(metadata *metav1.ObjectMeta, podResources *e2epod.ContainerResources, containers []containerInfo) *v1.Pod {
 	var testContainers []v1.Container
 	for _, container := range containers {
-		testContainers = append(testContainers, makeContainer(container))
+		c := e2epod.MakeContainerWithResources(container.Name, container.Resources)
+		c.Command = cmd
+		testContainers = append(testContainers, c)
 	}
 
 	pod := &v1.Pod{

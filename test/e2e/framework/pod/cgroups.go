@@ -28,6 +28,7 @@ import (
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	kubecm "k8s.io/kubernetes/pkg/kubelet/cm"
 	"k8s.io/kubernetes/test/e2e/framework"
+	imageutils "k8s.io/kubernetes/test/utils/image"
 )
 
 const (
@@ -88,6 +89,18 @@ func (cr *ContainerResources) ResourceRequirements() *v1.ResourceRequirements {
 		req[v1.ResourceEphemeralStorage] = resource.MustParse(cr.EphStorReq)
 	}
 	return &v1.ResourceRequirements{Limits: lim, Requests: req}
+}
+
+func MakeContainerWithResources(name string, r *ContainerResources) v1.Container {
+	var resources v1.ResourceRequirements
+	if r != nil {
+		resources = *r.ResourceRequirements()
+	}
+	return v1.Container{
+		Name:      name,
+		Resources: resources,
+		Image:     imageutils.GetE2EImage(imageutils.BusyBox),
+	}
 }
 
 func ConfigureHostPathForPodCgroup(pod *v1.Pod) {
