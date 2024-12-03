@@ -128,9 +128,12 @@ func getPodCgroupPath(f *framework.Framework, pod *v1.Pod) (string, error) {
 	cmd := fmt.Sprintf("find %s -name '*%s*' -o -name '*%s*'", cgroupMountPath, strings.ReplaceAll(string(pod.UID), "-", "_"), string(pod.UID))
 	framework.Logf("Namespace %s Pod %s - looking for Pod cgroup directory path: %q", f.Namespace, pod.Name, cmd)
 	podCgPath, stderr, err := ExecCommandInContainerWithFullOutput(f, pod.Name, pod.Spec.Containers[0].Name, []string{"/bin/sh", "-c", cmd}...)
-	if err != nil || len(stderr) > 0 {
-		return "", fmt.Errorf("encountered error while running command: %q, \nerr: %w \nstdErr: %q", cmd, err, stderr)
-	} else if podCgPath == "" {
+	if podCgPath == "" {
+		// This command may hit 'No such file or directory' for another cgroup if another test running in parallel has deleted a pod.
+		// We ignore errors if podCgPath is found.
+		if err != nil || len(stderr) > 0 {
+			return "", fmt.Errorf("encountered error while running command: %q, \nerr: %w \nstdErr: %q", cmd, err, stderr)
+		}
 		return "", fmt.Errorf("pod cgroup dirctory not found by command: %q", cmd)
 	}
 	return podCgPath, nil
