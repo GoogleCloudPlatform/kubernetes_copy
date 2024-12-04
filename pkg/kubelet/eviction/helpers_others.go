@@ -21,11 +21,16 @@ package eviction
 
 import (
 	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/klog/v2"
 	statsapi "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 )
 
 func makeMemoryAvailableSignalObservation(summary *statsapi.Summary, accessibleSwap uint64) *signalObservation {
 	if memory := summary.Node.Memory; memory != nil && memory.AvailableBytes != nil && memory.WorkingSetBytes != nil {
+		klog.InfoS("DEBUG makeMemoryAvailableSignalObservation", "memory.AvailableBytes", *memory.AvailableBytes,
+			"accessibleSwap", accessibleSwap, "Swap.SwapUsageBytes", *summary.Node.Swap.SwapUsageBytes, "memory.WorkingSetBytes", *memory.WorkingSetBytes,
+			"available", int64(*memory.AvailableBytes)+int64(accessibleSwap)-int64(*summary.Node.Swap.SwapUsageBytes),
+			"capacity", int64(*memory.AvailableBytes+*memory.WorkingSetBytes)+int64(accessibleSwap))
 		return &signalObservation{
 			available: resource.NewQuantity(int64(*memory.AvailableBytes)+int64(accessibleSwap)-int64(*summary.Node.Swap.SwapUsageBytes), resource.BinarySI),
 			capacity:  resource.NewQuantity(int64(*memory.AvailableBytes+*memory.WorkingSetBytes)+int64(accessibleSwap), resource.BinarySI),

@@ -1148,6 +1148,8 @@ func getMemhogPod(podName string, ctnName string, res v1.ResourceRequirements) *
 		memLimit = "$(MEMORY_LIMIT)"
 	}
 
+	framework.Logf("DEBUG MemhogPod stress size: %s", memLimit)
+
 	return &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: podName,

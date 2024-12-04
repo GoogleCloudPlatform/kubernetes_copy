@@ -671,6 +671,10 @@ func (ms *multiSorter) Less(i, j int) bool {
 func priority(p1, p2 *v1.Pod) int {
 	priority1 := corev1helpers.PodPriority(p1)
 	priority2 := corev1helpers.PodPriority(p2)
+
+	klog.InfoS("DEBUG priority()", "pod", p1.Name, "priority", priority1)
+	klog.InfoS("DEBUG priority()", "pod", p2.Name, "priority", priority2)
+
 	if priority1 == priority2 {
 		return 0
 	}
@@ -694,6 +698,10 @@ func exceedMemoryRequests(stats statsFunc) cmpFunc {
 		p2Memory := memoryUsage(p2Stats.Memory)
 		p1ExceedsRequests := p1Memory.Cmp(v1resource.GetResourceRequestQuantity(p1, v1.ResourceMemory)) == 1
 		p2ExceedsRequests := p2Memory.Cmp(v1resource.GetResourceRequestQuantity(p2, v1.ResourceMemory)) == 1
+
+		klog.InfoS("DEBUG exceedMemoryRequests()", "pod", p1.Name, "exceeds?", p1ExceedsRequests)
+		klog.InfoS("DEBUG exceedMemoryRequests()", "pod", p2.Name, "exceeds?", p2ExceedsRequests)
+
 		// prioritize evicting the pod which exceeds its requests
 		return cmpBool(p1ExceedsRequests, p2ExceedsRequests)
 	}
@@ -717,6 +725,9 @@ func memory(stats statsFunc) cmpFunc {
 		p2Memory := memoryUsage(p2Stats.Memory)
 		p2Request := v1resource.GetResourceRequestQuantity(p2, v1.ResourceMemory)
 		p2Memory.Sub(p2Request)
+
+		klog.InfoS("DEBUG: memory()", "pod", p1.Name, "mem-request", p1Memory.Value())
+		klog.InfoS("DEBUG: memory()", "pod", p2.Name, "mem-request", p2Memory.Value())
 
 		// prioritize evicting the pod which has the larger consumption of memory
 		return p2Memory.Cmp(*p1Memory)
