@@ -118,6 +118,7 @@ func (config *DeferredLoadingClientConfig) ClientConfig() (*restclient.Config, e
 
 	// check for in-cluster configuration and use it
 	if config.icc.Possible() {
+		//nolint:logcheck // A helper function like this should not log. But this is probably part of the the established client-go API and not worth changing.
 		klog.V(4).Infof("Using in-cluster configuration")
 		return config.icc.ClientConfig()
 	}
@@ -160,6 +161,7 @@ func (config *DeferredLoadingClientConfig) Namespace() (string, bool, error) {
 		}
 	}
 
+	//nolint:logcheck // A helper function like this should not log. But this is probably part of the the established client-go API and not worth changing.
 	klog.V(4).Infof("Using in-cluster namespace")
 
 	// allow the namespace from the service account token directory to be used.

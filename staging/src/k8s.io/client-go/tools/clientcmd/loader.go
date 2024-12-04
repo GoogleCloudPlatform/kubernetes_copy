@@ -137,6 +137,7 @@ type WarningHandler func(error)
 
 func (handler WarningHandler) Warn(err error) {
 	if handler == nil {
+		//nolint:logcheck // This is the fallback when logging is not initialized. With nothing provided, using the global logger is the only option.
 		klog.V(1).Info(err)
 	} else {
 		handler(err)
@@ -399,6 +400,7 @@ func LoadFromFile(filename string) (*clientcmdapi.Config, error) {
 	if err != nil {
 		return nil, err
 	}
+	//nolint:logcheck // A helper function like this should not log. But this is probably part of the the established client-go API and not worth changing.
 	klog.V(6).Infoln("Config loaded from file: ", filename)
 
 	// set LocationOfOrigin on every Cluster, User, and Context
