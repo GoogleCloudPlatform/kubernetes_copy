@@ -26,6 +26,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes/fake"
+	"k8s.io/klog/v2/ktesting"
 )
 
 type testcase struct {
@@ -34,6 +35,7 @@ type testcase struct {
 }
 
 func TestLeaseCandidateCreation(t *testing.T) {
+	_, ctx := ktesting.NewTestContext(t)
 	tc := testcase{
 		candidateName:      "foo",
 		candidateNamespace: "default",
@@ -42,7 +44,7 @@ func TestLeaseCandidateCreation(t *testing.T) {
 		emulationVersion:   "1.30.0",
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	ctx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
 
 	client := fake.NewSimpleClientset()
@@ -67,6 +69,8 @@ func TestLeaseCandidateCreation(t *testing.T) {
 }
 
 func TestLeaseCandidateAck(t *testing.T) {
+	_, ctx := ktesting.NewTestContext(t)
+
 	tc := testcase{
 		candidateName:      "foo",
 		candidateNamespace: "default",
@@ -75,7 +79,7 @@ func TestLeaseCandidateAck(t *testing.T) {
 		emulationVersion:   "1.30.0",
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	ctx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
 
 	client := fake.NewSimpleClientset()
