@@ -17,6 +17,7 @@ limitations under the License.
 package fake
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 
@@ -33,16 +34,30 @@ import (
 	"k8s.io/client-go/testing"
 )
 
-// FakeDiscovery implements discovery.DiscoveryInterface and sometimes calls testing.Fake.Invoke with an action,
+// FakeDiscovery implements discovery.DiscoveryInterface and discovery.DiscoveryInterfaceWithContext.
+// It sometimes calls testing.Fake.Invoke with an action,
 // but doesn't respect the return value if any. There is a way to fake static values like ServerVersion by using the Faked... fields on the struct.
 type FakeDiscovery struct {
 	*testing.Fake
 	FakedServerVersion *version.Info
 }
 
+var (
+	_ discovery.DiscoveryInterface            = &FakeDiscovery{}
+	_ discovery.DiscoveryInterfaceWithContext = &FakeDiscovery{}
+)
+
 // ServerResourcesForGroupVersion returns the supported resources for a group
 // and version.
+//
+// Deprecated: use ServerResourcesForGroupVersionWithContext instead.
 func (c *FakeDiscovery) ServerResourcesForGroupVersion(groupVersion string) (*metav1.APIResourceList, error) {
+	return c.ServerResourcesForGroupVersionWithContext(context.Background(), groupVersion)
+}
+
+// ServerResourcesForGroupVersionWithContext returns the supported resources for a group
+// and version.
+func (c *FakeDiscovery) ServerResourcesForGroupVersionWithContext(ctx context.Context, groupVersion string) (*metav1.APIResourceList, error) {
 	action := testing.ActionImpl{
 		Verb:     "get",
 		Resource: schema.GroupVersionResource{Resource: "resource"},
@@ -65,8 +80,15 @@ func (c *FakeDiscovery) ServerResourcesForGroupVersion(groupVersion string) (*me
 }
 
 // ServerGroupsAndResources returns the supported groups and resources for all groups and versions.
+//
+// Deprecated: use ServerGroupsAndResourcesWithContext instead.
 func (c *FakeDiscovery) ServerGroupsAndResources() ([]*metav1.APIGroup, []*metav1.APIResourceList, error) {
-	sgs, err := c.ServerGroups()
+	return c.ServerGroupsAndResourcesWithContext(context.Background())
+}
+
+// ServerGroupsAndResourcesWithContext returns the supported groups and resources for all groups and versions.
+func (c *FakeDiscovery) ServerGroupsAndResourcesWithContext(ctx context.Context) ([]*metav1.APIGroup, []*metav1.APIResourceList, error) {
+	sgs, err := c.ServerGroupsWithContext(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -87,19 +109,43 @@ func (c *FakeDiscovery) ServerGroupsAndResources() ([]*metav1.APIGroup, []*metav
 
 // ServerPreferredResources returns the supported resources with the version
 // preferred by the server.
+//
+// Deprecated: use ServerPreferredResourcesWithContext instead.
 func (c *FakeDiscovery) ServerPreferredResources() ([]*metav1.APIResourceList, error) {
+	return c.ServerPreferredResourcesWithContext(context.Background())
+}
+
+// ServerPreferredResourcesWithContext returns the supported resources with the version
+// preferred by the server.
+func (c *FakeDiscovery) ServerPreferredResourcesWithContext(ctx context.Context) ([]*metav1.APIResourceList, error) {
 	return nil, nil
 }
 
 // ServerPreferredNamespacedResources returns the supported namespaced resources
 // with the version preferred by the server.
+//
+// Deprecated: use ServerPreferredNamespacedResourcesWithContext instead.
 func (c *FakeDiscovery) ServerPreferredNamespacedResources() ([]*metav1.APIResourceList, error) {
+	return c.ServerPreferredNamespacedResourcesWithContext(context.Background())
+}
+
+// ServerPreferredNamespacedResourcesWithContext returns the supported namespaced resources
+// with the version preferred by the server.
+func (c *FakeDiscovery) ServerPreferredNamespacedResourcesWithContext(ctx context.Context) ([]*metav1.APIResourceList, error) {
 	return nil, nil
 }
 
 // ServerGroups returns the supported groups, with information like supported
 // versions and the preferred version.
+//
+// Deprecated: use ServerGroupsWithContext instead.
 func (c *FakeDiscovery) ServerGroups() (*metav1.APIGroupList, error) {
+	return c.ServerGroupsWithContext(context.Background())
+}
+
+// ServerGroupsWithContext returns the supported groups, with information like supported
+// versions and the preferred version.
+func (c *FakeDiscovery) ServerGroupsWithContext(ctx context.Context) (*metav1.APIGroupList, error) {
 	action := testing.ActionImpl{
 		Verb:     "get",
 		Resource: schema.GroupVersionResource{Resource: "group"},
@@ -143,7 +189,14 @@ func (c *FakeDiscovery) ServerGroups() (*metav1.APIGroupList, error) {
 }
 
 // ServerVersion retrieves and parses the server's version.
+//
+// Deprecated: use ServerVersionWithContext instead.
 func (c *FakeDiscovery) ServerVersion() (*version.Info, error) {
+	return c.ServerVersionWithContext(context.Background())
+}
+
+// ServerVersionWithContext retrieves and parses the server's version.
+func (c *FakeDiscovery) ServerVersionWithContext(ctx context.Context) (*version.Info, error) {
 	action := testing.ActionImpl{}
 	action.Verb = "get"
 	action.Resource = schema.GroupVersionResource{Resource: "version"}
@@ -161,11 +214,23 @@ func (c *FakeDiscovery) ServerVersion() (*version.Info, error) {
 }
 
 // OpenAPISchema retrieves and parses the swagger API schema the server supports.
+//
+// Deprecated: use OpenAPISchemaWithContext instead.
 func (c *FakeDiscovery) OpenAPISchema() (*openapi_v2.Document, error) {
+	return c.OpenAPISchemaWithContext(context.Background())
+}
+
+// OpenAPISchemaWithContext retrieves and parses the swagger API schema the server supports.
+func (c *FakeDiscovery) OpenAPISchemaWithContext(ctx context.Context) (*openapi_v2.Document, error) {
 	return &openapi_v2.Document{}, nil
 }
 
+// Deprecated: use OpenAPIV3WithContext instead.
 func (c *FakeDiscovery) OpenAPIV3() openapi.Client {
+	panic("unimplemented")
+}
+
+func (c *FakeDiscovery) OpenAPIV3WithContext(ctx context.Context) openapi.ClientWithContext {
 	panic("unimplemented")
 }
 
@@ -175,6 +240,11 @@ func (c *FakeDiscovery) RESTClient() restclient.Interface {
 	return nil
 }
 
+// Deprecated: use WithLegacyWithContext instead.
 func (c *FakeDiscovery) WithLegacy() discovery.DiscoveryInterface {
+	panic("unimplemented")
+}
+
+func (c *FakeDiscovery) WithLegacyWithContext(ctx context.Context) discovery.DiscoveryInterfaceWithContext {
 	panic("unimplemented")
 }

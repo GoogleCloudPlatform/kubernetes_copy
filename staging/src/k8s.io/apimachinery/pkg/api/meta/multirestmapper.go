@@ -17,6 +17,7 @@ limitations under the License.
 package meta
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -25,13 +26,29 @@ import (
 )
 
 var (
-	_ ResettableRESTMapper = MultiRESTMapper{}
+	_ ResettableRESTMapper            = MultiRESTMapper{}
+	_ fmt.Stringer                    = MultiRESTMapper{}
+	_ ResettableRESTMapperWithContext = MultiRESTMapperWithContext{}
+	_ fmt.Stringer                    = MultiRESTMapperWithContext{}
 )
 
 // MultiRESTMapper is a wrapper for multiple RESTMappers.
+//
+// Deprecated: use MultiRESTMapperWithContext instead.
 type MultiRESTMapper []RESTMapper
 
+// MultiRESTMapperWithContext is a wrapper for multiple RESTMapperWithContext instances.
+type MultiRESTMapperWithContext []RESTMapperWithContext
+
 func (m MultiRESTMapper) String() string {
+	return stringifyMapper("MultiRESTMapper", m)
+}
+
+func (m MultiRESTMapperWithContext) String() string {
+	return stringifyMapper("MultiRESTMapperWithContext", m)
+}
+
+func stringifyMapper[T any](typeName string, m []T) string {
 	nested := make([]string, 0, len(m))
 	for _, t := range m {
 		currString := fmt.Sprintf("%v", t)
@@ -39,14 +56,77 @@ func (m MultiRESTMapper) String() string {
 		nested = append(nested, strings.Join(splitStrings, "\n\t"))
 	}
 
-	return fmt.Sprintf("MultiRESTMapper{\n\t%s\n}", strings.Join(nested, "\n\t"))
+	return fmt.Sprintf("%s{\n\t%s\n}", typeName, strings.Join(nested, "\n\t"))
+}
+
+func ToMultiRESTMapperWithContext(m MultiRESTMapper) MultiRESTMapperWithContext {
+	if m == nil {
+		return nil
+	}
+	mc := make(MultiRESTMapperWithContext, len(m))
+	for i, m := range m {
+		mc[i] = ToRESTMapperWithContext(m)
+	}
+	return mc
 }
 
 // ResourceSingularizer converts a REST resource name from plural to singular (e.g., from pods to pod)
 // This implementation supports multiple REST schemas and return the first match.
+//
+// Deprecated: use MultiRESTMapperWithContext.ResourceSingularizerWithContext instead.
 func (m MultiRESTMapper) ResourceSingularizer(resource string) (singular string, err error) {
+	return ToMultiRESTMapperWithContext(m).ResourceSingularizerWithContext(context.Background(), resource)
+}
+
+// Deprecated: use MultiRESTMapperWithContext.ResourcesForWithContext instead.
+func (m MultiRESTMapper) ResourcesFor(resource schema.GroupVersionResource) ([]schema.GroupVersionResource, error) {
+	return ToMultiRESTMapperWithContext(m).ResourcesForWithContext(context.Background(), resource)
+}
+
+// Deprecated: use MultiRESTMapperWithContext.KindsForWithContext instead.
+func (m MultiRESTMapper) KindsFor(resource schema.GroupVersionResource) (gvk []schema.GroupVersionKind, err error) {
+	return ToMultiRESTMapperWithContext(m).KindsForWithContext(context.Background(), resource)
+}
+
+// Deprecated: use MultiRESTMapperWithContext.ResourceForWithContext instead.
+func (m MultiRESTMapper) ResourceFor(resource schema.GroupVersionResource) (schema.GroupVersionResource, error) {
+	return ToMultiRESTMapperWithContext(m).ResourceForWithContext(context.Background(), resource)
+}
+
+// Deprecated: use MultiRESTMapperWithContext.KindForWithContext instead.
+func (m MultiRESTMapper) KindFor(resource schema.GroupVersionResource) (schema.GroupVersionKind, error) {
+	return ToMultiRESTMapperWithContext(m).KindForWithContext(context.Background(), resource)
+}
+
+// RESTMapping provides the REST mapping for the resource based on the
+// kind and version. This implementation supports multiple REST schemas and
+// return the first match.
+//
+// Deprecated: use MultiRESTMapperWithContext.RESTMappingWithContext instead.
+func (m MultiRESTMapper) RESTMapping(gk schema.GroupKind, versions ...string) (*RESTMapping, error) {
+	return ToMultiRESTMapperWithContext(m).RESTMappingWithContext(context.Background(), gk, versions...)
+}
+
+// RESTMappings returns all possible RESTMappings for the provided group kind, or an error
+// if the type is not recognized.
+//
+// Deprecated: use MultiRESTMapperWithContext.RESTMappingsWithContext instead.
+func (m MultiRESTMapper) RESTMappings(gk schema.GroupKind, versions ...string) ([]*RESTMapping, error) {
+	return ToMultiRESTMapperWithContext(m).RESTMappingsWithContext(context.Background(), gk, versions...)
+}
+
+// Deprecated: use MultiRESTMapperWithContext.Reset instead.
+func (m MultiRESTMapper) Reset() {
 	for _, t := range m {
-		singular, err = t.ResourceSingularizer(resource)
+		MaybeResetRESTMapper(t)
+	}
+}
+
+// ResourceSingularizer converts a REST resource name from plural to singular (e.g., from pods to pod)
+// This implementation supports multiple REST schemas and return the first match.
+func (m MultiRESTMapperWithContext) ResourceSingularizerWithContext(ctx context.Context, resource string) (singular string, err error) {
+	for _, t := range m {
+		singular, err = t.ResourceSingularizerWithContext(ctx, resource)
 		if err == nil {
 			return
 		}
@@ -54,10 +134,10 @@ func (m MultiRESTMapper) ResourceSingularizer(resource string) (singular string,
 	return
 }
 
-func (m MultiRESTMapper) ResourcesFor(resource schema.GroupVersionResource) ([]schema.GroupVersionResource, error) {
+func (m MultiRESTMapperWithContext) ResourcesForWithContext(ctx context.Context, resource schema.GroupVersionResource) ([]schema.GroupVersionResource, error) {
 	allGVRs := []schema.GroupVersionResource{}
 	for _, t := range m {
-		gvrs, err := t.ResourcesFor(resource)
+		gvrs, err := t.ResourcesForWithContext(ctx, resource)
 		// ignore "no match" errors, but any other error percolates back up
 		if IsNoMatchError(err) {
 			continue
@@ -89,10 +169,10 @@ func (m MultiRESTMapper) ResourcesFor(resource schema.GroupVersionResource) ([]s
 	return allGVRs, nil
 }
 
-func (m MultiRESTMapper) KindsFor(resource schema.GroupVersionResource) (gvk []schema.GroupVersionKind, err error) {
+func (m MultiRESTMapperWithContext) KindsForWithContext(ctx context.Context, resource schema.GroupVersionResource) (gvk []schema.GroupVersionKind, err error) {
 	allGVKs := []schema.GroupVersionKind{}
 	for _, t := range m {
-		gvks, err := t.KindsFor(resource)
+		gvks, err := t.KindsForWithContext(ctx, resource)
 		// ignore "no match" errors, but any other error percolates back up
 		if IsNoMatchError(err) {
 			continue
@@ -124,8 +204,8 @@ func (m MultiRESTMapper) KindsFor(resource schema.GroupVersionResource) (gvk []s
 	return allGVKs, nil
 }
 
-func (m MultiRESTMapper) ResourceFor(resource schema.GroupVersionResource) (schema.GroupVersionResource, error) {
-	resources, err := m.ResourcesFor(resource)
+func (m MultiRESTMapperWithContext) ResourceForWithContext(ctx context.Context, resource schema.GroupVersionResource) (schema.GroupVersionResource, error) {
+	resources, err := m.ResourcesForWithContext(ctx, resource)
 	if err != nil {
 		return schema.GroupVersionResource{}, err
 	}
@@ -136,8 +216,8 @@ func (m MultiRESTMapper) ResourceFor(resource schema.GroupVersionResource) (sche
 	return schema.GroupVersionResource{}, &AmbiguousResourceError{PartialResource: resource, MatchingResources: resources}
 }
 
-func (m MultiRESTMapper) KindFor(resource schema.GroupVersionResource) (schema.GroupVersionKind, error) {
-	kinds, err := m.KindsFor(resource)
+func (m MultiRESTMapperWithContext) KindForWithContext(ctx context.Context, resource schema.GroupVersionResource) (schema.GroupVersionKind, error) {
+	kinds, err := m.KindsForWithContext(ctx, resource)
 	if err != nil {
 		return schema.GroupVersionKind{}, err
 	}
@@ -151,12 +231,12 @@ func (m MultiRESTMapper) KindFor(resource schema.GroupVersionResource) (schema.G
 // RESTMapping provides the REST mapping for the resource based on the
 // kind and version. This implementation supports multiple REST schemas and
 // return the first match.
-func (m MultiRESTMapper) RESTMapping(gk schema.GroupKind, versions ...string) (*RESTMapping, error) {
+func (m MultiRESTMapperWithContext) RESTMappingWithContext(ctx context.Context, gk schema.GroupKind, versions ...string) (*RESTMapping, error) {
 	allMappings := []*RESTMapping{}
 	errors := []error{}
 
 	for _, t := range m {
-		currMapping, err := t.RESTMapping(gk, versions...)
+		currMapping, err := t.RESTMappingWithContext(ctx, gk, versions...)
 		// ignore "no match" errors, but any other error percolates back up
 		if IsNoMatchError(err) {
 			continue
@@ -188,12 +268,12 @@ func (m MultiRESTMapper) RESTMapping(gk schema.GroupKind, versions ...string) (*
 
 // RESTMappings returns all possible RESTMappings for the provided group kind, or an error
 // if the type is not recognized.
-func (m MultiRESTMapper) RESTMappings(gk schema.GroupKind, versions ...string) ([]*RESTMapping, error) {
+func (m MultiRESTMapperWithContext) RESTMappingsWithContext(ctx context.Context, gk schema.GroupKind, versions ...string) ([]*RESTMapping, error) {
 	var allMappings []*RESTMapping
 	var errors []error
 
 	for _, t := range m {
-		currMappings, err := t.RESTMappings(gk, versions...)
+		currMappings, err := t.RESTMappingsWithContext(ctx, gk, versions...)
 		// ignore "no match" errors, but any other error percolates back up
 		if IsNoMatchError(err) {
 			continue
@@ -213,8 +293,8 @@ func (m MultiRESTMapper) RESTMappings(gk schema.GroupKind, versions ...string) (
 	return allMappings, nil
 }
 
-func (m MultiRESTMapper) Reset() {
+func (m MultiRESTMapperWithContext) ResetWithContext(ctx context.Context) {
 	for _, t := range m {
-		MaybeResetRESTMapper(t)
+		MaybeResetRESTMapperWithContext(ctx, t)
 	}
 }

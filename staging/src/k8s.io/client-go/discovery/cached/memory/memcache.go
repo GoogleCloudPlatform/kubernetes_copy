@@ -17,6 +17,7 @@ limitations under the License.
 package memory
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"sync"
@@ -47,13 +48,13 @@ type cacheEntry struct {
 // TODO: Switch to a watch interface. Right now it will poll after each
 // Invalidate() call.
 type memCacheClient struct {
-	delegate discovery.DiscoveryInterface
+	delegate discovery.DiscoveryInterfaceWithContext
 
 	lock                        sync.RWMutex
 	groupToServerResources      map[string]*cacheEntry
 	groupList                   *metav1.APIGroupList
 	cacheValid                  bool
-	openapiClient               openapi.Client
+	openapiClient               *cachedopenapi.Client
 	receivedAggregatedDiscovery bool
 }
 
@@ -72,6 +73,7 @@ func (e *emptyResponseError) Error() string {
 }
 
 var _ discovery.CachedDiscoveryInterface = &memCacheClient{}
+var _ discovery.CachedDiscoveryInterfaceWithContext = &memCacheClient{}
 
 // isTransientConnectionError checks whether given error is "Connection refused" or
 // "Connection reset" error which usually means that apiserver is temporarily
@@ -98,10 +100,15 @@ func isTransientError(err error) bool {
 
 // ServerResourcesForGroupVersion returns the supported resources for a group and version.
 func (d *memCacheClient) ServerResourcesForGroupVersion(groupVersion string) (*metav1.APIResourceList, error) {
+	return d.ServerResourcesForGroupVersionWithContext(context.Background(), groupVersion)
+}
+
+// ServerResourcesForGroupVersion returns the supported resources for a group and version.
+func (d *memCacheClient) ServerResourcesForGroupVersionWithContext(ctx context.Context, groupVersion string) (*metav1.APIResourceList, error) {
 	d.lock.Lock()
 	defer d.lock.Unlock()
 	if !d.cacheValid {
-		if err := d.refreshLocked(); err != nil {
+		if err := d.refreshLocked(ctx); err != nil {
 			return nil, err
 		}
 	}
@@ -111,14 +118,14 @@ func (d *memCacheClient) ServerResourcesForGroupVersion(groupVersion string) (*m
 	}
 
 	if cachedVal.err != nil && isTransientError(cachedVal.err) {
-		r, err := d.serverResourcesForGroupVersion(groupVersion)
+		r, err := d.serverResourcesForGroupVersion(ctx, groupVersion)
 		if err != nil {
 			// Don't log "empty response" as an error; it is a common response for metrics.
 			if _, emptyErr := err.(*emptyResponseError); emptyErr {
 				// Log at same verbosity as disk cache.
-				klog.V(3).Infof("%v", err)
+				klog.FromContext(ctx).V(3).Info(err.Error())
 			} else {
-				utilruntime.HandleError(fmt.Errorf("couldn't get resource list for %v: %v", groupVersion, err))
+				utilruntime.HandleErrorWithContext(ctx, err, "Couldn't get resource list", "gv", groupVersion)
 			}
 		}
 		cachedVal = &cacheEntry{r, err}
@@ -129,19 +136,35 @@ func (d *memCacheClient) ServerResourcesForGroupVersion(groupVersion string) (*m
 }
 
 // ServerGroupsAndResources returns the groups and supported resources for all groups and versions.
+//
+// Deprecated: use ServerGroupsAndResourcesWithContext instead.
 func (d *memCacheClient) ServerGroupsAndResources() ([]*metav1.APIGroup, []*metav1.APIResourceList, error) {
-	return discovery.ServerGroupsAndResources(d)
+	return d.ServerGroupsAndResourcesWithContext(context.Background())
+}
+
+// ServerGroupsAndResources returns the groups and supported resources for all groups and versions.
+func (d *memCacheClient) ServerGroupsAndResourcesWithContext(ctx context.Context) ([]*metav1.APIGroup, []*metav1.APIResourceList, error) {
+	return discovery.ServerGroupsAndResourcesWithContext(ctx, d)
 }
 
 // GroupsAndMaybeResources returns the list of APIGroups, and possibly the map of group/version
 // to resources. The returned groups will never be nil, but the resources map can be nil
 // if there are no cached resources.
+//
+// Deprecated: use GroupsAndMaybeResourcesWithContext instead.
 func (d *memCacheClient) GroupsAndMaybeResources() (*metav1.APIGroupList, map[schema.GroupVersion]*metav1.APIResourceList, map[schema.GroupVersion]error, error) {
+	return d.GroupsAndMaybeResourcesWithContext(context.Background())
+}
+
+// GroupsAndMaybeResourcesWithContext returns the list of APIGroups, and possibly the map of group/version
+// to resources. The returned groups will never be nil, but the resources map can be nil
+// if there are no cached resources.
+func (d *memCacheClient) GroupsAndMaybeResourcesWithContext(ctx context.Context) (*metav1.APIGroupList, map[schema.GroupVersion]*metav1.APIResourceList, map[schema.GroupVersion]error, error) {
 	d.lock.Lock()
 	defer d.lock.Unlock()
 
 	if !d.cacheValid {
-		if err := d.refreshLocked(); err != nil {
+		if err := d.refreshLocked(ctx); err != nil {
 			return nil, nil, nil, err
 		}
 	}
@@ -166,8 +189,13 @@ func (d *memCacheClient) GroupsAndMaybeResources() (*metav1.APIGroupList, map[sc
 	return d.groupList, resourcesMap, failedGVs, nil
 }
 
+// Deprecated: use ServerGroupsWithContext instead.
 func (d *memCacheClient) ServerGroups() (*metav1.APIGroupList, error) {
-	groups, _, _, err := d.GroupsAndMaybeResources()
+	return d.ServerGroupsWithContext(context.Background())
+}
+
+func (d *memCacheClient) ServerGroupsWithContext(ctx context.Context) (*metav1.APIGroupList, error) {
+	groups, _, _, err := d.GroupsAndMaybeResourcesWithContext(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -178,35 +206,69 @@ func (d *memCacheClient) RESTClient() restclient.Interface {
 	return d.delegate.RESTClient()
 }
 
+// Deprecated: use ServerPreferredResourcesWithContext instead.
 func (d *memCacheClient) ServerPreferredResources() ([]*metav1.APIResourceList, error) {
-	return discovery.ServerPreferredResources(d)
+	return d.ServerPreferredResourcesWithContext(context.Background())
 }
 
+func (d *memCacheClient) ServerPreferredResourcesWithContext(ctx context.Context) ([]*metav1.APIResourceList, error) {
+	return discovery.ServerPreferredResourcesWithContext(ctx, d)
+}
+
+// Deprecated: use ServerPreferredNamespacedResourcesWithContext instead.
 func (d *memCacheClient) ServerPreferredNamespacedResources() ([]*metav1.APIResourceList, error) {
-	return discovery.ServerPreferredNamespacedResources(d)
+	return d.ServerPreferredNamespacedResourcesWithContext(context.Background())
 }
 
+func (d *memCacheClient) ServerPreferredNamespacedResourcesWithContext(ctx context.Context) ([]*metav1.APIResourceList, error) {
+	return discovery.ServerPreferredNamespacedResourcesWithContext(ctx, d)
+}
+
+// Deprecated: use ServerVersionWithContext instead.
 func (d *memCacheClient) ServerVersion() (*version.Info, error) {
-	return d.delegate.ServerVersion()
+	return d.ServerVersionWithContext(context.Background())
 }
 
+func (d *memCacheClient) ServerVersionWithContext(ctx context.Context) (*version.Info, error) {
+	return d.delegate.ServerVersionWithContext(ctx)
+}
+
+// Deprecated: use OpenAPISchemaWithContext instead.
 func (d *memCacheClient) OpenAPISchema() (*openapi_v2.Document, error) {
-	return d.delegate.OpenAPISchema()
+	return d.OpenAPISchemaWithContext(context.Background())
 }
 
+func (d *memCacheClient) OpenAPISchemaWithContext(ctx context.Context) (*openapi_v2.Document, error) {
+	return d.delegate.OpenAPISchemaWithContext(ctx)
+}
+
+// Deprecated: use OpenAPIV3WithContext instead.
 func (d *memCacheClient) OpenAPIV3() openapi.Client {
+	return d.openAPIV3(context.Background())
+}
+
+func (d *memCacheClient) OpenAPIV3WithContext(ctx context.Context) openapi.ClientWithContext {
+	return d.openAPIV3(ctx)
+}
+
+func (d *memCacheClient) openAPIV3(ctx context.Context) *cachedopenapi.Client {
 	// Must take lock since Invalidate call may modify openapiClient
 	d.lock.Lock()
 	defer d.lock.Unlock()
 
 	if d.openapiClient == nil {
-		d.openapiClient = cachedopenapi.NewClient(d.delegate.OpenAPIV3())
+		d.openapiClient = cachedopenapi.NewClientWithContext(d.delegate.OpenAPIV3WithContext(ctx))
 	}
 
 	return d.openapiClient
 }
 
+// Deprecated: use FreshWithContext instead.
 func (d *memCacheClient) Fresh() bool {
+	return d.FreshWithContext(context.Background())
+}
+
+func (d *memCacheClient) FreshWithContext(ctx context.Context) bool {
 	d.lock.RLock()
 	defer d.lock.RUnlock()
 	// Return whether the cache is populated at all. It is still possible that
@@ -217,7 +279,15 @@ func (d *memCacheClient) Fresh() bool {
 
 // Invalidate enforces that no cached data that is older than the current time
 // is used.
+//
+// Deprecated: use InvalidateWithContext instead.
 func (d *memCacheClient) Invalidate() {
+	d.InvalidateWithContext(context.Background())
+}
+
+// InvalidateWithContext enforces that no cached data that is older than the current time
+// is used.
+func (d *memCacheClient) InvalidateWithContext(ctx context.Context) {
 	d.lock.Lock()
 	defer d.lock.Unlock()
 	d.cacheValid = false
@@ -225,24 +295,39 @@ func (d *memCacheClient) Invalidate() {
 	d.groupList = nil
 	d.openapiClient = nil
 	d.receivedAggregatedDiscovery = false
-	if ad, ok := d.delegate.(discovery.CachedDiscoveryInterface); ok {
-		ad.Invalidate()
+	ad, ok := d.delegate.(discovery.CachedDiscoveryInterfaceWithContext)
+	if !ok {
+		ad2, ok2 := d.delegate.(discovery.CachedDiscoveryInterface)
+		if ok2 {
+			ad = discovery.ToCachedDiscoveryInterfaceWithContext(ad2)
+			ok = true
+		}
+	}
+	if ok {
+		ad.InvalidateWithContext(ctx)
 	}
 }
 
 // refreshLocked refreshes the state of cache. The caller must hold d.lock for
 // writing.
-func (d *memCacheClient) refreshLocked() error {
+func (d *memCacheClient) refreshLocked(ctx context.Context) error {
 	// TODO: Could this multiplicative set of calls be replaced by a single call
 	// to ServerResources? If it's possible for more than one resulting
 	// APIResourceList to have the same GroupVersion, the lists would need merged.
 	var gl *metav1.APIGroupList
 	var err error
 
-	if ad, ok := d.delegate.(discovery.AggregatedDiscoveryInterface); ok {
+	ad, ok := d.delegate.(discovery.AggregatedDiscoveryInterfaceWithContext)
+	if !ok {
+		if ad2, ok2 := d.delegate.(discovery.AggregatedDiscoveryInterface); ok2 {
+			ad = discovery.ToAggregatedDiscoveryInterfaceWithContext(ad2)
+			ok = true
+		}
+	}
+	if ok {
 		var resources map[schema.GroupVersion]*metav1.APIResourceList
 		var failedGVs map[schema.GroupVersion]error
-		gl, resources, failedGVs, err = ad.GroupsAndMaybeResources()
+		gl, resources, failedGVs, err = ad.GroupsAndMaybeResourcesWithContext(ctx)
 		if resources != nil && err == nil {
 			// Cache the resources.
 			d.groupToServerResources = map[string]*cacheEntry{}
@@ -259,10 +344,10 @@ func (d *memCacheClient) refreshLocked() error {
 			return nil
 		}
 	} else {
-		gl, err = d.delegate.ServerGroups()
+		gl, err = d.delegate.ServerGroupsWithContext(ctx)
 	}
 	if err != nil || len(gl.Groups) == 0 {
-		utilruntime.HandleError(fmt.Errorf("couldn't get current server API group list: %v", err))
+		utilruntime.HandleErrorWithContext(ctx, err, "Couldn't get current server API group list")
 		return err
 	}
 
@@ -275,16 +360,16 @@ func (d *memCacheClient) refreshLocked() error {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				defer utilruntime.HandleCrash()
+				defer utilruntime.HandleCrashWithContext(ctx)
 
-				r, err := d.serverResourcesForGroupVersion(gv)
+				r, err := d.serverResourcesForGroupVersion(ctx, gv)
 				if err != nil {
 					// Don't log "empty response" as an error; it is a common response for metrics.
 					if _, emptyErr := err.(*emptyResponseError); emptyErr {
 						// Log at same verbosity as disk cache.
-						klog.V(3).Infof("%v", err)
+						klog.FromContext(ctx).V(3).Info(err.Error())
 					} else {
-						utilruntime.HandleError(fmt.Errorf("couldn't get resource list for %v: %v", gv, err))
+						utilruntime.HandleErrorWithContext(ctx, err, "Couldn't get resource list", "groupVersion", gv)
 					}
 				}
 
@@ -301,8 +386,8 @@ func (d *memCacheClient) refreshLocked() error {
 	return nil
 }
 
-func (d *memCacheClient) serverResourcesForGroupVersion(groupVersion string) (*metav1.APIResourceList, error) {
-	r, err := d.delegate.ServerResourcesForGroupVersion(groupVersion)
+func (d *memCacheClient) serverResourcesForGroupVersion(ctx context.Context, groupVersion string) (*metav1.APIResourceList, error) {
+	r, err := d.delegate.ServerResourcesForGroupVersionWithContext(ctx, groupVersion)
 	if err != nil {
 		return r, err
 	}
@@ -314,7 +399,15 @@ func (d *memCacheClient) serverResourcesForGroupVersion(groupVersion string) (*m
 
 // WithLegacy returns current memory-cached discovery client;
 // current client does not support legacy-only discovery.
+//
+// Deprecated: use WithLegacyWithContext instead.
 func (d *memCacheClient) WithLegacy() discovery.DiscoveryInterface {
+	return d
+}
+
+// WithLegacyWithContext returns current memory-cached discovery client;
+// current client does not support legacy-only discovery.
+func (d *memCacheClient) WithLegacyWithContext(ctx context.Context) discovery.DiscoveryInterfaceWithContext {
 	return d
 }
 
@@ -323,7 +416,22 @@ func (d *memCacheClient) WithLegacy() discovery.DiscoveryInterface {
 // called with regularity.
 //
 // NOTE: The client will NOT resort to live lookups on cache misses.
+//
+// Deprecated: use NewMemCacheClientWithContext instead.
 func NewMemCacheClient(delegate discovery.DiscoveryInterface) discovery.CachedDiscoveryInterface {
+	return newMemCacheClient(discovery.ToDiscoveryInterfaceWithContext(delegate))
+}
+
+// NewMemCacheClientWithContext creates a new CachedDiscoveryInterfaceWithContext which caches
+// discovery information in memory and will stay up-to-date if Invalidate is
+// called with regularity.
+//
+// NOTE: The client will NOT resort to live lookups on cache misses.
+func NewMemCacheClientWithContext(delegate discovery.DiscoveryInterfaceWithContext) discovery.CachedDiscoveryInterfaceWithContext {
+	return newMemCacheClient(delegate)
+}
+
+func newMemCacheClient(delegate discovery.DiscoveryInterfaceWithContext) *memCacheClient {
 	return &memCacheClient{
 		delegate:                    delegate,
 		groupToServerResources:      map[string]*cacheEntry{},

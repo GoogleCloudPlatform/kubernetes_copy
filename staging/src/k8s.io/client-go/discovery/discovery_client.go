@@ -75,6 +75,8 @@ var v2GVK = schema.GroupVersionKind{Group: "apidiscovery.k8s.io", Version: "v2",
 
 // DiscoveryInterface holds the methods that discover server-supported API groups,
 // versions and resources.
+//
+// Deprecated: use DiscoveryInterfaceWithContext instead.
 type DiscoveryInterface interface {
 	RESTClient() restclient.Interface
 	ServerGroupsInterface
@@ -85,22 +87,109 @@ type DiscoveryInterface interface {
 	// Returns copy of current discovery client that will only
 	// receive the legacy discovery format, or pointer to current
 	// discovery client if it does not support legacy-only discovery.
+	//
+	// Deprecated: use DiscoveryInterfaceWithContext.WithLegacyWithContext instead.
 	WithLegacy() DiscoveryInterface
+}
+
+// DiscoveryInterfaceWithContext holds the methods that discover server-supported API groups,
+// versions and resources.
+type DiscoveryInterfaceWithContext interface {
+	RESTClient() restclient.Interface
+	ServerGroupsInterfaceWithContext
+	ServerResourcesInterfaceWithContext
+	ServerVersionInterfaceWithContext
+	OpenAPISchemaInterfaceWithContext
+	OpenAPIV3SchemaInterfaceWithContext
+	// Returns copy of current discovery client that will only
+	// receive the legacy discovery format, or pointer to current
+	// discovery client if it does not support legacy-only discovery.
+	WithLegacyWithContext(ctx context.Context) DiscoveryInterfaceWithContext
+}
+
+func ToDiscoveryInterfaceWithContext(i DiscoveryInterface) DiscoveryInterfaceWithContext {
+	if i == nil {
+		return nil
+	}
+	if i, ok := i.(DiscoveryInterfaceWithContext); ok {
+		return i
+	}
+	return &discoveryInterfaceWrapper{
+		ServerGroupsInterfaceWithContext:    ToServerGroupsInterfaceWithContext(i),
+		ServerResourcesInterfaceWithContext: ToServerResourcesInterfaceWithContext(i),
+		ServerVersionInterfaceWithContext:   ToServerVersionInterfaceWithContext(i),
+		OpenAPISchemaInterfaceWithContext:   ToOpenAPISchemaInterfaceWithContext(i),
+		OpenAPIV3SchemaInterfaceWithContext: OpenAPIV3ToSchemaInterfaceWithContext(i),
+		delegate:                            i,
+	}
+}
+
+type discoveryInterfaceWrapper struct {
+	ServerGroupsInterfaceWithContext
+	ServerResourcesInterfaceWithContext
+	ServerVersionInterfaceWithContext
+	OpenAPISchemaInterfaceWithContext
+	OpenAPIV3SchemaInterfaceWithContext
+	delegate DiscoveryInterface
+}
+
+func (i *discoveryInterfaceWrapper) RESTClient() restclient.Interface {
+	return i.delegate.RESTClient()
+}
+
+func (i *discoveryInterfaceWrapper) WithLegacyWithContext(ctx context.Context) DiscoveryInterfaceWithContext {
+	return ToDiscoveryInterfaceWithContext(i.delegate.WithLegacy())
 }
 
 // AggregatedDiscoveryInterface extends DiscoveryInterface to include a method to possibly
 // return discovery resources along with the discovery groups, which is what the newer
 // aggregated discovery format does (APIGroupDiscoveryList).
+//
+// Deprecated: use AggregatedDiscoveryInterfaceWithContext instead.
 type AggregatedDiscoveryInterface interface {
 	DiscoveryInterface
 
+	// Deprecated: use AggregatedDiscoveryInterfaceWithContext.GroupsAndMaybeResourcesWithContext instead.
 	GroupsAndMaybeResources() (*metav1.APIGroupList, map[schema.GroupVersion]*metav1.APIResourceList, map[schema.GroupVersion]error, error)
+}
+
+// AggregatedDiscoveryInterfaceWithContext extends DiscoveryInterface to include a method to possibly
+// return discovery resources along with the discovery groups, which is what the newer
+// aggregated discovery format does (APIGroupDiscoveryList).
+type AggregatedDiscoveryInterfaceWithContext interface {
+	DiscoveryInterfaceWithContext
+
+	GroupsAndMaybeResourcesWithContext(ctx context.Context) (*metav1.APIGroupList, map[schema.GroupVersion]*metav1.APIResourceList, map[schema.GroupVersion]error, error)
+}
+
+func ToAggregatedDiscoveryInterfaceWithContext(i AggregatedDiscoveryInterface) AggregatedDiscoveryInterfaceWithContext {
+	if i == nil {
+		return nil
+	}
+	if i, ok := i.(AggregatedDiscoveryInterfaceWithContext); ok {
+		return i
+	}
+	return &aggregatedDiscoveryInterfaceWrapper{
+		DiscoveryInterfaceWithContext: ToDiscoveryInterfaceWithContext(i),
+		delegate:                      i,
+	}
+}
+
+type aggregatedDiscoveryInterfaceWrapper struct {
+	DiscoveryInterfaceWithContext
+	delegate AggregatedDiscoveryInterface
+}
+
+func (i *aggregatedDiscoveryInterfaceWrapper) GroupsAndMaybeResourcesWithContext(ctx context.Context) (*metav1.APIGroupList, map[schema.GroupVersion]*metav1.APIResourceList, map[schema.GroupVersion]error, error) {
+	return i.delegate.GroupsAndMaybeResources()
 }
 
 // CachedDiscoveryInterface is a DiscoveryInterface with cache invalidation and freshness.
 // Note that If the ServerResourcesForGroupVersion method returns a cache miss
 // error, the user needs to explicitly call Invalidate to clear the cache,
 // otherwise the same cache miss error will be returned next time.
+//
+// Deprecated: use CachedDiscoveryInterfaceWithContext instead.
 type CachedDiscoveryInterface interface {
 	DiscoveryInterface
 	// Fresh is supposed to tell the caller whether or not to retry if the cache
@@ -108,56 +197,310 @@ type CachedDiscoveryInterface interface {
 	//
 	// TODO: this needs to be revisited, this interface can't be locked properly
 	// and doesn't make a lot of sense.
+	//
+	// Deprecated: use CachedDiscoveryInterfaceWithContext.FreshWithContext instead.
 	Fresh() bool
 	// Invalidate enforces that no cached data that is older than the current time
 	// is used.
+	//
+	// Deprecated: use CachedDiscoveryInterfaceWithContext.InvalidateWithContext instead.
 	Invalidate()
 }
 
+// CachedDiscoveryInterfaceWithContext is a DiscoveryInterfaceWithContext with cache invalidation and freshness.
+// Note that If the ServerResourcesForGroupVersion method returns a cache miss
+// error, the user needs to explicitly call Invalidate to clear the cache,
+// otherwise the same cache miss error will be returned next time.
+type CachedDiscoveryInterfaceWithContext interface {
+	DiscoveryInterfaceWithContext
+	// Fresh is supposed to tell the caller whether or not to retry if the cache
+	// fails to find something (false = retry, true = no need to retry).
+	//
+	// TODO: this needs to be revisited, this interface can't be locked properly
+	// and doesn't make a lot of sense.
+	FreshWithContext(ctx context.Context) bool
+	// Invalidate enforces that no cached data that is older than the current time
+	// is used.
+	InvalidateWithContext(ctx context.Context)
+}
+
+func ToCachedDiscoveryInterfaceWithContext(i CachedDiscoveryInterface) CachedDiscoveryInterfaceWithContext {
+	if i == nil {
+		return nil
+	}
+	if i, ok := i.(CachedDiscoveryInterfaceWithContext); ok {
+		return i
+	}
+	return &cachedDiscoveryInterfaceWrapper{
+		DiscoveryInterfaceWithContext: ToDiscoveryInterfaceWithContext(i),
+		delegate:                      i,
+	}
+}
+
+type cachedDiscoveryInterfaceWrapper struct {
+	DiscoveryInterfaceWithContext
+	delegate CachedDiscoveryInterface
+}
+
+func (i *cachedDiscoveryInterfaceWrapper) FreshWithContext(ctx context.Context) bool {
+	return i.delegate.Fresh()
+}
+
+func (i *cachedDiscoveryInterfaceWrapper) InvalidateWithContext(ctx context.Context) {
+	i.delegate.Invalidate()
+}
+
 // ServerGroupsInterface has methods for obtaining supported groups on the API server
+//
+// Deprecated: use ServerGroupsInterfaceWithContext instead.
 type ServerGroupsInterface interface {
 	// ServerGroups returns the supported groups, with information like supported versions and the
 	// preferred version.
+	//
+	// Deprecated: use ServerGroupsInterfaceWithContext.ServerGroups instead.
 	ServerGroups() (*metav1.APIGroupList, error)
 }
 
+// ServerGroupsInterfaceWithContext has methods for obtaining supported groups on the API server
+type ServerGroupsInterfaceWithContext interface {
+	// ServerGroups returns the supported groups, with information like supported versions and the
+	// preferred version.
+	ServerGroupsWithContext(ctx context.Context) (*metav1.APIGroupList, error)
+}
+
+func ToServerGroupsInterfaceWithContext(i ServerGroupsInterface) ServerGroupsInterfaceWithContext {
+	if i == nil {
+		return nil
+	}
+	if i, ok := i.(ServerGroupsInterfaceWithContext); ok {
+		return i
+	}
+	return &serverGroupsInterfaceWrapper{
+		delegate: i,
+	}
+}
+
+type serverGroupsInterfaceWrapper struct {
+	delegate ServerGroupsInterface
+}
+
+func (i *serverGroupsInterfaceWrapper) ServerGroupsWithContext(ctx context.Context) (*metav1.APIGroupList, error) {
+	return i.delegate.ServerGroups()
+}
+
 // ServerResourcesInterface has methods for obtaining supported resources on the API server
+//
+// Deprecated: use ServerGroupsAndResourcesWithContext instead.
 type ServerResourcesInterface interface {
 	// ServerResourcesForGroupVersion returns the supported resources for a group and version.
+	//
+	// Deprecated: use ServerGroupsAndResourcesWithContext.ServerResourcesForGroupVersionWithContext instead.
 	ServerResourcesForGroupVersion(groupVersion string) (*metav1.APIResourceList, error)
 	// ServerGroupsAndResources returns the supported groups and resources for all groups and versions.
 	//
 	// The returned group and resource lists might be non-nil with partial results even in the
 	// case of non-nil error.
+	//
+	// Deprecated: use ServerGroupsAndResourcesWithContext.ServerGroupsAndResourcesWithContext instead.
 	ServerGroupsAndResources() ([]*metav1.APIGroup, []*metav1.APIResourceList, error)
 	// ServerPreferredResources returns the supported resources with the version preferred by the
 	// server.
 	//
 	// The returned group and resource lists might be non-nil with partial results even in the
 	// case of non-nil error.
+	//
+	// Deprecated: use ServerResourcesInterfaceWithContext.ServerPreferredResourcesWithContext instead.
 	ServerPreferredResources() ([]*metav1.APIResourceList, error)
 	// ServerPreferredNamespacedResources returns the supported namespaced resources with the
 	// version preferred by the server.
 	//
 	// The returned resource list might be non-nil with partial results even in the case of
 	// non-nil error.
+	//
+	// Deprecated: use ServerResourcesInterfaceWithContext.ServerPreferredNamespacedResourcesWithContext instead.
 	ServerPreferredNamespacedResources() ([]*metav1.APIResourceList, error)
 }
 
+// ServerResourcesInterfaceWithContext has methods for obtaining supported resources on the API server
+type ServerResourcesInterfaceWithContext interface {
+	// ServerResourcesForGroupVersionWithContext returns the supported resources for a group and version.
+	ServerResourcesForGroupVersionWithContext(ctx context.Context, groupVersion string) (*metav1.APIResourceList, error)
+	// ServerGroupsAndResourcesWithContext returns the supported groups and resources for all groups and versions.
+	//
+	// The returned group and resource lists might be non-nil with partial results even in the
+	// case of non-nil error.
+	ServerGroupsAndResourcesWithContext(ctx context.Context) ([]*metav1.APIGroup, []*metav1.APIResourceList, error)
+	// ServerPreferredResourcesWithContext returns the supported resources with the version preferred by the
+	// server.
+	//
+	// The returned group and resource lists might be non-nil with partial results even in the
+	// case of non-nil error.
+	ServerPreferredResourcesWithContext(ctx context.Context) ([]*metav1.APIResourceList, error)
+	// ServerPreferredNamespacedResourcesWithContext returns the supported namespaced resources with the
+	// version preferred by the server.
+	//
+	// The returned resource list might be non-nil with partial results even in the case of
+	// non-nil error.
+	ServerPreferredNamespacedResourcesWithContext(ctx context.Context) ([]*metav1.APIResourceList, error)
+}
+
+func ToServerResourcesInterfaceWithContext(i ServerResourcesInterface) ServerResourcesInterfaceWithContext {
+	if i == nil {
+		return nil
+	}
+	if i, ok := i.(ServerResourcesInterfaceWithContext); ok {
+		return i
+	}
+	return &serverResourcesInterfaceWrapper{
+		delegate: i,
+	}
+}
+
+type serverResourcesInterfaceWrapper struct {
+	delegate ServerResourcesInterface
+}
+
+func (i *serverResourcesInterfaceWrapper) ServerResourcesForGroupVersionWithContext(ctx context.Context, groupVersion string) (*metav1.APIResourceList, error) {
+	return i.delegate.ServerResourcesForGroupVersion(groupVersion)
+}
+
+func (i *serverResourcesInterfaceWrapper) ServerGroupsAndResourcesWithContext(ctx context.Context) ([]*metav1.APIGroup, []*metav1.APIResourceList, error) {
+	return i.delegate.ServerGroupsAndResources()
+}
+
+func (i *serverResourcesInterfaceWrapper) ServerPreferredResourcesWithContext(ctx context.Context) ([]*metav1.APIResourceList, error) {
+	return i.delegate.ServerPreferredResources()
+}
+
+func (i *serverResourcesInterfaceWrapper) ServerPreferredNamespacedResourcesWithContext(ctx context.Context) ([]*metav1.APIResourceList, error) {
+	return i.delegate.ServerPreferredNamespacedResources()
+}
+
 // ServerVersionInterface has a method for retrieving the server's version.
+//
+// Deprecated: use ServerVersionInterfaceWithContext instead.
 type ServerVersionInterface interface {
 	// ServerVersion retrieves and parses the server's version (git version).
+	//
+	// Deprecated: use ServerVersionInterfaceWithContext.ServerVersionWithContext instead.
 	ServerVersion() (*version.Info, error)
 }
 
+// ServerVersionInterface has a method for retrieving the server's version.
+type ServerVersionInterfaceWithContext interface {
+	// ServerVersion retrieves and parses the server's version (git version).
+	ServerVersionWithContext(ctx context.Context) (*version.Info, error)
+}
+
+func ToServerVersionInterfaceWithContext(i ServerVersionInterface) ServerVersionInterfaceWithContext {
+	if i == nil {
+		return nil
+	}
+	if i, ok := i.(ServerVersionInterfaceWithContext); ok {
+		return i
+	}
+	return &serverVersionInterfaceWrapper{
+		delegate: i,
+	}
+}
+
+type serverVersionInterfaceWrapper struct {
+	delegate ServerVersionInterface
+}
+
+func (i *serverVersionInterfaceWrapper) ServerVersionWithContext(ctx context.Context) (*version.Info, error) {
+	return i.delegate.ServerVersion()
+}
+
 // OpenAPISchemaInterface has a method to retrieve the open API schema.
+//
+// Deprecated: use OpenAPISchemaInterfaceWithContext instead.
 type OpenAPISchemaInterface interface {
 	// OpenAPISchema retrieves and parses the swagger API schema the server supports.
+	//
+	// Deprecated: use OpenAPISchemaInterfaceWithContext.OpenAPISchemaWithContext instead.
 	OpenAPISchema() (*openapi_v2.Document, error)
 }
 
+// OpenAPISchemaInterfaceWithContext has a method to retrieve the open API schema.
+type OpenAPISchemaInterfaceWithContext interface {
+	// OpenAPISchemaWithContext retrieves and parses the swagger API schema the server supports.
+	OpenAPISchemaWithContext(ctx context.Context) (*openapi_v2.Document, error)
+}
+
+func ToOpenAPISchemaInterfaceWithContext(i OpenAPISchemaInterface) OpenAPISchemaInterfaceWithContext {
+	if i == nil {
+		return nil
+	}
+	if i, ok := i.(OpenAPISchemaInterfaceWithContext); ok {
+		return i
+	}
+	return &openAPISchemaInterfaceWrapper{
+		delegate: i,
+	}
+}
+
+type openAPISchemaInterfaceWrapper struct {
+	delegate OpenAPISchemaInterface
+}
+
+func (i *openAPISchemaInterfaceWrapper) OpenAPISchemaWithContext(ctx context.Context) (*openapi_v2.Document, error) {
+	return i.delegate.OpenAPISchema()
+}
+
+// Deprecated: use OpenAPIV3SchemaInterfaceWithContext instead.
 type OpenAPIV3SchemaInterface interface {
+	// Deprecated: use OpenAPIV3SchemaInterfaceWithContext.OpenAPIV3WithContext instead.
 	OpenAPIV3() openapi.Client
+}
+
+type OpenAPIV3SchemaInterfaceWithContext interface {
+	OpenAPIV3WithContext(ctx context.Context) openapi.ClientWithContext
+}
+
+func OpenAPIV3ToSchemaInterfaceWithContext(i OpenAPIV3SchemaInterface) OpenAPIV3SchemaInterfaceWithContext {
+	if i == nil {
+		return nil
+	}
+	if i, ok := i.(OpenAPIV3SchemaInterfaceWithContext); ok {
+		return i
+	}
+	return &openAPIV3SchemaInterfaceWrapper{
+		delegate: i,
+	}
+}
+
+type openAPIV3SchemaInterfaceWrapper struct {
+	delegate OpenAPIV3SchemaInterface
+}
+
+func (i *openAPIV3SchemaInterfaceWrapper) OpenAPIV3WithContext(ctx context.Context) openapi.ClientWithContext {
+	return ToOpenAPIClientWithContext(i.delegate.OpenAPIV3())
+}
+
+func ToOpenAPIClientWithContext(i openapi.Client) openapi.ClientWithContext {
+	if i == nil {
+		return nil
+	}
+	if i, ok := i.(openapi.ClientWithContext); ok {
+		return i
+	}
+	return &openAPIClientWrapper{
+		delegate: i,
+	}
+}
+
+type openAPIClientWrapper struct {
+	delegate openapi.Client
+}
+
+func (i *openAPIClientWrapper) PathsWithContext(ctx context.Context) (map[string]openapi.GroupVersionWithContext, error) {
+	resultWithoutContext, err := i.delegate.Paths()
+	result := make(map[string]openapi.GroupVersionWithContext, len(resultWithoutContext))
+	for key, entry := range resultWithoutContext {
+		result[key] = openapi.ToGroupVersionWithContext(entry)
+	}
+	return result, err
 }
 
 // DiscoveryClient implements the functions that discover server-supported API groups,
@@ -196,19 +539,36 @@ func apiVersionsToAPIGroup(apiVersions *metav1.APIVersions) (apiGroup metav1.API
 // as aggregated discovery format or legacy format. For safety, resources will only
 // be returned if both endpoints returned resources. Returned "failedGVs" can be
 // empty, but will only be nil in the case an error is returned.
+//
+// Deprecated: use GroupsAndMaybeResourcesWithContext instead.
 func (d *DiscoveryClient) GroupsAndMaybeResources() (
+	*metav1.APIGroupList,
+	map[schema.GroupVersion]*metav1.APIResourceList,
+	map[schema.GroupVersion]error,
+	error) {
+	return d.GroupsAndMaybeResourcesWithContext(context.Background())
+}
+
+// GroupsAndMaybeResources returns the discovery groups, and (if new aggregated
+// discovery format) the resources keyed by group/version. Merges discovery groups
+// and resources from /api and /apis (either aggregated or not). Legacy groups
+// must be ordered first. The server will either return both endpoints (/api, /apis)
+// as aggregated discovery format or legacy format. For safety, resources will only
+// be returned if both endpoints returned resources. Returned "failedGVs" can be
+// empty, but will only be nil in the case an error is returned.
+func (d *DiscoveryClient) GroupsAndMaybeResourcesWithContext(ctx context.Context) (
 	*metav1.APIGroupList,
 	map[schema.GroupVersion]*metav1.APIResourceList,
 	map[schema.GroupVersion]error,
 	error) {
 	// Legacy group ordered first (there is only one -- core/v1 group). Returned groups must
 	// be non-nil, but it could be empty. Returned resources, apiResources map could be nil.
-	groups, resources, failedGVs, err := d.downloadLegacy()
+	groups, resources, failedGVs, err := d.downloadLegacy(ctx)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 	// Discovery groups and (possibly) resources downloaded from /apis.
-	apiGroups, apiResources, failedApisGVs, aerr := d.downloadAPIs()
+	apiGroups, apiResources, failedApisGVs, aerr := d.downloadAPIs(ctx)
 	if aerr != nil {
 		return nil, nil, nil, aerr
 	}
@@ -236,7 +596,7 @@ func (d *DiscoveryClient) GroupsAndMaybeResources() (
 // possible for the resource map to be nil if the server returned
 // the unaggregated discovery. Returned "failedGVs" can be empty, but
 // will only be nil in the case of a returned error.
-func (d *DiscoveryClient) downloadLegacy() (
+func (d *DiscoveryClient) downloadLegacy(ctx context.Context) (
 	*metav1.APIGroupList,
 	map[schema.GroupVersion]*metav1.APIResourceList,
 	map[schema.GroupVersion]error,
@@ -249,7 +609,7 @@ func (d *DiscoveryClient) downloadLegacy() (
 	body, err := d.restClient.Get().
 		AbsPath("/api").
 		SetHeader("Accept", accept).
-		Do(context.TODO()).
+		Do(ctx).
 		ContentType(&responseContentType).
 		Raw()
 	apiGroupList := &metav1.APIGroupList{}
@@ -302,7 +662,7 @@ func (d *DiscoveryClient) downloadLegacy() (
 // discovery resources. The returned groups will always exist, but the
 // resources map may be nil. Returned "failedGVs" can be empty, but will
 // only be nil in the case of a returned error.
-func (d *DiscoveryClient) downloadAPIs() (
+func (d *DiscoveryClient) downloadAPIs(ctx context.Context) (
 	*metav1.APIGroupList,
 	map[schema.GroupVersion]*metav1.APIResourceList,
 	map[schema.GroupVersion]error,
@@ -315,7 +675,7 @@ func (d *DiscoveryClient) downloadAPIs() (
 	body, err := d.restClient.Get().
 		AbsPath("/apis").
 		SetHeader("Accept", accept).
-		Do(context.TODO()).
+		Do(ctx).
 		ContentType(&responseContentType).
 		Raw()
 	if err != nil {
@@ -378,8 +738,16 @@ func ContentTypeIsGVK(contentType string, gvk schema.GroupVersionKind) (bool, er
 
 // ServerGroups returns the supported groups, with information like supported versions and the
 // preferred version.
+//
+// Deprecated: use ServerGroupsWithContext instead.
 func (d *DiscoveryClient) ServerGroups() (*metav1.APIGroupList, error) {
-	groups, _, _, err := d.GroupsAndMaybeResources()
+	return d.ServerGroupsWithContext(context.Background())
+}
+
+// ServerGroupsWithContext returns the supported groups, with information like supported versions and the
+// preferred version.
+func (d *DiscoveryClient) ServerGroupsWithContext(ctx context.Context) (*metav1.APIGroupList, error) {
+	groups, _, _, err := d.GroupsAndMaybeResourcesWithContext(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -387,7 +755,13 @@ func (d *DiscoveryClient) ServerGroups() (*metav1.APIGroupList, error) {
 }
 
 // ServerResourcesForGroupVersion returns the supported resources for a group and version.
+// Deprecated: use ServerResourcesForGroupVersionWithContext instead.
 func (d *DiscoveryClient) ServerResourcesForGroupVersion(groupVersion string) (resources *metav1.APIResourceList, err error) {
+	return d.ServerResourcesForGroupVersionWithContext(context.Background(), groupVersion)
+}
+
+// ServerResourcesForGroupVersionWithContext returns the supported resources for a group and version.
+func (d *DiscoveryClient) ServerResourcesForGroupVersionWithContext(ctx context.Context, groupVersion string) (resources *metav1.APIResourceList, err error) {
 	url := url.URL{}
 	if len(groupVersion) == 0 {
 		return nil, fmt.Errorf("groupVersion shouldn't be empty")
@@ -400,7 +774,7 @@ func (d *DiscoveryClient) ServerResourcesForGroupVersion(groupVersion string) (r
 	resources = &metav1.APIResourceList{
 		GroupVersion: groupVersion,
 	}
-	err = d.restClient.Get().AbsPath(url.String()).Do(context.TODO()).Into(resources)
+	err = d.restClient.Get().AbsPath(url.String()).Do(ctx).Into(resources)
 	if err != nil {
 		// Tolerate core/v1 not found response by returning empty resource list;
 		// this probably should not happen. But we should verify all callers are
@@ -415,8 +789,13 @@ func (d *DiscoveryClient) ServerResourcesForGroupVersion(groupVersion string) (r
 
 // ServerGroupsAndResources returns the supported resources for all groups and versions.
 func (d *DiscoveryClient) ServerGroupsAndResources() ([]*metav1.APIGroup, []*metav1.APIResourceList, error) {
+	return d.ServerGroupsAndResourcesWithContext(context.Background())
+}
+
+// ServerGroupsAndResourcesWithContext returns the supported resources for all groups and versions.
+func (d *DiscoveryClient) ServerGroupsAndResourcesWithContext(ctx context.Context) ([]*metav1.APIGroup, []*metav1.APIResourceList, error) {
 	return withRetries(defaultRetries, func() ([]*metav1.APIGroup, []*metav1.APIResourceList, error) {
-		return ServerGroupsAndResources(d)
+		return ServerGroupsAndResourcesWithContext(ctx, d)
 	})
 }
 
@@ -459,7 +838,12 @@ func GroupDiscoveryFailedErrorGroups(err error) (map[schema.GroupVersion]error, 
 	return nil, false
 }
 
+// Deprecated: use ServerGroupsAndResourcesWithContext instead.
 func ServerGroupsAndResources(d DiscoveryInterface) ([]*metav1.APIGroup, []*metav1.APIResourceList, error) {
+	return ServerGroupsAndResourcesWithContext(context.Background(), ToDiscoveryInterfaceWithContext(d))
+}
+
+func ServerGroupsAndResourcesWithContext(ctx context.Context, d DiscoveryInterfaceWithContext) ([]*metav1.APIGroup, []*metav1.APIResourceList, error) {
 	var sgs *metav1.APIGroupList
 	var resources []*metav1.APIResourceList
 	var failedGVs map[schema.GroupVersion]error
@@ -467,14 +851,21 @@ func ServerGroupsAndResources(d DiscoveryInterface) ([]*metav1.APIGroup, []*meta
 
 	// If the passed discovery object implements the wider AggregatedDiscoveryInterface,
 	// then attempt to retrieve aggregated discovery with both groups and the resources.
-	if ad, ok := d.(AggregatedDiscoveryInterface); ok {
+	ad, ok := d.(AggregatedDiscoveryInterfaceWithContext)
+	if !ok {
+		if ad2, ok2 := d.(AggregatedDiscoveryInterface); ok2 {
+			ad = ToAggregatedDiscoveryInterfaceWithContext(ad2)
+			ok = true
+		}
+	}
+	if ok {
 		var resourcesByGV map[schema.GroupVersion]*metav1.APIResourceList
-		sgs, resourcesByGV, failedGVs, err = ad.GroupsAndMaybeResources()
+		sgs, resourcesByGV, failedGVs, err = ad.GroupsAndMaybeResourcesWithContext(ctx)
 		for _, resourceList := range resourcesByGV {
 			resources = append(resources, resourceList)
 		}
 	} else {
-		sgs, err = d.ServerGroups()
+		sgs, err = d.ServerGroupsWithContext(ctx)
 	}
 
 	if sgs == nil {
@@ -495,7 +886,7 @@ func ServerGroupsAndResources(d DiscoveryInterface) ([]*metav1.APIGroup, []*meta
 		return resultGroups, resources, ferr
 	}
 
-	groupVersionResources, failedGroups := fetchGroupVersionResources(d, sgs)
+	groupVersionResources, failedGroups := fetchGroupVersionResources(ctx, d, sgs)
 
 	// order results by group/version discovery order
 	result := []*metav1.APIResourceList{}
@@ -516,7 +907,14 @@ func ServerGroupsAndResources(d DiscoveryInterface) ([]*metav1.APIGroup, []*meta
 }
 
 // ServerPreferredResources uses the provided discovery interface to look up preferred resources
+//
+// Deprecated: use ServerPreferredResourcesWithContext instead.
 func ServerPreferredResources(d DiscoveryInterface) ([]*metav1.APIResourceList, error) {
+	return ServerPreferredResourcesWithContext(context.Background(), ToDiscoveryInterfaceWithContext(d))
+}
+
+// ServerPreferredResourcesWithContext uses the provided discovery interface to look up preferred resources
+func ServerPreferredResourcesWithContext(ctx context.Context, d DiscoveryInterfaceWithContext) ([]*metav1.APIResourceList, error) {
 	var serverGroupList *metav1.APIGroupList
 	var failedGroups map[schema.GroupVersion]error
 	var groupVersionResources map[schema.GroupVersion]*metav1.APIResourceList
@@ -525,18 +923,24 @@ func ServerPreferredResources(d DiscoveryInterface) ([]*metav1.APIResourceList, 
 	// If the passed discovery object implements the wider AggregatedDiscoveryInterface,
 	// then it is attempt to retrieve both the groups and the resources. "failedGroups"
 	// are Group/Versions returned as stale in AggregatedDiscovery format.
-	ad, ok := d.(AggregatedDiscoveryInterface)
+	ad, ok := d.(AggregatedDiscoveryInterfaceWithContext)
+	if !ok {
+		if ad2, ok2 := d.(AggregatedDiscoveryInterface); ok2 {
+			ad = ToAggregatedDiscoveryInterfaceWithContext(ad2)
+			ok = true
+		}
+	}
 	if ok {
-		serverGroupList, groupVersionResources, failedGroups, err = ad.GroupsAndMaybeResources()
+		serverGroupList, groupVersionResources, failedGroups, err = ad.GroupsAndMaybeResourcesWithContext(ctx)
 	} else {
-		serverGroupList, err = d.ServerGroups()
+		serverGroupList, err = d.ServerGroupsWithContext(ctx)
 	}
 	if err != nil {
 		return nil, err
 	}
 	// Non-aggregated discovery must fetch resources from Groups.
 	if groupVersionResources == nil {
-		groupVersionResources, failedGroups = fetchGroupVersionResources(d, serverGroupList)
+		groupVersionResources, failedGroups = fetchGroupVersionResources(ctx, d, serverGroupList)
 	}
 
 	result := []*metav1.APIResourceList{}
@@ -592,7 +996,7 @@ func ServerPreferredResources(d DiscoveryInterface) ([]*metav1.APIResourceList, 
 }
 
 // fetchServerResourcesForGroupVersions uses the discovery client to fetch the resources for the specified groups in parallel.
-func fetchGroupVersionResources(d DiscoveryInterface, apiGroups *metav1.APIGroupList) (map[schema.GroupVersion]*metav1.APIResourceList, map[schema.GroupVersion]error) {
+func fetchGroupVersionResources(ctx context.Context, d DiscoveryInterfaceWithContext, apiGroups *metav1.APIGroupList) (map[schema.GroupVersion]*metav1.APIResourceList, map[schema.GroupVersion]error) {
 	groupVersionResources := make(map[schema.GroupVersion]*metav1.APIResourceList)
 	failedGroups := make(map[schema.GroupVersion]error)
 
@@ -604,9 +1008,9 @@ func fetchGroupVersionResources(d DiscoveryInterface, apiGroups *metav1.APIGroup
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				defer utilruntime.HandleCrash()
+				defer utilruntime.HandleCrashWithContext(ctx)
 
-				apiResourceList, err := d.ServerResourcesForGroupVersion(groupVersion.String())
+				apiResourceList, err := d.ServerResourcesForGroupVersionWithContext(ctx, groupVersion.String())
 
 				// lock to record results
 				resultLock.Lock()
@@ -630,6 +1034,8 @@ func fetchGroupVersionResources(d DiscoveryInterface, apiGroups *metav1.APIGroup
 
 // ServerPreferredResources returns the supported resources with the version preferred by the
 // server.
+//
+// Deprecated: use ServerPreferredResourcesWithContext instead.
 func (d *DiscoveryClient) ServerPreferredResources() ([]*metav1.APIResourceList, error) {
 	_, rs, err := withRetries(defaultRetries, func() ([]*metav1.APIGroup, []*metav1.APIResourceList, error) {
 		rs, err := ServerPreferredResources(d)
@@ -638,15 +1044,40 @@ func (d *DiscoveryClient) ServerPreferredResources() ([]*metav1.APIResourceList,
 	return rs, err
 }
 
+// ServerPreferredResourcesWithContext returns the supported resources with the version preferred by the
+// server.
+func (d *DiscoveryClient) ServerPreferredResourcesWithContext(ctx context.Context) ([]*metav1.APIResourceList, error) {
+	_, rs, err := withRetries(defaultRetries, func() ([]*metav1.APIGroup, []*metav1.APIResourceList, error) {
+		rs, err := ServerPreferredResourcesWithContext(ctx, d)
+		return nil, rs, err
+	})
+	return rs, err
+}
+
 // ServerPreferredNamespacedResources returns the supported namespaced resources with the
 // version preferred by the server.
+//
+// Deprecated: use ServerPreferredNamespacedResourcesWithContext instead.
 func (d *DiscoveryClient) ServerPreferredNamespacedResources() ([]*metav1.APIResourceList, error) {
 	return ServerPreferredNamespacedResources(d)
 }
 
+// ServerPreferredNamespacedResources returns the supported namespaced resources with the
+// version preferred by the server.
+func (d *DiscoveryClient) ServerPreferredNamespacedResourcesWithContext(ctx context.Context) ([]*metav1.APIResourceList, error) {
+	return ServerPreferredNamespacedResourcesWithContext(ctx, d)
+}
+
 // ServerPreferredNamespacedResources uses the provided discovery interface to look up preferred namespaced resources
+//
+// Deprecated: use ServerPreferredNamespacedResourcesWithContext instead.
 func ServerPreferredNamespacedResources(d DiscoveryInterface) ([]*metav1.APIResourceList, error) {
-	all, err := ServerPreferredResources(d)
+	return ServerPreferredNamespacedResourcesWithContext(context.Background(), ToDiscoveryInterfaceWithContext(d))
+}
+
+// ServerPreferredNamespacedResourcesWithContext uses the provided discovery interface to look up preferred namespaced resources
+func ServerPreferredNamespacedResourcesWithContext(ctx context.Context, d DiscoveryInterfaceWithContext) ([]*metav1.APIResourceList, error) {
+	all, err := ServerPreferredResourcesWithContext(ctx, d)
 	return FilteredBy(ResourcePredicateFunc(func(groupVersion string, r *metav1.APIResource) bool {
 		return r.Namespaced
 	}), all), err
@@ -654,7 +1085,12 @@ func ServerPreferredNamespacedResources(d DiscoveryInterface) ([]*metav1.APIReso
 
 // ServerVersion retrieves and parses the server's version (git version).
 func (d *DiscoveryClient) ServerVersion() (*version.Info, error) {
-	body, err := d.restClient.Get().AbsPath("/version").Do(context.TODO()).Raw()
+	return d.ServerVersionWithContext(context.Background())
+}
+
+// ServerVersionWithContext retrieves and parses the server's version (git version).
+func (d *DiscoveryClient) ServerVersionWithContext(ctx context.Context) (*version.Info, error) {
+	body, err := d.restClient.Get().AbsPath("/version").Do(ctx).Raw()
 	if err != nil {
 		return nil, err
 	}
@@ -668,7 +1104,12 @@ func (d *DiscoveryClient) ServerVersion() (*version.Info, error) {
 
 // OpenAPISchema fetches the open api v2 schema using a rest client and parses the proto.
 func (d *DiscoveryClient) OpenAPISchema() (*openapi_v2.Document, error) {
-	data, err := d.restClient.Get().AbsPath("/openapi/v2").SetHeader("Accept", openAPIV2mimePb).Do(context.TODO()).Raw()
+	return d.OpenAPISchemaWithContext(context.Background())
+}
+
+// OpenAPISchema fetches the open api v2 schema using a rest client and parses the proto.
+func (d *DiscoveryClient) OpenAPISchemaWithContext(ctx context.Context) (*openapi_v2.Document, error) {
+	data, err := d.restClient.Get().AbsPath("/openapi/v2").SetHeader("Accept", openAPIV2mimePb).Do(ctx).Raw()
 	if err != nil {
 		return nil, err
 	}
@@ -680,13 +1121,28 @@ func (d *DiscoveryClient) OpenAPISchema() (*openapi_v2.Document, error) {
 	return document, nil
 }
 
+// Deprecated: used OpenAVPIV3WithContext instead.
 func (d *DiscoveryClient) OpenAPIV3() openapi.Client {
 	return openapi.NewClient(d.restClient)
 }
 
+func (d *DiscoveryClient) OpenAPIV3WithContext(ctx context.Context) openapi.ClientWithContext {
+	return openapi.NewClientWithContext(d.restClient)
+}
+
 // WithLegacy returns copy of current discovery client that will only
 // receive the legacy discovery format.
+//
+// Deprecated: use WithLegacyWithContext instead.
 func (d *DiscoveryClient) WithLegacy() DiscoveryInterface {
+	client := *d
+	client.UseLegacyDiscovery = true
+	return &client
+}
+
+// WithLegacyWithContext returns copy of current discovery client that will only
+// receive the legacy discovery format.
+func (d *DiscoveryClient) WithLegacyWithContext(ctx context.Context) DiscoveryInterfaceWithContext {
 	client := *d
 	client.UseLegacyDiscovery = true
 	return &client

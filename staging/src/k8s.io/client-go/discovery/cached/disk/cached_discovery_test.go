@@ -52,7 +52,7 @@ func TestCachedDiscoveryClient_Fresh(t *testing.T) {
 	defer os.RemoveAll(d)
 
 	c := fakeDiscoveryClient{}
-	cdc := newCachedDiscoveryClient(&c, d, 60*time.Second)
+	cdc := newCachedDiscoveryClient(discovery.ToDiscoveryInterfaceWithContext(&c), d, 60*time.Second)
 	assert.True(cdc.Fresh(), "should be fresh after creation")
 
 	cdc.ServerGroups()
@@ -71,7 +71,7 @@ func TestCachedDiscoveryClient_Fresh(t *testing.T) {
 	assert.True(cdc.Fresh(), "should be fresh after another resources call")
 	assert.Equal(1, c.resourceCalls)
 
-	cdc = newCachedDiscoveryClient(&c, d, 60*time.Second)
+	cdc = newCachedDiscoveryClient(discovery.ToDiscoveryInterfaceWithContext(&c), d, 60*time.Second)
 	cdc.ServerGroups()
 	assert.False(cdc.Fresh(), "should NOT be fresh after recreation with existing groups cache")
 	assert.Equal(1, c.groupCalls)
@@ -96,7 +96,7 @@ func TestNewCachedDiscoveryClient_TTL(t *testing.T) {
 	defer os.RemoveAll(d)
 
 	c := fakeDiscoveryClient{}
-	cdc := newCachedDiscoveryClient(&c, d, 1*time.Nanosecond)
+	cdc := newCachedDiscoveryClient(discovery.ToDiscoveryInterfaceWithContext(&c), d, 1*time.Nanosecond)
 	cdc.ServerGroups()
 	assert.Equal(1, c.groupCalls)
 
@@ -115,7 +115,7 @@ func TestNewCachedDiscoveryClient_PathPerm(t *testing.T) {
 	defer os.RemoveAll(d)
 
 	c := fakeDiscoveryClient{}
-	cdc := newCachedDiscoveryClient(&c, d, 1*time.Nanosecond)
+	cdc := newCachedDiscoveryClient(discovery.ToDiscoveryInterfaceWithContext(&c), d, 1*time.Nanosecond)
 	cdc.ServerGroups()
 
 	err = filepath.Walk(d, func(path string, info os.FileInfo, err error) error {

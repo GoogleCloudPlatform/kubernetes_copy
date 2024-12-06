@@ -17,6 +17,7 @@ limitations under the License.
 package meta
 
 import (
+	"context"
 	"fmt"
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -30,11 +31,14 @@ const (
 )
 
 var (
-	_ ResettableRESTMapper = PriorityRESTMapper{}
+	_ ResettableRESTMapper            = PriorityRESTMapper{}
+	_ ResettableRESTMapperWithContext = PriorityRESTMapperWithContext{}
 )
 
 // PriorityRESTMapper is a wrapper for automatically choosing a particular Resource or Kind
 // when multiple matches are possible
+//
+// Deprecated: use PriorityRESTMapperWithContext instead.
 type PriorityRESTMapper struct {
 	// Delegate is the RESTMapper to use to locate all the Kind and Resource matches
 	Delegate RESTMapper
@@ -56,9 +60,84 @@ func (m PriorityRESTMapper) String() string {
 	return fmt.Sprintf("PriorityRESTMapper{\n\t%v\n\t%v\n\t%v\n}", m.ResourcePriority, m.KindPriority, m.Delegate)
 }
 
+// PriorityRESTMapperWithContext is a wrapper for automatically choosing a particular Resource or Kind
+// when multiple matches are possible
+type PriorityRESTMapperWithContext struct {
+	// Delegate is the RESTMapperWithContext to use to locate all the Kind and Resource matches
+	Delegate RESTMapperWithContext
+
+	// ResourcePriority is a list of priority patterns to apply to matching resources.
+	// The list of all matching resources is narrowed based on the patterns until only one remains.
+	// A pattern with no matches is skipped.  A pattern with more than one match uses its
+	// matches as the list to continue matching against.
+	ResourcePriority []schema.GroupVersionResource
+
+	// KindPriority is a list of priority patterns to apply to matching kinds.
+	// The list of all matching kinds is narrowed based on the patterns until only one remains.
+	// A pattern with no matches is skipped.  A pattern with more than one match uses its
+	// matches as the list to continue matching against.
+	KindPriority []schema.GroupVersionKind
+}
+
+func (m PriorityRESTMapperWithContext) String() string {
+	return fmt.Sprintf("PriorityRESTMapperWithContext{\n\t%v\n\t%v\n\t%v\n}", m.ResourcePriority, m.KindPriority, m.Delegate)
+}
+
+func ToPriorityRESTMapperWithContext(m PriorityRESTMapper) PriorityRESTMapperWithContext {
+	return PriorityRESTMapperWithContext{
+		Delegate:         ToRESTMapperWithContext(m.Delegate),
+		ResourcePriority: m.ResourcePriority,
+		KindPriority:     m.KindPriority,
+	}
+}
+
 // ResourceFor finds all resources, then passes them through the ResourcePriority patterns to find a single matching hit.
+//
+// Deprecated: use PriorityRESTMapperWithContext.ResourceForWithContext instead.
 func (m PriorityRESTMapper) ResourceFor(partiallySpecifiedResource schema.GroupVersionResource) (schema.GroupVersionResource, error) {
-	originalGVRs, originalErr := m.Delegate.ResourcesFor(partiallySpecifiedResource)
+	return ToPriorityRESTMapperWithContext(m).ResourceForWithContext(context.Background(), partiallySpecifiedResource)
+}
+
+// KindFor finds all kinds, then passes them through the KindPriority patterns to find a single matching hit.
+//
+// Deprecated: use PriorityRESTMapperWithContext.KindForWithContext instead.
+func (m PriorityRESTMapper) KindFor(partiallySpecifiedResource schema.GroupVersionResource) (schema.GroupVersionKind, error) {
+	return ToPriorityRESTMapperWithContext(m).KindForWithContext(context.Background(), partiallySpecifiedResource)
+}
+
+// Deprecated: use PriorityRESTMapperWithContext.RESTMappingWithContext instead.
+func (m PriorityRESTMapper) RESTMapping(gk schema.GroupKind, versions ...string) (mapping *RESTMapping, err error) {
+	return ToPriorityRESTMapperWithContext(m).RESTMappingWithContext(context.Background(), gk, versions...)
+}
+
+// Deprecated: use PriorityRESTMapperWithContext.RESTMappingsWithContext instead.
+func (m PriorityRESTMapper) RESTMappings(gk schema.GroupKind, versions ...string) ([]*RESTMapping, error) {
+	return m.Delegate.RESTMappings(gk, versions...)
+}
+
+// Deprecated: use PriorityRESTMapperWithContext.ResourceSingularizerWithContext instead.
+func (m PriorityRESTMapper) ResourceSingularizer(resource string) (singular string, err error) {
+	return m.Delegate.ResourceSingularizer(resource)
+}
+
+// Deprecated: use PriorityRESTMapperWithContext.ResourcesForWithContext instead.
+func (m PriorityRESTMapper) ResourcesFor(partiallySpecifiedResource schema.GroupVersionResource) ([]schema.GroupVersionResource, error) {
+	return m.Delegate.ResourcesFor(partiallySpecifiedResource)
+}
+
+// Deprecated: use PriorityRESTMapperWithContext.KindsForWithContext instead.
+func (m PriorityRESTMapper) KindsFor(partiallySpecifiedResource schema.GroupVersionResource) (gvk []schema.GroupVersionKind, err error) {
+	return m.Delegate.KindsFor(partiallySpecifiedResource)
+}
+
+// Deprecated: use PriorityRESTMapperWithContext.ResetWithContext instead.
+func (m PriorityRESTMapper) Reset() {
+	MaybeResetRESTMapper(m.Delegate)
+}
+
+// ResourceFor finds all resources, then passes them through the ResourcePriority patterns to find a single matching hit.
+func (m PriorityRESTMapperWithContext) ResourceForWithContext(ctx context.Context, partiallySpecifiedResource schema.GroupVersionResource) (schema.GroupVersionResource, error) {
+	originalGVRs, originalErr := m.Delegate.ResourcesForWithContext(ctx, partiallySpecifiedResource)
 	if originalErr != nil && len(originalGVRs) == 0 {
 		return schema.GroupVersionResource{}, originalErr
 	}
@@ -93,8 +172,8 @@ func (m PriorityRESTMapper) ResourceFor(partiallySpecifiedResource schema.GroupV
 }
 
 // KindFor finds all kinds, then passes them through the KindPriority patterns to find a single matching hit.
-func (m PriorityRESTMapper) KindFor(partiallySpecifiedResource schema.GroupVersionResource) (schema.GroupVersionKind, error) {
-	originalGVKs, originalErr := m.Delegate.KindsFor(partiallySpecifiedResource)
+func (m PriorityRESTMapperWithContext) KindForWithContext(ctx context.Context, partiallySpecifiedResource schema.GroupVersionResource) (schema.GroupVersionKind, error) {
+	originalGVKs, originalErr := m.Delegate.KindsForWithContext(ctx, partiallySpecifiedResource)
 	if originalErr != nil && len(originalGVKs) == 0 {
 		return schema.GroupVersionKind{}, originalErr
 	}
@@ -156,8 +235,8 @@ func kindMatches(pattern schema.GroupVersionKind, kind schema.GroupVersionKind) 
 	return true
 }
 
-func (m PriorityRESTMapper) RESTMapping(gk schema.GroupKind, versions ...string) (mapping *RESTMapping, err error) {
-	mappings, originalErr := m.Delegate.RESTMappings(gk, versions...)
+func (m PriorityRESTMapperWithContext) RESTMappingWithContext(ctx context.Context, gk schema.GroupKind, versions ...string) (mapping *RESTMapping, err error) {
+	mappings, originalErr := m.Delegate.RESTMappingsWithContext(ctx, gk, versions...)
 	if originalErr != nil && len(mappings) == 0 {
 		return nil, originalErr
 	}
@@ -209,22 +288,22 @@ func (m PriorityRESTMapper) RESTMapping(gk schema.GroupKind, versions ...string)
 	return nil, &AmbiguousKindError{PartialKind: gk.WithVersion(""), MatchingKinds: kinds}
 }
 
-func (m PriorityRESTMapper) RESTMappings(gk schema.GroupKind, versions ...string) ([]*RESTMapping, error) {
-	return m.Delegate.RESTMappings(gk, versions...)
+func (m PriorityRESTMapperWithContext) RESTMappingsWithContext(ctx context.Context, gk schema.GroupKind, versions ...string) ([]*RESTMapping, error) {
+	return m.Delegate.RESTMappingsWithContext(ctx, gk, versions...)
 }
 
-func (m PriorityRESTMapper) ResourceSingularizer(resource string) (singular string, err error) {
-	return m.Delegate.ResourceSingularizer(resource)
+func (m PriorityRESTMapperWithContext) ResourceSingularizerWithContext(ctx context.Context, resource string) (singular string, err error) {
+	return m.Delegate.ResourceSingularizerWithContext(ctx, resource)
 }
 
-func (m PriorityRESTMapper) ResourcesFor(partiallySpecifiedResource schema.GroupVersionResource) ([]schema.GroupVersionResource, error) {
-	return m.Delegate.ResourcesFor(partiallySpecifiedResource)
+func (m PriorityRESTMapperWithContext) ResourcesForWithContext(ctx context.Context, partiallySpecifiedResource schema.GroupVersionResource) ([]schema.GroupVersionResource, error) {
+	return m.Delegate.ResourcesForWithContext(ctx, partiallySpecifiedResource)
 }
 
-func (m PriorityRESTMapper) KindsFor(partiallySpecifiedResource schema.GroupVersionResource) (gvk []schema.GroupVersionKind, err error) {
-	return m.Delegate.KindsFor(partiallySpecifiedResource)
+func (m PriorityRESTMapperWithContext) KindsForWithContext(ctx context.Context, partiallySpecifiedResource schema.GroupVersionResource) (gvk []schema.GroupVersionKind, err error) {
+	return m.Delegate.KindsForWithContext(ctx, partiallySpecifiedResource)
 }
 
-func (m PriorityRESTMapper) Reset() {
-	MaybeResetRESTMapper(m.Delegate)
+func (m PriorityRESTMapperWithContext) ResetWithContext(ctx context.Context) {
+	MaybeResetRESTMapperWithContext(ctx, m.Delegate)
 }
