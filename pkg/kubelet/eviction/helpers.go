@@ -511,6 +511,15 @@ func memoryUsage(memStats *statsapi.MemoryStats) *resource.Quantity {
 	return resource.NewQuantity(usage, resource.BinarySI)
 }
 
+// swapUsage converts swap usage bytes into a resource quantity.
+func swapUsage(swapStats *statsapi.SwapStats) *resource.Quantity {
+	if swapStats == nil || swapStats.SwapUsageBytes == nil {
+		return &resource.Quantity{Format: resource.BinarySI}
+	}
+	usage := int64(*swapStats.SwapUsageBytes)
+	return resource.NewQuantity(usage, resource.BinarySI)
+}
+
 // processUsage converts working set into a process count.
 func processUsage(processStats *statsapi.ProcessStats) uint64 {
 	if processStats == nil || processStats.ProcessCount == nil {
@@ -707,6 +716,54 @@ func exceedMemoryRequests(stats statsFunc) cmpFunc {
 	}
 }
 
+// exceedMemoryLimitsWithSwap compares whether or not pods' memory+swap usage exceeds their limits
+func exceedMemoryLimitsWithSwap(stats statsFunc) cmpFunc {
+	return func(p1, p2 *v1.Pod) int {
+		p1Stats, p1Found := stats(p1)
+		p2Stats, p2Found := stats(p2)
+		if !p1Found || !p2Found {
+			// prioritize evicting the pod for which no stats were found
+			return cmpBool(!p1Found, !p2Found)
+		}
+
+		p1Swap := swapUsage(p1Stats.Swap)
+		p2Swap := swapUsage(p2Stats.Swap)
+		p1Memory := memoryUsage(p1Stats.Memory)
+		p2Memory := memoryUsage(p2Stats.Memory)
+
+		p1MemAndSwap := p1Swap.DeepCopy()
+		p2MemAndSwap := p2Swap.DeepCopy()
+		p1MemAndSwap.Add(*p1Memory)
+		p2MemAndSwap.Add(*p2Memory)
+
+		p1MemLimits := v1resource.GetResourceLimitQuantity(p1, v1.ResourceMemory)
+		p2MemLimits := v1resource.GetResourceLimitQuantity(p2, v1.ResourceMemory)
+
+		if p1MemLimits.IsZero() {
+			klog.InfoS("DEBUG: exceedMemoryLimitsWithSwap()", "pod", p1.Name, "has no memory limits")
+			p1MemLimits = resource.MustParse("999999999Ei")
+		}
+		if p2MemLimits.IsZero() {
+			klog.InfoS("DEBUG: exceedMemoryLimitsWithSwap()", "pod", p2.Name, "has no memory limits")
+			p2MemLimits = resource.MustParse("999999999Ei")
+		}
+
+		p1MemRequests := v1resource.GetResourceRequestQuantity(p1, v1.ResourceMemory)
+		p2MemRequests := v1resource.GetResourceRequestQuantity(p2, v1.ResourceMemory)
+
+		p1ExceedsLimits := p1MemAndSwap.Cmp(p1MemLimits) == 1
+		p2ExceedsLimits := p2MemAndSwap.Cmp(p2MemLimits) == 1
+
+		klog.InfoS("DEBUG: exceedMemoryLimitsWithSwap()", "p1", p1.Name, "mem", p1Memory.Value(), "swap", p1Swap.Value(),
+			"mem+swap", p1MemAndSwap.Value(), "requests", p1MemRequests.Value(), "limits", p1MemLimits.Value(), "exceeded limits?", p1ExceedsLimits)
+		klog.InfoS("DEBUG: exceedMemoryLimitsWithSwap()", "p2", p2.Name, "mem", p2Memory.Value(), "swap", p2Swap.Value(),
+			"mem+swap", p2MemAndSwap.Value(), "requests", p2MemRequests.Value(), "limits", p2MemLimits.Value(), "exceeded limits?", p2ExceedsLimits)
+
+		// prioritize evicting the pod which exceeds its requests
+		return cmpBool(p1ExceedsLimits, p2ExceedsLimits)
+	}
+}
+
 // memory compares pods by largest consumer of memory relative to request.
 func memory(stats statsFunc) cmpFunc {
 	return func(p1, p2 *v1.Pod) int {
@@ -819,7 +876,7 @@ func cmpBool(a, b bool) int {
 // It ranks by whether or not the pod's usage exceeds its requests, then by priority, and
 // finally by memory usage above requests.
 func rankMemoryPressure(pods []*v1.Pod, stats statsFunc) {
-	orderedBy(exceedMemoryRequests(stats), priority, memory(stats)).Sort(pods)
+	orderedBy(exceedMemoryLimitsWithSwap(stats), exceedMemoryRequests(stats), priority, memory(stats)).Sort(pods)
 }
 
 // rankPIDPressure orders the input pods by priority in response to PID pressure.
