@@ -33,6 +33,9 @@ import (
 //
 // Note that this function will panic when data inconsistency is detected.
 // This is intentional because we want to catch it in the CI.
+//
+// The identity string can be left empty if the logger in the context already
+// identifies what is being watched.
 func checkWatchListDataConsistencyIfRequested[T runtime.Object, U any](ctx context.Context, identity string, lastSyncedResourceVersion string, listFn consistencydetector.ListFunc[T], retrieveItemsFn consistencydetector.RetrieveItemsFunc[U]) {
 	if !consistencydetector.IsDataConsistencyDetectionForWatchListEnabled() {
 		return

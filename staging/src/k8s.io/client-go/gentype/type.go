@@ -173,14 +173,14 @@ func (c *Client[T]) Get(ctx context.Context, name string, options metav1.GetOpti
 // List takes label and field selectors, and returns the list of resources that match those selectors.
 func (l *alsoLister[T, L]) List(ctx context.Context, opts metav1.ListOptions) (L, error) {
 	if watchListOptions, hasWatchListOptionsPrepared, watchListOptionsErr := watchlist.PrepareWatchListOptionsFromListOptions(opts); watchListOptionsErr != nil {
-		klog.Warningf("Failed preparing watchlist options for $.type|resource$, falling back to the standard LIST semantics, err = %v", watchListOptionsErr)
+		klog.FromContext(ctx).Info("Warning: failed preparing watchlist options, falling back to the standard LIST semantics", "resource", l.client.resource, "err", watchListOptionsErr)
 	} else if hasWatchListOptionsPrepared {
 		result, err := l.watchList(ctx, watchListOptions)
 		if err == nil {
 			consistencydetector.CheckWatchListFromCacheDataConsistencyIfRequested(ctx, "watchlist request for "+l.client.resource, l.list, opts, result)
 			return result, nil
 		}
-		klog.Warningf("The watchlist request for %s ended with an error, falling back to the standard LIST semantics, err = %v", l.client.resource, err)
+		klog.FromContext(ctx).Info("Warning: the watchlist request ended with an error, falling back to the standard LIST semantics", "resource", l.client.resource, "err", err)
 	}
 	result, err := l.list(ctx, opts)
 	if err == nil {
