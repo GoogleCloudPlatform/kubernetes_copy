@@ -513,6 +513,15 @@ func memoryUsage(memStats *statsapi.MemoryStats) *resource.Quantity {
 	return resource.NewQuantity(usage, resource.BinarySI)
 }
 
+// swapUsage converts swap usage bytes into a resource quantity.
+func swapUsage(swapStats *statsapi.SwapStats) *resource.Quantity {
+	if !utilfeature.DefaultFeatureGate.Enabled(features.NodeSwap) || swapStats == nil || swapStats.SwapUsageBytes == nil {
+		return &resource.Quantity{Format: resource.BinarySI}
+	}
+	usage := int64(*swapStats.SwapUsageBytes)
+	return resource.NewQuantity(usage, resource.BinarySI)
+}
+
 // processUsage converts working set into a process count.
 func processUsage(processStats *statsapi.ProcessStats) uint64 {
 	if processStats == nil || processStats.ProcessCount == nil {
@@ -692,10 +701,22 @@ func exceedMemoryRequests(stats statsFunc) cmpFunc {
 			return cmpBool(!p1Found, !p2Found)
 		}
 
+		p1Swap := swapUsage(p1Stats.Swap)
+		p2Swap := swapUsage(p2Stats.Swap)
 		p1Memory := memoryUsage(p1Stats.Memory)
 		p2Memory := memoryUsage(p2Stats.Memory)
-		p1ExceedsRequests := p1Memory.Cmp(v1resource.GetResourceRequestQuantity(p1, v1.ResourceMemory)) == 1
-		p2ExceedsRequests := p2Memory.Cmp(v1resource.GetResourceRequestQuantity(p2, v1.ResourceMemory)) == 1
+
+		p1MemAndSwap := p1Swap.DeepCopy()
+		p2MemAndSwap := p2Swap.DeepCopy()
+		p1MemAndSwap.Add(*p1Memory)
+		p2MemAndSwap.Add(*p2Memory)
+
+		p1ExceedsRequests := p1MemAndSwap.Cmp(v1resource.GetResourceRequestQuantity(p1, v1.ResourceMemory)) == 1
+		p2ExceedsRequests := p2MemAndSwap.Cmp(v1resource.GetResourceRequestQuantity(p2, v1.ResourceMemory)) == 1
+
+		klog.V(5).InfoS("eviction ranking by exceedMemoryRequests", "pod", p1.Name, "namespace", p1.Namespace, "exceeds?", p1ExceedsRequests)
+		klog.V(5).InfoS("eviction ranking by exceedMemoryRequests", "pod", p2.Name, "namespace", p2.Namespace, "exceeds?", p2ExceedsRequests)
+
 		// prioritize evicting the pod which exceeds its requests
 		return cmpBool(p1ExceedsRequests, p2ExceedsRequests)
 	}
@@ -713,12 +734,16 @@ func memory(stats statsFunc) cmpFunc {
 
 		// adjust p1, p2 usage relative to the request (if any)
 		p1Memory := memoryUsage(p1Stats.Memory)
+		p1Swap := swapUsage(p1Stats.Swap)
 		p1Request := v1resource.GetResourceRequestQuantity(p1, v1.ResourceMemory)
 		p1Memory.Sub(p1Request)
+		p1Memory.Add(*p1Swap)
 
 		p2Memory := memoryUsage(p2Stats.Memory)
+		p2Swap := swapUsage(p2Stats.Swap)
 		p2Request := v1resource.GetResourceRequestQuantity(p2, v1.ResourceMemory)
 		p2Memory.Sub(p2Request)
+		p2Memory.Add(*p2Swap)
 
 		// prioritize evicting the pod which has the larger consumption of memory
 		return p2Memory.Cmp(*p1Memory)
@@ -1275,6 +1300,11 @@ func evictionMessage(resourceToReclaim v1.ResourceName, pod *v1.Pod, stats stats
 				case v1.ResourceMemory:
 					if containerStats.Memory != nil && containerStats.Memory.WorkingSetBytes != nil {
 						usage = resource.NewQuantity(int64(*containerStats.Memory.WorkingSetBytes), resource.BinarySI)
+					}
+					if utilfeature.DefaultFeatureGate.Enabled(features.NodeSwap) {
+						if containerStats.Swap != nil && containerStats.Swap.SwapUsageBytes != nil {
+							usage.Add(*resource.NewQuantity(int64(*containerStats.Swap.SwapUsageBytes), resource.BinarySI))
+						}
 					}
 				}
 				if usage != nil && usage.Cmp(requests) > 0 {
