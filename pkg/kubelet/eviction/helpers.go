@@ -776,12 +776,16 @@ func memory(stats statsFunc) cmpFunc {
 
 		// adjust p1, p2 usage relative to the request (if any)
 		p1Memory := memoryUsage(p1Stats.Memory)
+		p1Swap := swapUsage(p1Stats.Swap)
 		p1Request := v1resource.GetResourceRequestQuantity(p1, v1.ResourceMemory)
 		p1Memory.Sub(p1Request)
+		p1Memory.Add(*p1Swap)
 
 		p2Memory := memoryUsage(p2Stats.Memory)
+		p2Swap := swapUsage(p2Stats.Swap)
 		p2Request := v1resource.GetResourceRequestQuantity(p2, v1.ResourceMemory)
 		p2Memory.Sub(p2Request)
+		p2Memory.Add(*p2Swap)
 
 		klog.InfoS("DEBUG: memory()", "pod", p1.Name, "mem-request", p1Memory.Value())
 		klog.InfoS("DEBUG: memory()", "pod", p2.Name, "mem-request", p2Memory.Value())
@@ -1335,6 +1339,9 @@ func evictionMessage(resourceToReclaim v1.ResourceName, pod *v1.Pod, stats stats
 				case v1.ResourceMemory:
 					if containerStats.Memory != nil && containerStats.Memory.WorkingSetBytes != nil {
 						usage = resource.NewQuantity(int64(*containerStats.Memory.WorkingSetBytes), resource.BinarySI)
+					}
+					if containerStats.Swap != nil && containerStats.Swap.SwapUsageBytes != nil {
+						usage.Add(*resource.NewQuantity(int64(*containerStats.Swap.SwapUsageBytes), resource.BinarySI))
 					}
 				}
 				if usage != nil && usage.Cmp(requests) > 0 {
