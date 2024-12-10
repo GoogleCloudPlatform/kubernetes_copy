@@ -189,7 +189,7 @@ linters-settings: # please keep this alphabetized
           # Packages matched here do not have to be listed above because
           # "contextual" implies "structured".
           contextual k8s.io/api/.*
-          contextual k8s.io/apimachinery/pkg/util/runtime/.*
+          contextual k8s.io/apimachinery/.*
           contextual k8s.io/client-go/metadata/.*
           contextual k8s.io/client-go/rest/.*
           contextual k8s.io/client-go/tools/cache/.*
