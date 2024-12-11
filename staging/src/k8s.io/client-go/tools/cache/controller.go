@@ -19,13 +19,13 @@ package cache
 import (
 	"context"
 	"errors"
-	clientgofeaturegate "k8s.io/client-go/features"
 	"sync"
 	"time"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
+	clientgofeaturegate "k8s.io/client-go/features"
 	"k8s.io/utils/clock"
 )
 
