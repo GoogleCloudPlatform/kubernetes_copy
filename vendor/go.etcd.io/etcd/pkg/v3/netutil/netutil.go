@@ -16,6 +16,7 @@ package netutil
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/url"
@@ -23,9 +24,9 @@ import (
 	"sort"
 	"time"
 
-	"go.etcd.io/etcd/client/pkg/v3/types"
-
 	"go.uber.org/zap"
+
+	"go.etcd.io/etcd/client/pkg/v3/types"
 )
 
 // indirection for testing
@@ -70,14 +71,14 @@ func resolveTCPAddrs(ctx context.Context, lg *zap.Logger, urls [][]url.URL) ([][
 		for i, u := range us {
 			nu, err := url.Parse(u.String())
 			if err != nil {
-				return nil, fmt.Errorf("failed to parse %q (%v)", u.String(), err)
+				return nil, fmt.Errorf("failed to parse %q (%w)", u.String(), err)
 			}
 			nus[i] = *nu
 		}
 		for i, u := range nus {
 			h, err := resolveURL(ctx, lg, u)
 			if err != nil {
-				return nil, fmt.Errorf("failed to resolve %q (%v)", u.String(), err)
+				return nil, fmt.Errorf("failed to resolve %q (%w)", u.String(), err)
 			}
 			if h != "" {
 				nus[i].Host = h
@@ -217,6 +218,6 @@ func stringsToURLs(us []string) ([]url.URL, error) {
 }
 
 func IsNetworkTimeoutError(err error) bool {
-	nerr, ok := err.(net.Error)
-	return ok && nerr.Timeout()
+	var nerr net.Error
+	return errors.As(err, &nerr) && nerr.Timeout()
 }

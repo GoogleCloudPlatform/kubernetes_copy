@@ -13,7 +13,6 @@
 // limitations under the License.
 
 //go:build !windows
-// +build !windows
 
 package logutil
 
@@ -25,10 +24,10 @@ import (
 	"os"
 	"path/filepath"
 
-	"go.etcd.io/etcd/client/pkg/v3/systemd"
-
 	"github.com/coreos/go-systemd/v22/journal"
 	"go.uber.org/zap/zapcore"
+
+	"go.etcd.io/etcd/client/pkg/v3/systemd"
 )
 
 // NewJournalWriter wraps "io.Writer" to redirect log output

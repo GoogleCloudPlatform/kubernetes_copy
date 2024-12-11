@@ -107,8 +107,14 @@ func doHTTPConnectHandshake(ctx context.Context, conn net.Conn, backendAddr stri
 		}
 		return nil, fmt.Errorf("failed to do connect handshake, response: %q", dump)
 	}
-
-	return &bufConn{Conn: conn, r: r}, nil
+	// The buffer could contain extra bytes from the target server, so we can't
+	// discard it. However, in many cases where the server waits for the client
+	// to send the first message (e.g. when TLS is being used), the buffer will
+	// be empty, so we can avoid the overhead of reading through this buffer.
+	if r.Buffered() != 0 {
+		return &bufConn{Conn: conn, r: r}, nil
+	}
+	return conn, nil
 }
 
 // proxyDial dials, connecting to a proxy first if necessary. Checks if a proxy

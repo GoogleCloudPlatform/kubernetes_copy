@@ -74,7 +74,6 @@ func (q *statsQueue) Insert(p *RequestStats) {
 
 	q.items[q.back] = p
 	q.totalReqSize += q.items[q.back].Size
-
 }
 
 // Rate function returns the package rate and byte rate

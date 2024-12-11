@@ -8,6 +8,8 @@ import "etcd/api/mvccpb/kv.proto";
 // for grpc-gateway
 import "google/api/annotations.proto";
 
+option go_package = "go.etcd.io/etcd/server/v3/etcdserver/api/v3election/v3electionpb";
+
 option (gogoproto.marshaler_all) = true;
 option (gogoproto.unmarshaler_all) = true;
 

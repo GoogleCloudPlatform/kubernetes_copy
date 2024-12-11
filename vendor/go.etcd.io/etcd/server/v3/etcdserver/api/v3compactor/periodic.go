@@ -16,14 +16,15 @@ package v3compactor
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 
-	pb "go.etcd.io/etcd/api/v3/etcdserverpb"
-	"go.etcd.io/etcd/server/v3/mvcc"
-
 	"github.com/jonboulle/clockwork"
 	"go.uber.org/zap"
+
+	pb "go.etcd.io/etcd/api/v3/etcdserverpb"
+	"go.etcd.io/etcd/server/v3/storage/mvcc"
 )
 
 // Periodic compacts the log by purging revisions older than
@@ -54,8 +55,9 @@ func newPeriodic(lg *zap.Logger, clock clockwork.Clock, h time.Duration, rg RevG
 		period: h,
 		rg:     rg,
 		c:      c,
-		revs:   make([]int64, 0),
 	}
+	// revs won't be longer than the retentions.
+	pc.revs = make([]int64, 0, pc.getRetentions())
 	pc.ctx, pc.cancel = context.WithCancel(context.Background())
 	return pc
 }
@@ -66,7 +68,7 @@ Compaction period 1-hour:
   2. record revisions for every 1/10 of 1-hour (6-minute)
   3. keep recording revisions with no compaction for first 1-hour
   4. do compact with revs[0]
-	- success? contiue on for-loop and move sliding window; revs = revs[1:]
+	- success? continue on for-loop and move sliding window; revs = revs[1:]
 	- failure? update revs, and retry after 1/10 of 1-hour (6-minute)
 
 Compaction period 24-hour:
@@ -74,7 +76,7 @@ Compaction period 24-hour:
   2. record revisions for every 1/10 of 1-hour (6-minute)
   3. keep recording revisions with no compaction for first 24-hour
   4. do compact with revs[0]
-	- success? contiue on for-loop and move sliding window; revs = revs[1:]
+	- success? continue on for-loop and move sliding window; revs = revs[1:]
 	- failure? update revs, and retry after 1/10 of 1-hour (6-minute)
 
 Compaction period 59-min:
@@ -82,7 +84,7 @@ Compaction period 59-min:
   2. record revisions for every 1/10 of 59-min (5.9-min)
   3. keep recording revisions with no compaction for first 59-min
   4. do compact with revs[0]
-	- success? contiue on for-loop and move sliding window; revs = revs[1:]
+	- success? continue on for-loop and move sliding window; revs = revs[1:]
 	- failure? update revs, and retry after 1/10 of 59-min (5.9-min)
 
 Compaction period 5-sec:
@@ -90,7 +92,7 @@ Compaction period 5-sec:
   2. record revisions for every 1/10 of 5-sec (0.5-sec)
   3. keep recording revisions with no compaction for first 5-sec
   4. do compact with revs[0]
-	- success? contiue on for-loop and move sliding window; revs = revs[1:]
+	- success? continue on for-loop and move sliding window; revs = revs[1:]
 	- failure? update revs, and retry after 1/10 of 5-sec (0.5-sec)
 */
 
@@ -101,6 +103,7 @@ func (pc *Periodic) Run() {
 	retentions := pc.getRetentions()
 
 	go func() {
+		lastRevision := int64(0)
 		lastSuccess := pc.clock.Now()
 		baseInterval := pc.period
 		for {
@@ -113,15 +116,15 @@ func (pc *Periodic) Run() {
 			case <-pc.ctx.Done():
 				return
 			case <-pc.clock.After(retryInterval):
-				pc.mu.Lock()
+				pc.mu.RLock()
 				p := pc.paused
-				pc.mu.Unlock()
+				pc.mu.RUnlock()
 				if p {
 					continue
 				}
 			}
-
-			if pc.clock.Now().Sub(lastSuccess) < baseInterval {
+			rev := pc.revs[0]
+			if pc.clock.Now().Sub(lastSuccess) < baseInterval || rev == lastRevision {
 				continue
 			}
 
@@ -129,7 +132,6 @@ func (pc *Periodic) Run() {
 			if baseInterval == pc.period {
 				baseInterval = compactInterval
 			}
-			rev := pc.revs[0]
 
 			pc.lg.Info(
 				"starting auto periodic compaction",
@@ -138,13 +140,14 @@ func (pc *Periodic) Run() {
 			)
 			startTime := pc.clock.Now()
 			_, err := pc.c.Compact(pc.ctx, &pb.CompactionRequest{Revision: rev})
-			if err == nil || err == mvcc.ErrCompacted {
+			if err == nil || errors.Is(err, mvcc.ErrCompacted) {
 				pc.lg.Info(
 					"completed auto periodic compaction",
 					zap.Int64("revision", rev),
 					zap.Duration("compact-period", pc.period),
 					zap.Duration("took", pc.clock.Now().Sub(startTime)),
 				)
+				lastRevision = rev
 				lastSuccess = pc.clock.Now()
 			} else {
 				pc.lg.Warn(

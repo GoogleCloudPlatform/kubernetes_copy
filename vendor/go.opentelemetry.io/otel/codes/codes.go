@@ -83,7 +83,7 @@ func (c *Code) UnmarshalJSON(b []byte) error {
 				return fmt.Errorf("invalid code: %q", ci)
 			}
 
-			*c = Code(ci)
+			*c = Code(ci) // nolint: gosec  // Bit size of 32 check above.
 			return nil
 		}
 		return fmt.Errorf("invalid code: %q", string(b))

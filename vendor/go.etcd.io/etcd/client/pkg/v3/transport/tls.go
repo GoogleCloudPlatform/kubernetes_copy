@@ -16,6 +16,7 @@ package transport
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -46,7 +47,7 @@ func ValidateSecureEndpoints(tlsInfo TLSInfo, eps []string) ([]string, error) {
 		endpoints = append(endpoints, ep)
 	}
 	if len(errs) != 0 {
-		err = fmt.Errorf("%s", strings.Join(errs, ","))
+		err = errors.New(strings.Join(errs, ","))
 	}
 	return endpoints, err
 }

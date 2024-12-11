@@ -13,11 +13,11 @@
 // limitations under the License.
 
 //go:build linux
-// +build linux
 
 package fileutil
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -59,13 +59,13 @@ func TryLockFile(path string, flag int, perm os.FileMode) (*LockedFile, error) {
 func ofdTryLockFile(path string, flag int, perm os.FileMode) (*LockedFile, error) {
 	f, err := os.OpenFile(path, flag, perm)
 	if err != nil {
-		return nil, fmt.Errorf("ofdTryLockFile failed to open %q (%v)", path, err)
+		return nil, fmt.Errorf("ofdTryLockFile failed to open %q (%w)", path, err)
 	}
 
 	flock := wrlck
 	if err = syscall.FcntlFlock(f.Fd(), unix.F_OFD_SETLK, &flock); err != nil {
 		f.Close()
-		if err == syscall.EWOULDBLOCK {
+		if errors.Is(err, syscall.EWOULDBLOCK) {
 			err = ErrLocked
 		}
 		return nil, err
@@ -80,7 +80,7 @@ func LockFile(path string, flag int, perm os.FileMode) (*LockedFile, error) {
 func ofdLockFile(path string, flag int, perm os.FileMode) (*LockedFile, error) {
 	f, err := os.OpenFile(path, flag, perm)
 	if err != nil {
-		return nil, fmt.Errorf("ofdLockFile failed to open %q (%v)", path, err)
+		return nil, fmt.Errorf("ofdLockFile failed to open %q (%w)", path, err)
 	}
 
 	flock := wrlck

@@ -90,7 +90,7 @@ func (e *Election) Campaign(ctx context.Context, val string) error {
 		}
 	}
 
-	_, err = waitDeletes(ctx, client, e.keyPrefix, e.leaderRev-1)
+	err = waitDeletes(ctx, client, e.keyPrefix, e.leaderRev-1)
 	if err != nil {
 		// clean up in case of context cancel
 		select {

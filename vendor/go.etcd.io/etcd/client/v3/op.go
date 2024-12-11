@@ -124,6 +124,10 @@ func (op Op) IsKeysOnly() bool { return op.keysOnly }
 // IsCountOnly returns whether countOnly is set.
 func (op Op) IsCountOnly() bool { return op.countOnly }
 
+func (op Op) IsOptsWithFromKey() bool { return op.isOptsWithFromKey }
+
+func (op Op) IsOptsWithPrefix() bool { return op.isOptsWithPrefix }
+
 // MinModRev returns the operation's minimum modify revision.
 func (op Op) MinModRev() int64 { return op.minModRev }
 
@@ -418,9 +422,15 @@ func WithFromKey() OpOption {
 	}
 }
 
-// WithSerializable makes 'Get' request serializable. By default,
-// it's linearizable. Serializable requests are better for lower latency
-// requirement.
+// WithSerializable makes `Get` and `MemberList` requests serializable.
+// By default, they are linearizable. Serializable requests are better
+// for lower latency requirement, but users should be aware that they
+// could get stale data with serializable requests.
+//
+// In some situations users may want to use serializable requests. For
+// example, when adding a new member to a one-node cluster, it's reasonable
+// and safe to use serializable request before the new added member gets
+// started.
 func WithSerializable() OpOption {
 	return func(op *Op) { op.serializable = true }
 }
@@ -580,4 +590,20 @@ func IsOptsWithFromKey(opts []OpOption) bool {
 	}
 
 	return ret.isOptsWithFromKey
+}
+
+func (op Op) IsSortOptionValid() bool {
+	if op.sort != nil {
+		sortOrder := int32(op.sort.Order)
+		sortTarget := int32(op.sort.Target)
+
+		if _, ok := pb.RangeRequest_SortOrder_name[sortOrder]; !ok {
+			return false
+		}
+
+		if _, ok := pb.RangeRequest_SortTarget_name[sortTarget]; !ok {
+			return false
+		}
+	}
+	return true
 }

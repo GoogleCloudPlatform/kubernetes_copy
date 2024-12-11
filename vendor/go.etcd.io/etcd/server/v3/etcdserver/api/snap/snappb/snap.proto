@@ -3,6 +3,8 @@ package snappb;
 
 import "gogoproto/gogo.proto";
 
+option go_package = "go.etcd.io/etcd/server/v3/etcdserver/api/snap/snappb";
+
 option (gogoproto.marshaler_all) = true;
 option (gogoproto.sizer_all) = true;
 option (gogoproto.unmarshaler_all) = true;

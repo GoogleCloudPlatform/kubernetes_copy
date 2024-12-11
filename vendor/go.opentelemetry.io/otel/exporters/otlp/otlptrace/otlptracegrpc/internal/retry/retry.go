@@ -112,7 +112,7 @@ func (c Config) RequestFunc(evaluate EvaluateFunc) RequestFunc {
 			}
 
 			if ctxErr := waitFunc(ctx, delay); ctxErr != nil {
-				return fmt.Errorf("%w: %s", ctxErr, err)
+				return fmt.Errorf("%w: %w", ctxErr, err)
 			}
 		}
 	}

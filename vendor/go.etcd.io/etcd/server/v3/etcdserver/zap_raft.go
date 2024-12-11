@@ -17,10 +17,10 @@ package etcdserver
 import (
 	"errors"
 
-	"go.etcd.io/etcd/raft/v3"
-
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+
+	"go.etcd.io/raft/v3"
 )
 
 // NewRaftLogger builds "raft.Logger" from "*zap.Config".
@@ -37,7 +37,8 @@ func NewRaftLogger(lcfg *zap.Config) (raft.Logger, error) {
 
 // NewRaftLoggerZap converts "*zap.Logger" to "raft.Logger".
 func NewRaftLoggerZap(lg *zap.Logger) raft.Logger {
-	return &zapRaftLogger{lg: lg, sugar: lg.Sugar()}
+	skipCallerLg := lg.WithOptions(zap.AddCallerSkip(1))
+	return &zapRaftLogger{lg: skipCallerLg, sugar: skipCallerLg.Sugar()}
 }
 
 // NewRaftLoggerFromZapCore creates "raft.Logger" from "zap.Core"
@@ -53,50 +54,50 @@ type zapRaftLogger struct {
 	sugar *zap.SugaredLogger
 }
 
-func (zl *zapRaftLogger) Debug(args ...interface{}) {
+func (zl *zapRaftLogger) Debug(args ...any) {
 	zl.sugar.Debug(args...)
 }
 
-func (zl *zapRaftLogger) Debugf(format string, args ...interface{}) {
+func (zl *zapRaftLogger) Debugf(format string, args ...any) {
 	zl.sugar.Debugf(format, args...)
 }
 
-func (zl *zapRaftLogger) Error(args ...interface{}) {
+func (zl *zapRaftLogger) Error(args ...any) {
 	zl.sugar.Error(args...)
 }
 
-func (zl *zapRaftLogger) Errorf(format string, args ...interface{}) {
+func (zl *zapRaftLogger) Errorf(format string, args ...any) {
 	zl.sugar.Errorf(format, args...)
 }
 
-func (zl *zapRaftLogger) Info(args ...interface{}) {
+func (zl *zapRaftLogger) Info(args ...any) {
 	zl.sugar.Info(args...)
 }
 
-func (zl *zapRaftLogger) Infof(format string, args ...interface{}) {
+func (zl *zapRaftLogger) Infof(format string, args ...any) {
 	zl.sugar.Infof(format, args...)
 }
 
-func (zl *zapRaftLogger) Warning(args ...interface{}) {
+func (zl *zapRaftLogger) Warning(args ...any) {
 	zl.sugar.Warn(args...)
 }
 
-func (zl *zapRaftLogger) Warningf(format string, args ...interface{}) {
+func (zl *zapRaftLogger) Warningf(format string, args ...any) {
 	zl.sugar.Warnf(format, args...)
 }
 
-func (zl *zapRaftLogger) Fatal(args ...interface{}) {
+func (zl *zapRaftLogger) Fatal(args ...any) {
 	zl.sugar.Fatal(args...)
 }
 
-func (zl *zapRaftLogger) Fatalf(format string, args ...interface{}) {
+func (zl *zapRaftLogger) Fatalf(format string, args ...any) {
 	zl.sugar.Fatalf(format, args...)
 }
 
-func (zl *zapRaftLogger) Panic(args ...interface{}) {
+func (zl *zapRaftLogger) Panic(args ...any) {
 	zl.sugar.Panic(args...)
 }
 
-func (zl *zapRaftLogger) Panicf(format string, args ...interface{}) {
+func (zl *zapRaftLogger) Panicf(format string, args ...any) {
 	zl.sugar.Panicf(format, args...)
 }

@@ -37,6 +37,9 @@ var (
 	// MetricsScheduler allows only scheduler metrics to be collected from Go runtime.
 	// e.g. go_sched_goroutines_goroutines
 	MetricsScheduler = GoRuntimeMetricsRule{regexp.MustCompile(`^/sched/.*`)}
+	// MetricsDebug allows only debug metrics to be collected from Go runtime.
+	// e.g. go_godebug_non_default_behavior_gocachetest_events_total
+	MetricsDebug = GoRuntimeMetricsRule{regexp.MustCompile(`^/godebug/.*`)}
 )
 
 // WithGoCollectorMemStatsMetricsDisabled disables metrics that is gathered in runtime.MemStats structure such as:
@@ -44,7 +47,6 @@ var (
 // go_memstats_alloc_bytes
 // go_memstats_alloc_bytes_total
 // go_memstats_sys_bytes
-// go_memstats_lookups_total
 // go_memstats_mallocs_total
 // go_memstats_frees_total
 // go_memstats_heap_alloc_bytes

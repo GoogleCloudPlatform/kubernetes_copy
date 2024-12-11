@@ -1,4 +1,4 @@
-// Copyright 2022 The etcd Authors
+// Copyright 2021 The etcd Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	tracesdk "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
 	"go.uber.org/zap"
 )
 
@@ -98,6 +98,7 @@ func newTracingExporter(ctx context.Context, cfg *Config) (*tracingExporter, err
 		zap.String("address", cfg.ExperimentalDistributedTracingAddress),
 		zap.String("service-name", cfg.ExperimentalDistributedTracingServiceName),
 		zap.String("service-instance-id", cfg.ExperimentalDistributedTracingServiceInstanceID),
+		zap.Int("sampling-rate", cfg.ExperimentalDistributedTracingSamplingRatePerMillion),
 	)
 
 	return &tracingExporter{
@@ -111,7 +112,6 @@ func (te *tracingExporter) Close(ctx context.Context) {
 	if te.provider != nil {
 		te.provider.Shutdown(ctx)
 	}
-
 	if te.exporter != nil {
 		te.exporter.Shutdown(ctx)
 	}

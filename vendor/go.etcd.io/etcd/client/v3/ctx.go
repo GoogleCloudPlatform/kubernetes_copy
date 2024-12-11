@@ -17,9 +17,10 @@ package clientv3
 import (
 	"context"
 
+	"google.golang.org/grpc/metadata"
+
 	"go.etcd.io/etcd/api/v3/v3rpc/rpctypes"
 	"go.etcd.io/etcd/api/v3/version"
-	"google.golang.org/grpc/metadata"
 )
 
 // WithRequireLeader requires client requests to only succeed

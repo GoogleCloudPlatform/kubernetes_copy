@@ -25,17 +25,15 @@ import (
 	"net/http"
 	"path"
 	"strings"
-	"time"
-
-	"go.uber.org/zap"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"go.uber.org/zap"
+
 	pb "go.etcd.io/etcd/api/v3/etcdserverpb"
 	"go.etcd.io/etcd/client/pkg/v3/types"
-	"go.etcd.io/etcd/raft/v3"
 	"go.etcd.io/etcd/server/v3/auth"
 	"go.etcd.io/etcd/server/v3/config"
-	"go.etcd.io/etcd/server/v3/etcdserver"
+	"go.etcd.io/raft/v3"
 )
 
 const (
@@ -49,28 +47,11 @@ const (
 )
 
 type ServerHealth interface {
-	serverHealthV2V3
+	Alarms() []*pb.AlarmMember
+	Leader() types.ID
 	Range(context.Context, *pb.RangeRequest) (*pb.RangeResponse, error)
 	Config() config.ServerConfig
 	AuthStore() auth.AuthStore
-}
-
-type serverHealthV2V3 interface {
-	Alarms() []*pb.AlarmMember
-	Leader() types.ID
-}
-
-// HandleHealthForV2 registers metrics and health handlers for v2.
-func HandleHealthForV2(lg *zap.Logger, mux *http.ServeMux, srv etcdserver.ServerV2) {
-	mux.Handle(PathHealth, NewHealthHandler(lg, func(ctx context.Context, excludedAlarms StringSet, serializable bool) Health {
-		if h := checkAlarms(lg, srv, excludedAlarms); h.Health != "true" {
-			return h
-		}
-		if h := checkLeader(lg, srv, serializable); h.Health != "true" {
-			return h
-		}
-		return checkV2API(ctx, lg, srv)
-	}))
 }
 
 // HandleHealth registers metrics and health handlers. it checks health by using v3 range request
@@ -196,56 +177,39 @@ func getSerializableFlag(r *http.Request) bool {
 
 // TODO: etcdserver.ErrNoLeader in health API
 
-func checkAlarms(lg *zap.Logger, srv serverHealthV2V3, excludedAlarms StringSet) Health {
+func checkAlarms(lg *zap.Logger, srv ServerHealth, excludedAlarms StringSet) Health {
 	h := Health{Health: "true"}
-	as := srv.Alarms()
-	if len(as) > 0 {
-		for _, v := range as {
-			alarmName := v.Alarm.String()
-			if _, found := excludedAlarms[alarmName]; found {
-				lg.Debug("/health excluded alarm", zap.String("alarm", v.String()))
-				continue
-			}
 
-			h.Health = "false"
-			switch v.Alarm {
-			case pb.AlarmType_NOSPACE:
-				h.Reason = "ALARM NOSPACE"
-			case pb.AlarmType_CORRUPT:
-				h.Reason = "ALARM CORRUPT"
-			default:
-				h.Reason = "ALARM UNKNOWN"
-			}
-			lg.Warn("serving /health false due to an alarm", zap.String("alarm", v.String()))
-			return h
+	for _, v := range srv.Alarms() {
+		alarmName := v.Alarm.String()
+		if _, found := excludedAlarms[alarmName]; found {
+			lg.Debug("/health excluded alarm", zap.String("alarm", v.String()))
+			continue
 		}
+
+		h.Health = "false"
+		switch v.Alarm {
+		case pb.AlarmType_NOSPACE:
+			h.Reason = "ALARM NOSPACE"
+		case pb.AlarmType_CORRUPT:
+			h.Reason = "ALARM CORRUPT"
+		default:
+			h.Reason = "ALARM UNKNOWN"
+		}
+		lg.Warn("serving /health false due to an alarm", zap.String("alarm", v.String()))
+		return h
 	}
 
 	return h
 }
 
-func checkLeader(lg *zap.Logger, srv serverHealthV2V3, serializable bool) Health {
+func checkLeader(lg *zap.Logger, srv ServerHealth, serializable bool) Health {
 	h := Health{Health: "true"}
 	if !serializable && (uint64(srv.Leader()) == raft.None) {
 		h.Health = "false"
 		h.Reason = "RAFT NO LEADER"
 		lg.Warn("serving /health false; no leader")
 	}
-	return h
-}
-
-func checkV2API(ctx context.Context, lg *zap.Logger, srv etcdserver.ServerV2) Health {
-	h := Health{Health: "true"}
-	ctx, cancel := context.WithTimeout(ctx, time.Second)
-	_, err := srv.Do(ctx, pb.Request{Method: "QGET"})
-	cancel()
-	if err != nil {
-		h.Health = "false"
-		h.Reason = fmt.Sprintf("QGET ERROR:%s", err)
-		lg.Warn("serving /health false; QGET fails", zap.Error(err))
-		return h
-	}
-	lg.Debug("serving /health true")
 	return h
 }
 
@@ -276,7 +240,7 @@ type CheckRegistry struct {
 func installLivezEndpoints(lg *zap.Logger, mux *http.ServeMux, server ServerHealth) {
 	reg := CheckRegistry{checkType: checkTypeLivez, checks: make(map[string]HealthCheck)}
 	reg.Register("serializable_read", readCheck(server, true /* serializable */))
-	reg.InstallHttpEndpoints(lg, mux)
+	reg.InstallHTTPEndpoints(lg, mux)
 }
 
 func installReadyzEndpoints(lg *zap.Logger, mux *http.ServeMux, server ServerHealth) {
@@ -288,7 +252,7 @@ func installReadyzEndpoints(lg *zap.Logger, mux *http.ServeMux, server ServerHea
 	reg.Register("serializable_read", readCheck(server, true))
 	// linearizable_read check would be replaced by read_index check in 3.6
 	reg.Register("linearizable_read", readCheck(server, false))
-	reg.InstallHttpEndpoints(lg, mux)
+	reg.InstallHTTPEndpoints(lg, mux)
 }
 
 func (reg *CheckRegistry) Register(name string, check HealthCheck) {
@@ -299,14 +263,23 @@ func (reg *CheckRegistry) RootPath() string {
 	return "/" + reg.checkType
 }
 
+// InstallHttpEndpoints installs the http handlers for the health checks.
+//
+// Deprecated: Please use (*CheckRegistry) InstallHTTPEndpoints instead.
+//
+//revive:disable-next-line:var-naming
 func (reg *CheckRegistry) InstallHttpEndpoints(lg *zap.Logger, mux *http.ServeMux) {
+	reg.InstallHTTPEndpoints(lg, mux)
+}
+
+func (reg *CheckRegistry) InstallHTTPEndpoints(lg *zap.Logger, mux *http.ServeMux) {
 	checkNames := make([]string, 0, len(reg.checks))
 	for k := range reg.checks {
 		checkNames = append(checkNames, k)
 	}
 
 	// installs the http handler for the root path.
-	reg.installRootHttpEndpoint(lg, mux, checkNames...)
+	reg.installRootHTTPEndpoint(lg, mux, checkNames...)
 	for _, checkName := range checkNames {
 		// installs the http handler for the individual check sub path.
 		subpath := path.Join(reg.RootPath(), checkName)
@@ -338,8 +311,8 @@ func (reg *CheckRegistry) runHealthChecks(ctx context.Context, checkNames ...str
 	return h
 }
 
-// installRootHttpEndpoint installs the http handler for the root path.
-func (reg *CheckRegistry) installRootHttpEndpoint(lg *zap.Logger, mux *http.ServeMux, checks ...string) {
+// installRootHTTPEndpoint installs the http handler for the root path.
+func (reg *CheckRegistry) installRootHTTPEndpoint(lg *zap.Logger, mux *http.ServeMux, checks ...string) {
 	hfunc := func(r *http.Request) HealthStatus {
 		// extracts the health check names to be excludeList from the query param
 		excluded := getQuerySet(r, "exclude")

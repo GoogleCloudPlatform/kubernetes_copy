@@ -99,7 +99,7 @@ func (s snapshot) InstrumentationScope() instrumentation.Scope {
 
 // InstrumentationLibrary returns information about the instrumentation
 // library that created the span.
-func (s snapshot) InstrumentationLibrary() instrumentation.Library {
+func (s snapshot) InstrumentationLibrary() instrumentation.Library { //nolint:staticcheck // This method needs to be define for backwards compatibility
 	return s.instrumentationScope
 }
 

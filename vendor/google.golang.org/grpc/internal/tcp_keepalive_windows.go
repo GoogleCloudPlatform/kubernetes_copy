@@ -44,7 +44,7 @@ func NetDialerWithTCPKeepalive() *net.Dialer {
 		// combination of unconditionally enabling TCP keepalives here, and
 		// disabling the overriding of TCP keepalive parameters by setting the
 		// KeepAlive field to a negative value above, results in OS defaults for
-		// the TCP keealive interval and time parameters.
+		// the TCP keepalive interval and time parameters.
 		Control: func(_, _ string, c syscall.RawConn) error {
 			return c.Control(func(fd uintptr) {
 				windows.SetsockoptInt(windows.Handle(fd), windows.SOL_SOCKET, windows.SO_KEEPALIVE, 1)

@@ -62,7 +62,6 @@ func (eNode *NodeExtern) loadInternalNode(n *node, recursive, sorted bool, clock
 		if sorted {
 			sort.Sort(eNode.Nodes)
 		}
-
 	} else { // node is a file
 		value, _ := n.Read()
 		eNode.Value = &value

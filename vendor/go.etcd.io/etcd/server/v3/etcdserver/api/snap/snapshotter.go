@@ -18,7 +18,6 @@ import (
 	"errors"
 	"fmt"
 	"hash/crc32"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
@@ -26,14 +25,15 @@ import (
 	"strings"
 	"time"
 
+	"go.uber.org/zap"
+
+	"go.etcd.io/etcd/client/pkg/v3/verify"
 	pioutil "go.etcd.io/etcd/pkg/v3/ioutil"
 	"go.etcd.io/etcd/pkg/v3/pbutil"
-	"go.etcd.io/etcd/raft/v3"
-	"go.etcd.io/etcd/raft/v3/raftpb"
 	"go.etcd.io/etcd/server/v3/etcdserver/api/snap/snappb"
-	"go.etcd.io/etcd/server/v3/wal/walpb"
-
-	"go.uber.org/zap"
+	"go.etcd.io/etcd/server/v3/storage/wal/walpb"
+	"go.etcd.io/raft/v3"
+	"go.etcd.io/raft/v3/raftpb"
 )
 
 const snapSuffix = ".snap"
@@ -95,7 +95,7 @@ func (s *Snapshotter) save(snapshot *raftpb.Snapshot) error {
 		s.lg.Warn("failed to write a snap file", zap.String("path", spath), zap.Error(err))
 		rerr := os.Remove(spath)
 		if rerr != nil {
-			s.lg.Warn("failed to remove a broken snap file", zap.String("path", spath), zap.Error(err))
+			s.lg.Warn("failed to remove a broken snap file", zap.String("path", spath), zap.Error(rerr))
 		}
 		return err
 	}
@@ -130,29 +130,23 @@ func (s *Snapshotter) loadMatching(matchFn func(*raftpb.Snapshot) bool) (*raftpb
 	}
 	var snap *raftpb.Snapshot
 	for _, name := range names {
-		if snap, err = loadSnap(s.lg, s.dir, name); err == nil && matchFn(snap) {
+		if snap, err = s.loadSnap(name); err == nil && matchFn(snap) {
 			return snap, nil
 		}
 	}
 	return nil, ErrNoSnapshot
 }
 
-func loadSnap(lg *zap.Logger, dir, name string) (*raftpb.Snapshot, error) {
-	fpath := filepath.Join(dir, name)
-	snap, err := Read(lg, fpath)
+func (s *Snapshotter) loadSnap(name string) (*raftpb.Snapshot, error) {
+	fpath := filepath.Join(s.dir, name)
+	snap, err := Read(s.lg, fpath)
 	if err != nil {
 		brokenPath := fpath + ".broken"
-		if lg != nil {
-			lg.Warn("failed to read a snap file", zap.String("path", fpath), zap.Error(err))
-		}
+		s.lg.Warn("failed to read a snap file", zap.String("path", fpath), zap.Error(err))
 		if rerr := os.Rename(fpath, brokenPath); rerr != nil {
-			if lg != nil {
-				lg.Warn("failed to rename a broken snap file", zap.String("path", fpath), zap.String("broken-path", brokenPath), zap.Error(rerr))
-			}
+			s.lg.Warn("failed to rename a broken snap file", zap.String("path", fpath), zap.String("broken-path", brokenPath), zap.Error(rerr))
 		} else {
-			if lg != nil {
-				lg.Warn("renamed to a broken snap file", zap.String("path", fpath), zap.String("broken-path", brokenPath))
-			}
+			s.lg.Warn("renamed to a broken snap file", zap.String("path", fpath), zap.String("broken-path", brokenPath))
 		}
 	}
 	return snap, err
@@ -160,53 +154,42 @@ func loadSnap(lg *zap.Logger, dir, name string) (*raftpb.Snapshot, error) {
 
 // Read reads the snapshot named by snapname and returns the snapshot.
 func Read(lg *zap.Logger, snapname string) (*raftpb.Snapshot, error) {
-	b, err := ioutil.ReadFile(snapname)
+	verify.Assert(lg != nil, "the logger should not be nil")
+	b, err := os.ReadFile(snapname)
 	if err != nil {
-		if lg != nil {
-			lg.Warn("failed to read a snap file", zap.String("path", snapname), zap.Error(err))
-		}
+		lg.Warn("failed to read a snap file", zap.String("path", snapname), zap.Error(err))
 		return nil, err
 	}
 
 	if len(b) == 0 {
-		if lg != nil {
-			lg.Warn("failed to read empty snapshot file", zap.String("path", snapname))
-		}
+		lg.Warn("failed to read empty snapshot file", zap.String("path", snapname))
 		return nil, ErrEmptySnapshot
 	}
 
 	var serializedSnap snappb.Snapshot
 	if err = serializedSnap.Unmarshal(b); err != nil {
-		if lg != nil {
-			lg.Warn("failed to unmarshal snappb.Snapshot", zap.String("path", snapname), zap.Error(err))
-		}
+		lg.Warn("failed to unmarshal snappb.Snapshot", zap.String("path", snapname), zap.Error(err))
 		return nil, err
 	}
 
 	if len(serializedSnap.Data) == 0 || serializedSnap.Crc == 0 {
-		if lg != nil {
-			lg.Warn("failed to read empty snapshot data", zap.String("path", snapname))
-		}
+		lg.Warn("failed to read empty snapshot data", zap.String("path", snapname))
 		return nil, ErrEmptySnapshot
 	}
 
 	crc := crc32.Update(0, crcTable, serializedSnap.Data)
 	if crc != serializedSnap.Crc {
-		if lg != nil {
-			lg.Warn("snap file is corrupt",
-				zap.String("path", snapname),
-				zap.Uint32("prev-crc", serializedSnap.Crc),
-				zap.Uint32("new-crc", crc),
-			)
-		}
+		lg.Warn("snap file is corrupt",
+			zap.String("path", snapname),
+			zap.Uint32("prev-crc", serializedSnap.Crc),
+			zap.Uint32("new-crc", crc),
+		)
 		return nil, ErrCRCMismatch
 	}
 
 	var snap raftpb.Snapshot
 	if err = snap.Unmarshal(serializedSnap.Data); err != nil {
-		if lg != nil {
-			lg.Warn("failed to unmarshal raftpb.Snapshot", zap.String("path", snapname), zap.Error(err))
-		}
+		lg.Warn("failed to unmarshal raftpb.Snapshot", zap.String("path", snapname), zap.Error(err))
 		return nil, err
 	}
 	return &snap, nil
@@ -228,7 +211,7 @@ func (s *Snapshotter) snapNames() ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	snaps := checkSuffix(s.lg, filenames)
+	snaps := s.checkSuffix(filenames)
 	if len(snaps) == 0 {
 		return nil, ErrNoSnapshot
 	}
@@ -236,18 +219,16 @@ func (s *Snapshotter) snapNames() ([]string, error) {
 	return snaps, nil
 }
 
-func checkSuffix(lg *zap.Logger, names []string) []string {
-	snaps := []string{}
+func (s *Snapshotter) checkSuffix(names []string) []string {
+	var snaps []string
 	for i := range names {
 		if strings.HasSuffix(names[i], snapSuffix) {
 			snaps = append(snaps, names[i])
 		} else {
 			// If we find a file which is not a snapshot then check if it's
-			// a vaild file. If not throw out a warning.
+			// a valid file. If not throw out a warning.
 			if _, ok := validFiles[names[i]]; !ok {
-				if lg != nil {
-					lg.Warn("found unexpected non-snap file; skipping", zap.String("path", names[i]))
-				}
+				s.lg.Warn("found unexpected non-snap file; skipping", zap.String("path", names[i]))
 			}
 		}
 	}
@@ -262,7 +243,7 @@ func (s *Snapshotter) cleanupSnapdir(filenames []string) (names []string, err er
 		if strings.HasPrefix(filename, "db.tmp") {
 			s.lg.Info("found orphaned defragmentation file; deleting", zap.String("path", filename))
 			if rmErr := os.Remove(filepath.Join(s.dir, filename)); rmErr != nil && !os.IsNotExist(rmErr) {
-				return names, fmt.Errorf("failed to remove orphaned .snap.db file %s: %v", filename, rmErr)
+				return names, fmt.Errorf("failed to remove orphaned .snap.db file %s: %w", filename, rmErr)
 			}
 		} else {
 			names = append(names, filename)

@@ -4,7 +4,7 @@ We definitely welcome your patches and contributions to gRPC! Please read the gR
 organization's [governance rules](https://github.com/grpc/grpc-community/blob/master/governance.md)
 and [contribution guidelines](https://github.com/grpc/grpc-community/blob/master/CONTRIBUTING.md) before proceeding.
 
-If you are new to github, please start by reading [Pull Request howto](https://help.github.com/articles/about-pull-requests/)
+If you are new to GitHub, please start by reading [Pull Request howto](https://help.github.com/articles/about-pull-requests/)
 
 ## Legal requirements
 
@@ -25,8 +25,8 @@ How to get your contributions merged smoothly and quickly.
   is a great place to start. These issues are well-documented and usually can be
   resolved with a single pull request.
 
-- If you are adding a new file, make sure it has the copyright message template 
-  at the top as a comment. You can copy over the message from an existing file 
+- If you are adding a new file, make sure it has the copyright message template
+  at the top as a comment. You can copy over the message from an existing file
   and update the year.
 
 - The grpc package should only depend on standard Go packages and a small number
@@ -39,12 +39,12 @@ How to get your contributions merged smoothly and quickly.
   proposal](https://github.com/grpc/proposal).
 
 - Provide a good **PR description** as a record of **what** change is being made
-  and **why** it was made. Link to a github issue if it exists.
+  and **why** it was made. Link to a GitHub issue if it exists.
 
-- If you want to fix formatting or style, consider whether your changes are an 
-  obvious improvement or might be considered a personal preference. If a style 
-  change is based on preference, it likely will not be accepted. If it corrects 
-  widely agreed-upon anti-patterns, then please do create a PR and explain the 
+- If you want to fix formatting or style, consider whether your changes are an
+  obvious improvement or might be considered a personal preference. If a style
+  change is based on preference, it likely will not be accepted. If it corrects
+  widely agreed-upon anti-patterns, then please do create a PR and explain the
   benefits of the change.
 
 - Unless your PR is trivial, you should expect there will be reviewer comments

@@ -13,19 +13,18 @@
 // limitations under the License.
 
 //go:build solaris
-// +build solaris
 
 package transport
 
 import (
-	"fmt"
+	"errors"
 	"syscall"
 
 	"golang.org/x/sys/unix"
 )
 
 func setReusePort(network, address string, c syscall.RawConn) error {
-	return fmt.Errorf("port reuse is not supported on Solaris")
+	return errors.New("port reuse is not supported on Solaris")
 }
 
 func setReuseAddress(network, address string, conn syscall.RawConn) error {

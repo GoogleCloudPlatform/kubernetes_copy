@@ -1,0 +1,41 @@
+run:
+  timeout: 30m
+  skip-files:
+    - "^zz_generated.*"
+
+issues:
+  max-same-issues: 0
+  # Excluding configuration per-path, per-linter, per-text and per-source
+  exclude-rules:
+    # exclude ineffassing linter for generated files for conversion
+    - path: conversion\.go
+      linters:
+        - ineffassign
+
+linters:
+  disable-all: true
+  enable: # please keep this alphabetized
+  # Don't use soon to deprecated[1] linters that lead to false
+  # https://github.com/golangci/golangci-lint/issues/1841
+  # - deadcode
+  # - structcheck
+  # - varcheck
+    - goimports
+    - ineffassign
+    - revive
+    - staticcheck
+    - stylecheck
+    - unused
+    - unconvert # Remove unnecessary type conversions
+
+linters-settings: # please keep this alphabetized
+  goimports:
+    local-prefixes: go.etcd.io # Put imports beginning with prefix after 3rd-party packages.
+  staticcheck:
+    checks:
+      - "all"
+      - "-SA1019" # TODO(fix) Using a deprecated function, variable, constant or field
+      - "-SA2002"  # TODO(fix) Called testing.T.FailNow or SkipNow in a goroutine, which isn’t allowed
+  stylecheck:
+    checks:
+      - "ST1019"  # Importing the same package multiple times.

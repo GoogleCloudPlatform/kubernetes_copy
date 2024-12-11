@@ -1,7 +1,5 @@
 # BTree implementation for Go
 
-![Travis CI Build Status](https://api.travis-ci.org/google/btree.svg?branch=master)
-
 This package provides an in-memory B-Tree implementation for Go, useful as
 an ordered, mutable data structure.
 

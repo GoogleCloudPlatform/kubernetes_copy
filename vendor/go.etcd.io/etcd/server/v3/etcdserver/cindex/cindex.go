@@ -15,16 +15,14 @@
 package cindex
 
 import (
-	"encoding/binary"
 	"sync"
 	"sync/atomic"
 
-	"go.etcd.io/etcd/server/v3/mvcc/backend"
-	"go.etcd.io/etcd/server/v3/mvcc/buckets"
+	"go.etcd.io/etcd/server/v3/storage/backend"
+	"go.etcd.io/etcd/server/v3/storage/schema"
 )
 
 type Backend interface {
-	BatchTx() backend.BatchTx
 	ReadTx() backend.ReadTx
 }
 
@@ -48,7 +46,7 @@ type ConsistentIndexer interface {
 
 	// UnsafeSave must be called holding the lock on the tx.
 	// It saves consistentIndex to the underlying stable storage.
-	UnsafeSave(tx backend.BatchTx)
+	UnsafeSave(tx backend.UnsafeReadWriter)
 
 	// SetBackend set the available backend.BatchTx for ConsistentIndexer.
 	SetBackend(be Backend)
@@ -68,6 +66,13 @@ type consistentIndex struct {
 	// applyingIndex and applyingTerm are just temporary cache of the raftpb.Entry.Index
 	// and raftpb.Entry.Term, and they are not ready to be persisted yet. They will be
 	// saved to consistentIndex and term above in the txPostLockInsideApplyHook.
+	//
+	// TODO(ahrtr): try to remove the OnPreCommitUnsafe, and compare the
+	//  performance difference. Afterwards we can make a decision on whether
+	//  or not we should remove OnPreCommitUnsafe. If it is true, then we
+	//  can remove applyingIndex and applyingTerm, and save the e.Index and
+	//  e.Term to consistentIndex and term directly in applyEntries, and
+	//  persist them into db in the txPostLockInsideApplyHook.
 	applyingIndex uint64
 	applyingTerm  uint64
 
@@ -90,7 +95,7 @@ func (ci *consistentIndex) ConsistentIndex() uint64 {
 	ci.mutex.Lock()
 	defer ci.mutex.Unlock()
 
-	v, term := ReadConsistentIndex(ci.be.ReadTx())
+	v, term := schema.ReadConsistentIndex(ci.be.ReadTx())
 	ci.SetConsistentIndex(v, term)
 	return v
 }
@@ -100,7 +105,7 @@ func (ci *consistentIndex) UnsafeConsistentIndex() uint64 {
 		return index
 	}
 
-	v, term := unsafeReadConsistentIndex(ci.be.ReadTx())
+	v, term := schema.UnsafeReadConsistentIndex(ci.be.ReadTx())
 	ci.SetConsistentIndex(v, term)
 	return v
 }
@@ -110,10 +115,10 @@ func (ci *consistentIndex) SetConsistentIndex(v uint64, term uint64) {
 	atomic.StoreUint64(&ci.term, term)
 }
 
-func (ci *consistentIndex) UnsafeSave(tx backend.BatchTx) {
+func (ci *consistentIndex) UnsafeSave(tx backend.UnsafeReadWriter) {
 	index := atomic.LoadUint64(&ci.consistentIndex)
 	term := atomic.LoadUint64(&ci.term)
-	UnsafeUpdateConsistentIndex(tx, index, term)
+	schema.UnsafeUpdateConsistentIndex(tx, index, term)
 }
 
 func (ci *consistentIndex) SetBackend(be Backend) {
@@ -161,66 +166,11 @@ func (f *fakeConsistentIndex) SetConsistentApplyingIndex(index uint64, term uint
 	atomic.StoreUint64(&f.term, term)
 }
 
-func (f *fakeConsistentIndex) UnsafeSave(_ backend.BatchTx) {}
-func (f *fakeConsistentIndex) SetBackend(_ Backend)         {}
+func (f *fakeConsistentIndex) UnsafeSave(_ backend.UnsafeReadWriter) {}
+func (f *fakeConsistentIndex) SetBackend(_ Backend)                  {}
 
-// UnsafeCreateMetaBucket creates the `meta` bucket (if it does not exists yet).
-func UnsafeCreateMetaBucket(tx backend.BatchTx) {
-	tx.UnsafeCreateBucket(buckets.Meta)
-}
-
-// CreateMetaBucket creates the `meta` bucket (if it does not exists yet).
-func CreateMetaBucket(tx backend.BatchTx) {
+func UpdateConsistentIndexForce(tx backend.BatchTx, index uint64, term uint64) {
 	tx.LockOutsideApply()
 	defer tx.Unlock()
-	tx.UnsafeCreateBucket(buckets.Meta)
-}
-
-// unsafeGetConsistentIndex loads consistent index & term from given transaction.
-// returns 0,0 if the data are not found.
-// Term is persisted since v3.5.
-func unsafeReadConsistentIndex(tx backend.ReadTx) (uint64, uint64) {
-	_, vs := tx.UnsafeRange(buckets.Meta, buckets.MetaConsistentIndexKeyName, nil, 0)
-	if len(vs) == 0 {
-		return 0, 0
-	}
-	v := binary.BigEndian.Uint64(vs[0])
-	_, ts := tx.UnsafeRange(buckets.Meta, buckets.MetaTermKeyName, nil, 0)
-	if len(ts) == 0 {
-		return v, 0
-	}
-	t := binary.BigEndian.Uint64(ts[0])
-	return v, t
-}
-
-// ReadConsistentIndex loads consistent index and term from given transaction.
-// returns 0 if the data are not found.
-func ReadConsistentIndex(tx backend.ReadTx) (uint64, uint64) {
-	tx.Lock()
-	defer tx.Unlock()
-	return unsafeReadConsistentIndex(tx)
-}
-
-func UnsafeUpdateConsistentIndex(tx backend.BatchTx, index uint64, term uint64) {
-	if index == 0 {
-		// Never save 0 as it means that we didn't loaded the real index yet.
-		return
-	}
-
-	bs1 := make([]byte, 8)
-	binary.BigEndian.PutUint64(bs1, index)
-	// put the index into the underlying backend
-	// tx has been locked in TxnBegin, so there is no need to lock it again
-	tx.UnsafePut(buckets.Meta, buckets.MetaConsistentIndexKeyName, bs1)
-	if term > 0 {
-		bs2 := make([]byte, 8)
-		binary.BigEndian.PutUint64(bs2, term)
-		tx.UnsafePut(buckets.Meta, buckets.MetaTermKeyName, bs2)
-	}
-}
-
-func UpdateConsistentIndex(tx backend.BatchTx, index uint64, term uint64) {
-	tx.LockOutsideApply()
-	defer tx.Unlock()
-	UnsafeUpdateConsistentIndex(tx, index, term)
+	schema.UnsafeUpdateConsistentIndexForce(tx, index, term)
 }

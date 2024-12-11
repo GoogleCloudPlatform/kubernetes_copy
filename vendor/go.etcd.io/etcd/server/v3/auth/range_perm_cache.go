@@ -15,15 +15,14 @@
 package auth
 
 import (
+	"go.uber.org/zap"
+
 	"go.etcd.io/etcd/api/v3/authpb"
 	"go.etcd.io/etcd/pkg/v3/adt"
-	"go.etcd.io/etcd/server/v3/mvcc/backend"
-
-	"go.uber.org/zap"
 )
 
-func getMergedPerms(lg *zap.Logger, tx backend.ReadTx, userName string) *unifiedRangePermissions {
-	user := getUser(lg, tx, userName)
+func getMergedPerms(tx UnsafeAuthReader, userName string) *unifiedRangePermissions {
+	user := tx.UnsafeGetUser(userName)
 	if user == nil {
 		return nil
 	}
@@ -32,7 +31,7 @@ func getMergedPerms(lg *zap.Logger, tx backend.ReadTx, userName string) *unified
 	writePerms := adt.NewIntervalTree()
 
 	for _, roleName := range user.Roles {
-		role := getRole(lg, tx, roleName)
+		role := tx.UnsafeGetRole(roleName)
 		if role == nil {
 			continue
 		}
@@ -108,6 +107,7 @@ func checkKeyPoint(lg *zap.Logger, cachedPerms *unifiedRangePermissions, key []b
 }
 
 func (as *authStore) isRangeOpPermitted(userName string, key, rangeEnd []byte, permtyp authpb.Permission_Type) bool {
+	// assumption: tx is Lock()ed
 	as.rangePermCacheMu.RLock()
 	defer as.rangePermCacheMu.RUnlock()
 
@@ -127,19 +127,21 @@ func (as *authStore) isRangeOpPermitted(userName string, key, rangeEnd []byte, p
 	return checkKeyInterval(as.lg, rangePerm, key, rangeEnd, permtyp)
 }
 
-func (as *authStore) refreshRangePermCache(tx backend.ReadTx) {
+func (as *authStore) refreshRangePermCache(tx UnsafeAuthReader) {
 	// Note that every authentication configuration update calls this method and it invalidates the entire
 	// rangePermCache and reconstruct it based on information of users and roles stored in the backend.
 	// This can be a costly operation.
 	as.rangePermCacheMu.Lock()
 	defer as.rangePermCacheMu.Unlock()
 
+	as.lg.Debug("Refreshing rangePermCache")
+
 	as.rangePermCache = make(map[string]*unifiedRangePermissions)
 
-	users := getAllUsers(as.lg, tx)
+	users := tx.UnsafeGetAllUsers()
 	for _, user := range users {
 		userName := string(user.Name)
-		perms := getMergedPerms(as.lg, tx, userName)
+		perms := getMergedPerms(tx, userName)
 		if perms == nil {
 			as.lg.Error(
 				"failed to create a merged permission",
@@ -187,7 +189,7 @@ func isValidPermissionRange(key, rangeEnd []byte) bool {
 	if len(key) == 0 {
 		return false
 	}
-	if rangeEnd == nil || len(rangeEnd) == 0 { // ensure rule b1
+	if len(rangeEnd) == 0 { // ensure rule b1
 		return true
 	}
 
@@ -197,9 +199,5 @@ func isValidPermissionRange(key, rangeEnd []byte) bool {
 		return true
 	}
 
-	if isOpenEnded(rangeEnd) {
-		return true
-	}
-
-	return false
+	return isOpenEnded(rangeEnd)
 }

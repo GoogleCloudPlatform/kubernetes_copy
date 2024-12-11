@@ -23,9 +23,7 @@ import (
 	"time"
 )
 
-var (
-	ErrNotTCP = errors.New("only tcp connections have keepalive")
-)
+var ErrNotTCP = errors.New("only tcp connections have keepalive")
 
 // LimitListener returns a Listener that accepts at most n simultaneous
 // connections from the provided Listener.

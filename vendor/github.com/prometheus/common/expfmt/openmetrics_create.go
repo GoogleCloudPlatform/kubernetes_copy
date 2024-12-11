@@ -477,7 +477,7 @@ func writeOpenMetricsNameAndLabelPairs(
 	if name != "" {
 		// If the name does not pass the legacy validity check, we must put the
 		// metric name inside the braces, quoted.
-		if !model.IsValidLegacyMetricName(model.LabelValue(name)) {
+		if !model.IsValidLegacyMetricName(name) {
 			metricInsideBraces = true
 			err := w.WriteByte(separator)
 			written++

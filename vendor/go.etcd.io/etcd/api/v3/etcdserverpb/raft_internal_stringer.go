@@ -72,13 +72,13 @@ func (as *InternalRaftStringer) String() string {
 	return as.Request.String()
 }
 
-// txnRequestStringer implements a custom proto String to replace value bytes fields with value size
-// fields in any nested txn and put operations.
+// txnRequestStringer implements fmt.Stringer, a custom proto String to replace value bytes
+// fields with value size fields in any nested txn and put operations.
 type txnRequestStringer struct {
 	Request *TxnRequest
 }
 
-func NewLoggableTxnRequest(request *TxnRequest) *txnRequestStringer {
+func NewLoggableTxnRequest(request *TxnRequest) fmt.Stringer {
 	return &txnRequestStringer{request}
 }
 
@@ -155,8 +155,8 @@ func (m *loggableValueCompare) Reset()         { *m = loggableValueCompare{} }
 func (m *loggableValueCompare) String() string { return proto.CompactTextString(m) }
 func (*loggableValueCompare) ProtoMessage()    {}
 
-// loggablePutRequest implements a custom proto String to replace value bytes field with a value
-// size field.
+// loggablePutRequest implements proto.Message, a custom proto String to replace value bytes
+// field with a value size field.
 // To preserve proto encoding of the key bytes, a faked out proto type is used here.
 type loggablePutRequest struct {
 	Key         []byte `protobuf:"bytes,1,opt,name=key,proto3"`
@@ -167,7 +167,7 @@ type loggablePutRequest struct {
 	IgnoreLease bool   `protobuf:"varint,6,opt,name=ignore_lease,proto3"`
 }
 
-func NewLoggablePutRequest(request *PutRequest) *loggablePutRequest {
+func NewLoggablePutRequest(request *PutRequest) proto.Message {
 	return &loggablePutRequest{
 		request.Key,
 		int64(len(request.Value)),

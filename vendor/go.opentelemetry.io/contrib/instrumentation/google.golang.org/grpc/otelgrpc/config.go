@@ -42,6 +42,8 @@ type config struct {
 	TracerProvider    trace.TracerProvider
 	MeterProvider     metric.MeterProvider
 	SpanStartOptions  []trace.SpanStartOption
+	SpanAttributes    []attribute.KeyValue
+	MetricAttributes  []attribute.KeyValue
 
 	ReceivedEvent bool
 	SentEvent     bool
@@ -256,4 +258,30 @@ func (o spanStartOption) apply(c *config) {
 // trace.SpanOptions, which are applied to each new span.
 func WithSpanOptions(opts ...trace.SpanStartOption) Option {
 	return spanStartOption{opts}
+}
+
+type spanAttributesOption struct{ a []attribute.KeyValue }
+
+func (o spanAttributesOption) apply(c *config) {
+	if o.a != nil {
+		c.SpanAttributes = o.a
+	}
+}
+
+// WithSpanAttributes returns an Option to add custom attributes to the spans.
+func WithSpanAttributes(a ...attribute.KeyValue) Option {
+	return spanAttributesOption{a: a}
+}
+
+type metricAttributesOption struct{ a []attribute.KeyValue }
+
+func (o metricAttributesOption) apply(c *config) {
+	if o.a != nil {
+		c.MetricAttributes = o.a
+	}
+}
+
+// WithMetricAttributes returns an Option to add custom attributes to the metrics.
+func WithMetricAttributes(a ...attribute.KeyValue) Option {
+	return metricAttributesOption{a: a}
 }

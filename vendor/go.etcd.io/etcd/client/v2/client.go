@@ -19,7 +19,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"math/rand"
 	"net"
 	"net/http"
@@ -601,13 +601,15 @@ func (c *simpleHTTPClient) Do(ctx context.Context, act httpAction) (*http.Respon
 	var body []byte
 	done := make(chan struct{})
 	go func() {
-		body, err = ioutil.ReadAll(resp.Body)
+		body, err = io.ReadAll(resp.Body)
 		done <- struct{}{}
 	}()
 
 	select {
 	case <-ctx.Done():
-		resp.Body.Close()
+		if resp != nil {
+			resp.Body.Close()
+		}
 		<-done
 		return nil, nil, ctx.Err()
 	case <-done:

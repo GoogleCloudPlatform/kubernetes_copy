@@ -81,6 +81,21 @@ func HTTPError(ctx context.Context, mux *ServeMux, marshaler Marshaler, w http.R
 	mux.errorHandler(ctx, mux, marshaler, w, r, err)
 }
 
+// HTTPStreamError uses the mux-configured stream error handler to notify error to the client without closing the connection.
+func HTTPStreamError(ctx context.Context, mux *ServeMux, marshaler Marshaler, w http.ResponseWriter, r *http.Request, err error) {
+	st := mux.streamErrorHandler(ctx, err)
+	msg := errorChunk(st)
+	buf, err := marshaler.Marshal(msg)
+	if err != nil {
+		grpclog.Errorf("Failed to marshal an error: %v", err)
+		return
+	}
+	if _, err := w.Write(buf); err != nil {
+		grpclog.Errorf("Failed to notify error to client: %v", err)
+		return
+	}
+}
+
 // DefaultHTTPErrorHandler is the default error handler.
 // If "err" is a gRPC Status, the function replies with the status code mapped by HTTPStatusFromCode.
 // If "err" is a HTTPStatusError, the function replies with the status code provide by that struct. This is
@@ -93,6 +108,7 @@ func HTTPError(ctx context.Context, mux *ServeMux, marshaler Marshaler, w http.R
 func DefaultHTTPErrorHandler(ctx context.Context, mux *ServeMux, marshaler Marshaler, w http.ResponseWriter, r *http.Request, err error) {
 	// return Internal when Marshal failed
 	const fallback = `{"code": 13, "message": "failed to marshal error message"}`
+	const fallbackRewriter = `{"code": 13, "message": "failed to rewrite error message"}`
 
 	var customStatus *HTTPStatusError
 	if errors.As(err, &customStatus) {
@@ -100,19 +116,28 @@ func DefaultHTTPErrorHandler(ctx context.Context, mux *ServeMux, marshaler Marsh
 	}
 
 	s := status.Convert(err)
-	pb := s.Proto()
 
 	w.Header().Del("Trailer")
 	w.Header().Del("Transfer-Encoding")
 
-	contentType := marshaler.ContentType(pb)
+	respRw, err := mux.forwardResponseRewriter(ctx, s.Proto())
+	if err != nil {
+		grpclog.Errorf("Failed to rewrite error message %q: %v", s, err)
+		w.WriteHeader(http.StatusInternalServerError)
+		if _, err := io.WriteString(w, fallbackRewriter); err != nil {
+			grpclog.Errorf("Failed to write response: %v", err)
+		}
+		return
+	}
+
+	contentType := marshaler.ContentType(respRw)
 	w.Header().Set("Content-Type", contentType)
 
 	if s.Code() == codes.Unauthenticated {
 		w.Header().Set("WWW-Authenticate", s.Message())
 	}
 
-	buf, merr := marshaler.Marshal(pb)
+	buf, merr := marshaler.Marshal(respRw)
 	if merr != nil {
 		grpclog.Errorf("Failed to marshal error message %q: %v", s, merr)
 		w.WriteHeader(http.StatusInternalServerError)

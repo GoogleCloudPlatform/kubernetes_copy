@@ -17,9 +17,10 @@ package clientv3
 import (
 	"context"
 
-	pb "go.etcd.io/etcd/api/v3/etcdserverpb"
-
 	"google.golang.org/grpc"
+
+	pb "go.etcd.io/etcd/api/v3/etcdserverpb"
+	"go.etcd.io/etcd/api/v3/v3rpc/rpctypes"
 )
 
 type (
@@ -79,12 +80,15 @@ func (op OpResponse) Txn() *TxnResponse    { return op.txn }
 func (resp *PutResponse) OpResponse() OpResponse {
 	return OpResponse{put: resp}
 }
+
 func (resp *GetResponse) OpResponse() OpResponse {
 	return OpResponse{get: resp}
 }
+
 func (resp *DeleteResponse) OpResponse() OpResponse {
 	return OpResponse{del: resp}
 }
+
 func (resp *TxnResponse) OpResponse() OpResponse {
 	return OpResponse{txn: resp}
 }
@@ -145,10 +149,14 @@ func (kv *kv) Do(ctx context.Context, op Op) (OpResponse, error) {
 	var err error
 	switch op.t {
 	case tRange:
-		var resp *pb.RangeResponse
-		resp, err = kv.remote.Range(ctx, op.toRangeRequest(), kv.callOpts...)
-		if err == nil {
-			return OpResponse{get: (*GetResponse)(resp)}, nil
+		if op.IsSortOptionValid() {
+			var resp *pb.RangeResponse
+			resp, err = kv.remote.Range(ctx, op.toRangeRequest(), kv.callOpts...)
+			if err == nil {
+				return OpResponse{get: (*GetResponse)(resp)}, nil
+			}
+		} else {
+			err = rpctypes.ErrInvalidSortOption
 		}
 	case tPut:
 		var resp *pb.PutResponse

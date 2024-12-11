@@ -347,45 +347,25 @@ func computeDistinct(kvs []KeyValue) Distinct {
 func computeDistinctFixed(kvs []KeyValue) interface{} {
 	switch len(kvs) {
 	case 1:
-		ptr := new([1]KeyValue)
-		copy((*ptr)[:], kvs)
-		return *ptr
+		return [1]KeyValue(kvs)
 	case 2:
-		ptr := new([2]KeyValue)
-		copy((*ptr)[:], kvs)
-		return *ptr
+		return [2]KeyValue(kvs)
 	case 3:
-		ptr := new([3]KeyValue)
-		copy((*ptr)[:], kvs)
-		return *ptr
+		return [3]KeyValue(kvs)
 	case 4:
-		ptr := new([4]KeyValue)
-		copy((*ptr)[:], kvs)
-		return *ptr
+		return [4]KeyValue(kvs)
 	case 5:
-		ptr := new([5]KeyValue)
-		copy((*ptr)[:], kvs)
-		return *ptr
+		return [5]KeyValue(kvs)
 	case 6:
-		ptr := new([6]KeyValue)
-		copy((*ptr)[:], kvs)
-		return *ptr
+		return [6]KeyValue(kvs)
 	case 7:
-		ptr := new([7]KeyValue)
-		copy((*ptr)[:], kvs)
-		return *ptr
+		return [7]KeyValue(kvs)
 	case 8:
-		ptr := new([8]KeyValue)
-		copy((*ptr)[:], kvs)
-		return *ptr
+		return [8]KeyValue(kvs)
 	case 9:
-		ptr := new([9]KeyValue)
-		copy((*ptr)[:], kvs)
-		return *ptr
+		return [9]KeyValue(kvs)
 	case 10:
-		ptr := new([10]KeyValue)
-		copy((*ptr)[:], kvs)
-		return *ptr
+		return [10]KeyValue(kvs)
 	default:
 		return nil
 	}

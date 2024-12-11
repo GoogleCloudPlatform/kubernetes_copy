@@ -4,12 +4,35 @@ package etcdserverpb;
 import "gogoproto/gogo.proto";
 import "etcd/api/mvccpb/kv.proto";
 import "etcd/api/authpb/auth.proto";
+import "etcd/api/versionpb/version.proto";
 
 // for grpc-gateway
 import "google/api/annotations.proto";
+import "protoc-gen-openapiv2/options/annotations.proto";
+
+option go_package = "go.etcd.io/etcd/api/v3/etcdserverpb";
 
 option (gogoproto.marshaler_all) = true;
 option (gogoproto.unmarshaler_all) = true;
+
+option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_swagger) = {
+  security_definitions: {
+    security: {
+      key: "ApiKey";
+      value: {
+        type: TYPE_API_KEY;
+        in: IN_HEADER;
+        name: "Authorization";
+      }
+    }
+  }
+  security: {
+    security_requirement: {
+      key: "ApiKey";
+      value: {};
+    }
+  }
+};
 
 service KV {
   // Range gets the keys in the range from the key-value store.
@@ -388,13 +411,16 @@ service Auth {
 }
 
 message ResponseHeader {
+  option (versionpb.etcd_version_msg) = "3.0";
+
   // cluster_id is the ID of the cluster which sent the response.
   uint64 cluster_id = 1;
   // member_id is the ID of the member which sent the response.
   uint64 member_id = 2;
-  // revision is the key-value store revision when the request was applied.
+  // revision is the key-value store revision when the request was applied, and it's
+  // unset (so 0) in case of calls not interacting with key-value store.
   // For watch progress responses, the header.revision indicates progress. All future events
-  // recieved in this stream are guaranteed to have a higher revision number than the
+  // received in this stream are guaranteed to have a higher revision number than the
   // header.revision number.
   int64 revision = 3;
   // raft_term is the raft term when the request was applied.
@@ -402,17 +428,21 @@ message ResponseHeader {
 }
 
 message RangeRequest {
+  option (versionpb.etcd_version_msg) = "3.0";
+
   enum SortOrder {
-	NONE = 0; // default, no sorting
-	ASCEND = 1; // lowest target value first
-	DESCEND = 2; // highest target value first
+    option (versionpb.etcd_version_enum) = "3.0";
+    NONE = 0; // default, no sorting
+    ASCEND = 1; // lowest target value first
+    DESCEND = 2; // highest target value first
   }
   enum SortTarget {
-	KEY = 0;
-	VERSION = 1;
-	CREATE = 2;
-	MOD = 3;
-	VALUE = 4;
+    option (versionpb.etcd_version_enum) = "3.0";
+    KEY = 0;
+    VERSION = 1;
+    CREATE = 2;
+    MOD = 3;
+    VALUE = 4;
   }
 
   // key is the first key for the range. If range_end is not given, the request only looks up key.
@@ -453,22 +483,24 @@ message RangeRequest {
 
   // min_mod_revision is the lower bound for returned key mod revisions; all keys with
   // lesser mod revisions will be filtered away.
-  int64 min_mod_revision = 10;
+  int64 min_mod_revision = 10 [(versionpb.etcd_version_field)="3.1"];
 
   // max_mod_revision is the upper bound for returned key mod revisions; all keys with
   // greater mod revisions will be filtered away.
-  int64 max_mod_revision = 11;
+  int64 max_mod_revision = 11 [(versionpb.etcd_version_field)="3.1"];
 
   // min_create_revision is the lower bound for returned key create revisions; all keys with
   // lesser create revisions will be filtered away.
-  int64 min_create_revision = 12;
+  int64 min_create_revision = 12 [(versionpb.etcd_version_field)="3.1"];
 
   // max_create_revision is the upper bound for returned key create revisions; all keys with
   // greater create revisions will be filtered away.
-  int64 max_create_revision = 13;
+  int64 max_create_revision = 13 [(versionpb.etcd_version_field)="3.1"];
 }
 
 message RangeResponse {
+  option (versionpb.etcd_version_msg) = "3.0";
+
   ResponseHeader header = 1;
   // kvs is the list of key-value pairs matched by the range request.
   // kvs is empty when count is requested.
@@ -480,6 +512,8 @@ message RangeResponse {
 }
 
 message PutRequest {
+  option (versionpb.etcd_version_msg) = "3.0";
+
   // key is the key, in bytes, to put into the key-value store.
   bytes key = 1;
   // value is the value, in bytes, to associate with the key in the key-value store.
@@ -490,24 +524,28 @@ message PutRequest {
 
   // If prev_kv is set, etcd gets the previous key-value pair before changing it.
   // The previous key-value pair will be returned in the put response.
-  bool prev_kv = 4;
+  bool prev_kv = 4 [(versionpb.etcd_version_field)="3.1"];
 
   // If ignore_value is set, etcd updates the key using its current value.
   // Returns an error if the key does not exist.
-  bool ignore_value = 5;
+  bool ignore_value = 5 [(versionpb.etcd_version_field)="3.2"];
 
   // If ignore_lease is set, etcd updates the key using its current lease.
   // Returns an error if the key does not exist.
-  bool ignore_lease = 6;
+  bool ignore_lease = 6 [(versionpb.etcd_version_field)="3.2"];
 }
 
 message PutResponse {
+  option (versionpb.etcd_version_msg) = "3.0";
+
   ResponseHeader header = 1;
   // if prev_kv is set in the request, the previous key-value pair will be returned.
-  mvccpb.KeyValue prev_kv = 2;
+  mvccpb.KeyValue prev_kv = 2 [(versionpb.etcd_version_field)="3.1"];
 }
 
 message DeleteRangeRequest {
+  option (versionpb.etcd_version_msg) = "3.0";
+
   // key is the first key to delete in the range.
   bytes key = 1;
   // range_end is the key following the last key to delete for the range [key, range_end).
@@ -519,50 +557,61 @@ message DeleteRangeRequest {
 
   // If prev_kv is set, etcd gets the previous key-value pairs before deleting it.
   // The previous key-value pairs will be returned in the delete response.
-  bool prev_kv = 3;
+  bool prev_kv = 3 [(versionpb.etcd_version_field)="3.1"];
 }
 
 message DeleteRangeResponse {
+  option (versionpb.etcd_version_msg) = "3.0";
+
   ResponseHeader header = 1;
   // deleted is the number of keys deleted by the delete range request.
   int64 deleted = 2;
   // if prev_kv is set in the request, the previous key-value pairs will be returned.
-  repeated mvccpb.KeyValue prev_kvs = 3;
+  repeated mvccpb.KeyValue prev_kvs = 3 [(versionpb.etcd_version_field)="3.1"];
 }
 
 message RequestOp {
+  option (versionpb.etcd_version_msg) = "3.0";
   // request is a union of request types accepted by a transaction.
   oneof request {
     RangeRequest request_range = 1;
     PutRequest request_put = 2;
     DeleteRangeRequest request_delete_range = 3;
-    TxnRequest request_txn = 4;
+    TxnRequest request_txn = 4 [(versionpb.etcd_version_field)="3.3"];
   }
 }
 
 message ResponseOp {
+  option (versionpb.etcd_version_msg) = "3.0";
+
   // response is a union of response types returned by a transaction.
   oneof response {
     RangeResponse response_range = 1;
     PutResponse response_put = 2;
     DeleteRangeResponse response_delete_range = 3;
-    TxnResponse response_txn = 4;
+    TxnResponse response_txn = 4 [(versionpb.etcd_version_field)="3.3"];
   }
 }
 
 message Compare {
+  option (versionpb.etcd_version_msg) = "3.0";
+
   enum CompareResult {
+    option (versionpb.etcd_version_enum) = "3.0";
+
     EQUAL = 0;
     GREATER = 1;
     LESS = 2;
-    NOT_EQUAL = 3;
+    NOT_EQUAL = 3 [(versionpb.etcd_version_enum_value)="3.1"];
   }
   enum CompareTarget {
+    option (versionpb.etcd_version_enum) = "3.0";
+
     VERSION = 0;
     CREATE = 1;
     MOD = 2;
     VALUE = 3;
-    LEASE = 4;
+    LEASE = 4 [(versionpb.etcd_version_enum_value)="3.3"];
   }
   // result is logical comparison operation for this comparison.
   CompareResult result = 1;
@@ -580,13 +629,13 @@ message Compare {
     // value is the value of the given key, in bytes.
     bytes value = 7;
     // lease is the lease id of the given key.
-    int64 lease = 8;
+    int64 lease = 8 [(versionpb.etcd_version_field)="3.3"];
     // leave room for more target_union field tags, jump to 64
   }
 
   // range_end compares the given target to all keys in the range [key, range_end).
   // See RangeRequest for more details on key ranges.
-  bytes range_end = 64;
+  bytes range_end = 64 [(versionpb.etcd_version_field)="3.3"];
   // TODO: fill out with most of the rest of RangeRequest fields when needed.
 }
 
@@ -606,6 +655,8 @@ message Compare {
 // true.
 // 3. A list of database operations called f op. Like t op, but executed if guard evaluates to false.
 message TxnRequest {
+  option (versionpb.etcd_version_msg) = "3.0";
+
   // compare is a list of predicates representing a conjunction of terms.
   // If the comparisons succeed, then the success requests will be processed in order,
   // and the response will contain their respective responses in order.
@@ -619,6 +670,8 @@ message TxnRequest {
 }
 
 message TxnResponse {
+  option (versionpb.etcd_version_msg) = "3.0";
+
   ResponseHeader header = 1;
   // succeeded is set to true if the compare evaluated to true or false otherwise.
   bool succeeded = 2;
@@ -630,6 +683,8 @@ message TxnResponse {
 // CompactionRequest compacts the key-value store up to a given revision. All superseded keys
 // with a revision less than the compaction revision will be removed.
 message CompactionRequest {
+  option (versionpb.etcd_version_msg) = "3.0";
+
   // revision is the key-value store revision for the compaction operation.
   int64 revision = 1;
   // physical is set so the RPC will wait until the compaction is physically
@@ -639,35 +694,48 @@ message CompactionRequest {
 }
 
 message CompactionResponse {
+  option (versionpb.etcd_version_msg) = "3.0";
+
   ResponseHeader header = 1;
 }
 
 message HashRequest {
+  option (versionpb.etcd_version_msg) = "3.0";
 }
 
 message HashKVRequest {
+  option (versionpb.etcd_version_msg) = "3.3";
   // revision is the key-value store revision for the hash operation.
   int64 revision = 1;
 }
 
 message HashKVResponse {
+  option (versionpb.etcd_version_msg) = "3.3";
+
   ResponseHeader header = 1;
   // hash is the hash value computed from the responding member's MVCC keys up to a given revision.
   uint32 hash = 2;
   // compact_revision is the compacted revision of key-value store when hash begins.
   int64 compact_revision = 3;
+  // hash_revision is the revision up to which the hash is calculated.
+  int64 hash_revision = 4 [(versionpb.etcd_version_field)="3.6"];
 }
 
 message HashResponse {
+  option (versionpb.etcd_version_msg) = "3.0";
+
   ResponseHeader header = 1;
   // hash is the hash value computed from the responding member's KV's backend.
   uint32 hash = 2;
 }
 
 message SnapshotRequest {
+  option (versionpb.etcd_version_msg) = "3.3";
 }
 
 message SnapshotResponse {
+  option (versionpb.etcd_version_msg) = "3.3";
+
   // header has the current key-value store information. The first header in the snapshot
   // stream indicates the point in time of the snapshot.
   ResponseHeader header = 1;
@@ -677,18 +745,26 @@ message SnapshotResponse {
 
   // blob contains the next chunk of the snapshot in the snapshot stream.
   bytes blob = 3;
+
+  // local version of server that created the snapshot.
+  // In cluster with binaries with different version, each cluster can return different result.
+  // Informs which etcd server version should be used when restoring the snapshot.
+  string version = 4 [(versionpb.etcd_version_field)="3.6"];
 }
 
 message WatchRequest {
+  option (versionpb.etcd_version_msg) = "3.0";
   // request_union is a request to either create a new watcher or cancel an existing watcher.
   oneof request_union {
     WatchCreateRequest create_request = 1;
     WatchCancelRequest cancel_request = 2;
-    WatchProgressRequest progress_request = 3;
+    WatchProgressRequest progress_request = 3 [(versionpb.etcd_version_field)="3.4"];
   }
 }
 
 message WatchCreateRequest {
+  option (versionpb.etcd_version_msg) = "3.0";
+
   // key is the key to register for watching.
   bytes key = 1;
 
@@ -709,6 +785,8 @@ message WatchCreateRequest {
   bool progress_notify = 4;
 
   enum FilterType {
+    option (versionpb.etcd_version_enum) = "3.1";
+
     // filter out put event.
     NOPUT = 0;
     // filter out delete event.
@@ -716,34 +794,38 @@ message WatchCreateRequest {
   }
 
   // filters filter the events at server side before it sends back to the watcher.
-  repeated FilterType filters = 5;
+  repeated FilterType filters = 5 [(versionpb.etcd_version_field)="3.1"];
 
   // If prev_kv is set, created watcher gets the previous KV before the event happens.
   // If the previous KV is already compacted, nothing will be returned.
-  bool prev_kv = 6;
+  bool prev_kv = 6 [(versionpb.etcd_version_field)="3.1"];
 
   // If watch_id is provided and non-zero, it will be assigned to this watcher.
   // Since creating a watcher in etcd is not a synchronous operation,
   // this can be used ensure that ordering is correct when creating multiple
   // watchers on the same stream. Creating a watcher with an ID already in
   // use on the stream will cause an error to be returned.
-  int64 watch_id = 7;
+  int64 watch_id = 7 [(versionpb.etcd_version_field)="3.4"];
 
   // fragment enables splitting large revisions into multiple watch responses.
-  bool fragment = 8;
+  bool fragment = 8 [(versionpb.etcd_version_field)="3.4"];
 }
 
 message WatchCancelRequest {
+  option (versionpb.etcd_version_msg) = "3.1";
   // watch_id is the watcher id to cancel so that no more events are transmitted.
-  int64 watch_id = 1;
+  int64 watch_id = 1 [(versionpb.etcd_version_field)="3.1"];
 }
 
 // Requests the a watch stream progress status be sent in the watch response stream as soon as
 // possible.
 message WatchProgressRequest {
+  option (versionpb.etcd_version_msg) = "3.4";
 }
 
 message WatchResponse {
+  option (versionpb.etcd_version_msg) = "3.0";
+
   ResponseHeader header = 1;
   // watch_id is the ID of the watcher that corresponds to the response.
   int64 watch_id = 2;
@@ -754,7 +836,8 @@ message WatchResponse {
   // All events sent to the created watcher will attach with the same watch_id.
   bool created = 3;
 
-  // canceled is set to true if the response is for a cancel watch request.
+  // canceled is set to true if the response is for a cancel watch request
+  // or if the start_revision has already been compacted.
   // No further events will be sent to the canceled watcher.
   bool canceled = 4;
 
@@ -769,15 +852,17 @@ message WatchResponse {
   int64 compact_revision = 5;
 
   // cancel_reason indicates the reason for canceling the watcher.
-  string cancel_reason = 6;
+  string cancel_reason = 6 [(versionpb.etcd_version_field)="3.4"];
 
   // framgment is true if large watch response was split over multiple responses.
-  bool fragment = 7;
+  bool fragment = 7 [(versionpb.etcd_version_field)="3.4"];
 
   repeated mvccpb.Event events = 11;
 }
 
 message LeaseGrantRequest {
+  option (versionpb.etcd_version_msg) = "3.0";
+
   // TTL is the advisory time-to-live in seconds. Expired lease will return -1.
   int64 TTL = 1;
   // ID is the requested ID for the lease. If ID is set to 0, the lessor chooses an ID.
@@ -785,6 +870,8 @@ message LeaseGrantRequest {
 }
 
 message LeaseGrantResponse {
+  option (versionpb.etcd_version_msg) = "3.0";
+
   ResponseHeader header = 1;
   // ID is the lease ID for the granted lease.
   int64 ID = 2;
@@ -794,15 +881,21 @@ message LeaseGrantResponse {
 }
 
 message LeaseRevokeRequest {
+  option (versionpb.etcd_version_msg) = "3.0";
+
   // ID is the lease ID to revoke. When the ID is revoked, all associated keys will be deleted.
   int64 ID = 1;
 }
 
 message LeaseRevokeResponse {
+  option (versionpb.etcd_version_msg) = "3.0";
+
   ResponseHeader header = 1;
 }
 
 message LeaseCheckpoint {
+  option (versionpb.etcd_version_msg) = "3.4";
+
     // ID is the lease ID to checkpoint.
   int64 ID = 1;
 
@@ -811,19 +904,26 @@ message LeaseCheckpoint {
 }
 
 message LeaseCheckpointRequest {
+  option (versionpb.etcd_version_msg) = "3.4";
+
   repeated LeaseCheckpoint checkpoints = 1;
 }
 
 message LeaseCheckpointResponse {
+  option (versionpb.etcd_version_msg) = "3.4";
+
   ResponseHeader header = 1;
 }
 
 message LeaseKeepAliveRequest {
+  option (versionpb.etcd_version_msg) = "3.0";
   // ID is the lease ID for the lease to keep alive.
   int64 ID = 1;
 }
 
 message LeaseKeepAliveResponse {
+  option (versionpb.etcd_version_msg) = "3.0";
+
   ResponseHeader header = 1;
   // ID is the lease ID from the keep alive request.
   int64 ID = 2;
@@ -832,6 +932,7 @@ message LeaseKeepAliveResponse {
 }
 
 message LeaseTimeToLiveRequest {
+  option (versionpb.etcd_version_msg) = "3.1";
   // ID is the lease ID for the lease.
   int64 ID = 1;
   // keys is true to query all the keys attached to this lease.
@@ -839,6 +940,8 @@ message LeaseTimeToLiveRequest {
 }
 
 message LeaseTimeToLiveResponse {
+  option (versionpb.etcd_version_msg) = "3.1";
+
   ResponseHeader header = 1;
   // ID is the lease ID from the keep alive request.
   int64 ID = 2;
@@ -851,19 +954,26 @@ message LeaseTimeToLiveResponse {
 }
 
 message LeaseLeasesRequest {
+  option (versionpb.etcd_version_msg) = "3.3";
 }
 
 message LeaseStatus {
+  option (versionpb.etcd_version_msg) = "3.3";
+
   int64 ID = 1;
   // TODO: int64 TTL = 2;
 }
 
 message LeaseLeasesResponse {
+  option (versionpb.etcd_version_msg) = "3.3";
+
   ResponseHeader header = 1;
   repeated LeaseStatus leases = 2;
 }
 
 message Member {
+  option (versionpb.etcd_version_msg) = "3.0";
+
   // ID is the member ID for this member.
   uint64 ID = 1;
   // name is the human-readable name of the member. If the member is not started, the name will be an empty string.
@@ -873,17 +983,21 @@ message Member {
   // clientURLs is the list of URLs the member exposes to clients for communication. If the member is not started, clientURLs will be empty.
   repeated string clientURLs = 4;
   // isLearner indicates if the member is raft learner.
-  bool isLearner = 5;
+  bool isLearner = 5 [(versionpb.etcd_version_field)="3.4"];
 }
 
 message MemberAddRequest {
+  option (versionpb.etcd_version_msg) = "3.0";
+
   // peerURLs is the list of URLs the added member will use to communicate with the cluster.
   repeated string peerURLs = 1;
   // isLearner indicates if the added member is raft learner.
-  bool isLearner = 2;
+  bool isLearner = 2 [(versionpb.etcd_version_field)="3.4"];
 }
 
 message MemberAddResponse {
+  option (versionpb.etcd_version_msg) = "3.0";
+
   ResponseHeader header = 1;
   // member is the member information for the added member.
   Member member = 2;
@@ -892,17 +1006,22 @@ message MemberAddResponse {
 }
 
 message MemberRemoveRequest {
+  option (versionpb.etcd_version_msg) = "3.0";
   // ID is the member ID of the member to remove.
   uint64 ID = 1;
 }
 
 message MemberRemoveResponse {
+  option (versionpb.etcd_version_msg) = "3.0";
+
   ResponseHeader header = 1;
   // members is a list of all members after removing the member.
   repeated Member members = 2;
 }
 
 message MemberUpdateRequest {
+  option (versionpb.etcd_version_msg) = "3.0";
+
   // ID is the member ID of the member to update.
   uint64 ID = 1;
   // peerURLs is the new list of URLs the member will use to communicate with the cluster.
@@ -910,59 +1029,80 @@ message MemberUpdateRequest {
 }
 
 message MemberUpdateResponse{
+  option (versionpb.etcd_version_msg) = "3.0";
+
   ResponseHeader header = 1;
   // members is a list of all members after updating the member.
-  repeated Member members = 2;
+  repeated Member members = 2 [(versionpb.etcd_version_field)="3.1"];
 }
 
 message MemberListRequest {
-  bool linearizable = 1;
+  option (versionpb.etcd_version_msg) = "3.0";
+
+  bool linearizable = 1 [(versionpb.etcd_version_field)="3.5"];
 }
 
 message MemberListResponse {
+  option (versionpb.etcd_version_msg) = "3.0";
+
   ResponseHeader header = 1;
   // members is a list of all members associated with the cluster.
   repeated Member members = 2;
 }
 
 message MemberPromoteRequest {
+  option (versionpb.etcd_version_msg) = "3.4";
   // ID is the member ID of the member to promote.
   uint64 ID = 1;
 }
 
 message MemberPromoteResponse {
+  option (versionpb.etcd_version_msg) = "3.4";
+
   ResponseHeader header = 1;
   // members is a list of all members after promoting the member.
   repeated Member members = 2;
 }
 
 message DefragmentRequest {
+  option (versionpb.etcd_version_msg) = "3.0";
 }
 
 message DefragmentResponse {
+  option (versionpb.etcd_version_msg) = "3.0";
+
   ResponseHeader header = 1;
 }
 
 message MoveLeaderRequest {
+  option (versionpb.etcd_version_msg) = "3.3";
   // targetID is the node ID for the new leader.
   uint64 targetID = 1;
 }
 
 message MoveLeaderResponse {
+  option (versionpb.etcd_version_msg) = "3.3";
+
   ResponseHeader header = 1;
 }
 
 enum AlarmType {
+  option (versionpb.etcd_version_enum) = "3.0";
+
 	NONE = 0; // default, used to query if any alarm is active
 	NOSPACE = 1; // space quota is exhausted
-	CORRUPT = 2; // kv store corruption detected
+	CORRUPT = 2 [(versionpb.etcd_version_enum_value)="3.3"]; // kv store corruption detected
 }
 
 message AlarmRequest {
+  option (versionpb.etcd_version_msg) = "3.0";
+
   enum AlarmAction {
-	GET = 0;
-	ACTIVATE = 1;
-	DEACTIVATE = 2;
+    option (versionpb.etcd_version_enum) = "3.0";
+
+    GET = 0;
+    ACTIVATE = 1;
+    DEACTIVATE = 2;
   }
   // action is the kind of alarm request to issue. The action
   // may GET alarm statuses, ACTIVATE an alarm, or DEACTIVATE a
@@ -976,6 +1116,7 @@ message AlarmRequest {
 }
 
 message AlarmMember {
+  option (versionpb.etcd_version_msg) = "3.0";
   // memberID is the ID of the member associated with the raised alarm.
   uint64 memberID = 1;
   // alarm is the type of alarm which has been raised.
@@ -983,13 +1124,19 @@ message AlarmMember {
 }
 
 message AlarmResponse {
+  option (versionpb.etcd_version_msg) = "3.0";
+
   ResponseHeader header = 1;
   // alarms is a list of alarms associated with the alarm request.
   repeated AlarmMember alarms = 2;
 }
 
 message DowngradeRequest {
+  option (versionpb.etcd_version_msg) = "3.5";
+
   enum DowngradeAction {
+    option (versionpb.etcd_version_enum) = "3.5";
+
     VALIDATE = 0;
     ENABLE = 1;
     CANCEL = 2;
@@ -1004,15 +1151,20 @@ message DowngradeRequest {
 }
 
 message DowngradeResponse {
+  option (versionpb.etcd_version_msg) = "3.5";
+
   ResponseHeader header = 1;
   // version is the current cluster version.
   string version = 2;
 }
 
 message StatusRequest {
+  option (versionpb.etcd_version_msg) = "3.0";
 }
 
 message StatusResponse {
+  option (versionpb.etcd_version_msg) = "3.0";
+
   ResponseHeader header = 1;
   // version is the cluster protocol version used by the responding member.
   string version = 2;
@@ -1025,55 +1177,73 @@ message StatusResponse {
   // raftTerm is the current raft term of the responding member.
   uint64 raftTerm = 6;
   // raftAppliedIndex is the current raft applied index of the responding member.
-  uint64 raftAppliedIndex = 7;
+  uint64 raftAppliedIndex = 7 [(versionpb.etcd_version_field)="3.4"];
   // errors contains alarm/health information and status.
-  repeated string errors = 8;
+  repeated string errors = 8 [(versionpb.etcd_version_field)="3.4"];
   // dbSizeInUse is the size of the backend database logically in use, in bytes, of the responding member.
-  int64 dbSizeInUse = 9;
+  int64 dbSizeInUse = 9 [(versionpb.etcd_version_field)="3.4"];
   // isLearner indicates if the member is raft learner.
-  bool isLearner = 10;
+  bool isLearner = 10 [(versionpb.etcd_version_field)="3.4"];
+  // storageVersion is the version of the db file. It might be get updated with delay in relationship to the target cluster version.
+  string storageVersion = 11 [(versionpb.etcd_version_field)="3.6"];
+  // dbSizeQuota is the configured etcd storage quota in bytes (the value passed to etcd instance by flag --quota-backend-bytes)
+  int64 dbSizeQuota = 12 [(versionpb.etcd_version_field)="3.6"];
 }
 
 message AuthEnableRequest {
+  option (versionpb.etcd_version_msg) = "3.0";
 }
 
 message AuthDisableRequest {
+  option (versionpb.etcd_version_msg) = "3.0";
 }
 
 message AuthStatusRequest {
+  option (versionpb.etcd_version_msg) = "3.5";
 }
 
 message AuthenticateRequest {
+  option (versionpb.etcd_version_msg) = "3.0";
+
   string name = 1;
   string password = 2;
 }
 
 message AuthUserAddRequest {
+  option (versionpb.etcd_version_msg) = "3.0";
+
   string name = 1;
   string password = 2;
-  authpb.UserAddOptions options = 3;
-  string hashedPassword = 4;
+  authpb.UserAddOptions options = 3 [(versionpb.etcd_version_field)="3.4"];
+  string hashedPassword = 4 [(versionpb.etcd_version_field)="3.5"];
 }
 
 message AuthUserGetRequest {
+  option (versionpb.etcd_version_msg) = "3.0";
+
   string name = 1;
 }
 
 message AuthUserDeleteRequest {
+  option (versionpb.etcd_version_msg) = "3.0";
   // name is the name of the user to delete.
   string name = 1;
 }
 
 message AuthUserChangePasswordRequest {
+  option (versionpb.etcd_version_msg) = "3.0";
+
   // name is the name of the user whose password is being changed.
   string name = 1;
   // password is the new password for the user. Note that this field will be removed in the API layer.
   string password = 2;
   // hashedPassword is the new password for the user. Note that this field will be initialized in the API layer.
-  string hashedPassword = 3;
+  string hashedPassword = 3 [(versionpb.etcd_version_field)="3.5"];
 }
 
 message AuthUserGrantRoleRequest {
+  option (versionpb.etcd_version_msg) = "3.0";
+
   // user is the name of the user which should be granted a given role.
   string user = 1;
   // role is the name of the role to grant to the user.
@@ -1081,30 +1251,42 @@ message AuthUserGrantRoleRequest {
 }
 
 message AuthUserRevokeRoleRequest {
+  option (versionpb.etcd_version_msg) = "3.0";
+
   string name = 1;
   string role = 2;
 }
 
 message AuthRoleAddRequest {
+  option (versionpb.etcd_version_msg) = "3.0";
+
   // name is the name of the role to add to the authentication system.
   string name = 1;
 }
 
 message AuthRoleGetRequest {
+  option (versionpb.etcd_version_msg) = "3.0";
+
   string role = 1;
 }
 
 message AuthUserListRequest {
+  option (versionpb.etcd_version_msg) = "3.0";
 }
 
 message AuthRoleListRequest {
+  option (versionpb.etcd_version_msg) = "3.0";
 }
 
 message AuthRoleDeleteRequest {
+  option (versionpb.etcd_version_msg) = "3.0";
+
   string role = 1;
 }
 
 message AuthRoleGrantPermissionRequest {
+  option (versionpb.etcd_version_msg) = "3.0";
+
   // name is the name of the role which will be granted the permission.
   string name = 1;
   // perm is the permission to grant to the role.
@@ -1112,20 +1294,28 @@ message AuthRoleGrantPermissionRequest {
 }
 
 message AuthRoleRevokePermissionRequest {
+  option (versionpb.etcd_version_msg) = "3.0";
+
   string role = 1;
   bytes key = 2;
   bytes range_end = 3;
 }
 
 message AuthEnableResponse {
+  option (versionpb.etcd_version_msg) = "3.0";
+
   ResponseHeader header = 1;
 }
 
 message AuthDisableResponse {
+  option (versionpb.etcd_version_msg) = "3.0";
+
   ResponseHeader header = 1;
 }
 
 message AuthStatusResponse {
+  option (versionpb.etcd_version_msg) = "3.5";
+
   ResponseHeader header = 1;
   bool enabled = 2;
   // authRevision is the current revision of auth store
@@ -1133,67 +1323,93 @@ message AuthStatusResponse {
 }
 
 message AuthenticateResponse {
+  option (versionpb.etcd_version_msg) = "3.0";
+
   ResponseHeader header = 1;
   // token is an authorized token that can be used in succeeding RPCs
   string token = 2;
 }
 
 message AuthUserAddResponse {
+  option (versionpb.etcd_version_msg) = "3.0";
+
   ResponseHeader header = 1;
 }
 
 message AuthUserGetResponse {
+  option (versionpb.etcd_version_msg) = "3.0";
+
   ResponseHeader header = 1;
 
   repeated string roles = 2;
 }
 
 message AuthUserDeleteResponse {
+  option (versionpb.etcd_version_msg) = "3.0";
+
   ResponseHeader header = 1;
 }
 
 message AuthUserChangePasswordResponse {
+  option (versionpb.etcd_version_msg) = "3.0";
+
   ResponseHeader header = 1;
 }
 
 message AuthUserGrantRoleResponse {
+  option (versionpb.etcd_version_msg) = "3.0";
+
   ResponseHeader header = 1;
 }
 
 message AuthUserRevokeRoleResponse {
+  option (versionpb.etcd_version_msg) = "3.0";
+
   ResponseHeader header = 1;
 }
 
 message AuthRoleAddResponse {
+  option (versionpb.etcd_version_msg) = "3.0";
+
   ResponseHeader header = 1;
 }
 
 message AuthRoleGetResponse {
-  ResponseHeader header = 1;
+  ResponseHeader header = 1 [(versionpb.etcd_version_field)="3.0"];
 
-  repeated authpb.Permission perm = 2;
+  repeated authpb.Permission perm = 2 [(versionpb.etcd_version_field)="3.0"];
 }
 
 message AuthRoleListResponse {
+  option (versionpb.etcd_version_msg) = "3.0";
+
   ResponseHeader header = 1;
 
   repeated string roles = 2;
 }
 
 message AuthUserListResponse {
+  option (versionpb.etcd_version_msg) = "3.0";
+
   ResponseHeader header = 1;
 
   repeated string users = 2;
 }
 
 message AuthRoleDeleteResponse {
+  option (versionpb.etcd_version_msg) = "3.0";
+
   ResponseHeader header = 1;
 }
 
 message AuthRoleGrantPermissionResponse {
+  option (versionpb.etcd_version_msg) = "3.0";
+
   ResponseHeader header = 1;
 }
 
 message AuthRoleRevokePermissionResponse {
+  option (versionpb.etcd_version_msg) = "3.0";
+
   ResponseHeader header = 1;
 }

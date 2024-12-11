@@ -20,7 +20,7 @@ import (
 	"sync"
 	"time"
 
-	"go.etcd.io/etcd/raft/v3"
+	"go.etcd.io/raft/v3"
 )
 
 // ServerStats encapsulates various statistics about an EtcdServer and its
@@ -59,7 +59,7 @@ type serverStats struct {
 		StartTime time.Time `json:"startTime"`
 	} `json:"leaderInfo"`
 
-	RecvAppendRequestCnt uint64  `json:"recvAppendRequestCnt,"`
+	RecvAppendRequestCnt uint64  `json:"recvAppendRequestCnt"`
 	RecvingPkgRate       float64 `json:"recvPkgRate,omitempty"`
 	RecvingBandwidthRate float64 `json:"recvBandwidthRate,omitempty"`
 

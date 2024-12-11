@@ -303,6 +303,10 @@ type stmSerializable struct {
 }
 
 func (s *stmSerializable) Get(keys ...string) string {
+	if len(keys) == 0 {
+		return ""
+	}
+
 	if wv := s.wset.get(keys...); wv != nil {
 		return wv.val
 	}

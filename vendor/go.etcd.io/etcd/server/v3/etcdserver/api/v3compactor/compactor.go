@@ -19,10 +19,10 @@ import (
 	"fmt"
 	"time"
 
-	pb "go.etcd.io/etcd/api/v3/etcdserverpb"
-
 	"github.com/jonboulle/clockwork"
 	"go.uber.org/zap"
+
+	pb "go.etcd.io/etcd/api/v3/etcdserverpb"
 )
 
 const (

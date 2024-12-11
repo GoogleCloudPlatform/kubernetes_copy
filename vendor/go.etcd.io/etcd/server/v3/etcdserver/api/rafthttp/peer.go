@@ -19,14 +19,14 @@ import (
 	"sync"
 	"time"
 
-	"go.etcd.io/etcd/client/pkg/v3/types"
-	"go.etcd.io/etcd/raft/v3"
-	"go.etcd.io/etcd/raft/v3/raftpb"
-	"go.etcd.io/etcd/server/v3/etcdserver/api/snap"
-	stats "go.etcd.io/etcd/server/v3/etcdserver/api/v2stats"
-
 	"go.uber.org/zap"
 	"golang.org/x/time/rate"
+
+	"go.etcd.io/etcd/client/pkg/v3/types"
+	"go.etcd.io/etcd/server/v3/etcdserver/api/snap"
+	stats "go.etcd.io/etcd/server/v3/etcdserver/api/v2stats"
+	"go.etcd.io/raft/v3"
+	"go.etcd.io/raft/v3/raftpb"
 )
 
 const (
@@ -250,30 +250,16 @@ func (p *peer) send(m raftpb.Message) {
 		if isMsgSnap(m) {
 			p.r.ReportSnapshot(m.To, raft.SnapshotFailure)
 		}
-		if p.status.isActive() {
-			if p.lg != nil {
-				p.lg.Warn(
-					"dropped internal Raft message since sending buffer is full (overloaded network)",
-					zap.String("message-type", m.Type.String()),
-					zap.String("local-member-id", p.localID.String()),
-					zap.String("from", types.ID(m.From).String()),
-					zap.String("remote-peer-id", p.id.String()),
-					zap.String("remote-peer-name", name),
-					zap.Bool("remote-peer-active", p.status.isActive()),
-				)
-			}
-		} else {
-			if p.lg != nil {
-				p.lg.Warn(
-					"dropped internal Raft message since sending buffer is full (overloaded network)",
-					zap.String("message-type", m.Type.String()),
-					zap.String("local-member-id", p.localID.String()),
-					zap.String("from", types.ID(m.From).String()),
-					zap.String("remote-peer-id", p.id.String()),
-					zap.String("remote-peer-name", name),
-					zap.Bool("remote-peer-active", p.status.isActive()),
-				)
-			}
+		if p.lg != nil {
+			p.lg.Warn(
+				"dropped internal Raft message since sending buffer is full",
+				zap.String("message-type", m.Type.String()),
+				zap.String("local-member-id", p.localID.String()),
+				zap.String("from", types.ID(m.From).String()),
+				zap.String("remote-peer-id", p.id.String()),
+				zap.String("remote-peer-name", name),
+				zap.Bool("remote-peer-active", p.status.isActive()),
+			)
 		}
 		sentFailures.WithLabelValues(types.ID(m.To).String()).Inc()
 	}

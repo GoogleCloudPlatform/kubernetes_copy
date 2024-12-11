@@ -15,13 +15,15 @@
 package auth
 
 import (
+	"crypto"
 	"crypto/ecdsa"
+	"crypto/ed25519"
 	"crypto/rsa"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"time"
 
-	"github.com/golang-jwt/jwt/v4"
+	jwt "github.com/golang-jwt/jwt/v4"
 )
 
 const (
@@ -70,14 +72,14 @@ func (opts *jwtOptions) Parse(optMap map[string]string) error {
 	}
 
 	if file := optMap[optPublicKey]; file != "" {
-		opts.PublicKey, err = ioutil.ReadFile(file)
+		opts.PublicKey, err = os.ReadFile(file)
 		if err != nil {
 			return err
 		}
 	}
 
 	if file := optMap[optPrivateKey]; file != "" {
-		opts.PrivateKey, err = ioutil.ReadFile(file)
+		opts.PrivateKey, err = os.ReadFile(file)
 		if err != nil {
 			return err
 		}
@@ -94,12 +96,14 @@ func (opts *jwtOptions) Parse(optMap map[string]string) error {
 }
 
 // Key will parse and return the appropriately typed key for the selected signature method
-func (opts *jwtOptions) Key() (interface{}, error) {
+func (opts *jwtOptions) Key() (any, error) {
 	switch opts.SignMethod.(type) {
 	case *jwt.SigningMethodRSA, *jwt.SigningMethodRSAPSS:
 		return opts.rsaKey()
 	case *jwt.SigningMethodECDSA:
 		return opts.ecKey()
+	case *jwt.SigningMethodEd25519:
+		return opts.edKey()
 	case *jwt.SigningMethodHMAC:
 		return opts.hmacKey()
 	default:
@@ -107,14 +111,14 @@ func (opts *jwtOptions) Key() (interface{}, error) {
 	}
 }
 
-func (opts *jwtOptions) hmacKey() (interface{}, error) {
+func (opts *jwtOptions) hmacKey() (any, error) {
 	if len(opts.PrivateKey) == 0 {
 		return nil, ErrMissingKey
 	}
 	return opts.PrivateKey, nil
 }
 
-func (opts *jwtOptions) rsaKey() (interface{}, error) {
+func (opts *jwtOptions) rsaKey() (any, error) {
 	var (
 		priv *rsa.PrivateKey
 		pub  *rsa.PublicKey
@@ -145,14 +149,14 @@ func (opts *jwtOptions) rsaKey() (interface{}, error) {
 	}
 
 	// both keys provided, make sure they match
-	if pub != nil && pub.E != priv.E && pub.N.Cmp(priv.N) != 0 {
+	if pub != nil && !pub.Equal(priv.Public()) {
 		return nil, ErrKeyMismatch
 	}
 
 	return priv, nil
 }
 
-func (opts *jwtOptions) ecKey() (interface{}, error) {
+func (opts *jwtOptions) ecKey() (any, error) {
 	var (
 		priv *ecdsa.PrivateKey
 		pub  *ecdsa.PublicKey
@@ -183,8 +187,49 @@ func (opts *jwtOptions) ecKey() (interface{}, error) {
 	}
 
 	// both keys provided, make sure they match
-	if pub != nil && pub.Curve != priv.Curve &&
-		pub.X.Cmp(priv.X) != 0 && pub.Y.Cmp(priv.Y) != 0 {
+	if pub != nil && !pub.Equal(priv.Public()) {
+		return nil, ErrKeyMismatch
+	}
+
+	return priv, nil
+}
+
+func (opts *jwtOptions) edKey() (any, error) {
+	var (
+		priv ed25519.PrivateKey
+		pub  ed25519.PublicKey
+		err  error
+	)
+
+	if len(opts.PrivateKey) > 0 {
+		var privKey crypto.PrivateKey
+		privKey, err = jwt.ParseEdPrivateKeyFromPEM(opts.PrivateKey)
+		if err != nil {
+			return nil, err
+		}
+		priv = privKey.(ed25519.PrivateKey)
+	}
+
+	if len(opts.PublicKey) > 0 {
+		var pubKey crypto.PublicKey
+		pubKey, err = jwt.ParseEdPublicKeyFromPEM(opts.PublicKey)
+		if err != nil {
+			return nil, err
+		}
+		pub = pubKey.(ed25519.PublicKey)
+	}
+
+	if priv == nil {
+		if pub == nil {
+			// Neither key given
+			return nil, ErrMissingKey
+		}
+		// Public key only, can verify tokens
+		return pub, nil
+	}
+
+	// both keys provided, make sure they match
+	if pub != nil && !pub.Equal(priv.Public()) {
 		return nil, ErrKeyMismatch
 	}
 

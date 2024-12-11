@@ -19,9 +19,9 @@ import (
 	"sort"
 	"time"
 
-	"go.etcd.io/etcd/server/v3/etcdserver/api/v2error"
-
 	"github.com/jonboulle/clockwork"
+
+	"go.etcd.io/etcd/server/v3/etcdserver/api/v2error"
 )
 
 // explanations of Compare function result
@@ -277,7 +277,6 @@ func (n *node) Repr(recursive, sorted bool, clock clockwork.Clock) *NodeExtern {
 		i := 0
 
 		for _, child := range children {
-
 			if child.IsHidden() { // get will not list hidden node
 				continue
 			}

@@ -115,6 +115,15 @@ func checkRangeRequest(r *pb.RangeRequest) error {
 	if len(r.Key) == 0 {
 		return rpctypes.ErrGRPCEmptyKey
 	}
+
+	if _, ok := pb.RangeRequest_SortOrder_name[int32(r.SortOrder)]; !ok {
+		return rpctypes.ErrGRPCInvalidSortOption
+	}
+
+	if _, ok := pb.RangeRequest_SortTarget_name[int32(r.SortTarget)]; !ok {
+		return rpctypes.ErrGRPCInvalidSortOption
+	}
+
 	return nil
 }
 

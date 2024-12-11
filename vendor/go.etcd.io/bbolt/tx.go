@@ -5,15 +5,16 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"runtime"
 	"sort"
 	"strings"
 	"sync/atomic"
 	"time"
 	"unsafe"
-)
 
-// txid represents the internal transaction identifier.
-type txid uint64
+	berrors "go.etcd.io/bbolt/errors"
+	"go.etcd.io/bbolt/internal/common"
+)
 
 // Tx represents a read-only or read/write transaction on the database.
 // Read-only transactions can be used for retrieving values for keys and creating cursors.
@@ -27,9 +28,9 @@ type Tx struct {
 	writable       bool
 	managed        bool
 	db             *DB
-	meta           *meta
+	meta           *common.Meta
 	root           Bucket
-	pages          map[pgid]*page
+	pages          map[common.Pgid]*common.Page
 	stats          TxStats
 	commitHandlers []func()
 
@@ -48,24 +49,27 @@ func (tx *Tx) init(db *DB) {
 	tx.pages = nil
 
 	// Copy the meta page since it can be changed by the writer.
-	tx.meta = &meta{}
-	db.meta().copy(tx.meta)
+	tx.meta = &common.Meta{}
+	db.meta().Copy(tx.meta)
 
 	// Copy over the root bucket.
 	tx.root = newBucket(tx)
-	tx.root.bucket = &bucket{}
-	*tx.root.bucket = tx.meta.root
+	tx.root.InBucket = &common.InBucket{}
+	*tx.root.InBucket = *(tx.meta.RootBucket())
 
 	// Increment the transaction id and add a page cache for writable transactions.
 	if tx.writable {
-		tx.pages = make(map[pgid]*page)
-		tx.meta.txid += txid(1)
+		tx.pages = make(map[common.Pgid]*common.Page)
+		tx.meta.IncTxid()
 	}
 }
 
 // ID returns the transaction id.
 func (tx *Tx) ID() int {
-	return int(tx.meta.txid)
+	if tx == nil || tx.meta == nil {
+		return -1
+	}
+	return int(tx.meta.Txid())
 }
 
 // DB returns a reference to the database that created the transaction.
@@ -75,7 +79,7 @@ func (tx *Tx) DB() *DB {
 
 // Size returns current database size in bytes as seen by this transaction.
 func (tx *Tx) Size() int64 {
-	return int64(tx.meta.pgid) * int64(tx.db.pageSize)
+	return int64(tx.meta.Pgid()) * int64(tx.db.pageSize)
 }
 
 // Writable returns whether the transaction can perform write operations.
@@ -94,6 +98,11 @@ func (tx *Tx) Cursor() *Cursor {
 // Stats retrieves a copy of the current transaction statistics.
 func (tx *Tx) Stats() TxStats {
 	return tx.stats
+}
+
+// Inspect returns the structure of the database.
+func (tx *Tx) Inspect() BucketStructure {
+	return tx.root.Inspect()
 }
 
 // Bucket retrieves a bucket by name.
@@ -123,6 +132,24 @@ func (tx *Tx) DeleteBucket(name []byte) error {
 	return tx.root.DeleteBucket(name)
 }
 
+// MoveBucket moves a sub-bucket from the source bucket to the destination bucket.
+// Returns an error if
+//  1. the sub-bucket cannot be found in the source bucket;
+//  2. or the key already exists in the destination bucket;
+//  3. the key represents a non-bucket value.
+//
+// If src is nil, it means moving a top level bucket into the target bucket.
+// If dst is nil, it means converting the child bucket into a top level bucket.
+func (tx *Tx) MoveBucket(child []byte, src *Bucket, dst *Bucket) error {
+	if src == nil {
+		src = &tx.root
+	}
+	if dst == nil {
+		dst = &tx.root
+	}
+	return src.MoveBucket(child, dst)
+}
+
 // ForEach executes a function for each bucket in the root.
 // If the provided function returns an error then the iteration is stopped and
 // the error is returned to the caller.
@@ -137,15 +164,28 @@ func (tx *Tx) OnCommit(fn func()) {
 	tx.commitHandlers = append(tx.commitHandlers, fn)
 }
 
-// Commit writes all changes to disk and updates the meta page.
+// Commit writes all changes to disk, updates the meta page and closes the transaction.
 // Returns an error if a disk write error occurs, or if Commit is
 // called on a read-only transaction.
-func (tx *Tx) Commit() error {
-	_assert(!tx.managed, "managed tx commit not allowed")
+func (tx *Tx) Commit() (err error) {
+	txId := tx.ID()
+	lg := tx.db.Logger()
+	if lg != discardLogger {
+		lg.Debugf("Committing transaction %d", txId)
+		defer func() {
+			if err != nil {
+				lg.Errorf("Committing transaction failed: %v", err)
+			} else {
+				lg.Debugf("Committing transaction %d successfully", txId)
+			}
+		}()
+	}
+
+	common.Assert(!tx.managed, "managed tx commit not allowed")
 	if tx.db == nil {
-		return ErrTxClosed
+		return berrors.ErrTxClosed
 	} else if !tx.writable {
-		return ErrTxNotWritable
+		return berrors.ErrTxNotWritable
 	}
 
 	// TODO(benbjohnson): Use vectorized I/O to write out dirty pages.
@@ -157,40 +197,43 @@ func (tx *Tx) Commit() error {
 		tx.stats.IncRebalanceTime(time.Since(startTime))
 	}
 
-	opgid := tx.meta.pgid
+	opgid := tx.meta.Pgid()
 
 	// spill data onto dirty pages.
 	startTime = time.Now()
-	if err := tx.root.spill(); err != nil {
+	if err = tx.root.spill(); err != nil {
+		lg.Errorf("spilling data onto dirty pages failed: %v", err)
 		tx.rollback()
 		return err
 	}
 	tx.stats.IncSpillTime(time.Since(startTime))
 
 	// Free the old root bucket.
-	tx.meta.root.root = tx.root.root
+	tx.meta.RootBucket().SetRootPage(tx.root.RootPage())
 
 	// Free the old freelist because commit writes out a fresh freelist.
-	if tx.meta.freelist != pgidNoFreelist {
-		tx.db.freelist.free(tx.meta.txid, tx.db.page(tx.meta.freelist))
+	if tx.meta.Freelist() != common.PgidNoFreelist {
+		tx.db.freelist.Free(tx.meta.Txid(), tx.db.page(tx.meta.Freelist()))
 	}
 
 	if !tx.db.NoFreelistSync {
-		err := tx.commitFreelist()
+		err = tx.commitFreelist()
 		if err != nil {
+			lg.Errorf("committing freelist failed: %v", err)
 			return err
 		}
 	} else {
-		tx.meta.freelist = pgidNoFreelist
+		tx.meta.SetFreelist(common.PgidNoFreelist)
 	}
 
 	// If the high water mark has moved up then attempt to grow the database.
-	if tx.meta.pgid > opgid {
+	if tx.meta.Pgid() > opgid {
 		_ = errors.New("")
 		// gofail: var lackOfDiskSpace string
 		// tx.rollback()
 		// return errors.New(lackOfDiskSpace)
-		if err := tx.db.grow(int(tx.meta.pgid+1) * tx.db.pageSize); err != nil {
+		if err = tx.db.grow(int(tx.meta.Pgid()+1) * tx.db.pageSize); err != nil {
+			lg.Errorf("growing db size failed, pgid: %d, pagesize: %d, error: %v", tx.meta.Pgid(), tx.db.pageSize, err)
 			tx.rollback()
 			return err
 		}
@@ -198,7 +241,8 @@ func (tx *Tx) Commit() error {
 
 	// Write dirty pages to disk.
 	startTime = time.Now()
-	if err := tx.write(); err != nil {
+	if err = tx.write(); err != nil {
+		lg.Errorf("writing data failed: %v", err)
 		tx.rollback()
 		return err
 	}
@@ -208,11 +252,11 @@ func (tx *Tx) Commit() error {
 		ch := tx.Check()
 		var errs []string
 		for {
-			err, ok := <-ch
+			chkErr, ok := <-ch
 			if !ok {
 				break
 			}
-			errs = append(errs, err.Error())
+			errs = append(errs, chkErr.Error())
 		}
 		if len(errs) > 0 {
 			panic("check fail: " + strings.Join(errs, "\n"))
@@ -220,7 +264,8 @@ func (tx *Tx) Commit() error {
 	}
 
 	// Write meta to disk.
-	if err := tx.writeMeta(); err != nil {
+	if err = tx.writeMeta(); err != nil {
+		lg.Errorf("writeMeta failed: %v", err)
 		tx.rollback()
 		return err
 	}
@@ -240,16 +285,14 @@ func (tx *Tx) Commit() error {
 func (tx *Tx) commitFreelist() error {
 	// Allocate new pages for the new free list. This will overestimate
 	// the size of the freelist but not underestimate the size (which would be bad).
-	p, err := tx.allocate((tx.db.freelist.size() / tx.db.pageSize) + 1)
+	p, err := tx.allocate((tx.db.freelist.EstimatedWritePageSize() / tx.db.pageSize) + 1)
 	if err != nil {
 		tx.rollback()
 		return err
 	}
-	if err := tx.db.freelist.write(p); err != nil {
-		tx.rollback()
-		return err
-	}
-	tx.meta.freelist = p.id
+
+	tx.db.freelist.Write(p)
+	tx.meta.SetFreelist(p.Id())
 
 	return nil
 }
@@ -257,9 +300,9 @@ func (tx *Tx) commitFreelist() error {
 // Rollback closes the transaction and ignores all previous updates. Read-only
 // transactions must be rolled back and not committed.
 func (tx *Tx) Rollback() error {
-	_assert(!tx.managed, "managed tx rollback not allowed")
+	common.Assert(!tx.managed, "managed tx rollback not allowed")
 	if tx.db == nil {
-		return ErrTxClosed
+		return berrors.ErrTxClosed
 	}
 	tx.nonPhysicalRollback()
 	return nil
@@ -271,7 +314,7 @@ func (tx *Tx) nonPhysicalRollback() {
 		return
 	}
 	if tx.writable {
-		tx.db.freelist.rollback(tx.meta.txid)
+		tx.db.freelist.Rollback(tx.meta.Txid())
 	}
 	tx.close()
 }
@@ -282,17 +325,17 @@ func (tx *Tx) rollback() {
 		return
 	}
 	if tx.writable {
-		tx.db.freelist.rollback(tx.meta.txid)
+		tx.db.freelist.Rollback(tx.meta.Txid())
 		// When mmap fails, the `data`, `dataref` and `datasz` may be reset to
 		// zero values, and there is no way to reload free page IDs in this case.
 		if tx.db.data != nil {
 			if !tx.db.hasSyncedFreelist() {
 				// Reconstruct free page list by scanning the DB to get the whole free page list.
-				// Note: scaning the whole db is heavy if your db size is large in NoSyncFreeList mode.
-				tx.db.freelist.noSyncReload(tx.db.freepages())
+				// Note: scanning the whole db is heavy if your db size is large in NoSyncFreeList mode.
+				tx.db.freelist.NoSyncReload(tx.db.freepages())
 			} else {
 				// Read free page list from freelist page.
-				tx.db.freelist.reload(tx.db.page(tx.db.meta().freelist))
+				tx.db.freelist.Reload(tx.db.page(tx.db.meta().Freelist()))
 			}
 		}
 	}
@@ -305,9 +348,9 @@ func (tx *Tx) close() {
 	}
 	if tx.writable {
 		// Grab freelist stats.
-		var freelistFreeN = tx.db.freelist.free_count()
-		var freelistPendingN = tx.db.freelist.pending_count()
-		var freelistAlloc = tx.db.freelist.size()
+		var freelistFreeN = tx.db.freelist.FreeCount()
+		var freelistPendingN = tx.db.freelist.PendingCount()
+		var freelistAlloc = tx.db.freelist.EstimatedWritePageSize()
 
 		// Remove transaction ref & writer lock.
 		tx.db.rwtx = nil
@@ -335,7 +378,7 @@ func (tx *Tx) close() {
 // Copy writes the entire database to a writer.
 // This function exists for backwards compatibility.
 //
-// Deprecated; Use WriteTo() instead.
+// Deprecated: Use WriteTo() instead.
 func (tx *Tx) Copy(w io.Writer) error {
 	_, err := tx.WriteTo(w)
 	return err
@@ -357,13 +400,13 @@ func (tx *Tx) WriteTo(w io.Writer) (n int64, err error) {
 
 	// Generate a meta page. We use the same page data for both meta pages.
 	buf := make([]byte, tx.db.pageSize)
-	page := (*page)(unsafe.Pointer(&buf[0]))
-	page.flags = metaPageFlag
-	*page.meta() = *tx.meta
+	page := (*common.Page)(unsafe.Pointer(&buf[0]))
+	page.SetFlags(common.MetaPageFlag)
+	*page.Meta() = *tx.meta
 
 	// Write meta 0.
-	page.id = 0
-	page.meta().checksum = page.meta().sum64()
+	page.SetId(0)
+	page.Meta().SetChecksum(page.Meta().Sum64())
 	nn, err := w.Write(buf)
 	n += int64(nn)
 	if err != nil {
@@ -371,9 +414,9 @@ func (tx *Tx) WriteTo(w io.Writer) (n int64, err error) {
 	}
 
 	// Write meta 1 with a lower transaction id.
-	page.id = 1
-	page.meta().txid -= 1
-	page.meta().checksum = page.meta().sum64()
+	page.SetId(1)
+	page.Meta().DecTxid()
+	page.Meta().SetChecksum(page.Meta().Sum64())
 	nn, err = w.Write(buf)
 	n += int64(nn)
 	if err != nil {
@@ -413,14 +456,16 @@ func (tx *Tx) CopyFile(path string, mode os.FileMode) error {
 }
 
 // allocate returns a contiguous block of memory starting at a given page.
-func (tx *Tx) allocate(count int) (*page, error) {
-	p, err := tx.db.allocate(tx.meta.txid, count)
+func (tx *Tx) allocate(count int) (*common.Page, error) {
+	lg := tx.db.Logger()
+	p, err := tx.db.allocate(tx.meta.Txid(), count)
 	if err != nil {
+		lg.Errorf("allocating failed, txid: %d, count: %d, error: %v", tx.meta.Txid(), count, err)
 		return nil, err
 	}
 
 	// Save to our page cache.
-	tx.pages[p.id] = p
+	tx.pages[p.Id()] = p
 
 	// Update statistics.
 	tx.stats.IncPageCount(int64(count))
@@ -432,18 +477,19 @@ func (tx *Tx) allocate(count int) (*page, error) {
 // write writes any dirty pages to disk.
 func (tx *Tx) write() error {
 	// Sort pages by id.
-	pages := make(pages, 0, len(tx.pages))
+	lg := tx.db.Logger()
+	pages := make(common.Pages, 0, len(tx.pages))
 	for _, p := range tx.pages {
 		pages = append(pages, p)
 	}
 	// Clear out page cache early.
-	tx.pages = make(map[pgid]*page)
+	tx.pages = make(map[common.Pgid]*common.Page)
 	sort.Sort(pages)
 
 	// Write pages to disk in order.
 	for _, p := range pages {
-		rem := (uint64(p.overflow) + 1) * uint64(tx.db.pageSize)
-		offset := int64(p.id) * int64(tx.db.pageSize)
+		rem := (uint64(p.Overflow()) + 1) * uint64(tx.db.pageSize)
+		offset := int64(p.Id()) * int64(tx.db.pageSize)
 		var written uintptr
 
 		// Write out page in "max allocation" sized chunks.
@@ -452,9 +498,10 @@ func (tx *Tx) write() error {
 			if sz > maxAllocSize-1 {
 				sz = maxAllocSize - 1
 			}
-			buf := unsafeByteSlice(unsafe.Pointer(p), written, 0, int(sz))
+			buf := common.UnsafeByteSlice(unsafe.Pointer(p), written, 0, int(sz))
 
 			if _, err := tx.db.ops.writeAt(buf, offset); err != nil {
+				lg.Errorf("writeAt failed, offset: %d: %w", offset, err)
 				return err
 			}
 
@@ -474,9 +521,10 @@ func (tx *Tx) write() error {
 	}
 
 	// Ignore file sync if flag is set on DB.
-	if !tx.db.NoSync || IgnoreNoSync {
+	if !tx.db.NoSync || common.IgnoreNoSync {
 		// gofail: var beforeSyncDataPages struct{}
 		if err := fdatasync(tx.db); err != nil {
+			lg.Errorf("[GOOS: %s, GOARCH: %s] fdatasync failed: %w", runtime.GOOS, runtime.GOARCH, err)
 			return err
 		}
 	}
@@ -485,11 +533,11 @@ func (tx *Tx) write() error {
 	for _, p := range pages {
 		// Ignore page sizes over 1 page.
 		// These are allocated using make() instead of the page pool.
-		if int(p.overflow) != 0 {
+		if int(p.Overflow()) != 0 {
 			continue
 		}
 
-		buf := unsafeByteSlice(unsafe.Pointer(p), 0, 0, tx.db.pageSize)
+		buf := common.UnsafeByteSlice(unsafe.Pointer(p), 0, 0, tx.db.pageSize)
 
 		// See https://go.googlesource.com/go/+/f03c9202c43e0abb130669852082117ca50aa9b1
 		for i := range buf {
@@ -503,18 +551,24 @@ func (tx *Tx) write() error {
 
 // writeMeta writes the meta to the disk.
 func (tx *Tx) writeMeta() error {
+	// gofail: var beforeWriteMetaError string
+	// return errors.New(beforeWriteMetaError)
+
 	// Create a temporary buffer for the meta page.
+	lg := tx.db.Logger()
 	buf := make([]byte, tx.db.pageSize)
 	p := tx.db.pageInBuffer(buf, 0)
-	tx.meta.write(p)
+	tx.meta.Write(p)
 
 	// Write the meta page to file.
-	if _, err := tx.db.ops.writeAt(buf, int64(p.id)*int64(tx.db.pageSize)); err != nil {
+	if _, err := tx.db.ops.writeAt(buf, int64(p.Id())*int64(tx.db.pageSize)); err != nil {
+		lg.Errorf("writeAt failed, pgid: %d, pageSize: %d, error: %v", p.Id(), tx.db.pageSize, err)
 		return err
 	}
-	if !tx.db.NoSync || IgnoreNoSync {
+	if !tx.db.NoSync || common.IgnoreNoSync {
 		// gofail: var beforeSyncMetaPage struct{}
 		if err := fdatasync(tx.db); err != nil {
+			lg.Errorf("[GOOS: %s, GOARCH: %s] fdatasync failed: %w", runtime.GOOS, runtime.GOARCH, err)
 			return err
 		}
 	}
@@ -527,69 +581,69 @@ func (tx *Tx) writeMeta() error {
 
 // page returns a reference to the page with a given id.
 // If page has been written to then a temporary buffered page is returned.
-func (tx *Tx) page(id pgid) *page {
+func (tx *Tx) page(id common.Pgid) *common.Page {
 	// Check the dirty pages first.
 	if tx.pages != nil {
 		if p, ok := tx.pages[id]; ok {
-			p.fastCheck(id)
+			p.FastCheck(id)
 			return p
 		}
 	}
 
 	// Otherwise return directly from the mmap.
 	p := tx.db.page(id)
-	p.fastCheck(id)
+	p.FastCheck(id)
 	return p
 }
 
 // forEachPage iterates over every page within a given page and executes a function.
-func (tx *Tx) forEachPage(pgidnum pgid, fn func(*page, int, []pgid)) {
-	stack := make([]pgid, 10)
+func (tx *Tx) forEachPage(pgidnum common.Pgid, fn func(*common.Page, int, []common.Pgid)) {
+	stack := make([]common.Pgid, 10)
 	stack[0] = pgidnum
 	tx.forEachPageInternal(stack[:1], fn)
 }
 
-func (tx *Tx) forEachPageInternal(pgidstack []pgid, fn func(*page, int, []pgid)) {
+func (tx *Tx) forEachPageInternal(pgidstack []common.Pgid, fn func(*common.Page, int, []common.Pgid)) {
 	p := tx.page(pgidstack[len(pgidstack)-1])
 
 	// Execute function.
 	fn(p, len(pgidstack)-1, pgidstack)
 
 	// Recursively loop over children.
-	if (p.flags & branchPageFlag) != 0 {
-		for i := 0; i < int(p.count); i++ {
-			elem := p.branchPageElement(uint16(i))
-			tx.forEachPageInternal(append(pgidstack, elem.pgid), fn)
+	if p.IsBranchPage() {
+		for i := 0; i < int(p.Count()); i++ {
+			elem := p.BranchPageElement(uint16(i))
+			tx.forEachPageInternal(append(pgidstack, elem.Pgid()), fn)
 		}
 	}
 }
 
 // Page returns page information for a given page number.
 // This is only safe for concurrent use when used by a writable transaction.
-func (tx *Tx) Page(id int) (*PageInfo, error) {
+func (tx *Tx) Page(id int) (*common.PageInfo, error) {
 	if tx.db == nil {
-		return nil, ErrTxClosed
-	} else if pgid(id) >= tx.meta.pgid {
+		return nil, berrors.ErrTxClosed
+	} else if common.Pgid(id) >= tx.meta.Pgid() {
 		return nil, nil
 	}
 
 	if tx.db.freelist == nil {
-		return nil, ErrFreePagesNotLoaded
+		return nil, berrors.ErrFreePagesNotLoaded
 	}
 
 	// Build the page info.
-	p := tx.db.page(pgid(id))
-	info := &PageInfo{
+	p := tx.db.page(common.Pgid(id))
+	info := &common.PageInfo{
 		ID:            id,
-		Count:         int(p.count),
-		OverflowCount: int(p.overflow),
+		Count:         int(p.Count()),
+		OverflowCount: int(p.Overflow()),
 	}
 
 	// Determine the type (or if it's free).
-	if tx.db.freelist.freed(pgid(id)) {
+	if tx.db.freelist.Freed(common.Pgid(id)) {
 		info.Type = "free"
 	} else {
-		info.Type = p.typ()
+		info.Type = p.Typ()
 	}
 
 	return info, nil

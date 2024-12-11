@@ -23,7 +23,7 @@ import (
 
 var (
 	// client-side handling retrying of request failures where data was not written to the wire or
-	// where server indicates it did not process the data. gRPC default is default is "WaitForReady(false)"
+	// where server indicates it did not process the data. gRPC default is "WaitForReady(false)"
 	// but for etcd we default to "WaitForReady(true)" to minimize client request error responses due to
 	// transient failures.
 	defaultWaitForReady = grpc.WaitForReady(true)

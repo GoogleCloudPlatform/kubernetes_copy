@@ -62,11 +62,11 @@ func (h *serverHandler) TagRPC(ctx context.Context, info *stats.RPCTagInfo) cont
 		trace.ContextWithRemoteSpanContext(ctx, trace.SpanContextFromContext(ctx)),
 		name,
 		trace.WithSpanKind(trace.SpanKindServer),
-		trace.WithAttributes(attrs...),
+		trace.WithAttributes(append(attrs, h.config.SpanAttributes...)...),
 	)
 
 	gctx := gRPCContext{
-		metricAttrs: attrs,
+		metricAttrs: append(attrs, h.config.MetricAttributes...),
 		record:      true,
 	}
 	if h.config.Filter != nil {
@@ -102,11 +102,11 @@ func (h *clientHandler) TagRPC(ctx context.Context, info *stats.RPCTagInfo) cont
 		ctx,
 		name,
 		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(attrs...),
+		trace.WithAttributes(append(attrs, h.config.SpanAttributes...)...),
 	)
 
 	gctx := gRPCContext{
-		metricAttrs: attrs,
+		metricAttrs: append(attrs, h.config.MetricAttributes...),
 		record:      true,
 	}
 	if h.config.Filter != nil {

@@ -18,15 +18,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"time"
 
-	"go.etcd.io/etcd/client/pkg/v3/fileutil"
-
 	humanize "github.com/dustin/go-humanize"
 	"go.uber.org/zap"
+
+	"go.etcd.io/etcd/client/pkg/v3/fileutil"
 )
 
 var ErrNoDBSnapshot = errors.New("snap: snapshot file doesn't exist")
@@ -36,7 +35,7 @@ var ErrNoDBSnapshot = errors.New("snap: snapshot file doesn't exist")
 func (s *Snapshotter) SaveDBFrom(r io.Reader, id uint64) (int64, error) {
 	start := time.Now()
 
-	f, err := ioutil.TempFile(s.dir, "tmp")
+	f, err := os.CreateTemp(s.dir, "tmp")
 	if err != nil {
 		return 0, err
 	}

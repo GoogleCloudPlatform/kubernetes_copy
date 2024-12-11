@@ -17,7 +17,7 @@ package client
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
 )
@@ -53,18 +53,18 @@ func printcURL(req *http.Request) error {
 	}
 
 	if req.Body != nil {
-		b, err = ioutil.ReadAll(req.Body)
+		b, err = io.ReadAll(req.Body)
 		if err != nil {
 			return err
 		}
 		command += fmt.Sprintf(" -d %q", string(b))
 	}
 
-	fmt.Fprintf(os.Stderr, "cURL Command: %s\n", command)
+	fmt.Fprintf(os.Stderr, "cURL Command: %q\n", command)
 
 	// reset body
 	body := bytes.NewBuffer(b)
-	req.Body = ioutil.NopCloser(body)
+	req.Body = io.NopCloser(body)
 
 	return nil
 }

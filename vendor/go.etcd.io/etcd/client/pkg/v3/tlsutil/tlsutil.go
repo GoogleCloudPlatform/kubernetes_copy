@@ -18,7 +18,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
-	"io/ioutil"
+	"os"
 )
 
 // NewCertPool creates x509 certPool with provided CA files.
@@ -26,7 +26,7 @@ func NewCertPool(CAFiles []string) (*x509.CertPool, error) {
 	certPool := x509.NewCertPool()
 
 	for _, CAFile := range CAFiles {
-		pemByte, err := ioutil.ReadFile(CAFile)
+		pemByte, err := os.ReadFile(CAFile)
 		if err != nil {
 			return nil, err
 		}
@@ -51,12 +51,12 @@ func NewCertPool(CAFiles []string) (*x509.CertPool, error) {
 
 // NewCert generates TLS cert by using the given cert,key and parse function.
 func NewCert(certfile, keyfile string, parseFunc func([]byte, []byte) (tls.Certificate, error)) (*tls.Certificate, error) {
-	cert, err := ioutil.ReadFile(certfile)
+	cert, err := os.ReadFile(certfile)
 	if err != nil {
 		return nil, err
 	}
 
-	key, err := ioutil.ReadFile(keyfile)
+	key, err := os.ReadFile(keyfile)
 	if err != nil {
 		return nil, err
 	}

@@ -4,7 +4,10 @@ package etcdserverpb;
 import "gogoproto/gogo.proto";
 import "etcdserver.proto";
 import "rpc.proto";
+import "etcd/api/versionpb/version.proto";
 import "etcd/api/membershippb/membership.proto";
+
+option go_package = "go.etcd.io/etcd/api/v3/etcdserverpb";
 
 option (gogoproto.marshaler_all) = true;
 option (gogoproto.sizer_all) = true;
@@ -12,16 +15,20 @@ option (gogoproto.unmarshaler_all) = true;
 option (gogoproto.goproto_getters_all) = false;
 
 message RequestHeader {
+  option (versionpb.etcd_version_msg) = "3.0";
+
   uint64 ID = 1;
   // username is a username that is associated with an auth token of gRPC connection
   string username = 2;
   // auth_revision is a revision number of auth.authStore. It is not related to mvcc
-  uint64 auth_revision = 3;
+  uint64 auth_revision = 3 [(versionpb.etcd_version_field) = "3.1"];
 }
 
 // An InternalRaftRequest is the union of all requests which can be
 // sent via raft.
 message InternalRaftRequest {
+  option (versionpb.etcd_version_msg) = "3.0";
+
   RequestHeader header = 100;
   uint64 ID = 1;
 
@@ -38,11 +45,11 @@ message InternalRaftRequest {
 
   AlarmRequest alarm = 10;
 
-  LeaseCheckpointRequest lease_checkpoint = 11;
+  LeaseCheckpointRequest lease_checkpoint = 11 [(versionpb.etcd_version_field) = "3.4"];
 
   AuthEnableRequest auth_enable = 1000;
   AuthDisableRequest auth_disable = 1011;
-  AuthStatusRequest auth_status = 1013;
+  AuthStatusRequest auth_status = 1013 [(versionpb.etcd_version_field) = "3.5"];
 
   InternalAuthenticateRequest authenticate = 1012;
 
@@ -61,9 +68,9 @@ message InternalRaftRequest {
   AuthRoleGrantPermissionRequest auth_role_grant_permission = 1203;
   AuthRoleRevokePermissionRequest auth_role_revoke_permission = 1204;
 
-  membershippb.ClusterVersionSetRequest cluster_version_set = 1300;
-  membershippb.ClusterMemberAttrSetRequest cluster_member_attr_set = 1301;
-  membershippb.DowngradeInfoSetRequest  downgrade_info_set = 1302;
+  membershippb.ClusterVersionSetRequest cluster_version_set = 1300 [(versionpb.etcd_version_field) = "3.5"];
+  membershippb.ClusterMemberAttrSetRequest cluster_member_attr_set = 1301 [(versionpb.etcd_version_field) = "3.5"];
+  membershippb.DowngradeInfoSetRequest  downgrade_info_set = 1302 [(versionpb.etcd_version_field) = "3.5"];
 }
 
 message EmptyResponse {
@@ -73,6 +80,7 @@ message EmptyResponse {
 // InternalAuthenticateRequest has a member that is filled by etcdserver and shouldn't be user-facing.
 // For avoiding misusage the field, we have an internal version of AuthenticateRequest.
 message InternalAuthenticateRequest {
+  option (versionpb.etcd_version_msg) = "3.0";
   string name = 1;
   string password = 2;
 

@@ -19,6 +19,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/spf13/pflag"
@@ -66,7 +67,7 @@ func SetPflagsFromEnv(lg *zap.Logger, prefix string, fs *pflag.FlagSet) error {
 
 // FlagToEnv converts flag string to upper-case environment variable key string.
 func FlagToEnv(prefix, name string) string {
-	return prefix + "_" + strings.ToUpper(strings.Replace(name, "-", "_", -1))
+	return prefix + "_" + strings.ToUpper(strings.ReplaceAll(name, "-", "_"))
 }
 
 func verifyEnv(lg *zap.Logger, prefix string, usedEnvKey, alreadySet map[string]bool) {
@@ -107,7 +108,7 @@ func setFlagFromEnv(lg *zap.Logger, fs flagSetter, prefix, fname string, usedEnv
 		if val != "" {
 			usedEnvKey[key] = true
 			if serr := fs.Set(fname, val); serr != nil {
-				return fmt.Errorf("invalid value %q for %s: %v", val, key, serr)
+				return fmt.Errorf("invalid value %q for %s: %w", val, key, serr)
 			}
 			if log && lg != nil {
 				lg.Info(
@@ -129,4 +130,17 @@ func IsSet(fs *flag.FlagSet, name string) bool {
 		}
 	})
 	return set
+}
+
+// GetBoolFlagVal returns the value of the a given bool flag if it is explicitly set
+// in the cmd line arguments, otherwise returns nil.
+func GetBoolFlagVal(fs *flag.FlagSet, flagName string) (*bool, error) {
+	if !IsSet(fs, flagName) {
+		return nil, nil
+	}
+	flagVal, parseErr := strconv.ParseBool(fs.Lookup(flagName).Value.String())
+	if parseErr != nil {
+		return nil, parseErr
+	}
+	return &flagVal, nil
 }

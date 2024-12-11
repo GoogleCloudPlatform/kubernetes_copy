@@ -2,6 +2,9 @@ syntax = "proto3";
 package membershippb;
 
 import "gogoproto/gogo.proto";
+import "etcd/api/versionpb/version.proto";
+
+option go_package = "go.etcd.io/etcd/api/v3/membershippb";
 
 option (gogoproto.marshaler_all) = true;
 option (gogoproto.sizer_all) = true;
@@ -10,6 +13,8 @@ option (gogoproto.goproto_getters_all) = false;
 
 // RaftAttributes represents the raft related attributes of an etcd member.
 message RaftAttributes {
+  option (versionpb.etcd_version_msg) = "3.5";
+
   // peerURLs is the list of peers in the raft cluster.
   repeated string peer_urls = 1;
   // isLearner indicates if the member is raft learner.
@@ -18,26 +23,36 @@ message RaftAttributes {
 
 // Attributes represents all the non-raft related attributes of an etcd member.
 message Attributes {
+  option (versionpb.etcd_version_msg) = "3.5";
+
   string name = 1;
   repeated string client_urls = 2;
 }
 
 message Member {
+  option (versionpb.etcd_version_msg) = "3.5";
+
   uint64 ID = 1;
   RaftAttributes raft_attributes = 2;
   Attributes member_attributes = 3;
 }
 
 message ClusterVersionSetRequest {
+  option (versionpb.etcd_version_msg) = "3.5";
+
   string ver = 1;
 }
 
 message ClusterMemberAttrSetRequest {
+  option (versionpb.etcd_version_msg) = "3.5";
+
   uint64 member_ID = 1;
   Attributes member_attributes = 2;
 }
 
 message DowngradeInfoSetRequest {
+  option (versionpb.etcd_version_msg) = "3.5";
+
   bool enabled = 1;
   string ver = 2;
 }

@@ -200,25 +200,40 @@ var tls12ForbiddenCipherSuites = map[uint16]struct{}{
 
 // NewTLS uses c to construct a TransportCredentials based on TLS.
 func NewTLS(c *tls.Config) TransportCredentials {
-	tc := &tlsCreds{credinternal.CloneTLSConfig(c)}
-	tc.config.NextProtos = credinternal.AppendH2ToNextProtos(tc.config.NextProtos)
+	config := applyDefaults(c)
+	if config.GetConfigForClient != nil {
+		oldFn := config.GetConfigForClient
+		config.GetConfigForClient = func(hello *tls.ClientHelloInfo) (*tls.Config, error) {
+			cfgForClient, err := oldFn(hello)
+			if err != nil || cfgForClient == nil {
+				return cfgForClient, err
+			}
+			return applyDefaults(cfgForClient), nil
+		}
+	}
+	return &tlsCreds{config: config}
+}
+
+func applyDefaults(c *tls.Config) *tls.Config {
+	config := credinternal.CloneTLSConfig(c)
+	config.NextProtos = credinternal.AppendH2ToNextProtos(config.NextProtos)
 	// If the user did not configure a MinVersion and did not configure a
 	// MaxVersion < 1.2, use MinVersion=1.2, which is required by
 	// https://datatracker.ietf.org/doc/html/rfc7540#section-9.2
-	if tc.config.MinVersion == 0 && (tc.config.MaxVersion == 0 || tc.config.MaxVersion >= tls.VersionTLS12) {
-		tc.config.MinVersion = tls.VersionTLS12
+	if config.MinVersion == 0 && (config.MaxVersion == 0 || config.MaxVersion >= tls.VersionTLS12) {
+		config.MinVersion = tls.VersionTLS12
 	}
 	// If the user did not configure CipherSuites, use all "secure" cipher
 	// suites reported by the TLS package, but remove some explicitly forbidden
 	// by https://datatracker.ietf.org/doc/html/rfc7540#appendix-A
-	if tc.config.CipherSuites == nil {
+	if config.CipherSuites == nil {
 		for _, cs := range tls.CipherSuites() {
 			if _, ok := tls12ForbiddenCipherSuites[cs.ID]; !ok {
-				tc.config.CipherSuites = append(tc.config.CipherSuites, cs.ID)
+				config.CipherSuites = append(config.CipherSuites, cs.ID)
 			}
 		}
 	}
-	return tc
+	return config
 }
 
 // NewClientTLSFromCert constructs TLS credentials from the provided root

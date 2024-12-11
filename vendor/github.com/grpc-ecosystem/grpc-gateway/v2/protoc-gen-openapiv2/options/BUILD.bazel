@@ -1,0 +1,44 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+load("@io_bazel_rules_go//proto:def.bzl", "go_proto_library")
+load("@rules_proto//proto:defs.bzl", "proto_library")
+
+package(default_visibility = ["//visibility:public"])
+
+filegroup(
+    name = "options_proto_files",
+    srcs = [
+        "annotations.proto",
+        "openapiv2.proto",
+    ],
+)
+
+go_library(
+    name = "options",
+    embed = [":options_go_proto"],
+    importpath = "github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2/options",
+)
+
+proto_library(
+    name = "options_proto",
+    srcs = [
+        "annotations.proto",
+        "openapiv2.proto",
+    ],
+    deps = [
+        "@com_google_protobuf//:descriptor_proto",
+        "@com_google_protobuf//:struct_proto",
+    ],
+)
+
+go_proto_library(
+    name = "options_go_proto",
+    compilers = ["//:go_apiv2"],
+    importpath = "github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2/options",
+    proto = ":options_proto",
+)
+
+alias(
+    name = "go_default_library",
+    actual = ":options",
+    visibility = ["//visibility:public"],
+)

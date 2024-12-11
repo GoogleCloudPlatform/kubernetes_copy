@@ -80,18 +80,8 @@
   },
   "status": {
     "unwantedReferences": {
-      "cloud.google.com/go": [
-        "google.golang.org/genproto"
-      ],
-      "cloud.google.com/go/bigquery": [
-        "google.golang.org/genproto"
-      ],
       "cloud.google.com/go/compute": [
-        "github.com/google/cadvisor",
-        "google.golang.org/genproto"
-      ],
-      "cloud.google.com/go/firestore": [
-        "google.golang.org/genproto"
+        "github.com/google/cadvisor"
       ],
       "github.com/davecgh/go-spew": [
         "github.com/cyphar/filepath-securejoin",
@@ -101,15 +91,18 @@
         "github.com/go-task/slim-sprig/v3",
         "github.com/google/cadvisor",
         "github.com/json-iterator/go",
-        "github.com/prometheus/client_golang",
         "github.com/prometheus/common",
         "github.com/sirupsen/logrus",
         "github.com/stretchr/objx",
         "github.com/stretchr/testify",
         "go.etcd.io/bbolt",
+        "go.etcd.io/etcd/api/v3",
         "go.etcd.io/etcd/client/pkg/v3",
+        "go.etcd.io/etcd/client/v2",
+        "go.etcd.io/etcd/client/v3",
         "go.etcd.io/etcd/pkg/v3",
         "go.etcd.io/etcd/server/v3",
+        "go.etcd.io/raft/v3",
         "go.opentelemetry.io/contrib/instrumentation/github.com/emicklei/go-restful/otelrestful",
         "go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc",
         "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp",
@@ -129,18 +122,14 @@
         "sigs.k8s.io/kustomize/kustomize/v5",
         "sigs.k8s.io/kustomize/kyaml"
       ],
-      "github.com/go-kit/kit": [
-        "github.com/grpc-ecosystem/go-grpc-middleware"
-      ],
       "github.com/gogo/protobuf": [
         "github.com/containerd/containerd/api",
         "github.com/containerd/ttrpc",
         "github.com/google/cadvisor",
-        "github.com/grpc-ecosystem/go-grpc-middleware",
         "go.etcd.io/etcd/api/v3",
         "go.etcd.io/etcd/client/v3",
-        "go.etcd.io/etcd/raft/v3",
         "go.etcd.io/etcd/server/v3",
+        "go.etcd.io/raft/v3",
         "k8s.io/api",
         "k8s.io/apiextensions-apiserver",
         "k8s.io/apimachinery",
@@ -184,14 +173,8 @@
         "go.etcd.io/etcd/server/v3",
         "k8s.io/apiserver"
       ],
-      "github.com/grpc-ecosystem/grpc-gateway": [
-        "go.etcd.io/etcd/api/v3",
-        "go.etcd.io/etcd/server/v3"
-      ],
       "github.com/json-iterator/go": [
         "github.com/prometheus/client_golang",
-        "go.etcd.io/etcd/client/v2",
-        "go.etcd.io/etcd/server/v3",
         "go.opentelemetry.io/contrib/instrumentation/github.com/emicklei/go-restful/otelrestful",
         "k8s.io/kube-openapi",
         "sigs.k8s.io/structured-merge-diff/v4"
@@ -207,7 +190,6 @@
       "github.com/pkg/errors": [
         "github.com/Microsoft/hnslib",
         "github.com/google/cadvisor",
-        "github.com/grpc-ecosystem/go-grpc-middleware",
         "k8s.io/kubectl",
         "k8s.io/kubernetes",
         "sigs.k8s.io/kustomize/api",
@@ -219,23 +201,9 @@
         "github.com/opencontainers/runc",
         "k8s.io/mount-utils"
       ],
-      "google.golang.org/appengine": [
-        "github.com/prometheus/client_golang"
-      ],
-      "google.golang.org/genproto": [
-        "github.com/grpc-ecosystem/go-grpc-middleware",
-        "github.com/grpc-ecosystem/grpc-gateway",
-        "go.etcd.io/etcd/api/v3",
-        "go.etcd.io/etcd/client/v3",
-        "go.etcd.io/etcd/server/v3"
-      ],
       "gopkg.in/yaml.v2": [
-        "github.com/grpc-ecosystem/grpc-gateway",
         "github.com/prometheus/client_golang",
-        "github.com/prometheus/common",
-        "go.etcd.io/etcd/api/v3",
-        "go.etcd.io/etcd/client/v3",
-        "go.etcd.io/etcd/server/v3"
+        "github.com/prometheus/common"
       ]
     },
     "unwantedVendored": [
@@ -245,12 +213,10 @@
       "github.com/google/shlex",
       "github.com/gregjones/httpcache",
       "github.com/grpc-ecosystem/go-grpc-prometheus",
-      "github.com/grpc-ecosystem/grpc-gateway",
       "github.com/json-iterator/go",
       "github.com/mailru/easyjson",
       "github.com/pkg/errors",
-      "golang.org/x/exp",
-      "google.golang.org/genproto"
+      "golang.org/x/exp"
     ]
   }
 }

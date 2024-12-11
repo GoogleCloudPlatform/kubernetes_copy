@@ -38,12 +38,13 @@ import (
 	"io"
 	"net/http"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
+	"github.com/klauspost/compress/zstd"
 	"github.com/prometheus/common/expfmt"
 
+	"github.com/prometheus/client_golang/internal/github.com/golang/gddo/httputil"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -53,6 +54,18 @@ const (
 	acceptEncodingHeader   = "Accept-Encoding"
 	processStartTimeHeader = "Process-Start-Time-Unix"
 )
+
+// Compression represents the content encodings handlers support for the HTTP
+// responses.
+type Compression string
+
+const (
+	Identity Compression = "identity"
+	Gzip     Compression = "gzip"
+	Zstd     Compression = "zstd"
+)
+
+var defaultCompressionFormats = []Compression{Identity, Gzip, Zstd}
 
 var gzipPool = sync.Pool{
 	New: func() interface{} {
@@ -122,6 +135,18 @@ func HandlerForTransactional(reg prometheus.TransactionalGatherer, opts HandlerO
 		}
 	}
 
+	// Select compression formats to offer based on default or user choice.
+	var compressions []string
+	if !opts.DisableCompression {
+		offers := defaultCompressionFormats
+		if len(opts.OfferedCompressions) > 0 {
+			offers = opts.OfferedCompressions
+		}
+		for _, comp := range offers {
+			compressions = append(compressions, string(comp))
+		}
+	}
+
 	h := http.HandlerFunc(func(rsp http.ResponseWriter, req *http.Request) {
 		if !opts.ProcessStartTime.IsZero() {
 			rsp.Header().Set(processStartTimeHeader, strconv.FormatInt(opts.ProcessStartTime.Unix(), 10))
@@ -165,21 +190,23 @@ func HandlerForTransactional(reg prometheus.TransactionalGatherer, opts HandlerO
 		} else {
 			contentType = expfmt.Negotiate(req.Header)
 		}
-		header := rsp.Header()
-		header.Set(contentTypeHeader, string(contentType))
+		rsp.Header().Set(contentTypeHeader, string(contentType))
 
-		w := io.Writer(rsp)
-		if !opts.DisableCompression && gzipAccepted(req.Header) {
-			header.Set(contentEncodingHeader, "gzip")
-			gz := gzipPool.Get().(*gzip.Writer)
-			defer gzipPool.Put(gz)
-
-			gz.Reset(w)
-			defer gz.Close()
-
-			w = gz
+		w, encodingHeader, closeWriter, err := negotiateEncodingWriter(req, rsp, compressions)
+		if err != nil {
+			if opts.ErrorLog != nil {
+				opts.ErrorLog.Println("error getting writer", err)
+			}
+			w = io.Writer(rsp)
+			encodingHeader = string(Identity)
 		}
 
+		defer closeWriter()
+
+		// Set Content-Encoding only when data is compressed
+		if encodingHeader != string(Identity) {
+			rsp.Header().Set(contentEncodingHeader, encodingHeader)
+		}
 		enc := expfmt.NewEncoder(w, contentType)
 
 		// handleError handles the error according to opts.ErrorHandling
@@ -343,9 +370,19 @@ type HandlerOpts struct {
 	// no effect on the HTTP status code because ErrorHandling is set to
 	// ContinueOnError.
 	Registry prometheus.Registerer
-	// If DisableCompression is true, the handler will never compress the
-	// response, even if requested by the client.
+	// DisableCompression disables the response encoding (compression) and
+	// encoding negotiation. If true, the handler will
+	// never compress the response, even if requested
+	// by the client and the OfferedCompressions field is set.
 	DisableCompression bool
+	// OfferedCompressions is a set of encodings (compressions) handler will
+	// try to offer when negotiating with the client. This defaults to identity, gzip
+	// and zstd.
+	// NOTE: If handler can't agree with the client on the encodings or
+	// unsupported or empty encodings are set in OfferedCompressions,
+	// handler always fallbacks to no compression (identity), for
+	// compatibility reasons. In such cases ErrorLog will be used if set.
+	OfferedCompressions []Compression
 	// The number of concurrent HTTP requests is limited to
 	// MaxRequestsInFlight. Additional requests are responded to with 503
 	// Service Unavailable and a suitable message in the body. If
@@ -381,19 +418,6 @@ type HandlerOpts struct {
 	ProcessStartTime time.Time
 }
 
-// gzipAccepted returns whether the client will accept gzip-encoded content.
-func gzipAccepted(header http.Header) bool {
-	a := header.Get(acceptEncodingHeader)
-	parts := strings.Split(a, ",")
-	for _, part := range parts {
-		part = strings.TrimSpace(part)
-		if part == "gzip" || strings.HasPrefix(part, "gzip;") {
-			return true
-		}
-	}
-	return false
-}
-
 // httpError removes any content-encoding header and then calls http.Error with
 // the provided error and http.StatusInternalServerError. Error contents is
 // supposed to be uncompressed plain text. Same as with a plain http.Error, this
@@ -405,4 +429,39 @@ func httpError(rsp http.ResponseWriter, err error) {
 		"An error has occurred while serving metrics:\n\n"+err.Error(),
 		http.StatusInternalServerError,
 	)
+}
+
+// negotiateEncodingWriter reads the Accept-Encoding header from a request and
+// selects the right compression based on an allow-list of supported
+// compressions. It returns a writer implementing the compression and an the
+// correct value that the caller can set in the response header.
+func negotiateEncodingWriter(r *http.Request, rw io.Writer, compressions []string) (_ io.Writer, encodingHeaderValue string, closeWriter func(), _ error) {
+	if len(compressions) == 0 {
+		return rw, string(Identity), func() {}, nil
+	}
+
+	// TODO(mrueg): Replace internal/github.com/gddo once https://github.com/golang/go/issues/19307 is implemented.
+	selected := httputil.NegotiateContentEncoding(r, compressions)
+
+	switch selected {
+	case "zstd":
+		// TODO(mrueg): Replace klauspost/compress with stdlib implementation once https://github.com/golang/go/issues/62513 is implemented.
+		z, err := zstd.NewWriter(rw, zstd.WithEncoderLevel(zstd.SpeedFastest))
+		if err != nil {
+			return nil, "", func() {}, err
+		}
+
+		z.Reset(rw)
+		return z, selected, func() { _ = z.Close() }, nil
+	case "gzip":
+		gz := gzipPool.Get().(*gzip.Writer)
+		gz.Reset(rw)
+		return gz, selected, func() { _ = gz.Close(); gzipPool.Put(gz) }, nil
+	case "identity":
+		// This means the content is not compressed.
+		return rw, selected, func() {}, nil
+	default:
+		// The content encoding was not implemented yet.
+		return nil, "", func() {}, fmt.Errorf("content compression format not recognized: %s. Valid formats are: %s", selected, defaultCompressionFormats)
+	}
 }

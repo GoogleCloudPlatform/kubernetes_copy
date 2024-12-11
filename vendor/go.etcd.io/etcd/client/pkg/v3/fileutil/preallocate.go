@@ -19,9 +19,9 @@ import (
 	"os"
 )
 
-// Preallocate tries to allocate the space for given
-// file. This operation is only supported on linux by a
-// few filesystems (btrfs, ext4, etc.).
+// Preallocate tries to allocate the space for given file. This
+// operation is only supported on darwin and linux by a few
+// filesystems (APFS, btrfs, ext4, etc.).
 // If the operation is unsupported, no error will be returned.
 // Otherwise, the error encountered will be returned.
 func Preallocate(f *os.File, sizeInBytes int64, extendFile bool) error {

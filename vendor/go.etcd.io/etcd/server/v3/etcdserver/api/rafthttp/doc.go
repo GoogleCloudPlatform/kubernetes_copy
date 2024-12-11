@@ -12,5 +12,5 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package rafthttp implements HTTP transportation layer for etcd/raft pkg.
+// Package rafthttp implements HTTP transportation layer for raft pkg.
 package rafthttp

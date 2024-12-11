@@ -20,8 +20,6 @@ package grpclog
 
 import (
 	"fmt"
-
-	"google.golang.org/grpc/internal/grpclog"
 )
 
 // componentData records the settings for a component.
@@ -33,22 +31,22 @@ var cache = map[string]*componentData{}
 
 func (c *componentData) InfoDepth(depth int, args ...any) {
 	args = append([]any{"[" + string(c.name) + "]"}, args...)
-	grpclog.InfoDepth(depth+1, args...)
+	InfoDepth(depth+1, args...)
 }
 
 func (c *componentData) WarningDepth(depth int, args ...any) {
 	args = append([]any{"[" + string(c.name) + "]"}, args...)
-	grpclog.WarningDepth(depth+1, args...)
+	WarningDepth(depth+1, args...)
 }
 
 func (c *componentData) ErrorDepth(depth int, args ...any) {
 	args = append([]any{"[" + string(c.name) + "]"}, args...)
-	grpclog.ErrorDepth(depth+1, args...)
+	ErrorDepth(depth+1, args...)
 }
 
 func (c *componentData) FatalDepth(depth int, args ...any) {
 	args = append([]any{"[" + string(c.name) + "]"}, args...)
-	grpclog.FatalDepth(depth+1, args...)
+	FatalDepth(depth+1, args...)
 }
 
 func (c *componentData) Info(args ...any) {

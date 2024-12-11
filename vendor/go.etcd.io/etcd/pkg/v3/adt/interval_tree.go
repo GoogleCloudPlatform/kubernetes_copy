@@ -176,7 +176,7 @@ func (x *intervalNode) visit(iv *Interval, sentinel *intervalNode, nv nodeVisito
 // IntervalValue represents a range tree node that contains a range and a value.
 type IntervalValue struct {
 	Ivl Interval
-	Val interface{}
+	Val any
 }
 
 // IntervalTree represents a (mostly) textbook implementation of the
@@ -184,7 +184,7 @@ type IntervalValue struct {
 // and chapter 14.3 interval tree with search supporting "stabbing queries".
 type IntervalTree interface {
 	// Insert adds a node with the given interval into the tree.
-	Insert(ivl Interval, val interface{})
+	Insert(ivl Interval, val any)
 	// Delete removes the node with the given interval from the tree, returning
 	// true if a node is in fact removed.
 	Delete(ivl Interval) bool
@@ -241,34 +241,34 @@ type intervalTree struct {
 //
 // "Introduction to Algorithms" (Cormen et al, 3rd ed.), chapter 13.4, p324
 //
-//	    RB-DELETE(T, z)
+//	  RB-DELETE(T, z)
 //
-//	    y = z
-//	    y-original-color = y.color
+//	  y = z
+//	  y-original-color = y.color
 //
-//	    if z.left == T.nil
-//	    	x = z.right
-//	    	RB-TRANSPLANT(T, z, z.right)
-//	    else if z.right == T.nil
-//	    	x = z.left
-//	    	RB-TRANSPLANT(T, z, z.left)
-//	    else
-//	    	y = TREE-MINIMUM(z.right)
-//	    	y-original-color = y.color
-//	    	x = y.right
-//	    	if y.p == z
-//	    		x.p = y
-//	    	else
-//	    		RB-TRANSPLANT(T, y, y.right)
-//	    		y.right = z.right
-//	    		y.right.p = y
-//	    	RB-TRANSPLANT(T, z, y)
-//	    	y.left = z.left
-//	    	y.left.p = y
-//	    	y.color = z.color
+//	  if z.left == T.nil
+//	  	x = z.right
+//	  	RB-TRANSPLANT(T, z, z.right)
+//	  else if z.right == T.nil
+//	  	x = z.left
+//	 	RB-TRANSPLANT(T, z, z.left)
+//	  else
+//	 	y = TREE-MINIMUM(z.right)
+//	 	y-original-color = y.color
+//	 	x = y.right
+//	 	if y.p == z
+//	 		x.p = y
+//	 	else
+//	 		RB-TRANSPLANT(T, y, y.right)
+//	 		y.right = z.right
+//	 		y.right.p = y
+//	 	RB-TRANSPLANT(T, z, y)
+//	 	y.left = z.left
+//	 	y.left.p = y
+//	 	y.color = z.color
 //
-//	    if y-original-color == BLACK
-//	    	RB-DELETE-FIXUP(T, x)
+//	  if y-original-color == BLACK
+//	  	RB-DELETE-FIXUP(T, x)
 
 // Delete removes the node with the given interval from the tree, returning
 // true if a node is in fact removed.
@@ -423,7 +423,7 @@ func (ivt *intervalTree) deleteFixup(x *intervalNode) {
 	}
 }
 
-func (ivt *intervalTree) createIntervalNode(ivl Interval, val interface{}) *intervalNode {
+func (ivt *intervalTree) createIntervalNode(ivl Interval, val any) *intervalNode {
 	return &intervalNode{
 		iv:     IntervalValue{ivl, val},
 		max:    ivl.End,
@@ -438,35 +438,35 @@ func (ivt *intervalTree) createIntervalNode(ivl Interval, val interface{}) *inte
 //
 // "Introduction to Algorithms" (Cormen et al, 3rd ed.), chapter 13.3, p315
 //
-//	    RB-INSERT(T, z)
+//	 RB-INSERT(T, z)
 //
-//	    y = T.nil
-//	    x = T.root
+//	 y = T.nil
+//	 x = T.root
 //
-//	    while x ≠ T.nil
-//	    	y = x
-//	    	if z.key < x.key
-//	    		x = x.left
-//	    	else
-//	    		x = x.right
+//	 while x ≠ T.nil
+//	 	y = x
+//	 	if z.key < x.key
+//	 		x = x.left
+//	 	else
+//	 		x = x.right
 //
-//	    z.p = y
+//	 z.p = y
 //
-//	    if y == T.nil
-//	    	T.root = z
-//	    else if z.key < y.key
-//	    	y.left = z
-//	    else
-//	    	y.right = z
+//	 if y == T.nil
+//	 	T.root = z
+//	 else if z.key < y.key
+//	 	y.left = z
+//	 else
+//	 	y.right = z
 //
-//	    z.left = T.nil
-//	    z.right = T.nil
-//	    z.color = RED
+//	 z.left = T.nil
+//	 z.right = T.nil
+//	 z.color = RED
 //
-//	    RB-INSERT-FIXUP(T, z)
+//	 RB-INSERT-FIXUP(T, z)
 
 // Insert adds a node with the given interval into the tree.
-func (ivt *intervalTree) Insert(ivl Interval, val interface{}) {
+func (ivt *intervalTree) Insert(ivl Interval, val any) {
 	y := ivt.sentinel
 	z := ivt.createIntervalNode(ivl, val)
 	x := ivt.root
@@ -532,7 +532,6 @@ func (ivt *intervalTree) Insert(ivl Interval, val interface{}) {
 func (ivt *intervalTree) insertFixup(z *intervalNode) {
 	for z.parent.color(ivt.sentinel) == red {
 		if z.parent == z.parent.parent.left { // line 3-15
-
 			y := z.parent.parent.right
 			if y.color(ivt.sentinel) == red {
 				y.c = black

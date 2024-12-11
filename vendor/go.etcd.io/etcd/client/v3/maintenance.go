@@ -16,12 +16,14 @@ package clientv3
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 
-	pb "go.etcd.io/etcd/api/v3/etcdserverpb"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+
+	pb "go.etcd.io/etcd/api/v3/etcdserverpb"
 )
 
 type (
@@ -31,6 +33,15 @@ type (
 	StatusResponse     pb.StatusResponse
 	HashKVResponse     pb.HashKVResponse
 	MoveLeaderResponse pb.MoveLeaderResponse
+	DowngradeResponse  pb.DowngradeResponse
+
+	DowngradeAction pb.DowngradeRequest_DowngradeAction
+)
+
+const (
+	DowngradeValidate = DowngradeAction(pb.DowngradeRequest_VALIDATE)
+	DowngradeEnable   = DowngradeAction(pb.DowngradeRequest_ENABLE)
+	DowngradeCancel   = DowngradeAction(pb.DowngradeRequest_CANCEL)
 )
 
 type Maintenance interface {
@@ -57,14 +68,40 @@ type Maintenance interface {
 	// is non-zero, the hash is computed on all keys at or below the given revision.
 	HashKV(ctx context.Context, endpoint string, rev int64) (*HashKVResponse, error)
 
+	// SnapshotWithVersion returns a reader for a point-in-time snapshot and version of etcd that created it.
+	// If the context "ctx" is canceled or timed out, reading from returned
+	// "io.ReadCloser" would error out (e.g. context.Canceled, context.DeadlineExceeded).
+	SnapshotWithVersion(ctx context.Context) (*SnapshotResponse, error)
+
 	// Snapshot provides a reader for a point-in-time snapshot of etcd.
 	// If the context "ctx" is canceled or timed out, reading from returned
 	// "io.ReadCloser" would error out (e.g. context.Canceled, context.DeadlineExceeded).
+	// Deprecated: use SnapshotWithVersion instead.
 	Snapshot(ctx context.Context) (io.ReadCloser, error)
 
 	// MoveLeader requests current leader to transfer its leadership to the transferee.
 	// Request must be made to the leader.
 	MoveLeader(ctx context.Context, transfereeID uint64) (*MoveLeaderResponse, error)
+
+	// Downgrade requests downgrades, verifies feasibility or cancels downgrade
+	// on the cluster version.
+	// Supported since etcd 3.5.
+	Downgrade(ctx context.Context, action DowngradeAction, version string) (*DowngradeResponse, error)
+}
+
+// SnapshotResponse is aggregated response from the snapshot stream.
+// Consumer is responsible for closing steam by calling .Snapshot.Close()
+type SnapshotResponse struct {
+	// Header is the first header in the snapshot stream, has the current key-value store information
+	// and indicates the point in time of the snapshot.
+	Header *pb.ResponseHeader
+	// Snapshot exposes ReaderCloser interface for data stored in the Blob field in the snapshot stream.
+	Snapshot io.ReadCloser
+	// Version is the local version of server that created the snapshot.
+	// In cluster with binaries with different version, each cluster can return different result.
+	// Informs which etcd server version should be used when restoring the snapshot.
+	// Supported on etcd >= v3.6.
+	Version string
 }
 
 type maintenance struct {
@@ -80,22 +117,10 @@ func NewMaintenance(c *Client) Maintenance {
 		dial: func(endpoint string) (pb.MaintenanceClient, func(), error) {
 			conn, err := c.Dial(endpoint)
 			if err != nil {
-				return nil, nil, fmt.Errorf("failed to dial endpoint %s with maintenance client: %v", endpoint, err)
+				return nil, nil, fmt.Errorf("failed to dial endpoint %s with maintenance client: %w", endpoint, err)
 			}
 
-			//get token with established connection
-			dctx := c.ctx
-			cancel := func() {}
-			if c.cfg.DialTimeout > 0 {
-				dctx, cancel = context.WithTimeout(c.ctx, c.cfg.DialTimeout)
-			}
-			err = c.getToken(dctx)
-			cancel()
-			if err != nil {
-				conn.Close()
-				return nil, nil, fmt.Errorf("failed to getToken from endpoint %s with maintenance client: %v", endpoint, err)
-			}
-			cancel = func() { conn.Close() }
+			cancel := func() { conn.Close() }
 			return RetryMaintenanceClient(c, conn), cancel, nil
 		},
 		remote: RetryMaintenanceClient(c, c.conn),
@@ -108,7 +133,6 @@ func NewMaintenance(c *Client) Maintenance {
 
 func NewMaintenanceFromMaintenanceClient(remote pb.MaintenanceClient, c *Client) Maintenance {
 	api := &maintenance{
-		lg: c.lg,
 		dial: func(string) (pb.MaintenanceClient, func(), error) {
 			return remote, func() {}, nil
 		},
@@ -116,6 +140,7 @@ func NewMaintenanceFromMaintenanceClient(remote pb.MaintenanceClient, c *Client)
 	}
 	if c != nil {
 		api.callOpts = c.callOpts
+		api.lg = c.lg
 	}
 	return api
 }
@@ -192,7 +217,6 @@ func (m *maintenance) Status(ctx context.Context, endpoint string) (*StatusRespo
 func (m *maintenance) HashKV(ctx context.Context, endpoint string, rev int64) (*HashKVResponse, error) {
 	remote, cancel, err := m.dial(endpoint)
 	if err != nil {
-
 		return nil, ContextError(ctx, err)
 	}
 	defer cancel()
@@ -203,6 +227,49 @@ func (m *maintenance) HashKV(ctx context.Context, endpoint string, rev int64) (*
 	return (*HashKVResponse)(resp), nil
 }
 
+func (m *maintenance) SnapshotWithVersion(ctx context.Context) (*SnapshotResponse, error) {
+	ss, err := m.remote.Snapshot(ctx, &pb.SnapshotRequest{}, append(m.callOpts, withMax(defaultStreamMaxRetries))...)
+	if err != nil {
+		return nil, ContextError(ctx, err)
+	}
+
+	m.lg.Info("opened snapshot stream; downloading")
+	pr, pw := io.Pipe()
+
+	resp, err := ss.Recv()
+	if err != nil {
+		m.logAndCloseWithError(err, pw)
+		return nil, err
+	}
+	go func() {
+		// Saving response is blocking
+		err := m.save(resp, pw)
+		if err != nil {
+			m.logAndCloseWithError(err, pw)
+			return
+		}
+		for {
+			sresp, err := ss.Recv()
+			if err != nil {
+				m.logAndCloseWithError(err, pw)
+				return
+			}
+
+			err = m.save(sresp, pw)
+			if err != nil {
+				m.logAndCloseWithError(err, pw)
+				return
+			}
+		}
+	}()
+
+	return &SnapshotResponse{
+		Header:   resp.GetHeader(),
+		Snapshot: &snapshotReadCloser{ctx: ctx, ReadCloser: pr},
+		Version:  resp.GetVersion(),
+	}, nil
+}
+
 func (m *maintenance) Snapshot(ctx context.Context) (io.ReadCloser, error) {
 	ss, err := m.remote.Snapshot(ctx, &pb.SnapshotRequest{}, append(m.callOpts, withMax(defaultStreamMaxRetries))...)
 	if err != nil {
@@ -211,32 +278,44 @@ func (m *maintenance) Snapshot(ctx context.Context) (io.ReadCloser, error) {
 
 	m.lg.Info("opened snapshot stream; downloading")
 	pr, pw := io.Pipe()
+
 	go func() {
 		for {
 			resp, err := ss.Recv()
 			if err != nil {
-				switch err {
-				case io.EOF:
-					m.lg.Info("completed snapshot read; closing")
-				default:
-					m.lg.Warn("failed to receive from snapshot stream; closing", zap.Error(err))
-				}
-				pw.CloseWithError(err)
+				m.logAndCloseWithError(err, pw)
 				return
 			}
-
-			// can "resp == nil && err == nil"
-			// before we receive snapshot SHA digest?
-			// No, server sends EOF with an empty response
-			// after it sends SHA digest at the end
-
-			if _, werr := pw.Write(resp.Blob); werr != nil {
-				pw.CloseWithError(werr)
+			err = m.save(resp, pw)
+			if err != nil {
+				m.logAndCloseWithError(err, pw)
 				return
 			}
 		}
 	}()
 	return &snapshotReadCloser{ctx: ctx, ReadCloser: pr}, nil
+}
+
+func (m *maintenance) logAndCloseWithError(err error, pw *io.PipeWriter) {
+	switch {
+	case errors.Is(err, io.EOF):
+		m.lg.Info("completed snapshot read; closing")
+	default:
+		m.lg.Warn("failed to receive from snapshot stream; closing", zap.Error(err))
+	}
+	pw.CloseWithError(err)
+}
+
+func (m *maintenance) save(resp *pb.SnapshotResponse, pw *io.PipeWriter) error {
+	// can "resp == nil && err == nil"
+	// before we receive snapshot SHA digest?
+	// No, server sends EOF with an empty response
+	// after it sends SHA digest at the end
+
+	if _, werr := pw.Write(resp.Blob); werr != nil {
+		return werr
+	}
+	return nil
 }
 
 type snapshotReadCloser struct {
@@ -252,4 +331,20 @@ func (rc *snapshotReadCloser) Read(p []byte) (n int, err error) {
 func (m *maintenance) MoveLeader(ctx context.Context, transfereeID uint64) (*MoveLeaderResponse, error) {
 	resp, err := m.remote.MoveLeader(ctx, &pb.MoveLeaderRequest{TargetID: transfereeID}, m.callOpts...)
 	return (*MoveLeaderResponse)(resp), ContextError(ctx, err)
+}
+
+func (m *maintenance) Downgrade(ctx context.Context, action DowngradeAction, version string) (*DowngradeResponse, error) {
+	var actionType pb.DowngradeRequest_DowngradeAction
+	switch action {
+	case DowngradeValidate:
+		actionType = pb.DowngradeRequest_VALIDATE
+	case DowngradeEnable:
+		actionType = pb.DowngradeRequest_ENABLE
+	case DowngradeCancel:
+		actionType = pb.DowngradeRequest_CANCEL
+	default:
+		return nil, errors.New("etcdclient: unknown downgrade action")
+	}
+	resp, err := m.remote.Downgrade(ctx, &pb.DowngradeRequest{Action: actionType, Version: version}, m.callOpts...)
+	return (*DowngradeResponse)(resp), ContextError(ctx, err)
 }

@@ -34,9 +34,9 @@ type Wait interface {
 	// Register waits returns a chan that waits on the given ID.
 	// The chan will be triggered when Trigger is called with
 	// the same ID.
-	Register(id uint64) <-chan interface{}
+	Register(id uint64) <-chan any
 	// Trigger triggers the waiting chans with the given ID.
-	Trigger(id uint64, x interface{})
+	Trigger(id uint64, x any)
 	IsRegistered(id uint64) bool
 }
 
@@ -46,7 +46,7 @@ type list struct {
 
 type listElement struct {
 	l sync.RWMutex
-	m map[uint64]chan interface{}
+	m map[uint64]chan any
 }
 
 // New creates a Wait.
@@ -55,14 +55,14 @@ func New() Wait {
 		e: make([]listElement, defaultListElementLength),
 	}
 	for i := 0; i < len(res.e); i++ {
-		res.e[i].m = make(map[uint64]chan interface{})
+		res.e[i].m = make(map[uint64]chan any)
 	}
 	return &res
 }
 
-func (w *list) Register(id uint64) <-chan interface{} {
+func (w *list) Register(id uint64) <-chan any {
 	idx := id % defaultListElementLength
-	newCh := make(chan interface{}, 1)
+	newCh := make(chan any, 1)
 	w.e[idx].l.Lock()
 	defer w.e[idx].l.Unlock()
 	if _, ok := w.e[idx].m[id]; !ok {
@@ -73,7 +73,7 @@ func (w *list) Register(id uint64) <-chan interface{} {
 	return newCh
 }
 
-func (w *list) Trigger(id uint64, x interface{}) {
+func (w *list) Trigger(id uint64, x any) {
 	idx := id % defaultListElementLength
 	w.e[idx].l.Lock()
 	ch := w.e[idx].m[id]
@@ -94,17 +94,17 @@ func (w *list) IsRegistered(id uint64) bool {
 }
 
 type waitWithResponse struct {
-	ch <-chan interface{}
+	ch <-chan any
 }
 
-func NewWithResponse(ch <-chan interface{}) Wait {
+func NewWithResponse(ch <-chan any) Wait {
 	return &waitWithResponse{ch: ch}
 }
 
-func (w *waitWithResponse) Register(id uint64) <-chan interface{} {
+func (w *waitWithResponse) Register(id uint64) <-chan any {
 	return w.ch
 }
-func (w *waitWithResponse) Trigger(id uint64, x interface{}) {}
+func (w *waitWithResponse) Trigger(id uint64, x any) {}
 func (w *waitWithResponse) IsRegistered(id uint64) bool {
 	panic("waitWithResponse.IsRegistered() shouldn't be called")
 }

@@ -47,8 +47,8 @@
 // To specify a client request timeout, wrap the context with context.WithTimeout:
 //
 //	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+//	defer cancel()
 //	resp, err := kvc.Put(ctx, "sample_key", "sample_value")
-//	cancel()
 //	if err != nil {
 //	    // handle error!
 //	}
@@ -61,8 +61,7 @@
 //
 //  1. context error: canceled or deadline exceeded.
 //  2. gRPC error: e.g. when clock drifts in server-side before client's context deadline exceeded.
-//
-// See https://github.com/etcd-io/etcd/blob/main/api/v3rpc/rpctypes/error.go
+//     See https://github.com/etcd-io/etcd/blob/main/api/v3rpc/rpctypes/error.go
 //
 // Here is the example code to handle client errors:
 //

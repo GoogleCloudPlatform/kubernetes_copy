@@ -1,0 +1,12 @@
+# See the OWNERS docs at https://go.k8s.io/owners
+
+approvers:
+  - ahrtr           # Benjamin Wang <wachao@vmware.com> <benjamin.ahrtr@gmail.com>
+  - mitake          # Hitoshi Mitake <h.mitake@gmail.com>
+  - serathius       # Marek Siarkowicz <siarkowicz@google.com> <marek.siarkowicz@gmail.com>
+  - ptabor          # Piotr Tabor <piotr.tabor@gmail.com>
+  - spzala          # Sahdev Zala <spzala@us.ibm.com>
+reviewers:
+  - pav-kv          # Pavel Kalinnikov <pavel@cockroachlabs.com>
+emeritus_approvers:
+  - tbg             # Tobias Grieger <tobias.b.grieger@gmail.com>

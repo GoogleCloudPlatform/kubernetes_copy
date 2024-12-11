@@ -440,7 +440,7 @@ type HistogramOpts struct {
 	// constant (or any negative float value).
 	NativeHistogramZeroThreshold float64
 
-	// The remaining fields define a strategy to limit the number of
+	// The next three fields define a strategy to limit the number of
 	// populated sparse buckets. If NativeHistogramMaxBucketNumber is left
 	// at zero, the number of buckets is not limited. (Note that this might
 	// lead to unbounded memory consumption if the values observed by the
@@ -472,6 +472,22 @@ type HistogramOpts struct {
 	NativeHistogramMaxBucketNumber  uint32
 	NativeHistogramMinResetDuration time.Duration
 	NativeHistogramMaxZeroThreshold float64
+
+	// NativeHistogramMaxExemplars limits the number of exemplars
+	// that are kept in memory for each native histogram. If you leave it at
+	// zero, a default value of 10 is used. If no exemplars should be kept specifically
+	// for native histograms, set it to a negative value. (Scrapers can
+	// still use the exemplars exposed for classic buckets, which are managed
+	// independently.)
+	NativeHistogramMaxExemplars int
+	// NativeHistogramExemplarTTL is only checked once
+	// NativeHistogramMaxExemplars is exceeded. In that case, the
+	// oldest exemplar is removed if it is older than NativeHistogramExemplarTTL.
+	// Otherwise, the older exemplar in the pair of exemplars that are closest
+	// together (on an exponential scale) is removed.
+	// If NativeHistogramExemplarTTL is left at its zero value, a default value of
+	// 5m is used. To always delete the oldest exemplar, set it to a negative value.
+	NativeHistogramExemplarTTL time.Duration
 
 	// now is for testing purposes, by default it's time.Now.
 	now func() time.Time
@@ -532,6 +548,7 @@ func newHistogram(desc *Desc, opts HistogramOpts, labelValues ...string) Histogr
 	if opts.afterFunc == nil {
 		opts.afterFunc = time.AfterFunc
 	}
+
 	h := &histogram{
 		desc:                            desc,
 		upperBounds:                     opts.Buckets,
@@ -556,6 +573,7 @@ func newHistogram(desc *Desc, opts HistogramOpts, labelValues ...string) Histogr
 			h.nativeHistogramZeroThreshold = DefNativeHistogramZeroThreshold
 		} // Leave h.nativeHistogramZeroThreshold at 0 otherwise.
 		h.nativeHistogramSchema = pickSchema(opts.NativeHistogramBucketFactor)
+		h.nativeExemplars = makeNativeExemplars(opts.NativeHistogramExemplarTTL, opts.NativeHistogramMaxExemplars)
 	}
 	for i, upperBound := range h.upperBounds {
 		if i < len(h.upperBounds)-1 {
@@ -725,7 +743,8 @@ type histogram struct {
 	// resetScheduled is protected by mtx. It is true if a reset is
 	// scheduled for a later time (when nativeHistogramMinResetDuration has
 	// passed).
-	resetScheduled bool
+	resetScheduled  bool
+	nativeExemplars nativeExemplars
 
 	// now is for testing purposes, by default it's time.Now.
 	now func() time.Time
@@ -742,6 +761,9 @@ func (h *histogram) Observe(v float64) {
 	h.observe(v, h.findBucket(v))
 }
 
+// ObserveWithExemplar should not be called in a high-frequency setting
+// for a native histogram with configured exemplars. For this case,
+// the implementation isn't lock-free and might suffer from lock contention.
 func (h *histogram) ObserveWithExemplar(v float64, e Labels) {
 	i := h.findBucket(v)
 	h.observe(v, i)
@@ -821,6 +843,13 @@ func (h *histogram) Write(out *dto.Metric) error {
 				Length: proto.Uint32(0),
 			}}
 		}
+
+		if h.nativeExemplars.isEnabled() {
+			h.nativeExemplars.Lock()
+			his.Exemplars = append(his.Exemplars, h.nativeExemplars.exemplars...)
+			h.nativeExemplars.Unlock()
+		}
+
 	}
 	addAndResetCounts(hotCounts, coldCounts)
 	return nil
@@ -1091,8 +1120,10 @@ func (h *histogram) resetCounts(counts *histogramCounts) {
 	deleteSyncMap(&counts.nativeHistogramBucketsPositive)
 }
 
-// updateExemplar replaces the exemplar for the provided bucket. With empty
-// labels, it's a no-op. It panics if any of the labels is invalid.
+// updateExemplar replaces the exemplar for the provided classic bucket.
+// With empty labels, it's a no-op. It panics if any of the labels is invalid.
+// If histogram is native, the exemplar will be cached into nativeExemplars,
+// which has a limit, and will remove one exemplar when limit is reached.
 func (h *histogram) updateExemplar(v float64, bucket int, l Labels) {
 	if l == nil {
 		return
@@ -1102,6 +1133,10 @@ func (h *histogram) updateExemplar(v float64, bucket int, l Labels) {
 		panic(err)
 	}
 	h.exemplars[bucket].Store(e)
+	doSparse := h.nativeHistogramSchema > math.MinInt32 && !math.IsNaN(v)
+	if doSparse {
+		h.nativeExemplars.addExemplar(e)
+	}
 }
 
 // HistogramVec is a Collector that bundles a set of Histograms that all share the
@@ -1330,6 +1365,48 @@ func MustNewConstHistogram(
 	labelValues ...string,
 ) Metric {
 	m, err := NewConstHistogram(desc, count, sum, buckets, labelValues...)
+	if err != nil {
+		panic(err)
+	}
+	return m
+}
+
+// NewConstHistogramWithCreatedTimestamp does the same thing as NewConstHistogram but sets the created timestamp.
+func NewConstHistogramWithCreatedTimestamp(
+	desc *Desc,
+	count uint64,
+	sum float64,
+	buckets map[float64]uint64,
+	ct time.Time,
+	labelValues ...string,
+) (Metric, error) {
+	if desc.err != nil {
+		return nil, desc.err
+	}
+	if err := validateLabelValues(labelValues, len(desc.variableLabels.names)); err != nil {
+		return nil, err
+	}
+	return &constHistogram{
+		desc:       desc,
+		count:      count,
+		sum:        sum,
+		buckets:    buckets,
+		labelPairs: MakeLabelPairs(desc, labelValues),
+		createdTs:  timestamppb.New(ct),
+	}, nil
+}
+
+// MustNewConstHistogramWithCreatedTimestamp is a version of NewConstHistogramWithCreatedTimestamp that panics where
+// NewConstHistogramWithCreatedTimestamp would have returned an error.
+func MustNewConstHistogramWithCreatedTimestamp(
+	desc *Desc,
+	count uint64,
+	sum float64,
+	buckets map[float64]uint64,
+	ct time.Time,
+	labelValues ...string,
+) Metric {
+	m, err := NewConstHistogramWithCreatedTimestamp(desc, count, sum, buckets, ct, labelValues...)
 	if err != nil {
 		panic(err)
 	}
@@ -1574,4 +1651,187 @@ func addAndResetCounts(hot, cold *histogramCounts) {
 	}
 	atomic.AddUint64(&hot.nativeHistogramZeroBucket, atomic.LoadUint64(&cold.nativeHistogramZeroBucket))
 	atomic.StoreUint64(&cold.nativeHistogramZeroBucket, 0)
+}
+
+type nativeExemplars struct {
+	sync.Mutex
+
+	// Time-to-live for exemplars, it is set to -1 if exemplars are disabled, that is NativeHistogramMaxExemplars is below 0.
+	// The ttl is used on insertion to remove an exemplar that is older than ttl, if present.
+	ttl time.Duration
+
+	exemplars []*dto.Exemplar
+}
+
+func (n *nativeExemplars) isEnabled() bool {
+	return n.ttl != -1
+}
+
+func makeNativeExemplars(ttl time.Duration, maxCount int) nativeExemplars {
+	if ttl == 0 {
+		ttl = 5 * time.Minute
+	}
+
+	if maxCount == 0 {
+		maxCount = 10
+	}
+
+	if maxCount < 0 {
+		maxCount = 0
+		ttl = -1
+	}
+
+	return nativeExemplars{
+		ttl:       ttl,
+		exemplars: make([]*dto.Exemplar, 0, maxCount),
+	}
+}
+
+func (n *nativeExemplars) addExemplar(e *dto.Exemplar) {
+	if !n.isEnabled() {
+		return
+	}
+
+	n.Lock()
+	defer n.Unlock()
+
+	// When the number of exemplars has not yet exceeded or
+	// is equal to cap(n.exemplars), then
+	// insert the new exemplar directly.
+	if len(n.exemplars) < cap(n.exemplars) {
+		var nIdx int
+		for nIdx = 0; nIdx < len(n.exemplars); nIdx++ {
+			if *e.Value < *n.exemplars[nIdx].Value {
+				break
+			}
+		}
+		n.exemplars = append(n.exemplars[:nIdx], append([]*dto.Exemplar{e}, n.exemplars[nIdx:]...)...)
+		return
+	}
+
+	if len(n.exemplars) == 1 {
+		// When the number of exemplars is 1, then
+		// replace the existing exemplar with the new exemplar.
+		n.exemplars[0] = e
+		return
+	}
+	// From this point on, the number of exemplars is greater than 1.
+
+	// When the number of exemplars exceeds the limit, remove one exemplar.
+	var (
+		ot    = time.Time{} // Oldest timestamp seen. Initial value doesn't matter as we replace it due to otIdx == -1 in the loop.
+		otIdx = -1          // Index of the exemplar with the oldest timestamp.
+
+		md = -1.0 // Logarithm of the delta of the closest pair of exemplars.
+
+		// The insertion point of the new exemplar in the exemplars slice after insertion.
+		// This is calculated purely based on the order of the exemplars by value.
+		// nIdx == len(n.exemplars) means the new exemplar is to be inserted after the end.
+		nIdx = -1
+
+		// rIdx is ultimately the index for the exemplar that we are replacing with the new exemplar.
+		// The aim is to keep a good spread of exemplars by value and not let them bunch up too much.
+		// It is calculated in 3 steps:
+		//   1. First we set rIdx to the index of the older exemplar within the closest pair by value.
+		//      That is the following will be true (on log scale):
+		//      either the exemplar pair on index (rIdx-1, rIdx) or (rIdx, rIdx+1) will have
+		//      the closest values to each other from all pairs.
+		//      For example, suppose the values are distributed like this:
+		//        |-----------x-------------x----------------x----x-----|
+		//                                                   ^--rIdx as this is older.
+		//      Or like this:
+		//        |-----------x-------------x----------------x----x-----|
+		//                                                        ^--rIdx as this is older.
+		//   2. If there is an exemplar that expired, then we simple reset rIdx to that index.
+		//   3. We check if by inserting the new exemplar we would create a closer pair at
+		//      (nIdx-1, nIdx) or (nIdx, nIdx+1) and set rIdx to nIdx-1 or nIdx accordingly to
+		//      keep the spread of exemplars by value; otherwise we keep rIdx as it is.
+		rIdx = -1
+		cLog float64 // Logarithm of the current exemplar.
+		pLog float64 // Logarithm of the previous exemplar.
+	)
+
+	for i, exemplar := range n.exemplars {
+		// Find the exemplar with the oldest timestamp.
+		if otIdx == -1 || exemplar.Timestamp.AsTime().Before(ot) {
+			ot = exemplar.Timestamp.AsTime()
+			otIdx = i
+		}
+
+		// Find the index at which to insert new the exemplar.
+		if nIdx == -1 && *e.Value <= *exemplar.Value {
+			nIdx = i
+		}
+
+		// Find the two closest exemplars and pick the one the with older timestamp.
+		pLog = cLog
+		cLog = math.Log(exemplar.GetValue())
+		if i == 0 {
+			continue
+		}
+		diff := math.Abs(cLog - pLog)
+		if md == -1 || diff < md {
+			// The closest exemplar pair is at index: i-1, i.
+			// Choose the exemplar with the older timestamp for replacement.
+			md = diff
+			if n.exemplars[i].Timestamp.AsTime().Before(n.exemplars[i-1].Timestamp.AsTime()) {
+				rIdx = i
+			} else {
+				rIdx = i - 1
+			}
+		}
+
+	}
+
+	// If all existing exemplar are smaller than new exemplar,
+	// then the exemplar should be inserted at the end.
+	if nIdx == -1 {
+		nIdx = len(n.exemplars)
+	}
+	// Here, we have the following relationships:
+	// n.exemplars[nIdx-1].Value < e.Value (if nIdx > 0)
+	// e.Value <= n.exemplars[nIdx].Value (if nIdx < len(n.exemplars))
+
+	if otIdx != -1 && e.Timestamp.AsTime().Sub(ot) > n.ttl {
+		// If the oldest exemplar has expired, then replace it with the new exemplar.
+		rIdx = otIdx
+	} else {
+		// In the previous for loop, when calculating the closest pair of exemplars,
+		// we did not take into account the newly inserted exemplar.
+		// So we need to calculate with the newly inserted exemplar again.
+		elog := math.Log(e.GetValue())
+		if nIdx > 0 {
+			diff := math.Abs(elog - math.Log(n.exemplars[nIdx-1].GetValue()))
+			if diff < md {
+				// The value we are about to insert is closer to the previous exemplar at the insertion point than what we calculated before in rIdx.
+				//                                            v--rIdx
+				// |-----------x-n-----------x----------------x----x-----|
+				//     nIdx-1--^ ^--new exemplar value
+				// Do not make the spread worse, replace nIdx-1 and not rIdx.
+				md = diff
+				rIdx = nIdx - 1
+			}
+		}
+		if nIdx < len(n.exemplars) {
+			diff := math.Abs(math.Log(n.exemplars[nIdx].GetValue()) - elog)
+			if diff < md {
+				// The value we are about to insert is closer to the next exemplar at the insertion point than what we calculated before in rIdx.
+				//                                            v--rIdx
+				// |-----------x-----------n-x----------------x----x-----|
+				//     new exemplar value--^ ^--nIdx
+				// Do not make the spread worse, replace nIdx-1 and not rIdx.
+				rIdx = nIdx
+			}
+		}
+	}
+
+	// Adjust the slice according to rIdx and nIdx.
+	switch {
+	case rIdx == nIdx:
+		n.exemplars[nIdx] = e
+	case rIdx < nIdx:
+		n.exemplars = append(n.exemplars[:rIdx], append(n.exemplars[rIdx+1:nIdx], append([]*dto.Exemplar{e}, n.exemplars[nIdx:]...)...)...)
+	case rIdx > nIdx:
+		n.exemplars = append(n.exemplars[:nIdx], append([]*dto.Exemplar{e}, append(n.exemplars[nIdx:rIdx], n.exemplars[rIdx+1:]...)...)...)
+	}
 }

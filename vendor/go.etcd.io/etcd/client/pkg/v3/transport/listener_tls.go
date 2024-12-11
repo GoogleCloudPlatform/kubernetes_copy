@@ -19,8 +19,8 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"io/ioutil"
 	"net"
+	"os"
 	"strings"
 	"sync"
 )
@@ -168,16 +168,16 @@ func (l *tlsListener) acceptLoop() {
 
 func checkCRL(crlPath string, cert []*x509.Certificate) error {
 	// TODO: cache
-	crlBytes, err := ioutil.ReadFile(crlPath)
+	crlBytes, err := os.ReadFile(crlPath)
 	if err != nil {
 		return err
 	}
-	certList, err := x509.ParseCRL(crlBytes)
+	certList, err := x509.ParseRevocationList(crlBytes)
 	if err != nil {
 		return err
 	}
 	revokedSerials := make(map[string]struct{})
-	for _, rc := range certList.TBSCertList.RevokedCertificates {
+	for _, rc := range certList.RevokedCertificateEntries {
 		revokedSerials[string(rc.SerialNumber.Bytes())] = struct{}{}
 	}
 	for _, c := range cert {
@@ -222,7 +222,8 @@ func checkCertSAN(ctx context.Context, cert *x509.Certificate, remoteAddr string
 
 func isHostInDNS(ctx context.Context, host string, dnsNames []string) (ok bool, err error) {
 	// reverse lookup
-	wildcards, names := []string{}, []string{}
+	var names []string
+	var wildcards []string
 	for _, dns := range dnsNames {
 		if strings.HasPrefix(dns, "*.") {
 			wildcards = append(wildcards, dns[1:])

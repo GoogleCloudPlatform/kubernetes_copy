@@ -19,9 +19,9 @@ import "sync"
 type WaitTime interface {
 	// Wait returns a chan that waits on the given logical deadline.
 	// The chan will be triggered when Trigger is called with a
-	// deadline that is later than the one it is waiting for.
+	// deadline that is later than or equal to the one it is waiting for.
 	Wait(deadline uint64) <-chan struct{}
-	// Trigger triggers all the waiting chans with an earlier logical deadline.
+	// Trigger triggers all the waiting chans with an equal or earlier logical deadline.
 	Trigger(deadline uint64)
 }
 

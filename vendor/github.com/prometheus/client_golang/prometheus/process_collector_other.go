@@ -63,4 +63,18 @@ func (c *processCollector) processCollect(ch chan<- Metric) {
 	} else {
 		c.reportError(ch, nil, err)
 	}
+
+	if netstat, err := p.Netstat(); err == nil {
+		var inOctets, outOctets float64
+		if netstat.IpExt.InOctets != nil {
+			inOctets = *netstat.IpExt.InOctets
+		}
+		if netstat.IpExt.OutOctets != nil {
+			outOctets = *netstat.IpExt.OutOctets
+		}
+		ch <- MustNewConstMetric(c.inBytes, CounterValue, inOctets)
+		ch <- MustNewConstMetric(c.outBytes, CounterValue, outOctets)
+	} else {
+		c.reportError(ch, nil, err)
+	}
 }

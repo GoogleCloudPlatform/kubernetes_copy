@@ -125,5 +125,4 @@ func (eh *EventHistory) clone() *EventHistory {
 		Queue:      clonedQueue,
 		LastIndex:  eh.LastIndex,
 	}
-
 }

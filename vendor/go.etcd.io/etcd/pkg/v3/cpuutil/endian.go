@@ -19,7 +19,7 @@ import (
 	"unsafe"
 )
 
-const intWidth int = int(unsafe.Sizeof(0))
+const intWidth = int(unsafe.Sizeof(0))
 
 var byteOrder binary.ByteOrder
 
@@ -27,7 +27,7 @@ var byteOrder binary.ByteOrder
 func ByteOrder() binary.ByteOrder { return byteOrder }
 
 func init() {
-	i := int(0x1)
+	i := 0x1
 	if v := (*[intWidth]byte)(unsafe.Pointer(&i)); v[0] == 0 {
 		byteOrder = binary.BigEndian
 	} else {

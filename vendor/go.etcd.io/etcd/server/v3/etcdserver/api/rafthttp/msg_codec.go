@@ -20,7 +20,7 @@ import (
 	"io"
 
 	"go.etcd.io/etcd/pkg/v3/pbutil"
-	"go.etcd.io/etcd/raft/v3/raftpb"
+	"go.etcd.io/raft/v3/raftpb"
 )
 
 // messageEncoder is a encoder that can encode all kinds of messages.

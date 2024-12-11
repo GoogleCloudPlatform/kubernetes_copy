@@ -1,10 +1,8 @@
 bbolt
 =====
 
-[![Go Report Card](https://goreportcard.com/badge/github.com/etcd-io/bbolt?style=flat-square)](https://goreportcard.com/report/github.com/etcd-io/bbolt)
-[![Coverage](https://codecov.io/gh/etcd-io/bbolt/branch/master/graph/badge.svg)](https://codecov.io/gh/etcd-io/bbolt)
-[![Build Status Travis](https://img.shields.io/travis/etcd-io/bboltlabs.svg?style=flat-square&&branch=master)](https://travis-ci.com/etcd-io/bbolt)
-[![Godoc](http://img.shields.io/badge/go-documentation-blue.svg?style=flat-square)](https://godoc.org/github.com/etcd-io/bbolt)
+[![Go Report Card](https://goreportcard.com/badge/go.etcd.io/bbolt?style=flat-square)](https://goreportcard.com/report/go.etcd.io/bbolt)
+[![Go Reference](https://pkg.go.dev/badge/go.etcd.io/bbolt.svg)](https://pkg.go.dev/go.etcd.io/bbolt)
 [![Releases](https://img.shields.io/github/release/etcd-io/bbolt/all.svg?style=flat-square)](https://github.com/etcd-io/bbolt/releases)
 [![LICENSE](https://img.shields.io/github/license/etcd-io/bbolt.svg?style=flat-square)](https://github.com/etcd-io/bbolt/blob/master/LICENSE)
 
@@ -71,6 +69,7 @@ New minor versions may add additional features to the API.
     - [LMDB](#lmdb)
   - [Caveats & Limitations](#caveats--limitations)
   - [Reading the Source](#reading-the-source)
+  - [Known Issues](#known-issues)
   - [Other Projects Using Bolt](#other-projects-using-bolt)
 
 ## Getting Started
@@ -103,7 +102,7 @@ To use bbolt as an embedded key-value store, import as:
 ```go
 import bolt "go.etcd.io/bbolt"
 
-db, err := bolt.Open(path, 0666, nil)
+db, err := bolt.Open(path, 0600, nil)
 if err != nil {
   return err
 }
@@ -298,6 +297,17 @@ db.Update(func(tx *bolt.Tx) error {
 })
 ```
 
+You can retrieve an existing bucket using the `Tx.Bucket()` function:
+```go
+db.Update(func(tx *bolt.Tx) error {
+	b := tx.Bucket([]byte("MyBucket"))
+	if b == nil {
+		return errors.New("bucket does not exist")
+	}
+	return nil
+})
+```
+
 You can also create a bucket only if it doesn't exist by using the
 `Tx.CreateBucketIfNotExists()` function. It's a common pattern to call this
 function for all your top-level buckets after you open your database so you can
@@ -305,6 +315,17 @@ guarantee that they exist for future transactions.
 
 To delete a bucket, simply call the `Tx.DeleteBucket()` function.
 
+You can also iterate over all existing top-level buckets with `Tx.ForEach()`:
+
+```go
+db.View(func(tx *bolt.Tx) error {
+	tx.ForEach(func(name []byte, b *bolt.Bucket) error {
+		fmt.Println(string(name))
+		return nil
+	})
+	return nil
+})
+```
 
 ### Using key/value pairs
 
@@ -336,7 +357,17 @@ exists then it will return its byte slice value. If it doesn't exist then it
 will return `nil`. It's important to note that you can have a zero-length value
 set to a key which is different than the key not existing.
 
-Use the `Bucket.Delete()` function to delete a key from the bucket.
+Use the `Bucket.Delete()` function to delete a key from the bucket:
+
+```go
+db.Update(func (tx *bolt.Tx) error {
+    b := tx.Bucket([]byte("MyBucket"))
+    err := b.Delete([]byte("answer"))
+    return err
+})
+```
+
+This will delete the key `answers` from the bucket `MyBucket`.
 
 Please note that values returned from `Get()` are only valid while the
 transaction is open. If you need to use a value outside of the transaction
@@ -654,7 +685,7 @@ uses a shared lock to allow multiple processes to read from the database but
 it will block any processes from opening the database in read-write mode.
 
 ```go
-db, err := bolt.Open("my.db", 0666, &bolt.Options{ReadOnly: true})
+db, err := bolt.Open("my.db", 0600, &bolt.Options{ReadOnly: true})
 if err != nil {
 	log.Fatal(err)
 }
@@ -890,7 +921,7 @@ The best places to start are the main entry points into Bolt:
 
 - `Bucket.Put()` - Writes a key/value pair into a bucket. After validating the
   arguments, a cursor is used to traverse the B+tree to the page and position
-  where they key & value will be written. Once the position is found, the bucket
+  where the key & value will be written. Once the position is found, the bucket
   materializes the underlying page and the page's parent pages into memory as
   "nodes". These nodes are where mutations occur during read-write transactions.
   These changes get flushed to disk during commit.
@@ -919,6 +950,21 @@ The best places to start are the main entry points into Bolt:
 If you have additional notes that could be helpful for others, please submit
 them via pull request.
 
+## Known Issues
+
+- bbolt might run into data corruption issue on Linux when the feature
+  [ext4: fast commit](https://lwn.net/Articles/842385/), which was introduced in
+  linux kernel version v5.10, is enabled. The fixes to the issue were included in
+  linux kernel version v5.17, please refer to links below,
+
+  * [ext4: fast commit may miss tracking unwritten range during ftruncate](https://lore.kernel.org/linux-ext4/20211223032337.5198-3-yinxin.x@bytedance.com/)
+  * [ext4: fast commit may not fallback for ineligible commit](https://lore.kernel.org/lkml/202201091544.W5HHEXAp-lkp@intel.com/T/#ma0768815e4b5f671e9e451d578256ef9a76fe30e)
+  * [ext4 updates for 5.17](https://lore.kernel.org/lkml/YdyxjTFaLWif6BCM@mit.edu/)
+
+  Please also refer to the discussion in https://github.com/etcd-io/bbolt/issues/562.
+
+- Writing a value with a length of 0 will always result in reading back an empty `[]byte{}` value.
+  Please refer to [issues/726#issuecomment-2061694802](https://github.com/etcd-io/bbolt/issues/726#issuecomment-2061694802).
 
 ## Other Projects Using Bolt
 
@@ -934,13 +980,16 @@ Below is a list of public, open source projects that use Bolt:
 * [BoltDbWeb](https://github.com/evnix/boltdbweb) - A web based GUI for BoltDB files.
 * [BoltDB Viewer](https://github.com/zc310/rich_boltdb) - A BoltDB Viewer Can run on Windows、Linux、Android system.
 * [bleve](http://www.blevesearch.com/) - A pure Go search engine similar to ElasticSearch that uses Bolt as the default storage backend.
+* [bstore](https://github.com/mjl-/bstore) - Database library storing Go values, with referential/unique/nonzero constraints, indices, automatic schema management with struct tags, and a query API.
 * [btcwallet](https://github.com/btcsuite/btcwallet) - A bitcoin wallet.
 * [buckets](https://github.com/joyrexus/buckets) - a bolt wrapper streamlining
   simple tx and key scans.
+* [Buildkit](https://github.com/moby/buildkit) - concurrent, cache-efficient, and Dockerfile-agnostic builder toolkit
 * [cayley](https://github.com/google/cayley) - Cayley is an open-source graph database using Bolt as optional backend.
 * [ChainStore](https://github.com/pressly/chainstore) - Simple key-value interface to a variety of storage engines organized as a chain of operations.
 * [🌰 Chestnut](https://github.com/jrapoport/chestnut) - Chestnut is encrypted storage for Go.
 * [Consul](https://github.com/hashicorp/consul) - Consul is service discovery and configuration made easy. Distributed, highly available, and datacenter-aware.
+* [Containerd](https://github.com/containerd/containerd) - An open and reliable container runtime
 * [DVID](https://github.com/janelia-flyem/dvid) - Added Bolt as optional storage engine and testing it against Basho-tuned leveldb.
 * [dcrwallet](https://github.com/decred/dcrwallet) - A wallet for the Decred cryptocurrency.
 * [drive](https://github.com/odeke-em/drive) - drive is an unofficial Google Drive command line client for \*NIX operating systems.
@@ -964,6 +1013,7 @@ Below is a list of public, open source projects that use Bolt:
 * [MetricBase](https://github.com/msiebuhr/MetricBase) - Single-binary version of Graphite.
 * [MuLiFS](https://github.com/dankomiocevic/mulifs) - Music Library Filesystem creates a filesystem to organise your music files.
 * [NATS](https://github.com/nats-io/nats-streaming-server) - NATS Streaming uses bbolt for message and metadata storage.
+* [Portainer](https://github.com/portainer/portainer) - A lightweight service delivery platform for containerized applications that can be used to manage Docker, Swarm, Kubernetes and ACI environments.
 * [Prometheus Annotation Server](https://github.com/oliver006/prom_annotation_server) - Annotation server for PromDash & Prometheus service monitoring system.
 * [Rain](https://github.com/cenkalti/rain) - BitTorrent client and library.
 * [reef-pi](https://github.com/reef-pi/reef-pi) - reef-pi is an award winning, modular, DIY reef tank controller using easy to learn electronics based on a Raspberry Pi.

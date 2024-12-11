@@ -17,9 +17,9 @@ package adapter
 import (
 	"context"
 
-	pb "go.etcd.io/etcd/api/v3/etcdserverpb"
-
 	"google.golang.org/grpc"
+
+	pb "go.etcd.io/etcd/api/v3/etcdserverpb"
 )
 
 type ls2lc struct {
@@ -63,7 +63,7 @@ func (s *ls2lcClientStream) Send(rr *pb.LeaseKeepAliveRequest) error {
 	return s.SendMsg(rr)
 }
 func (s *ls2lcClientStream) Recv() (*pb.LeaseKeepAliveResponse, error) {
-	var v interface{}
+	var v any
 	if err := s.RecvMsg(&v); err != nil {
 		return nil, err
 	}
@@ -74,7 +74,7 @@ func (s *ls2lcServerStream) Send(rr *pb.LeaseKeepAliveResponse) error {
 	return s.SendMsg(rr)
 }
 func (s *ls2lcServerStream) Recv() (*pb.LeaseKeepAliveRequest, error) {
-	var v interface{}
+	var v any
 	if err := s.RecvMsg(&v); err != nil {
 		return nil, err
 	}

@@ -309,5 +309,5 @@ func splitHostPort(hostport string) (host string, port int) {
 	if err != nil {
 		return
 	}
-	return host, int(p)
+	return host, int(p) // nolint: gosec  // Bit size of 16 checked above.
 }

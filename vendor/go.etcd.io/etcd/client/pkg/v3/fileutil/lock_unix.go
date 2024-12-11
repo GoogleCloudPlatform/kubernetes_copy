@@ -13,7 +13,6 @@
 // limitations under the License.
 
 //go:build !windows && !plan9 && !solaris && !linux
-// +build !windows,!plan9,!solaris,!linux
 
 package fileutil
 

@@ -62,5 +62,5 @@ func NewURLsValue(s string) *URLsValue {
 
 // URLsFromFlag returns a slices from url got from the flag.
 func URLsFromFlag(fs *flag.FlagSet, urlsFlagName string) []url.URL {
-	return []url.URL(*fs.Lookup(urlsFlagName).Value.(*URLsValue))
+	return *fs.Lookup(urlsFlagName).Value.(*URLsValue)
 }

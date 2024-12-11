@@ -1,0 +1,30 @@
+syntax = "proto3";
+package versionpb;
+
+import "gogoproto/gogo.proto";
+import "google/protobuf/descriptor.proto";
+
+option go_package = "go.etcd.io/etcd/api/v3/versionpb";
+
+option (gogoproto.marshaler_all) = true;
+option (gogoproto.unmarshaler_all) = true;
+
+// Indicates etcd version that introduced the message, used to determine minimal etcd version required to interpret wal that includes this message.
+extend google.protobuf.MessageOptions {
+  optional string etcd_version_msg = 50000;
+}
+
+// Indicates etcd version that introduced the field, used to determine minimal etcd version required to interpret wal that sets this field.
+extend google.protobuf.FieldOptions {
+  optional string etcd_version_field = 50001;
+}
+
+// Indicates etcd version that introduced the enum, used to determine minimal etcd version required to interpret wal that uses this enum.
+extend google.protobuf.EnumOptions {
+  optional string etcd_version_enum = 50002;
+}
+
+// Indicates etcd version that introduced the enum value, used to determine minimal etcd version required to interpret wal that sets this enum value.
+extend google.protobuf.EnumValueOptions {
+  optional string etcd_version_enum_value = 50003;
+}

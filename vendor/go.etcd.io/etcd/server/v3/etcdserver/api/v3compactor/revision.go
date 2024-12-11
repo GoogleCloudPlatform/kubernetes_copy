@@ -16,14 +16,15 @@ package v3compactor
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 
-	pb "go.etcd.io/etcd/api/v3/etcdserverpb"
-	"go.etcd.io/etcd/server/v3/mvcc"
-
 	"github.com/jonboulle/clockwork"
 	"go.uber.org/zap"
+
+	pb "go.etcd.io/etcd/api/v3/etcdserverpb"
+	"go.etcd.io/etcd/server/v3/storage/mvcc"
 )
 
 // Revision compacts the log by purging revisions older than
@@ -89,7 +90,7 @@ func (rc *Revision) Run() {
 				zap.Int64("revision-compaction-retention", rc.retention),
 			)
 			_, err := rc.c.Compact(rc.ctx, &pb.CompactionRequest{Revision: rev})
-			if err == nil || err == mvcc.ErrCompacted {
+			if err == nil || errors.Is(err, mvcc.ErrCompacted) {
 				prev = rev
 				rc.lg.Info(
 					"completed auto revision compaction",

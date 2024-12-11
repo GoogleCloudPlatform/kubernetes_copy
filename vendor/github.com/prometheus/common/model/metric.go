@@ -34,10 +34,13 @@ var (
 	// goroutines are started.
 	NameValidationScheme = LegacyValidation
 
-	// NameEscapingScheme defines the default way that names will be
-	// escaped when presented to systems that do not support UTF-8 names. If the
-	// Content-Type "escaping" term is specified, that will override this value.
-	NameEscapingScheme = ValueEncodingEscaping
+	// NameEscapingScheme defines the default way that names will be escaped when
+	// presented to systems that do not support UTF-8 names. If the Content-Type
+	// "escaping" term is specified, that will override this value.
+	// NameEscapingScheme should not be set to the NoEscaping value. That string
+	// is used in content negotiation to indicate that a system supports UTF-8 and
+	// has that feature enabled.
+	NameEscapingScheme = UnderscoreEscaping
 )
 
 // ValidationScheme is a Go enum for determining how metric and label names will
@@ -161,7 +164,7 @@ func (m Metric) FastFingerprint() Fingerprint {
 func IsValidMetricName(n LabelValue) bool {
 	switch NameValidationScheme {
 	case LegacyValidation:
-		return IsValidLegacyMetricName(n)
+		return IsValidLegacyMetricName(string(n))
 	case UTF8Validation:
 		if len(n) == 0 {
 			return false
@@ -176,7 +179,7 @@ func IsValidMetricName(n LabelValue) bool {
 // legacy validation scheme regardless of the value of NameValidationScheme.
 // This function, however, does not use MetricNameRE for the check but a much
 // faster hardcoded implementation.
-func IsValidLegacyMetricName(n LabelValue) bool {
+func IsValidLegacyMetricName(n string) bool {
 	if len(n) == 0 {
 		return false
 	}
@@ -208,7 +211,7 @@ func EscapeMetricFamily(v *dto.MetricFamily, scheme EscapingScheme) *dto.MetricF
 	}
 
 	// If the name is nil, copy as-is, don't try to escape.
-	if v.Name == nil || IsValidLegacyMetricName(LabelValue(v.GetName())) {
+	if v.Name == nil || IsValidLegacyMetricName(v.GetName()) {
 		out.Name = v.Name
 	} else {
 		out.Name = proto.String(EscapeName(v.GetName(), scheme))
@@ -230,7 +233,7 @@ func EscapeMetricFamily(v *dto.MetricFamily, scheme EscapingScheme) *dto.MetricF
 
 		for _, l := range m.Label {
 			if l.GetName() == MetricNameLabel {
-				if l.Value == nil || IsValidLegacyMetricName(LabelValue(l.GetValue())) {
+				if l.Value == nil || IsValidLegacyMetricName(l.GetValue()) {
 					escaped.Label = append(escaped.Label, l)
 					continue
 				}
@@ -240,7 +243,7 @@ func EscapeMetricFamily(v *dto.MetricFamily, scheme EscapingScheme) *dto.MetricF
 				})
 				continue
 			}
-			if l.Name == nil || IsValidLegacyMetricName(LabelValue(l.GetName())) {
+			if l.Name == nil || IsValidLegacyMetricName(l.GetName()) {
 				escaped.Label = append(escaped.Label, l)
 				continue
 			}
@@ -256,10 +259,10 @@ func EscapeMetricFamily(v *dto.MetricFamily, scheme EscapingScheme) *dto.MetricF
 
 func metricNeedsEscaping(m *dto.Metric) bool {
 	for _, l := range m.Label {
-		if l.GetName() == MetricNameLabel && !IsValidLegacyMetricName(LabelValue(l.GetValue())) {
+		if l.GetName() == MetricNameLabel && !IsValidLegacyMetricName(l.GetValue()) {
 			return true
 		}
-		if !IsValidLegacyMetricName(LabelValue(l.GetName())) {
+		if !IsValidLegacyMetricName(l.GetName()) {
 			return true
 		}
 	}
@@ -283,7 +286,7 @@ func EscapeName(name string, scheme EscapingScheme) string {
 	case NoEscaping:
 		return name
 	case UnderscoreEscaping:
-		if IsValidLegacyMetricName(LabelValue(name)) {
+		if IsValidLegacyMetricName(name) {
 			return name
 		}
 		for i, b := range name {
@@ -309,7 +312,7 @@ func EscapeName(name string, scheme EscapingScheme) string {
 		}
 		return escaped.String()
 	case ValueEncodingEscaping:
-		if IsValidLegacyMetricName(LabelValue(name)) {
+		if IsValidLegacyMetricName(name) {
 			return name
 		}
 		escaped.WriteString("U__")
@@ -452,6 +455,6 @@ func ToEscapingScheme(s string) (EscapingScheme, error) {
 	case EscapeValues:
 		return ValueEncodingEscaping, nil
 	default:
-		return NoEscaping, fmt.Errorf("unknown format scheme " + s)
+		return NoEscaping, fmt.Errorf("unknown format scheme %s", s)
 	}
 }

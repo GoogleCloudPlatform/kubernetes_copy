@@ -1,0 +1,10 @@
+# See the OWNERS docs at https://go.k8s.io/owners
+
+approvers:
+  - ahrtr           # Benjamin Wang <benjamin.ahrtr@gmail.com> <benjamin.wang@broadcom.com>
+  - serathius       # Marek Siarkowicz <siarkowicz@google.com> <marek.siarkowicz@gmail.com>
+  - ptabor          # Piotr Tabor <piotr.tabor@gmail.com>
+  - spzala          # Sahdev Zala <spzala@us.ibm.com>
+reviewers:
+  - fuweid          # Wei Fu <fuweid89@gmail.com>
+  - tjungblu        # Thomas Jungblut <tjungblu@redhat.com>

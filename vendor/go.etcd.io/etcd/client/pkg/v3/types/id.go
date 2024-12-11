@@ -14,7 +14,10 @@
 
 package types
 
-import "strconv"
+import (
+	"strconv"
+	"strings"
+)
 
 // ID represents a generic identifier which is canonically
 // stored as a uint64 but is typically represented as a
@@ -37,3 +40,17 @@ type IDSlice []ID
 func (p IDSlice) Len() int           { return len(p) }
 func (p IDSlice) Less(i, j int) bool { return uint64(p[i]) < uint64(p[j]) }
 func (p IDSlice) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
+
+func (p IDSlice) String() string {
+	var b strings.Builder
+	if p.Len() > 0 {
+		b.WriteString(p[0].String())
+	}
+
+	for i := 1; i < p.Len(); i++ {
+		b.WriteString(",")
+		b.WriteString(p[i].String())
+	}
+
+	return b.String()
+}

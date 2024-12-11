@@ -125,10 +125,6 @@ type Error struct {
 	Index     uint64 `json:"index"`
 }
 
-func NewRequestError(errorCode int, cause string) *Error {
-	return NewError(errorCode, cause, 0)
-}
-
 func NewError(errorCode int, cause string, index uint64) *Error {
 	return &Error{
 		ErrorCode: errorCode,
@@ -143,7 +139,7 @@ func (e Error) Error() string {
 	return e.Message + " (" + e.Cause + ")"
 }
 
-func (e Error) toJsonString() string {
+func (e Error) toJSONString() string {
 	b, _ := json.Marshal(e)
 	return string(b)
 }
@@ -160,6 +156,6 @@ func (e Error) WriteTo(w http.ResponseWriter) error {
 	w.Header().Add("X-Etcd-Index", fmt.Sprint(e.Index))
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(e.StatusCode())
-	_, err := w.Write([]byte(e.toJsonString() + "\n"))
+	_, err := w.Write([]byte(e.toJSONString() + "\n"))
 	return err
 }

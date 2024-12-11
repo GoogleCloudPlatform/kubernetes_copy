@@ -16,25 +16,25 @@ package rafthttp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"path"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
+	"go.uber.org/zap"
+	"golang.org/x/time/rate"
+
 	"go.etcd.io/etcd/api/v3/version"
 	"go.etcd.io/etcd/client/pkg/v3/transport"
 	"go.etcd.io/etcd/client/pkg/v3/types"
 	"go.etcd.io/etcd/pkg/v3/httputil"
-	"go.etcd.io/etcd/raft/v3/raftpb"
 	stats "go.etcd.io/etcd/server/v3/etcdserver/api/v2stats"
-
-	"github.com/coreos/go-semver/semver"
-	"go.uber.org/zap"
-	"golang.org/x/time/rate"
+	"go.etcd.io/raft/v3/raftpb"
 )
 
 const (
@@ -59,6 +59,7 @@ var (
 		"3.3.0": {streamTypeMsgAppV2, streamTypeMessage},
 		"3.4.0": {streamTypeMsgAppV2, streamTypeMessage},
 		"3.5.0": {streamTypeMsgAppV2, streamTypeMessage},
+		"3.6.0": {streamTypeMsgAppV2, streamTypeMessage},
 	}
 )
 
@@ -403,7 +404,7 @@ func (cr *streamReader) run() {
 	for {
 		rc, err := cr.dial(t)
 		if err != nil {
-			if err != errUnsupportedStreamType {
+			if !errors.Is(err, errUnsupportedStreamType) {
 				cr.status.deactivate(failureType{source: t.String(), action: "dial"}, err.Error())
 			}
 		} else {
@@ -428,7 +429,7 @@ func (cr *streamReader) run() {
 			}
 			switch {
 			// all data is read out
-			case err == io.EOF:
+			case errors.Is(err, io.EOF):
 			// connection is closed by the remote
 			case transport.IsClosedConnError(err):
 			default:
@@ -574,10 +575,10 @@ func (cr *streamReader) dial(t streamType) (io.ReadCloser, error) {
 			zap.String("address", uu.String()),
 		)
 	}
-	req, err := http.NewRequest("GET", uu.String(), nil)
+	req, err := http.NewRequest(http.MethodGet, uu.String(), nil)
 	if err != nil {
 		cr.picker.unreachable(u)
-		return nil, fmt.Errorf("failed to make http request to %v (%v)", u, err)
+		return nil, fmt.Errorf("failed to make http request to %v (%w)", u, err)
 	}
 	req.Header.Set("X-Server-From", cr.tr.ID.String())
 	req.Header.Set("X-Server-Version", version.Version)
@@ -628,7 +629,7 @@ func (cr *streamReader) dial(t streamType) (io.ReadCloser, error) {
 		return nil, fmt.Errorf("peer %s failed to find local node %s", cr.peerID, cr.tr.ID)
 
 	case http.StatusPreconditionFailed:
-		b, err := ioutil.ReadAll(resp.Body)
+		b, err := io.ReadAll(resp.Body)
 		if err != nil {
 			cr.picker.unreachable(u)
 			return nil, err

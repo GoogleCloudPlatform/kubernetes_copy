@@ -3,6 +3,8 @@ package mvccpb;
 
 import "gogoproto/gogo.proto";
 
+option go_package = "go.etcd.io/etcd/api/v3/mvccpb";
+
 option (gogoproto.marshaler_all) = true;
 option (gogoproto.sizer_all) = true;
 option (gogoproto.unmarshaler_all) = true;

@@ -27,8 +27,7 @@ import (
 type TimeoutDetector struct {
 	mu          sync.Mutex // protects all
 	maxDuration time.Duration
-	// map from event to time
-	// time is the last seen time of the event.
+	// map from event to last seen time of event.
 	records map[uint64]time.Time
 }
 
@@ -40,7 +39,7 @@ func NewTimeoutDetector(maxDuration time.Duration) *TimeoutDetector {
 	}
 }
 
-// Reset resets the NewTimeoutDetector.
+// Reset resets the TimeoutDetector.
 func (td *TimeoutDetector) Reset() {
 	td.mu.Lock()
 	defer td.mu.Unlock()
@@ -48,9 +47,11 @@ func (td *TimeoutDetector) Reset() {
 	td.records = make(map[uint64]time.Time)
 }
 
-// Observe observes an event for given id. It returns false and exceeded duration
-// if the interval is longer than the expectation.
-func (td *TimeoutDetector) Observe(which uint64) (bool, time.Duration) {
+// Observe observes an event of given id. It computes
+// the time elapsed between successive events of given id.
+// It returns whether this time elapsed exceeds the expectation,
+// and the amount by which it exceeds the expectation.
+func (td *TimeoutDetector) Observe(id uint64) (bool, time.Duration) {
 	td.mu.Lock()
 	defer td.mu.Unlock()
 
@@ -58,12 +59,12 @@ func (td *TimeoutDetector) Observe(which uint64) (bool, time.Duration) {
 	now := time.Now()
 	exceed := time.Duration(0)
 
-	if pt, found := td.records[which]; found {
+	if pt, found := td.records[id]; found {
 		exceed = now.Sub(pt) - td.maxDuration
 		if exceed > 0 {
 			ok = false
 		}
 	}
-	td.records[which] = now
+	td.records[id] = now
 	return ok, exceed
 }

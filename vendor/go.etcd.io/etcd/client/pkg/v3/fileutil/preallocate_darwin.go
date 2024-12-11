@@ -13,11 +13,11 @@
 // limitations under the License.
 
 //go:build darwin
-// +build darwin
 
 package fileutil
 
 import (
+	"errors"
 	"os"
 	"syscall"
 
@@ -40,7 +40,7 @@ func preallocFixed(f *os.File, sizeInBytes int64) error {
 		Length:  sizeInBytes,
 	}
 	err := unix.FcntlFstore(f.Fd(), unix.F_PREALLOCATE, fstore)
-	if err == nil || err == unix.ENOTSUP {
+	if err == nil || errors.Is(err, unix.ENOTSUP) {
 		return nil
 	}
 

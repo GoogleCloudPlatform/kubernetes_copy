@@ -13,11 +13,11 @@
 // limitations under the License.
 
 //go:build !windows && !plan9 && !solaris
-// +build !windows,!plan9,!solaris
 
 package fileutil
 
 import (
+	"errors"
 	"os"
 	"syscall"
 )
@@ -29,7 +29,7 @@ func flockTryLockFile(path string, flag int, perm os.FileMode) (*LockedFile, err
 	}
 	if err = syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
 		f.Close()
-		if err == syscall.EWOULDBLOCK {
+		if errors.Is(err, syscall.EWOULDBLOCK) {
 			err = ErrLocked
 		}
 		return nil, err

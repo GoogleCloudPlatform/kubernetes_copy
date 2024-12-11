@@ -23,10 +23,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/jonboulle/clockwork"
+
 	"go.etcd.io/etcd/client/pkg/v3/types"
 	"go.etcd.io/etcd/server/v3/etcdserver/api/v2error"
-
-	"github.com/jonboulle/clockwork"
 )
 
 // The default version to set when the store is first initialized.
@@ -99,7 +99,7 @@ func newStore(namespaces ...string) *store {
 	}
 	s.Stats = newStats()
 	s.WatcherHub = newWatchHub(1000)
-	s.ttlKeyHeap = newTtlKeyHeap()
+	s.ttlKeyHeap = newTTLKeyHeap()
 	s.readonlySet = types.NewUnsafeSet(append(namespaces, "/")...)
 	return s
 }
@@ -258,7 +258,6 @@ func getCompareFailCause(n *node, which int, prevValue string, prevIndex uint64)
 
 func (s *store) CompareAndSwap(nodePath string, prevValue string, prevIndex uint64,
 	value string, expireOpts TTLOptionSet) (*Event, error) {
-
 	var err *v2error.Error
 
 	s.worldLock.Lock()
@@ -535,7 +534,7 @@ func (s *store) Update(nodePath string, newValue string, expireOpts TTLOptionSet
 	eNode := e.Node
 
 	if err := n.Write(newValue, nextIndex); err != nil {
-		return nil, fmt.Errorf("nodePath %v : %v", nodePath, err)
+		return nil, fmt.Errorf("nodePath %v : %w", nodePath, err)
 	}
 
 	if n.IsDir() {
@@ -565,7 +564,6 @@ func (s *store) Update(nodePath string, newValue string, expireOpts TTLOptionSet
 
 func (s *store) internalCreate(nodePath string, dir bool, value string, unique, replace bool,
 	expireTime time.Time, action string) (*Event, *v2error.Error) {
-
 	currIndex, nextIndex := s.CurrentIndex, s.CurrentIndex+1
 
 	if unique { // append unique item under the node path
@@ -624,7 +622,6 @@ func (s *store) internalCreate(nodePath string, dir bool, value string, unique, 
 		eNode.Value = &valueCopy
 
 		n = newKV(s, nodePath, value, nextIndex, d, expireTime)
-
 	} else { // create directory
 		eNode.Dir = true
 
@@ -653,7 +650,6 @@ func (s *store) internalGet(nodePath string) (*node, *v2error.Error) {
 	nodePath = path.Clean(path.Join("/", nodePath))
 
 	walkFunc := func(parent *node, name string) (*node, *v2error.Error) {
-
 		if !parent.IsDir() {
 			err := v2error.NewError(v2error.EcodeNotDir, parent.Path, s.CurrentIndex)
 			return nil, err
@@ -707,7 +703,6 @@ func (s *store) DeleteExpiredKeys(cutoff time.Time) {
 
 		s.WatcherHub.notify(e)
 	}
-
 }
 
 // checkDir will check whether the component is a directory under parent node.
@@ -781,15 +776,17 @@ func (s *store) Recovery(state []byte) error {
 		return err
 	}
 
-	s.ttlKeyHeap = newTtlKeyHeap()
+	s.ttlKeyHeap = newTTLKeyHeap()
 
 	s.Root.recoverAndclean()
 	return nil
 }
 
+//revive:disable:var-naming
 func (s *store) JsonStats() []byte {
+	//revive:enable:var-naming
 	s.Stats.Watchers = uint64(s.WatcherHub.count)
-	return s.Stats.toJson()
+	return s.Stats.toJSON()
 }
 
 func (s *store) HasTTLKeys() bool {

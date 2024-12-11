@@ -43,7 +43,7 @@ var DefaultZapLoggerConfig = zap.Config{
 		Thereafter: 100,
 	},
 
-	Encoding: "json",
+	Encoding: DefaultLogFormat,
 
 	// copied from "zap.NewProductionEncoderConfig" with some updates
 	EncoderConfig: zapcore.EncoderConfig{

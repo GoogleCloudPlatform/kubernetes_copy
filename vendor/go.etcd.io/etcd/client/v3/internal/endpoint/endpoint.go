@@ -25,12 +25,12 @@ import (
 type CredsRequirement int
 
 const (
-	// CREDS_REQUIRE - Credentials/certificate required for thi type of connection.
-	CREDS_REQUIRE CredsRequirement = iota
-	// CREDS_DROP - Credentials/certificate not needed and should get ignored.
-	CREDS_DROP
-	// CREDS_OPTIONAL - Credentials/certificate might be used if supplied
-	CREDS_OPTIONAL
+	// CredsRequire - Credentials/certificate required for thi type of connection.
+	CredsRequire CredsRequirement = iota
+	// CredsDrop - Credentials/certificate not needed and should get ignored.
+	CredsDrop
+	// CredsOptional - Credentials/certificate might be used if supplied
+	CredsOptional
 )
 
 func extractHostFromHostPort(ep string) string {
@@ -54,20 +54,20 @@ func mustSplit2(s, sep string) (string, string) {
 func schemeToCredsRequirement(schema string) CredsRequirement {
 	switch schema {
 	case "https", "unixs":
-		return CREDS_REQUIRE
+		return CredsRequire
 	case "http":
-		return CREDS_DROP
+		return CredsDrop
 	case "unix":
 		// Preserving previous behavior from:
 		// https://github.com/etcd-io/etcd/blob/dae29bb719dd69dc119146fc297a0628fcc1ccf8/client/v3/client.go#L212
 		// that likely was a bug due to missing 'fallthrough'.
 		// At the same time it seems legit to let the users decide whether they
 		// want credential control or not (and 'unixs' schema is not a standard thing).
-		return CREDS_OPTIONAL
+		return CredsOptional
 	case "":
-		return CREDS_OPTIONAL
+		return CredsOptional
 	default:
-		return CREDS_OPTIONAL
+		return CredsOptional
 	}
 }
 
@@ -106,7 +106,7 @@ func translateEndpoint(ep string) (addr string, serverName string, requireCreds 
 	if strings.Contains(ep, "://") {
 		url, err := url.Parse(ep)
 		if err != nil {
-			return ep, ep, CREDS_OPTIONAL
+			return ep, ep, CredsOptional
 		}
 		if url.Scheme == "http" || url.Scheme == "https" {
 			return url.Host, url.Host, schemeToCredsRequirement(url.Scheme)
@@ -114,7 +114,7 @@ func translateEndpoint(ep string) (addr string, serverName string, requireCreds 
 		return ep, url.Host, schemeToCredsRequirement(url.Scheme)
 	}
 	// Handles plain addresses like 10.0.0.44:437.
-	return ep, ep, CREDS_OPTIONAL
+	return ep, ep, CredsOptional
 }
 
 // RequiresCredentials returns whether given endpoint requires

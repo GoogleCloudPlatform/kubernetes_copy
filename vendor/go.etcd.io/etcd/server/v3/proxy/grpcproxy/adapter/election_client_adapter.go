@@ -17,9 +17,9 @@ package adapter
 import (
 	"context"
 
-	"go.etcd.io/etcd/server/v3/etcdserver/api/v3election/v3electionpb"
-
 	"google.golang.org/grpc"
+
+	"go.etcd.io/etcd/server/v3/etcdserver/api/v3election/v3electionpb"
 )
 
 type es2ec struct{ es v3electionpb.ElectionServer }
@@ -61,7 +61,7 @@ func (s *es2ecClientStream) Send(rr *v3electionpb.LeaderRequest) error {
 	return s.SendMsg(rr)
 }
 func (s *es2ecClientStream) Recv() (*v3electionpb.LeaderResponse, error) {
-	var v interface{}
+	var v any
 	if err := s.RecvMsg(&v); err != nil {
 		return nil, err
 	}
@@ -72,7 +72,7 @@ func (s *es2ecServerStream) Send(rr *v3electionpb.LeaderResponse) error {
 	return s.SendMsg(rr)
 }
 func (s *es2ecServerStream) Recv() (*v3electionpb.LeaderRequest, error) {
-	var v interface{}
+	var v any
 	if err := s.RecvMsg(&v); err != nil {
 		return nil, err
 	}

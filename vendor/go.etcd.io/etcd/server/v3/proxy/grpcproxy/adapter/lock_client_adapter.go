@@ -17,9 +17,9 @@ package adapter
 import (
 	"context"
 
-	"go.etcd.io/etcd/server/v3/etcdserver/api/v3lock/v3lockpb"
-
 	"google.golang.org/grpc"
+
+	"go.etcd.io/etcd/server/v3/etcdserver/api/v3lock/v3lockpb"
 )
 
 type ls2lsc struct{ ls v3lockpb.LockServer }

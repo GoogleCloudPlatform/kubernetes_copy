@@ -14,8 +14,10 @@
 
 package clientv3
 
-type SortTarget int
-type SortOrder int
+type (
+	SortTarget int
+	SortOrder  int
+)
 
 const (
 	SortNone SortOrder = iota

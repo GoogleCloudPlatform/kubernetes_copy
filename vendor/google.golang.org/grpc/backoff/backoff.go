@@ -39,7 +39,7 @@ type Config struct {
 	MaxDelay time.Duration
 }
 
-// DefaultConfig is a backoff configuration with the default values specfied
+// DefaultConfig is a backoff configuration with the default values specified
 // at https://github.com/grpc/grpc/blob/master/doc/connection-backoff.md.
 //
 // This should be useful for callers who want to configure backoff with

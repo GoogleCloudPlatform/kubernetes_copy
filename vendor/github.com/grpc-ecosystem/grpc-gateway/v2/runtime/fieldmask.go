@@ -155,7 +155,7 @@ func buildPathsBlindly(name string, in interface{}) []string {
 	return paths
 }
 
-// fieldMaskPathItem stores a in-progress deconstruction of a path for a fieldmask
+// fieldMaskPathItem stores an in-progress deconstruction of a path for a fieldmask
 type fieldMaskPathItem struct {
 	// the list of prior fields leading up to node connected by dots
 	path string

@@ -76,9 +76,11 @@ func (r *Resolver) InitialState(s resolver.State) {
 
 // Build returns itself for Resolver, because it's both a builder and a resolver.
 func (r *Resolver) Build(target resolver.Target, cc resolver.ClientConn, opts resolver.BuildOptions) (resolver.Resolver, error) {
-	r.BuildCallback(target, cc, opts)
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	// Call BuildCallback after locking to avoid a race when UpdateState
+	// or ReportError is called before Build returns.
+	r.BuildCallback(target, cc, opts)
 	r.CC = cc
 	if r.lastSeenState != nil {
 		err := r.CC.UpdateState(*r.lastSeenState)

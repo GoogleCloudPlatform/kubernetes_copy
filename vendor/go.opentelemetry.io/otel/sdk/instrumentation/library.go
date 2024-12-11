@@ -4,5 +4,6 @@
 package instrumentation // import "go.opentelemetry.io/otel/sdk/instrumentation"
 
 // Library represents the instrumentation library.
-// Deprecated: please use Scope instead.
+//
+// Deprecated: use [Scope] instead.
 type Library = Scope
