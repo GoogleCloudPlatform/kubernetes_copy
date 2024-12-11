@@ -42,7 +42,6 @@ import (
 	"k8s.io/client-go/util/retry"
 	"k8s.io/client-go/util/workqueue"
 	batchinternal "k8s.io/kubernetes/pkg/apis/batch"
-	"k8s.io/kubernetes/test/e2e/feature"
 	"k8s.io/kubernetes/test/e2e/framework"
 	e2ejob "k8s.io/kubernetes/test/e2e/framework/job"
 	e2enode "k8s.io/kubernetes/test/e2e/framework/node"
@@ -446,7 +445,7 @@ done`}
 	*/
 	// TODO: once this test is stable, squash the functionality into pre-existing conformance test called "should create
 	//   pods for an Indexed job with completion indexes and specified hostname" earlier in this file.
-	framework.It("should create pods with completion indexes for an Indexed Job", feature.PodIndexLabel, func(ctx context.Context) {
+	framework.It("should create pods with completion indexes for an Indexed Job", func(ctx context.Context) {
 		parallelism := int32(2)
 		completions := int32(4)
 		backoffLimit := int32(6) // default value
