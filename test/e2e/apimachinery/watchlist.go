@@ -35,6 +35,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/watch"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	"k8s.io/cli-runtime/pkg/resource"
 	"k8s.io/client-go/dynamic"
 	clientfeatures "k8s.io/client-go/features"
 	"k8s.io/client-go/kubernetes"
@@ -44,7 +45,9 @@ import (
 	"k8s.io/client-go/util/consistencydetector"
 	"k8s.io/component-base/featuregate"
 	featuregatetesting "k8s.io/component-base/featuregate/testing"
+	corev1 "k8s.io/kubernetes/pkg/apis/core/v1"
 	"k8s.io/kubernetes/test/e2e/framework"
+	"k8s.io/utils/ptr"
 )
 
 var _ = SIGDescribe("API Streaming (aka. WatchList)", framework.WithSerial(), func() {
@@ -164,10 +167,9 @@ var _ = SIGDescribe("API Streaming (aka. WatchList)", framework.WithSerial(), fu
 		gomega.Expect(rt.actualRequests).To(gomega.Equal(expectedRequestMadeByMetaClient))
 	})
 
-	// Validates unsupported Accept headers in WatchList.
-	// Sets AcceptContentType to "application/json;as=Table", which the API doesn't support, returning a 406 error.
-	// After the 406, the client falls back to a regular list request.
-	ginkgo.It("doesn't support receiving resources as Tables", func(ctx context.Context) {
+	// Validates supported Accept headers in WatchList.
+	// Sets AcceptContentType to "application/json;as=Table", which the API should return 200 without any error.
+	ginkgo.It("should support receiving resources as Tables", func(ctx context.Context) {
 		featuregatetesting.SetFeatureGateDuringTest(ginkgo.GinkgoTB(), utilfeature.DefaultFeatureGate, featuregate.Feature(clientfeatures.WatchListClient), true)
 
 		ginkgo.By(fmt.Sprintf("Adding 5 secrets to %s namespace", f.Namespace.Name))
@@ -191,15 +193,15 @@ var _ = SIGDescribe("API Streaming (aka. WatchList)", framework.WithSerial(), fu
 		gomega.Expect(secretTable.GetObjectKind().GroupVersionKind()).To(gomega.Equal(metav1.SchemeGroupVersion.WithKind("Table")))
 
 		ginkgo.By("Verifying if expected response was sent by the server")
-		gomega.Expect(rt.actualResponseStatuses[0]).To(gomega.Equal("406 Not Acceptable"))
-		expectedRequestMadeByDynamicClient := getExpectedRequestMadeByClientWhenFallbackToListFor(secretTable.GetResourceVersion())
+		gomega.Expect(rt.actualResponseStatuses).To(gomega.HaveLen(1))
+		gomega.Expect(rt.actualResponseStatuses[0]).To(gomega.Equal("200 OK"))
+		expectedRequestMadeByDynamicClient := getExpectedRequestMadeByClientFor(secretTable.GetResourceVersion())
 		gomega.Expect(rt.actualRequests).To(gomega.Equal(expectedRequestMadeByDynamicClient))
-
 	})
 
 	// Sets AcceptContentType to both "application/json;as=Table" and "application/json".
-	// Unlike the previous test, no 406 error occurs, as the API falls back to "application/json" and returns a valid response.
-	ginkgo.It("falls backs to supported content type when when receiving resources as Tables was requested", func(ctx context.Context) {
+	// the API will not fall back to "application/json" and returns a valid Table response.
+	ginkgo.It("should not falls backs to application/json when when receiving resources as Tables was requested", func(ctx context.Context) {
 		featuregatetesting.SetFeatureGateDuringTest(ginkgo.GinkgoTB(), utilfeature.DefaultFeatureGate, featuregate.Feature(clientfeatures.WatchListClient), true)
 
 		ginkgo.By(fmt.Sprintf("Adding 5 secrets to %s namespace", f.Namespace.Name))
@@ -217,16 +219,93 @@ var _ = SIGDescribe("API Streaming (aka. WatchList)", framework.WithSerial(), fu
 		wrappedDynamicClient := dynamic.New(restClient)
 
 		ginkgo.By("Streaming secrets from the server")
-		secretList, err := wrappedDynamicClient.Resource(v1.SchemeGroupVersion.WithResource("secrets")).Namespace(f.Namespace.Name).List(ctx, metav1.ListOptions{})
+		secretTable, err := wrappedDynamicClient.Resource(v1.SchemeGroupVersion.WithResource("secrets")).Namespace(f.Namespace.Name).List(ctx, metav1.ListOptions{})
 		framework.ExpectNoError(err)
 
 		ginkgo.By("Verifying if the secret list was properly streamed")
-		streamedSecrets := secretList.Items
-		gomega.Expect(cmp.Equal(expectedSecrets, streamedSecrets)).To(gomega.BeTrueBecause("data received via watchlist must match the added data"))
+		gomega.Expect(secretTable.Items).To(gomega.BeEmpty())
+		gomega.Expect(secretTable.Object["columnDefinitions"]).NotTo(gomega.BeNil())
+		gomega.Expect(secretTable.Object["rows"]).To(gomega.HaveLen(len(expectedSecrets)))
 
 		ginkgo.By("Verifying if expected requests were sent to the server")
-		expectedRequestMadeByDynamicClient := getExpectedRequestMadeByClientFor(secretList.GetResourceVersion())
+		expectedRequestMadeByDynamicClient := getExpectedRequestMadeByClientFor(secretTable.GetResourceVersion())
 		gomega.Expect(rt.actualRequests).To(gomega.Equal(expectedRequestMadeByDynamicClient))
+	})
+
+	// Validates raw rest client unused by kubectl.
+
+	// Sets AcceptContentType to "application/json", which should be able to response ok and decoded as UnstructuredList
+	ginkgo.It("should support receiving resources as List and decode as kubectl resources", func(ctx context.Context) {
+		featuregatetesting.SetFeatureGateDuringTest(ginkgo.GinkgoTB(), utilfeature.DefaultFeatureGate, featuregate.Feature(clientfeatures.WatchListClient), true)
+
+		ginkgo.By(fmt.Sprintf("Adding 5 secrets to %s namespace", f.Namespace.Name))
+		_ = addWellKnownUnstructuredSecrets(ctx, f)
+
+		_, clientConfig := clientConfigWithRoundTripper(f)
+		modifiedClientConfig := dynamic.ConfigFor(clientConfig)
+		modifiedClientConfig.APIPath = "/api"
+		modifiedClientConfig.ContentConfig = resource.UnstructuredPlusDefaultContentConfig()
+		modifiedClientConfig.GroupVersion = &v1.SchemeGroupVersion
+		restClient, err := rest.RESTClientFor(modifiedClientConfig)
+		framework.ExpectNoError(err)
+
+		ginkgo.By("Streaming secrets as List from the server")
+		options := &metav1.ListOptions{
+			Watch:                true,
+			SendInitialEvents:    ptr.To(true),
+			AllowWatchBookmarks:  true,
+			ResourceVersionMatch: metav1.ResourceVersionMatchNotOlderThan,
+		}
+
+		secretList, err := restClient.Get().
+			NamespaceIfScoped(f.Namespace.Name, true).
+			Resource("secrets").
+			VersionedParams(options, metav1.ParameterCodec).
+			WatchList(context.TODO()).
+			Get()
+		framework.ExpectNoError(err)
+		gomega.Expect(secretList).Should(gomega.BeAssignableToTypeOf(&unstructured.UnstructuredList{}))
+		gomega.Expect(secretList.GetObjectKind().GroupVersionKind()).To(gomega.Equal(corev1.SchemeGroupVersion.WithKind("SecretList")))
+		gomega.Expect(secretList).Should(gomega.HaveField("Items", gomega.HaveLen(5)))
+	})
+
+	// Sets AcceptContentType to "application/json;as=Table", which should be able to response ok and decoded as Unstructured
+	ginkgo.It("should support receiving resources as Tables and decode as kubectl resources", func(ctx context.Context) {
+		featuregatetesting.SetFeatureGateDuringTest(ginkgo.GinkgoTB(), utilfeature.DefaultFeatureGate, featuregate.Feature(clientfeatures.WatchListClient), true)
+
+		ginkgo.By(fmt.Sprintf("Adding 5 secrets to %s namespace", f.Namespace.Name))
+		_ = addWellKnownUnstructuredSecrets(ctx, f)
+
+		_, clientConfig := clientConfigWithRoundTripper(f)
+		modifiedClientConfig := dynamic.ConfigFor(clientConfig)
+		modifiedClientConfig.APIPath = "/api"
+		modifiedClientConfig.ContentConfig = resource.UnstructuredPlusDefaultContentConfig()
+		modifiedClientConfig.AcceptContentTypes = strings.Join([]string{
+			fmt.Sprintf("application/json;as=Table;v=%s;g=%s", metav1.SchemeGroupVersion.Version, metav1.GroupName),
+		}, ",")
+		modifiedClientConfig.GroupVersion = &v1.SchemeGroupVersion
+		restClient, err := rest.RESTClientFor(modifiedClientConfig)
+		framework.ExpectNoError(err)
+
+		ginkgo.By("Streaming secrets as Table from the server")
+		options := &metav1.ListOptions{
+			Watch:                true,
+			SendInitialEvents:    ptr.To(true),
+			AllowWatchBookmarks:  true,
+			ResourceVersionMatch: metav1.ResourceVersionMatchNotOlderThan,
+		}
+
+		secretTable, err := restClient.Get().
+			NamespaceIfScoped(f.Namespace.Name, true).
+			Resource("secrets").
+			VersionedParams(options, metav1.ParameterCodec).
+			WatchList(context.TODO()).
+			Get()
+		framework.ExpectNoError(err)
+		gomega.Expect(secretTable).Should(gomega.BeAssignableToTypeOf(&unstructured.Unstructured{}))
+		gomega.Expect(secretTable.GetObjectKind().GroupVersionKind()).To(gomega.Equal(metav1.SchemeGroupVersion.WithKind("Table")))
+		gomega.Expect(secretTable).ShouldNot(gomega.HaveExistingField("Items"))
+		gomega.Expect(secretTable).Should(gomega.HaveField("Object", gomega.HaveKeyWithValue("rows", gomega.HaveLen(5))))
 	})
 })
 
@@ -281,19 +360,6 @@ func getExpectedRequestMadeByClientFor(rv string) []string {
 		expectedStreamingRequestMadeByClient,
 	}
 	if consistencydetector.IsDataConsistencyDetectionForWatchListEnabled() {
-		// corresponds to a standard list request made by the consistency detector build in into the client
-		expectedRequestMadeByClient = append(expectedRequestMadeByClient, fmt.Sprintf("resourceVersion=%s&resourceVersionMatch=Exact", rv))
-	}
-	return expectedRequestMadeByClient
-}
-
-func getExpectedRequestMadeByClientWhenFallbackToListFor(rv string) []string {
-	expectedRequestMadeByClient := []string{
-		expectedStreamingRequestMadeByClient,
-		// corresponds to a list request made by the client
-		"",
-	}
-	if consistencydetector.IsDataConsistencyDetectionForListEnabled() {
 		// corresponds to a standard list request made by the consistency detector build in into the client
 		expectedRequestMadeByClient = append(expectedRequestMadeByClient, fmt.Sprintf("resourceVersion=%s&resourceVersionMatch=Exact", rv))
 	}

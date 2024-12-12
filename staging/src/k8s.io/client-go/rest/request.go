@@ -39,6 +39,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/api/meta/table"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/conversion"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -833,40 +834,96 @@ type WatchListResult struct {
 	base64EncodedInitialEventsListBlueprint string
 }
 
-// Into stores the result into obj. The passed obj parameter must be a pointer to a list type.
-//
-// Note:
-//
-// Special attention should be given to the type *unstructured.Unstructured,
-// which represents a list type but does not have an "Items" field.
-// Users who directly use RESTClient may store the response in such an object.
-// This particular case is not handled by the current implementation of this function,
-// but may be considered for future updates.
+// Get returns the result as an object, which means it passes through the decoder.
+func (r WatchListResult) Get() (runtime.Object, error) {
+	return r.decode(nil)
+}
+
+// Into stores the result into obj. The passed obj parameter must be a pointer and match with response.
 func (r WatchListResult) Into(obj runtime.Object) error {
-	if r.err != nil {
-		return r.err
+	if obj == nil {
+		return fmt.Errorf("object pointer can not be nil")
 	}
 
-	listItemsPtr, err := meta.GetItemsPtr(obj)
-	if err != nil {
-		return err
-	}
-	listVal, err := conversion.EnforcePtr(listItemsPtr)
-	if err != nil {
-		return err
-	}
-	if listVal.Kind() != reflect.Slice {
-		return fmt.Errorf("need a pointer to slice, got %v", listVal.Kind())
+	_, err := r.decode(obj)
+	return err
+}
+
+func (r WatchListResult) decode(obj runtime.Object) (runtime.Object, error) {
+	if r.err != nil {
+		return nil, r.err
 	}
 
 	encodedInitialEventsListBlueprint, err := base64.StdEncoding.DecodeString(r.base64EncodedInitialEventsListBlueprint)
 	if err != nil {
-		return fmt.Errorf("failed to decode the received blueprint list, err %w", err)
+		return nil, fmt.Errorf("failed to decode the received blueprint list, err %w", err)
 	}
 
-	err = runtime.DecodeInto(r.negotiatedObjectDecoder, encodedInitialEventsListBlueprint, obj)
+	out, gvk, err := r.negotiatedObjectDecoder.Decode(encodedInitialEventsListBlueprint, nil, obj)
 	if err != nil {
-		return err
+		return nil, err
+	}
+	if obj != nil && out != obj {
+		return nil, fmt.Errorf("unable to decode %s into %v", gvk, reflect.TypeOf(obj))
+	}
+
+	commonMeta, err := meta.CommonAccessor(out)
+	if err != nil {
+		return nil, err
+	}
+	commonMeta.SetResourceVersion(r.initialEventsEndBookmarkRV)
+
+	switch {
+	case table.IsTable(out):
+		return r.decodeIntoTable(out)
+	case meta.IsListType(out):
+		return r.decodeIntoList(out)
+	default:
+		return nil, fmt.Errorf("unable to decode %s, either list or table", gvk)
+	}
+}
+
+func (r WatchListResult) decodeIntoTable(obj runtime.Object) (runtime.Object, error) {
+	var totalRows []any
+
+	for i, item := range r.items {
+		if i == 0 {
+			col, err := table.GetColumnDefinitions(item)
+			if err != nil {
+				return nil, err
+			}
+
+			if err := table.SetColumnDefinitions(obj, col); err != nil {
+				return nil, err
+			}
+		}
+
+		if err := table.EachTableRow(item, func(row any) error {
+			totalRows = append(totalRows, row)
+			return nil
+		}); err != nil {
+			return nil, err
+		}
+	}
+
+	if err := table.SetTableRows(obj, totalRows); err != nil {
+		return nil, err
+	}
+
+	return obj, nil
+}
+
+func (r WatchListResult) decodeIntoList(obj runtime.Object) (runtime.Object, error) {
+	listItemsPtr, err := meta.GetItemsPtr(obj)
+	if err != nil {
+		return nil, err
+	}
+	listVal, err := conversion.EnforcePtr(listItemsPtr)
+	if err != nil {
+		return nil, err
+	}
+	if listVal.Kind() != reflect.Slice {
+		return nil, fmt.Errorf("need a pointer to slice, got %v", listVal.Kind())
 	}
 
 	if len(r.items) == 0 {
@@ -875,18 +932,13 @@ func (r WatchListResult) Into(obj runtime.Object) error {
 		listVal.Set(reflect.MakeSlice(listVal.Type(), len(r.items), len(r.items)))
 		for i, o := range r.items {
 			if listVal.Type().Elem() != reflect.TypeOf(o).Elem() {
-				return fmt.Errorf("received object type = %v at index = %d, doesn't match the list item type = %v", reflect.TypeOf(o).Elem(), i, listVal.Type().Elem())
+				return nil, fmt.Errorf("received object type = %v at index = %d, doesn't match the list item type = %v", reflect.TypeOf(o).Elem(), i, listVal.Type().Elem())
 			}
 			listVal.Index(i).Set(reflect.ValueOf(o).Elem())
 		}
 	}
 
-	listMeta, err := meta.ListAccessor(obj)
-	if err != nil {
-		return err
-	}
-	listMeta.SetResourceVersion(r.initialEventsEndBookmarkRV)
-	return nil
+	return obj, nil
 }
 
 // WatchList establishes a stream to get a consistent snapshot of data
@@ -933,7 +985,7 @@ func (r *Request) handleWatchList(ctx context.Context, w watch.Interface, negoti
 			if event.Type == watch.Error {
 				return WatchListResult{err: errors.FromObject(event.Object)}
 			}
-			meta, err := meta.Accessor(event.Object)
+			meta, err := getMetadata(event.Object)
 			if err != nil {
 				return WatchListResult{err: fmt.Errorf("failed to parse watch event: %#v", event)}
 			}
@@ -1697,4 +1749,20 @@ func objectKeyFromMeta(objMeta metav1.Object) string {
 		return fmt.Sprintf("%s/%s", objMeta.GetNamespace(), objMeta.GetName())
 	}
 	return objMeta.GetName()
+}
+
+func getMetadata(object runtime.Object) (metav1.Object, error) {
+	if !table.IsTable(object) {
+		return meta.Accessor(object)
+	}
+
+	var metadata metav1.Object
+	err := table.EachTableRowObject(object, func(row runtime.Object) (err error) {
+		metadata, err = meta.Accessor(row)
+		if err != nil {
+			return fmt.Errorf("failed to parse metadata from object: %#v", object)
+		}
+		return
+	})
+	return metadata, err
 }

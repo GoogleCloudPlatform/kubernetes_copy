@@ -30,9 +30,11 @@ import (
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	runtimejson "k8s.io/apimachinery/pkg/runtime/serializer/json"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	clientfeatures "k8s.io/client-go/features"
 	clientfeaturestesting "k8s.io/client-go/features/testing"
@@ -49,19 +51,31 @@ func TestWatchListResult(t *testing.T) {
 		expectedErr    error
 	}{
 		{
-			name:        "not a pointer",
-			result:      fakeObj{},
-			expectedErr: fmt.Errorf("rest.fakeObj is not a list: expected pointer, but got rest.fakeObj type"),
+			name:   "not a pointer",
+			result: fakeObj{},
+			target: WatchListResult{
+				base64EncodedInitialEventsListBlueprint: encodeObjectToBase64String(makeEmptyPodList(), t),
+				negotiatedObjectDecoder:                 newJSONSerializer(),
+			},
+			expectedErr: fmt.Errorf("expected pointer, but got rest.fakeObj type"),
 		},
 		{
-			name:        "nil input won't panic",
-			result:      nil,
-			expectedErr: fmt.Errorf("<nil> is not a list: expected pointer, but got invalid kind"),
+			name:   "nil input won't panic",
+			result: nil,
+			target: WatchListResult{
+				base64EncodedInitialEventsListBlueprint: encodeObjectToBase64String(makeEmptyPodList(), t),
+				negotiatedObjectDecoder:                 newJSONSerializer(),
+			},
+			expectedErr: fmt.Errorf("object pointer can not be nil"),
 		},
 		{
-			name:        "not a list",
-			result:      &v1.Pod{},
-			expectedErr: fmt.Errorf("*v1.Pod is not a list: no Items field in this object"),
+			name:   "not a list",
+			result: &v1.Pod{},
+			target: WatchListResult{
+				base64EncodedInitialEventsListBlueprint: encodeObjectToBase64String(makeEmptyPodList(), t),
+				negotiatedObjectDecoder:                 newJSONSerializer(),
+			},
+			expectedErr: fmt.Errorf("unable to decode /v1, Kind=PodList into *v1.Pod"),
 		},
 		{
 			name:   "invalid base64EncodedInitialEventsListBlueprint",
@@ -228,6 +242,120 @@ func TestWatchListSuccess(t *testing.T) {
 	}
 }
 
+func TestWatchListTableSuccess(t *testing.T) {
+	scenarios := []struct {
+		name                    string
+		watchEvents             []watch.Event
+		negotiatedObjectDecoder runtime.Serializer
+
+		expectedResult runtime.Object
+	}{
+		{
+			name:                    "happy path",
+			negotiatedObjectDecoder: newJSONSerializer(),
+			watchEvents: []watch.Event{
+				{Type: watch.Added, Object: makeTableRow(1)},
+				{Type: watch.Added, Object: makeTableRow(2)},
+				{Type: watch.Bookmark, Object: makeTableBookmarkEvent(5, t)},
+			},
+			expectedResult: &metav1.Table{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "meta.k8s.io/v1",
+					Kind:       "Table",
+				},
+				ListMeta: metav1.ListMeta{ResourceVersion: "5"},
+				Rows: []metav1.TableRow{
+					makeTableRow(1).Rows[0],
+					makeTableRow(2).Rows[0],
+				},
+			},
+		},
+		{
+			name:                    "happy path (unstructured)",
+			negotiatedObjectDecoder: unstructured.UnstructuredJSONScheme,
+			watchEvents: []watch.Event{
+				{Type: watch.Added, Object: toUnstructured(t, makeTableRow(1))},
+				{Type: watch.Added, Object: toUnstructured(t, makeTableRow(2))},
+				{Type: watch.Bookmark, Object: toUnstructured(t, makeTableBookmarkEvent(5, t))},
+			},
+			expectedResult: toUnstructured(t, &metav1.Table{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "meta.k8s.io/v1",
+					Kind:       "Table",
+				},
+				ListMeta: metav1.ListMeta{ResourceVersion: "5"},
+				Rows: []metav1.TableRow{
+					makeTableRow(1).Rows[0],
+					makeTableRow(2).Rows[0],
+				},
+			}),
+		},
+		{
+			name:                    "only the bookmark",
+			negotiatedObjectDecoder: newJSONSerializer(),
+			watchEvents: []watch.Event{
+				{Type: watch.Bookmark, Object: makeTableBookmarkEvent(5, t)},
+			},
+			expectedResult: &metav1.Table{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "meta.k8s.io/v1",
+					Kind:       "Table",
+				},
+				ListMeta: metav1.ListMeta{ResourceVersion: "5"},
+				Rows:     []metav1.TableRow{},
+			},
+		},
+		{
+			name:                    "only the bookmark (unstructured)",
+			negotiatedObjectDecoder: unstructured.UnstructuredJSONScheme,
+			watchEvents: []watch.Event{
+				{Type: watch.Bookmark, Object: makeTableBookmarkEvent(5, t)},
+			},
+			expectedResult: toUnstructured(t, &metav1.Table{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "meta.k8s.io/v1",
+					Kind:       "Table",
+				},
+				ListMeta: metav1.ListMeta{ResourceVersion: "5"},
+				Rows:     []metav1.TableRow{},
+			}),
+		},
+	}
+	for _, scenario := range scenarios {
+		t.Run(scenario.name, func(t *testing.T) {
+			ctx := context.Background()
+			fakeWatcher := watch.NewFake()
+			target := &Request{
+				c: &RESTClient{
+					content: ClientContentConfig{},
+				},
+			}
+
+			go func(watchEvents []watch.Event) {
+				for _, watchEvent := range watchEvents {
+					fakeWatcher.Action(watchEvent.Type, watchEvent.Object)
+				}
+			}(scenario.watchEvents)
+
+			res := target.handleWatchList(ctx, fakeWatcher, scenario.negotiatedObjectDecoder)
+			if res.err != nil {
+				t.Fatal(res.err)
+			}
+
+			result, err := res.Get()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !apiequality.Semantic.DeepEqual(scenario.expectedResult, result) {
+				t.Errorf("diff: %v", cmp.Diff(scenario.expectedResult, result))
+			}
+			if !fakeWatcher.IsStopped() {
+				t.Fatalf("the watcher wasn't stopped")
+			}
+		})
+	}
+}
+
 func TestWatchListFailure(t *testing.T) {
 	scenarios := []struct {
 		name        string
@@ -297,7 +425,7 @@ func TestWatchListFailure(t *testing.T) {
 			}(scenario.watcher, scenario.watchEvents)
 
 			res := target.handleWatchList(scenario.ctx, scenario.watcher, nil /*TODO*/)
-			resErr := res.Into(nil)
+			_, resErr := res.Get()
 			if resErr == nil {
 				t.Fatal("expected to get an error, got nil")
 			}
@@ -322,12 +450,72 @@ func TestWatchListWhenFeatureGateDisabled(t *testing.T) {
 
 	res := target.WatchList(context.TODO())
 
-	resErr := res.Into(nil)
+	_, resErr := res.Get()
 	if resErr == nil {
 		t.Fatal("expected to get an error, got nil")
 	}
 	if resErr.Error() != expectedError.Error() {
 		t.Fatalf("unexpected error: %v, expected: %v", resErr, expectedError)
+	}
+}
+
+func toUnstructured(t *testing.T, obj runtime.Object) *unstructured.Unstructured {
+	res, err := runtime.DefaultUnstructuredConverter.ToUnstructured(obj)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return &unstructured.Unstructured{Object: res}
+}
+
+func makeEmptyTable() *metav1.Table {
+	return &metav1.Table{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Table",
+			APIVersion: "meta.k8s.io/v1",
+		},
+	}
+}
+
+func makeTableRow(rv uint64) *metav1.Table {
+	return &metav1.Table{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Table",
+			APIVersion: "meta.k8s.io/v1",
+		},
+		ListMeta: metav1.ListMeta{
+			ResourceVersion: fmt.Sprintf("%d", rv),
+		},
+		Rows: []metav1.TableRow{
+			{
+				Object: runtime.RawExtension{Object: makePod(rv)},
+			},
+		},
+	}
+}
+
+func makeTableBookmarkEvent(rv uint64, t *testing.T) *metav1.Table {
+	return &metav1.Table{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Table",
+			APIVersion: "meta.k8s.io/v1",
+		},
+		ListMeta: metav1.ListMeta{
+			ResourceVersion: fmt.Sprintf("%d", rv),
+		},
+		Rows: []metav1.TableRow{
+			{
+				Object: runtime.RawExtension{Object: &v1.Pod{
+					ObjectMeta: metav1.ObjectMeta{
+						ResourceVersion: fmt.Sprintf("%d", rv),
+						Annotations: map[string]string{
+							metav1.InitialEventsAnnotationKey:              "true",
+							metav1.InitialEventsListBlueprintAnnotationKey: encodeObjectToBase64String(makeEmptyTable(), t),
+						},
+					},
+				}},
+			},
+		},
 	}
 }
 
@@ -377,6 +565,8 @@ func (f fakeObj) DeepCopyObject() runtime.Object {
 }
 
 func newJSONSerializer() runtime.Serializer {
+	utilruntime.Must(metav1.AddMetaToScheme(clientgoscheme.Scheme))
+
 	return runtimejson.NewSerializerWithOptions(
 		runtimejson.DefaultMetaFactory,
 		clientgoscheme.Scheme,
