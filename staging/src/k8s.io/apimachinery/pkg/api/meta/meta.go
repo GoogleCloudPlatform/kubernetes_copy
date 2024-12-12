@@ -600,6 +600,7 @@ func (a genericAccessor) GetOwnerReferences() []metav1.OwnerReference {
 	var ret []metav1.OwnerReference
 	s := a.ownerReferences
 	if s.Kind() != reflect.Pointer || s.Elem().Kind() != reflect.Slice {
+		//nolint:logcheck // Should not happen.
 		klog.Errorf("expect %v to be a pointer to slice", s)
 		return ret
 	}
@@ -608,6 +609,7 @@ func (a genericAccessor) GetOwnerReferences() []metav1.OwnerReference {
 	ret = make([]metav1.OwnerReference, s.Len(), s.Len()+1)
 	for i := 0; i < s.Len(); i++ {
 		if err := extractFromOwnerReference(s.Index(i), &ret[i]); err != nil {
+			//nolint:logcheck // Should not happen.
 			klog.Errorf("extractFromOwnerReference failed: %v", err)
 			return ret
 		}
@@ -618,12 +620,14 @@ func (a genericAccessor) GetOwnerReferences() []metav1.OwnerReference {
 func (a genericAccessor) SetOwnerReferences(references []metav1.OwnerReference) {
 	s := a.ownerReferences
 	if s.Kind() != reflect.Pointer || s.Elem().Kind() != reflect.Slice {
+		//nolint:logcheck // Should not happen.
 		klog.Errorf("expect %v to be a pointer to slice", s)
 	}
 	s = s.Elem()
 	newReferences := reflect.MakeSlice(s.Type(), len(references), len(references))
 	for i := 0; i < len(references); i++ {
 		if err := setOwnerReference(newReferences.Index(i), &references[i]); err != nil {
+			//nolint:logcheck // Should not happen.
 			klog.Errorf("setOwnerReference failed: %v", err)
 			return
 		}
