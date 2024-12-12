@@ -33,7 +33,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"reflect"
@@ -993,7 +993,7 @@ func getClaimJWT(ctx context.Context, client *http.Client, url, accessToken stri
 	if response.StatusCode < http.StatusOK || response.StatusCode > http.StatusIMUsed {
 		return "", fmt.Errorf("error while getting distributed claim JWT: %v", response.Status)
 	}
-	responseBytes, err := ioutil.ReadAll(response.Body)
+	responseBytes, err := io.ReadAll(response.Body)
 	if err != nil {
 		return "", fmt.Errorf("could not decode distributed claim response")
 	}

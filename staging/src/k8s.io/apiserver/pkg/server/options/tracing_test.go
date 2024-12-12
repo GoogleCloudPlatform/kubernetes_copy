@@ -18,7 +18,6 @@ package options
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"reflect"
 	"strings"
@@ -182,12 +181,12 @@ spec:
 		t.Run(tc.name, func(t *testing.T) {
 			proxyConfig := fmt.Sprintf("test-tracing-config-%s", tc.name)
 			if tc.createFile {
-				f, err := ioutil.TempFile("", proxyConfig)
+				f, err := os.CreateTemp("", proxyConfig)
 				if err != nil {
 					t.Fatal(err)
 				}
 				defer os.Remove(f.Name())
-				if err := ioutil.WriteFile(f.Name(), []byte(tc.contents), os.FileMode(0755)); err != nil {
+				if err := os.WriteFile(f.Name(), []byte(tc.contents), os.FileMode(0755)); err != nil {
 					t.Fatal(err)
 				}
 				proxyConfig = f.Name()

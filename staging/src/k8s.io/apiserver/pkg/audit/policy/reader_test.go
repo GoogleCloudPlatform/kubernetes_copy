@@ -17,7 +17,6 @@ limitations under the License.
 package policy
 
 import (
-	"io/ioutil"
 	"os"
 	"reflect"
 	"strings"
@@ -158,7 +157,7 @@ kind: Policy`,
 }
 
 func writePolicy(t *testing.T, policy string) (string, error) {
-	f, err := ioutil.TempFile("", "policy.yaml")
+	f, err := os.CreateTemp("", "policy.yaml")
 	require.NoError(t, err)
 
 	_, err = f.WriteString(policy)

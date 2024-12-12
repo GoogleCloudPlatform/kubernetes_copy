@@ -18,7 +18,6 @@ package tokenfile
 
 import (
 	"context"
-	"io/ioutil"
 	"os"
 	"reflect"
 	"testing"
@@ -137,14 +136,14 @@ func TestEmptyTokenTokenFile(t *testing.T) {
 }
 
 func newWithContents(t *testing.T, contents string) (auth *TokenAuthenticator, err error) {
-	f, err := ioutil.TempFile("", "tokenfile_test")
+	f, err := os.CreateTemp("", "tokenfile_test")
 	if err != nil {
 		t.Fatalf("unexpected error creating tokenfile: %v", err)
 	}
 	f.Close()
 	defer os.Remove(f.Name())
 
-	if err := ioutil.WriteFile(f.Name(), []byte(contents), 0700); err != nil {
+	if err := os.WriteFile(f.Name(), []byte(contents), 0700); err != nil {
 		t.Fatalf("unexpected error writing tokenfile: %v", err)
 	}
 

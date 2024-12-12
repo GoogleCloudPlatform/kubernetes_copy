@@ -21,7 +21,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -54,7 +54,7 @@ func TestInputStreamReader(t *testing.T) {
 		return
 	}
 	defer readCloser.Close()
-	result, _ := ioutil.ReadAll(readCloser)
+	result, _ := io.ReadAll(readCloser)
 	if string(result) != resultString {
 		t.Errorf("Stream content does not match. Got: %s. Expected: %s.", string(result), resultString)
 	}
@@ -117,7 +117,7 @@ func TestInputStreamTransport(t *testing.T) {
 		return
 	}
 	defer readCloser.Close()
-	result, _ := ioutil.ReadAll(readCloser)
+	result, _ := io.ReadAll(readCloser)
 	if string(result) != message {
 		t.Errorf("Stream content does not match. Got: %s. Expected: %s.", string(result), message)
 	}

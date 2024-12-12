@@ -19,7 +19,6 @@ package options
 import (
 	stdjson "encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -271,7 +270,7 @@ func makeTmpWebhookConfig(t *testing.T) string {
 			{Cluster: v1.Cluster{Server: "localhost", InsecureSkipTLSVerify: true}},
 		},
 	}
-	f, err := ioutil.TempFile("", "k8s_audit_webhook_test_")
+	f, err := os.CreateTemp("", "k8s_audit_webhook_test_")
 	require.NoError(t, err, "creating temp file")
 	require.NoError(t, stdjson.NewEncoder(f).Encode(config), "writing webhook kubeconfig")
 	require.NoError(t, f.Close())
@@ -289,7 +288,7 @@ func makeTmpPolicy(t *testing.T) string {
 			},
 		},
 	}
-	f, err := ioutil.TempFile("", "k8s_audit_policy_test_")
+	f, err := os.CreateTemp("", "k8s_audit_policy_test_")
 	require.NoError(t, err, "creating temp file")
 	require.NoError(t, stdjson.NewEncoder(f).Encode(pol), "writing policy file")
 	require.NoError(t, f.Close())
