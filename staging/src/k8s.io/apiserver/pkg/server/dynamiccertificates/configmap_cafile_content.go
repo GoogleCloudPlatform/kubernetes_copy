@@ -264,14 +264,14 @@ func (c *ConfigMapCAController) CurrentCABundleContent() []byte {
 	return c.caBundle.Load().(*caBundleAndVerifier).caBundle
 }
 
-// VerifyOptions provides verifyoptions compatible with authenticators
-func (c *ConfigMapCAController) VerifyOptions() (x509.VerifyOptions, bool) {
+// Roots provides root certificates for certificate verification
+func (c *ConfigMapCAController) Roots() (*x509.CertPool, bool) {
 	uncastObj := c.caBundle.Load()
 	if uncastObj == nil {
 		// This can happen if we've been unable load data from the apiserver for some reason.
 		// In this case, we should not accept any connections on the basis of this ca bundle.
-		return x509.VerifyOptions{}, false
+		return nil, false
 	}
 
-	return uncastObj.(*caBundleAndVerifier).verifyOptions, true
+	return uncastObj.(*caBundleAndVerifier).roots, true
 }

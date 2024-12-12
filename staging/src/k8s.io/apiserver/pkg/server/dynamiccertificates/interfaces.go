@@ -43,8 +43,8 @@ type CAContentProvider interface {
 	// contained to the controllers initializing the value. By the time you get
 	// here, you should always be returning a value that won't fail.
 	CurrentCABundleContent() []byte
-	// VerifyOptions provides VerifyOptions for authenticators.
-	VerifyOptions() (x509.VerifyOptions, bool)
+	// Roots provides root certificates for certificate verification
+	Roots() (*x509.CertPool, bool)
 }
 
 // CertKeyContentProvider provides a certificate and matching private key.

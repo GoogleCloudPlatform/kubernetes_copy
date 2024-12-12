@@ -69,8 +69,8 @@ var _ CAContentProvider = &DynamicFileCAContent{}
 var _ ControllerRunner = &DynamicFileCAContent{}
 
 type caBundleAndVerifier struct {
-	caBundle      []byte
-	verifyOptions x509.VerifyOptions
+	caBundle []byte
+	roots    *x509.CertPool
 }
 
 // NewDynamicCAContentFromFile returns a CAContentProvider based on a filename that automatically reloads content
@@ -254,14 +254,14 @@ func (c *DynamicFileCAContent) CurrentCABundleContent() (cabundle []byte) {
 	return c.caBundle.Load().(*caBundleAndVerifier).caBundle
 }
 
-// VerifyOptions provides verifyoptions compatible with authenticators
-func (c *DynamicFileCAContent) VerifyOptions() (x509.VerifyOptions, bool) {
+// Roots provides root certificates for certificate verification.
+func (c *DynamicFileCAContent) Roots() (*x509.CertPool, bool) {
 	uncastObj := c.caBundle.Load()
 	if uncastObj == nil {
-		return x509.VerifyOptions{}, false
+		return nil, false
 	}
 
-	return uncastObj.(*caBundleAndVerifier).verifyOptions, true
+	return uncastObj.(*caBundleAndVerifier).roots, true
 }
 
 // newVerifyOptions creates a new verification func from a file.  It reads the content and then fails.
@@ -271,24 +271,13 @@ func newCABundleAndVerifier(name string, caBundle []byte) (*caBundleAndVerifier,
 		return nil, fmt.Errorf("missing content for CA bundle %q", name)
 	}
 
-	// Wrap with an x509 verifier
-	var err error
-	verifyOptions := defaultVerifyOptions()
-	verifyOptions.Roots, err = cert.NewPoolFromBytes(caBundle)
+	roots, err := cert.NewPoolFromBytes(caBundle)
 	if err != nil {
 		return nil, fmt.Errorf("error loading CA bundle for %q: %v", name, err)
 	}
 
 	return &caBundleAndVerifier{
-		caBundle:      caBundle,
-		verifyOptions: verifyOptions,
+		caBundle: caBundle,
+		roots:    roots,
 	}, nil
-}
-
-// defaultVerifyOptions returns VerifyOptions that use the system root certificates, current time,
-// and requires certificates to be valid for client auth (x509.ExtKeyUsageClientAuth)
-func defaultVerifyOptions() x509.VerifyOptions {
-	return x509.VerifyOptions{
-		KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
-	}
 }

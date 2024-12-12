@@ -56,11 +56,11 @@ func (c unionCAContent) CurrentCABundleContent() []byte {
 	return bytes.Join(caBundles, []byte("\n"))
 }
 
-// CurrentCABundleContent provides ca bundle byte content
-func (c unionCAContent) VerifyOptions() (x509.VerifyOptions, bool) {
+// Roots provides root certificates for certificate verification.
+func (c unionCAContent) Roots() (*x509.CertPool, bool) {
 	currCABundle := c.CurrentCABundleContent()
 	if len(currCABundle) == 0 {
-		return x509.VerifyOptions{}, false
+		return nil, false
 	}
 
 	// TODO make more efficient.  This isn't actually used in any of our mainline paths.  It's called to build the TLSConfig
@@ -71,7 +71,7 @@ func (c unionCAContent) VerifyOptions() (x509.VerifyOptions, bool) {
 		panic(err)
 	}
 
-	return ret.verifyOptions, true
+	return ret.roots, true
 }
 
 // AddListener adds a listener to be notified when the CA content changes.

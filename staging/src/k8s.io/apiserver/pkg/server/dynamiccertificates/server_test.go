@@ -215,6 +215,6 @@ func (c *nullCAContent) CurrentCABundleContent() (cabundle []byte) {
 	return nil
 }
 
-func (c *nullCAContent) VerifyOptions() (x509.VerifyOptions, bool) {
-	return x509.VerifyOptions{}, false
+func (c *nullCAContent) Roots() (*x509.CertPool, bool) {
+	return nil, false
 }

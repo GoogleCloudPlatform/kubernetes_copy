@@ -53,8 +53,8 @@ func (c *staticCAContent) CurrentCABundleContent() (cabundle []byte) {
 	return c.caBundle.caBundle
 }
 
-func (c *staticCAContent) VerifyOptions() (x509.VerifyOptions, bool) {
-	return c.caBundle.verifyOptions, true
+func (c *staticCAContent) Roots() (*x509.CertPool, bool) {
+	return c.caBundle.roots, true
 }
 
 type staticCertKeyContent struct {

@@ -16,38 +16,6 @@ limitations under the License.
 
 package x509
 
-import (
-	"crypto/x509"
-	"fmt"
-
-	"k8s.io/client-go/util/cert"
-)
-
-// StaticVerifierFn is a VerifyOptionFunc that always returns the same value.  This allows verify options that cannot change.
-func StaticVerifierFn(opts x509.VerifyOptions) VerifyOptionFunc {
-	return func() (x509.VerifyOptions, bool) {
-		return opts, true
-	}
-}
-
-// NewStaticVerifierFromFile creates a new verification func from a file.  It reads the content and then fails.
-// It will return a nil function if you pass an empty CA file.
-func NewStaticVerifierFromFile(clientCA string) (VerifyOptionFunc, error) {
-	if len(clientCA) == 0 {
-		return nil, nil
-	}
-
-	// Wrap with an x509 verifier
-	var err error
-	opts := DefaultVerifyOptions()
-	opts.Roots, err = cert.NewPool(clientCA)
-	if err != nil {
-		return nil, fmt.Errorf("error loading certs from  %s: %v", clientCA, err)
-	}
-
-	return StaticVerifierFn(opts), nil
-}
-
 // StringSliceProvider is a way to get a string slice value.  It is heavily used for authentication headers among other places.
 type StringSliceProvider interface {
 	// Value returns the current string slice.  Callers should never mutate the returned value.

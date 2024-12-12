@@ -31,6 +31,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apiserver/pkg/authentication/authenticator"
 	"k8s.io/apiserver/pkg/authentication/user"
+	clocktesting "k8s.io/utils/clock/testing"
 )
 
 const (
@@ -570,15 +571,16 @@ PKJQCs0CM0zkesktuLi/gFpuB0nEwyOgLg==
 )
 
 func TestX509(t *testing.T) {
-	multilevelOpts := DefaultVerifyOptions()
-	multilevelOpts.Roots = x509.NewCertPool()
-	multilevelOpts.Roots.AddCert(getCertsFromFile(t, "root")[0])
+	multiLevelRoots := x509.NewCertPool()
+	multiLevelRoots.AddCert(getCertsFromFile(t, "root")[0])
 
 	testCases := map[string]struct {
 		Insecure bool
 		Certs    []*x509.Certificate
 
-		Opts x509.VerifyOptions
+		Roots       *x509.CertPool
+		CurrentTime time.Time
+
 		User UserConversion
 
 		ExpectOK       bool
@@ -598,7 +600,7 @@ func TestX509(t *testing.T) {
 		},
 
 		"self signed": {
-			Opts:  getDefaultVerifyOptions(t),
+			Roots: getRootCertPool(t),
 			Certs: getCerts(t, selfSignedCert),
 			User:  CommonNameUserConversion,
 
@@ -606,32 +608,15 @@ func TestX509(t *testing.T) {
 		},
 
 		"server cert": {
-			Opts:  getDefaultVerifyOptions(t),
+			Roots: getRootCertPool(t),
 			Certs: getCerts(t, serverCert),
 			User:  CommonNameUserConversion,
 
 			ExpectErr: true,
 		},
-		"server cert allowing non-client cert usages": {
-			Opts:  x509.VerifyOptions{Roots: getRootCertPool(t)},
-			Certs: getCerts(t, serverCert),
-			User:  CommonNameUserConversion,
-
-			ExpectOK: true,
-			ExpectResponse: &authenticator.Response{
-				User: &user.DefaultInfo{
-					Name:   "127.0.0.1",
-					Groups: []string{"My Org"},
-					Extra: map[string][]string{
-						user.CredentialIDKey: {"X509SHA256=92209d1e0dd36a018f244f5e1b88e2d47b049e9cfcd4b7c87c65875866872230"},
-					},
-				},
-			},
-			ExpectErr: false,
-		},
 
 		"common name": {
-			Opts:  getDefaultVerifyOptions(t),
+			Roots: getRootCertPool(t),
 			Certs: getCerts(t, clientCNCert),
 			User:  CommonNameUserConversion,
 
@@ -648,9 +633,7 @@ func TestX509(t *testing.T) {
 			ExpectErr: false,
 		},
 		"ca with multiple organizations": {
-			Opts: x509.VerifyOptions{
-				Roots: getRootCertPoolFor(t, caWithGroups),
-			},
+			Roots: getRootCertPoolFor(t, caWithGroups),
 			Certs: getCerts(t, caWithGroups),
 			User:  CommonNameUserConversion,
 
@@ -668,7 +651,7 @@ func TestX509(t *testing.T) {
 		},
 
 		"custom conversion error": {
-			Opts:  getDefaultVerifyOptions(t),
+			Roots: getRootCertPool(t),
 			Certs: getCerts(t, clientCNCert),
 			User: UserConversionFunc(func(chain []*x509.Certificate) (*authenticator.Response, bool, error) {
 				return nil, false, errors.New("custom error")
@@ -678,7 +661,7 @@ func TestX509(t *testing.T) {
 			ExpectErr: true,
 		},
 		"custom conversion success": {
-			Opts:  getDefaultVerifyOptions(t),
+			Roots: getRootCertPool(t),
 			Certs: getCerts(t, clientCNCert),
 			User: UserConversionFunc(func(chain []*x509.Certificate) (*authenticator.Response, bool, error) {
 				return &authenticator.Response{User: &user.DefaultInfo{Name: "custom"}}, true, nil
@@ -694,30 +677,26 @@ func TestX509(t *testing.T) {
 		},
 
 		"future cert": {
-			Opts: x509.VerifyOptions{
-				CurrentTime: time.Now().Add(time.Duration(-100 * time.Hour * 24 * 365)),
-				Roots:       getRootCertPool(t),
-			},
-			Certs: getCerts(t, clientCNCert),
-			User:  CommonNameUserConversion,
+			CurrentTime: time.Now().Add(time.Duration(-100 * time.Hour * 24 * 365)),
+			Roots:       getRootCertPool(t),
+			Certs:       getCerts(t, clientCNCert),
+			User:        CommonNameUserConversion,
 
 			ExpectOK:  false,
 			ExpectErr: true,
 		},
 		"expired cert": {
-			Opts: x509.VerifyOptions{
-				CurrentTime: time.Now().Add(time.Duration(100 * time.Hour * 24 * 365)),
-				Roots:       getRootCertPool(t),
-			},
-			Certs: getCerts(t, clientCNCert),
-			User:  CommonNameUserConversion,
+			CurrentTime: time.Now().Add(time.Duration(100 * time.Hour * 24 * 365)),
+			Roots:       getRootCertPool(t),
+			Certs:       getCerts(t, clientCNCert),
+			User:        CommonNameUserConversion,
 
 			ExpectOK:  false,
 			ExpectErr: true,
 		},
 
 		"multi-level, valid": {
-			Opts:  multilevelOpts,
+			Roots: multiLevelRoots,
 			Certs: getCertsFromFile(t, "client-valid", "intermediate"),
 			User:  CommonNameUserConversion,
 
@@ -733,7 +712,7 @@ func TestX509(t *testing.T) {
 			ExpectErr: false,
 		},
 		"multi-level, expired": {
-			Opts:  multilevelOpts,
+			Roots: multiLevelRoots,
 			Certs: getCertsFromFile(t, "client-expired", "intermediate"),
 			User:  CommonNameUserConversion,
 
@@ -750,7 +729,8 @@ func TestX509(t *testing.T) {
 			}
 
 			// this effectively tests the simple dynamic verify function.
-			a := New(testCase.Opts, testCase.User)
+			a := NewAuthenticator(staticRootFn(testCase.Roots), testCase.User)
+			a.clock = clocktesting.NewFakePassiveClock(testCase.CurrentTime)
 
 			resp, ok, err := a.AuthenticateRequest(req)
 
@@ -776,16 +756,22 @@ func TestX509(t *testing.T) {
 	}
 }
 
+func staticRootFn(roots *x509.CertPool) func() (*x509.CertPool, bool) {
+	return func() (*x509.CertPool, bool) {
+		return roots, true
+	}
+}
+
 func TestX509Verifier(t *testing.T) {
-	multilevelOpts := DefaultVerifyOptions()
-	multilevelOpts.Roots = x509.NewCertPool()
-	multilevelOpts.Roots.AddCert(getCertsFromFile(t, "root")[0])
+	multiLevelRoots := x509.NewCertPool()
+	multiLevelRoots.AddCert(getCertsFromFile(t, "root")[0])
 
 	testCases := map[string]struct {
 		Insecure bool
 		Certs    []*x509.Certificate
 
-		Opts x509.VerifyOptions
+		Roots       *x509.CertPool
+		CurrentTime time.Time
 
 		AllowedCNs sets.String
 
@@ -805,35 +791,28 @@ func TestX509Verifier(t *testing.T) {
 		},
 
 		"self signed": {
-			Opts:  getDefaultVerifyOptions(t),
+			Roots: getRootCertPool(t),
 			Certs: getCerts(t, selfSignedCert),
 
 			ExpectErr: true,
 		},
 
 		"server cert disallowed": {
-			Opts:  getDefaultVerifyOptions(t),
+			Roots: getRootCertPool(t),
 			Certs: getCerts(t, serverCert),
 
 			ExpectErr: true,
 		},
-		"server cert allowing non-client cert usages": {
-			Opts:  x509.VerifyOptions{Roots: getRootCertPool(t)},
-			Certs: getCerts(t, serverCert),
-
-			ExpectOK:  true,
-			ExpectErr: false,
-		},
 
 		"valid client cert": {
-			Opts:  getDefaultVerifyOptions(t),
+			Roots: getRootCertPool(t),
 			Certs: getCerts(t, clientCNCert),
 
 			ExpectOK:  true,
 			ExpectErr: false,
 		},
 		"valid client cert with wrong CN": {
-			Opts:       getDefaultVerifyOptions(t),
+			Roots:      getRootCertPool(t),
 			AllowedCNs: sets.NewString("foo", "bar"),
 			Certs:      getCerts(t, clientCNCert),
 
@@ -841,7 +820,7 @@ func TestX509Verifier(t *testing.T) {
 			ExpectErr: true,
 		},
 		"valid client cert with right CN": {
-			Opts:       getDefaultVerifyOptions(t),
+			Roots:      getRootCertPool(t),
 			AllowedCNs: sets.NewString("client_cn"),
 			Certs:      getCerts(t, clientCNCert),
 
@@ -850,35 +829,31 @@ func TestX509Verifier(t *testing.T) {
 		},
 
 		"future cert": {
-			Opts: x509.VerifyOptions{
-				CurrentTime: time.Now().Add(-100 * time.Hour * 24 * 365),
-				Roots:       getRootCertPool(t),
-			},
-			Certs: getCerts(t, clientCNCert),
+			CurrentTime: time.Now().Add(-100 * time.Hour * 24 * 365),
+			Roots:       getRootCertPool(t),
+			Certs:       getCerts(t, clientCNCert),
 
 			ExpectOK:  false,
 			ExpectErr: true,
 		},
 		"expired cert": {
-			Opts: x509.VerifyOptions{
-				CurrentTime: time.Now().Add(100 * time.Hour * 24 * 365),
-				Roots:       getRootCertPool(t),
-			},
-			Certs: getCerts(t, clientCNCert),
+			CurrentTime: time.Now().Add(100 * time.Hour * 24 * 365),
+			Roots:       getRootCertPool(t),
+			Certs:       getCerts(t, clientCNCert),
 
 			ExpectOK:  false,
 			ExpectErr: true,
 		},
 
 		"multi-level, valid": {
-			Opts:  multilevelOpts,
+			Roots: multiLevelRoots,
 			Certs: getCertsFromFile(t, "client-valid", "intermediate"),
 
 			ExpectOK:  true,
 			ExpectErr: false,
 		},
 		"multi-level, expired": {
-			Opts:  multilevelOpts,
+			Roots: multiLevelRoots,
 			Certs: getCertsFromFile(t, "client-expired", "intermediate"),
 
 			ExpectOK:  false,
@@ -898,7 +873,12 @@ func TestX509Verifier(t *testing.T) {
 			return &authenticator.Response{User: &user.DefaultInfo{Name: "innerauth"}}, true, nil
 		})
 
-		a := NewVerifier(testCase.Opts, auth, testCase.AllowedCNs)
+		a := &Verifier{
+			rootsFn:            staticRootFn(testCase.Roots),
+			clock:              clocktesting.NewFakePassiveClock(testCase.CurrentTime),
+			auth:               auth,
+			allowedCommonNames: StaticStringSlice(testCase.AllowedCNs.List()),
+		}
 
 		resp, ok, err := a.AuthenticateRequest(req)
 
@@ -932,12 +912,6 @@ func TestX509Verifier(t *testing.T) {
 			}
 		}
 	}
-}
-
-func getDefaultVerifyOptions(t *testing.T) x509.VerifyOptions {
-	options := DefaultVerifyOptions()
-	options.Roots = getRootCertPool(t)
-	return options
 }
 
 func getRootCertPool(t *testing.T) *x509.CertPool {

@@ -27,11 +27,11 @@ import (
 	"time"
 
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
-	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apiserver/pkg/authentication/authenticator"
 	"k8s.io/apiserver/pkg/authentication/user"
 	"k8s.io/component-base/metrics"
 	"k8s.io/component-base/metrics/legacyregistry"
+	"k8s.io/utils/clock"
 )
 
 /*
@@ -106,28 +106,24 @@ func certificateIdentifier(c *x509.Certificate) string {
 	)
 }
 
-// VerifyOptionFunc is function which provides a shallow copy of the VerifyOptions to the authenticator.  This allows
-// for cases where the options (particularly the CAs) can change.  If the bool is false, then the returned VerifyOptions
-// are ignored and the authenticator will express "no opinion".  This allows a clear signal for cases where a CertPool
-// is eventually expected, but not currently present.
-type VerifyOptionFunc func() (x509.VerifyOptions, bool)
+// RootsFunc is a function that returns a pool of root certificates for validation.
+type RootsFunc func() (*x509.CertPool, bool)
 
 // Authenticator implements request.Authenticator by extracting user info from verified client certificates
 type Authenticator struct {
-	verifyOptionsFn VerifyOptionFunc
-	user            UserConversion
+	rootsFn RootsFunc
+	clock   clock.PassiveClock
+	user    UserConversion
 }
 
-// New returns a request.Authenticator that verifies client certificates using the provided
-// VerifyOptions, and converts valid certificate chains into user.Info using the provided UserConversion
-func New(opts x509.VerifyOptions, user UserConversion) *Authenticator {
-	return NewDynamic(StaticVerifierFn(opts), user)
-}
-
-// NewDynamic returns a request.Authenticator that verifies client certificates using the provided
+// NewAuthenticator returns a request.Authenticator that verifies client certificates using the provided
 // VerifyOptionFunc (which may be dynamic), and converts valid certificate chains into user.Info using the provided UserConversion
-func NewDynamic(verifyOptionsFn VerifyOptionFunc, user UserConversion) *Authenticator {
-	return &Authenticator{verifyOptionsFn, user}
+func NewAuthenticator(rootsFn RootsFunc, user UserConversion) *Authenticator {
+	return &Authenticator{
+		rootsFn: rootsFn,
+		clock:   clock.RealClock{},
+		user:    user,
+	}
 }
 
 // AuthenticateRequest authenticates the request using presented client certificates
@@ -136,16 +132,21 @@ func (a *Authenticator) AuthenticateRequest(req *http.Request) (*authenticator.R
 		return nil, false, nil
 	}
 
-	// Use intermediates, if provided
-	optsCopy, ok := a.verifyOptionsFn()
-	// if there are intentionally no verify options, then we cannot authenticate this request
+	verifyOpts := x509.VerifyOptions{
+		CurrentTime: a.clock.Now(),
+		KeyUsages:   []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+	}
+
+	var ok bool
+	verifyOpts.Roots, ok = a.rootsFn()
 	if !ok {
 		return nil, false, nil
 	}
-	if optsCopy.Intermediates == nil && len(req.TLS.PeerCertificates) > 1 {
-		optsCopy.Intermediates = x509.NewCertPool()
+
+	if len(req.TLS.PeerCertificates) > 1 {
+		verifyOpts.Intermediates = x509.NewCertPool()
 		for _, intermediate := range req.TLS.PeerCertificates[1:] {
-			optsCopy.Intermediates.AddCert(intermediate)
+			verifyOpts.Intermediates.AddCert(intermediate)
 		}
 	}
 
@@ -178,7 +179,8 @@ func (a *Authenticator) AuthenticateRequest(req *http.Request) (*authenticator.R
 
 	remaining := req.TLS.PeerCertificates[0].NotAfter.Sub(time.Now())
 	clientCertificateExpirationHistogram.WithContext(req.Context()).Observe(remaining.Seconds())
-	chains, err := req.TLS.PeerCertificates[0].Verify(optsCopy)
+
+	chains, err := req.TLS.PeerCertificates[0].Verify(verifyOpts)
 	if err != nil {
 		return nil, false, fmt.Errorf(
 			"verifying certificate %s failed: %w",
@@ -204,22 +206,23 @@ func (a *Authenticator) AuthenticateRequest(req *http.Request) (*authenticator.R
 
 // Verifier implements request.Authenticator by verifying a client cert on the request, then delegating to the wrapped auth
 type Verifier struct {
-	verifyOptionsFn VerifyOptionFunc
-	auth            authenticator.Request
+	rootsFn RootsFunc
+	clock   clock.PassiveClock
+	auth    authenticator.Request
 
 	// allowedCommonNames contains the common names which a verified certificate is allowed to have.
 	// If empty, all verified certificates are allowed.
 	allowedCommonNames StringSliceProvider
 }
 
-// NewVerifier create a request.Authenticator by verifying a client cert on the request, then delegating to the wrapped auth
-func NewVerifier(opts x509.VerifyOptions, auth authenticator.Request, allowedCommonNames sets.String) authenticator.Request {
-	return NewDynamicCAVerifier(StaticVerifierFn(opts), auth, StaticStringSlice(allowedCommonNames.List()))
-}
-
 // NewDynamicCAVerifier create a request.Authenticator by verifying a client cert on the request, then delegating to the wrapped auth
-func NewDynamicCAVerifier(verifyOptionsFn VerifyOptionFunc, auth authenticator.Request, allowedCommonNames StringSliceProvider) authenticator.Request {
-	return &Verifier{verifyOptionsFn, auth, allowedCommonNames}
+func NewDynamicCAVerifier(rootsFn RootsFunc, auth authenticator.Request, allowedCommonNames StringSliceProvider) authenticator.Request {
+	return &Verifier{
+		rootsFn:            rootsFn,
+		clock:              clock.RealClock{},
+		auth:               auth,
+		allowedCommonNames: allowedCommonNames,
+	}
 }
 
 // AuthenticateRequest verifies the presented client certificate, then delegates to the wrapped auth
@@ -228,20 +231,25 @@ func (a *Verifier) AuthenticateRequest(req *http.Request) (*authenticator.Respon
 		return nil, false, nil
 	}
 
-	// Use intermediates, if provided
-	optsCopy, ok := a.verifyOptionsFn()
-	// if there are intentionally no verify options, then we cannot authenticate this request
+	verifyOpts := x509.VerifyOptions{
+		CurrentTime: a.clock.Now(),
+		KeyUsages:   []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+	}
+
+	var ok bool
+	verifyOpts.Roots, ok = a.rootsFn()
 	if !ok {
 		return nil, false, nil
 	}
-	if optsCopy.Intermediates == nil && len(req.TLS.PeerCertificates) > 1 {
-		optsCopy.Intermediates = x509.NewCertPool()
+
+	if len(req.TLS.PeerCertificates) > 1 {
+		verifyOpts.Intermediates = x509.NewCertPool()
 		for _, intermediate := range req.TLS.PeerCertificates[1:] {
-			optsCopy.Intermediates.AddCert(intermediate)
+			verifyOpts.Intermediates.AddCert(intermediate)
 		}
 	}
 
-	if _, err := req.TLS.PeerCertificates[0].Verify(optsCopy); err != nil {
+	if _, err := req.TLS.PeerCertificates[0].Verify(verifyOpts); err != nil {
 		return nil, false, err
 	}
 	if err := a.verifySubject(req.TLS.PeerCertificates[0].Subject); err != nil {
