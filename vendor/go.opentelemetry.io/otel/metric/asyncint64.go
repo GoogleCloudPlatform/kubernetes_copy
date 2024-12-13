@@ -212,7 +212,7 @@ type Int64Observer interface {
 }
 
 // Int64Callback is a function registered with a Meter that makes observations
-// for an Int64Observerable instrument it is registered with. Calls to the
+// for an Int64Observable instrument it is registered with. Calls to the
 // Int64Observer record measurement values for the Int64Observable.
 //
 // The function needs to complete in a finite amount of time and the deadline

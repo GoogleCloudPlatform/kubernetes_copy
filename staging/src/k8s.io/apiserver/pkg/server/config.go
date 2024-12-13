@@ -1030,6 +1030,11 @@ func DefaultBuildHandlerChain(apiHandler http.Handler, c *Config) http.Handler {
 	failedHandler := genericapifilters.Unauthorized(c.Serializer)
 	failedHandler = genericapifilters.WithFailedAuthenticationAudit(failedHandler, c.AuditBackend, c.AuditPolicyRuleEvaluator)
 
+	// WithTracing comes after authentication so we can allow authenticated
+	// clients to influence sampling.
+	if c.FeatureGate.Enabled(genericfeatures.APIServerTracing) {
+		handler = genericapifilters.WithTracing(handler, c.TracerProvider)
+	}
 	failedHandler = filterlatency.TrackCompleted(failedHandler)
 	handler = filterlatency.TrackCompleted(handler)
 	handler = genericapifilters.WithAuthentication(handler, c.Authentication.Authenticator, failedHandler, c.Authentication.APIAudiences, c.Authentication.RequestHeaderConfig)
@@ -1060,9 +1065,6 @@ func DefaultBuildHandlerChain(apiHandler http.Handler, c *Config) http.Handler {
 		handler = genericfilters.WithRetryAfter(handler, c.lifecycleSignals.NotAcceptingNewRequest.Signaled())
 	}
 	handler = genericfilters.WithHTTPLogging(handler)
-	if c.FeatureGate.Enabled(genericfeatures.APIServerTracing) {
-		handler = genericapifilters.WithTracing(handler, c.TracerProvider)
-	}
 	handler = genericapifilters.WithLatencyTrackers(handler)
 	// WithRoutine will execute future handlers in a separate goroutine and serving
 	// handler in current goroutine to minimize the stack memory usage. It must be

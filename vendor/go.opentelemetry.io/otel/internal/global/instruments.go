@@ -13,7 +13,7 @@ import (
 
 // unwrapper unwraps to return the underlying instrument implementation.
 type unwrapper interface {
-	Unwrap() metric.Observable
+	unwrap() metric.Observable
 }
 
 type afCounter struct {
@@ -40,7 +40,7 @@ func (i *afCounter) setDelegate(m metric.Meter) {
 	i.delegate.Store(ctr)
 }
 
-func (i *afCounter) Unwrap() metric.Observable {
+func (i *afCounter) unwrap() metric.Observable {
 	if ctr := i.delegate.Load(); ctr != nil {
 		return ctr.(metric.Float64ObservableCounter)
 	}
@@ -71,7 +71,7 @@ func (i *afUpDownCounter) setDelegate(m metric.Meter) {
 	i.delegate.Store(ctr)
 }
 
-func (i *afUpDownCounter) Unwrap() metric.Observable {
+func (i *afUpDownCounter) unwrap() metric.Observable {
 	if ctr := i.delegate.Load(); ctr != nil {
 		return ctr.(metric.Float64ObservableUpDownCounter)
 	}
@@ -102,7 +102,7 @@ func (i *afGauge) setDelegate(m metric.Meter) {
 	i.delegate.Store(ctr)
 }
 
-func (i *afGauge) Unwrap() metric.Observable {
+func (i *afGauge) unwrap() metric.Observable {
 	if ctr := i.delegate.Load(); ctr != nil {
 		return ctr.(metric.Float64ObservableGauge)
 	}
@@ -133,7 +133,7 @@ func (i *aiCounter) setDelegate(m metric.Meter) {
 	i.delegate.Store(ctr)
 }
 
-func (i *aiCounter) Unwrap() metric.Observable {
+func (i *aiCounter) unwrap() metric.Observable {
 	if ctr := i.delegate.Load(); ctr != nil {
 		return ctr.(metric.Int64ObservableCounter)
 	}
@@ -164,7 +164,7 @@ func (i *aiUpDownCounter) setDelegate(m metric.Meter) {
 	i.delegate.Store(ctr)
 }
 
-func (i *aiUpDownCounter) Unwrap() metric.Observable {
+func (i *aiUpDownCounter) unwrap() metric.Observable {
 	if ctr := i.delegate.Load(); ctr != nil {
 		return ctr.(metric.Int64ObservableUpDownCounter)
 	}
@@ -195,7 +195,7 @@ func (i *aiGauge) setDelegate(m metric.Meter) {
 	i.delegate.Store(ctr)
 }
 
-func (i *aiGauge) Unwrap() metric.Observable {
+func (i *aiGauge) unwrap() metric.Observable {
 	if ctr := i.delegate.Load(); ctr != nil {
 		return ctr.(metric.Int64ObservableGauge)
 	}
