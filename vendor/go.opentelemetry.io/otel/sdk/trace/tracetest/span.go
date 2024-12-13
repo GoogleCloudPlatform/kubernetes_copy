@@ -45,22 +45,25 @@ func (s SpanStubs) Snapshots() []tracesdk.ReadOnlySpan {
 
 // SpanStub is a stand-in for a Span.
 type SpanStub struct {
-	Name                   string
-	SpanContext            trace.SpanContext
-	Parent                 trace.SpanContext
-	SpanKind               trace.SpanKind
-	StartTime              time.Time
-	EndTime                time.Time
-	Attributes             []attribute.KeyValue
-	Events                 []tracesdk.Event
-	Links                  []tracesdk.Link
-	Status                 tracesdk.Status
-	DroppedAttributes      int
-	DroppedEvents          int
-	DroppedLinks           int
-	ChildSpanCount         int
-	Resource               *resource.Resource
-	InstrumentationLibrary instrumentation.Library
+	Name                 string
+	SpanContext          trace.SpanContext
+	Parent               trace.SpanContext
+	SpanKind             trace.SpanKind
+	StartTime            time.Time
+	EndTime              time.Time
+	Attributes           []attribute.KeyValue
+	Events               []tracesdk.Event
+	Links                []tracesdk.Link
+	Status               tracesdk.Status
+	DroppedAttributes    int
+	DroppedEvents        int
+	DroppedLinks         int
+	ChildSpanCount       int
+	Resource             *resource.Resource
+	InstrumentationScope instrumentation.Scope
+
+	// Deprecated: use InstrumentationScope instead.
+	InstrumentationLibrary instrumentation.Library //nolint:staticcheck // This method needs to be define for backwards compatibility
 }
 
 // SpanStubFromReadOnlySpan returns a SpanStub populated from ro.
@@ -85,12 +88,18 @@ func SpanStubFromReadOnlySpan(ro tracesdk.ReadOnlySpan) SpanStub {
 		DroppedLinks:           ro.DroppedLinks(),
 		ChildSpanCount:         ro.ChildSpanCount(),
 		Resource:               ro.Resource(),
+		InstrumentationScope:   ro.InstrumentationScope(),
 		InstrumentationLibrary: ro.InstrumentationScope(),
 	}
 }
 
 // Snapshot returns a read-only copy of the SpanStub.
 func (s SpanStub) Snapshot() tracesdk.ReadOnlySpan {
+	scopeOrLibrary := s.InstrumentationScope
+	if scopeOrLibrary.Name == "" && scopeOrLibrary.Version == "" && scopeOrLibrary.SchemaURL == "" {
+		scopeOrLibrary = s.InstrumentationLibrary
+	}
+
 	return spanSnapshot{
 		name:                 s.Name,
 		spanContext:          s.SpanContext,
@@ -107,7 +116,7 @@ func (s SpanStub) Snapshot() tracesdk.ReadOnlySpan {
 		droppedLinks:         s.DroppedLinks,
 		childSpanCount:       s.ChildSpanCount,
 		resource:             s.Resource,
-		instrumentationScope: s.InstrumentationLibrary,
+		instrumentationScope: scopeOrLibrary,
 	}
 }
 
@@ -152,6 +161,6 @@ func (s spanSnapshot) InstrumentationScope() instrumentation.Scope {
 	return s.instrumentationScope
 }
 
-func (s spanSnapshot) InstrumentationLibrary() instrumentation.Library {
+func (s spanSnapshot) InstrumentationLibrary() instrumentation.Library { //nolint:staticcheck // This method needs to be define for backwards compatibility
 	return s.instrumentationScope
 }

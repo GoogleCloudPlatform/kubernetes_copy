@@ -63,6 +63,7 @@
       "github.com/modern-go/concurrent": "problematic reliance on golang internals, e.g. https://github.com/modern-go/reflect2/issues/24",
       "github.com/modern-go/reflect2": "problematic reliance on golang internals, e.g. https://github.com/modern-go/reflect2/issues/24",
       "github.com/onsi/ginkgo": "Ginkgo has been migrated to V2, refer to #109111",
+      "github.com/planetscale/vtprotobuf": "avoid additional proto implementation in-tree, which may have conflicts",
       "github.com/pkg/errors": "unmaintained, archive mode",
       "github.com/smartystreets/goconvey": "MPL license not in CNCF allowlist",
       "github.com/spf13/viper": "refer to #102598",
@@ -113,6 +114,7 @@
         "go.etcd.io/etcd/client/pkg/v3",
         "go.etcd.io/etcd/pkg/v3",
         "go.etcd.io/etcd/server/v3",
+        "go.opentelemetry.io/auto/sdk",
         "go.opentelemetry.io/contrib/instrumentation/github.com/emicklei/go-restful/otelrestful",
         "go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc",
         "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp",
@@ -217,7 +219,6 @@
         "github.com/prometheus/client_golang",
         "go.etcd.io/etcd/client/v2",
         "go.etcd.io/etcd/server/v3",
-        "go.opentelemetry.io/contrib/instrumentation/github.com/emicklei/go-restful/otelrestful",
         "k8s.io/kube-openapi",
         "sigs.k8s.io/structured-merge-diff/v4"
       ],
@@ -234,7 +235,6 @@
         "github.com/prometheus/client_golang",
         "go.etcd.io/etcd/client/v2",
         "go.etcd.io/etcd/server/v3",
-        "go.opentelemetry.io/contrib/instrumentation/github.com/emicklei/go-restful/otelrestful",
         "k8s.io/kube-openapi",
         "sigs.k8s.io/structured-merge-diff/v4"
       ],
@@ -243,7 +243,6 @@
         "github.com/prometheus/client_golang",
         "go.etcd.io/etcd/client/v2",
         "go.etcd.io/etcd/server/v3",
-        "go.opentelemetry.io/contrib/instrumentation/github.com/emicklei/go-restful/otelrestful",
         "k8s.io/kube-openapi"
       ],
       "github.com/pkg/errors": [
@@ -255,6 +254,9 @@
         "sigs.k8s.io/kustomize/api",
         "sigs.k8s.io/kustomize/kustomize/v5"
       ],
+	    "github.com/planetscale/vtprotobuf": [
+	      "google.golang.org/grpc"
+	    ],
       "golang.org/x/exp": [
         "github.com/antlr4-go/antlr/v4",
         "github.com/google/cel-go",

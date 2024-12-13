@@ -22,7 +22,7 @@ func ContextWithSpanContext(parent context.Context, sc SpanContext) context.Cont
 	return ContextWithSpan(parent, nonRecordingSpan{sc: sc})
 }
 
-// ContextWithRemoteSpanContext returns a copy of parent with rsc set explicly
+// ContextWithRemoteSpanContext returns a copy of parent with rsc set explicitly
 // as a remote SpanContext and as the current Span. The Span implementation
 // that wraps rsc is non-recording and performs no operations other than to
 // return rsc as the SpanContext from the SpanContext method.

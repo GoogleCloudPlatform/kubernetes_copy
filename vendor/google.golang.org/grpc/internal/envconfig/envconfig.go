@@ -45,7 +45,16 @@ var (
 	// option is present for backward compatibility. This option may be overridden
 	// by setting the environment variable "GRPC_ENFORCE_ALPN_ENABLED" to "true"
 	// or "false".
-	EnforceALPNEnabled = boolFromEnv("GRPC_ENFORCE_ALPN_ENABLED", false)
+	EnforceALPNEnabled = boolFromEnv("GRPC_ENFORCE_ALPN_ENABLED", true)
+	// XDSFallbackSupport is the env variable that controls whether support for
+	// xDS fallback is turned on. If this is unset or is false, only the first
+	// xDS server in the list of server configs will be used.
+	XDSFallbackSupport = boolFromEnv("GRPC_EXPERIMENTAL_XDS_FALLBACK", false)
+	// NewPickFirstEnabled is set if the new pickfirst leaf policy is to be used
+	// instead of the exiting pickfirst implementation. This can be enabled by
+	// setting the environment variable "GRPC_EXPERIMENTAL_ENABLE_NEW_PICK_FIRST"
+	// to "true".
+	NewPickFirstEnabled = boolFromEnv("GRPC_EXPERIMENTAL_ENABLE_NEW_PICK_FIRST", false)
 )
 
 func boolFromEnv(envVar string, def bool) bool {

@@ -351,7 +351,7 @@ func WithAttributeSet(attributes attribute.Set) MeasurementOption {
 //
 //	cp := make([]attribute.KeyValue, len(attributes))
 //	copy(cp, attributes)
-//	WithAttributes(attribute.NewSet(cp...))
+//	WithAttributeSet(attribute.NewSet(cp...))
 //
 // [attribute.NewSet] may modify the passed attributes so this will make a copy
 // of attributes before creating a set in order to ensure this function is

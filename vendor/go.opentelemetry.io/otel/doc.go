@@ -17,6 +17,8 @@ To read more about tracing, see go.opentelemetry.io/otel/trace.
 
 To read more about metrics, see go.opentelemetry.io/otel/metric.
 
+To read more about logs, see go.opentelemetry.io/otel/log.
+
 To read more about propagation, see go.opentelemetry.io/otel/propagation and
 go.opentelemetry.io/otel/baggage.
 */

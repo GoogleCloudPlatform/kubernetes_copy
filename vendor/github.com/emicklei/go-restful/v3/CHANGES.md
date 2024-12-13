@@ -1,6 +1,24 @@
 # Change history of go-restful
 
-## [v3.11.0] - 2023-08-19
+
+## [v3.12.1] - 2024-05-28
+
+-  fix misroute when dealing multiple webservice with regex (#549) (thanks Haitao Chen)
+
+## [v3.12.0] - 2024-03-11
+
+- add Flush method #529 (#538)
+- fix: Improper handling of empty POST requests (#543)
+
+## [v3.11.3] - 2024-01-09
+
+- better not have 2 tags on one commit
+
+## [v3.11.1, v3.11.2] - 2024-01-09
+
+- fix by restoring custom JSON handler functions (Mike Beaumont #540)
+
+## [v3.12.0] - 2023-08-19
 
 - restored behavior as <= v3.9.0 with option to change path strategy using TrimRightSlashEnabled. 
 

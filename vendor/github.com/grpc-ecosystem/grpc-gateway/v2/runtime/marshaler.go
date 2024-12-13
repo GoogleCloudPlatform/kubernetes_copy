@@ -48,3 +48,11 @@ type Delimited interface {
 	// Delimiter returns the record separator for the stream.
 	Delimiter() []byte
 }
+
+// StreamContentType defines the streaming content type.
+type StreamContentType interface {
+	// StreamContentType returns the content type for a stream. This shares the
+	// same behaviour as for `Marshaler.ContentType`, but is called, if present,
+	// in the case of a streamed response.
+	StreamContentType(v interface{}) string
+}

@@ -5,7 +5,6 @@ package trace // import "go.opentelemetry.io/otel/sdk/trace"
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -26,7 +25,7 @@ const (
 type errUnsupportedSampler string
 
 func (e errUnsupportedSampler) Error() string {
-	return fmt.Sprintf("unsupported sampler: %s", string(e))
+	return "unsupported sampler: " + string(e)
 }
 
 var (
@@ -39,7 +38,7 @@ type samplerArgParseError struct {
 }
 
 func (e samplerArgParseError) Error() string {
-	return fmt.Sprintf("parsing sampler argument: %s", e.parseErr.Error())
+	return "parsing sampler argument: " + e.parseErr.Error()
 }
 
 func (e samplerArgParseError) Unwrap() error {

@@ -73,7 +73,7 @@ go_test(
         "@org_golang_google_genproto_googleapis_api//httpbody",
         "@org_golang_google_genproto_googleapis_rpc//errdetails",
         "@org_golang_google_genproto_googleapis_rpc//status",
-        "@org_golang_google_grpc//:go_default_library",
+        "@org_golang_google_grpc//:grpc",
         "@org_golang_google_grpc//codes",
         "@org_golang_google_grpc//health/grpc_health_v1",
         "@org_golang_google_grpc//metadata",

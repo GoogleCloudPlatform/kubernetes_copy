@@ -6,7 +6,7 @@ type TestingT interface {
 	FailNow()
 }
 
-type tHelper interface {
+type tHelper = interface {
 	Helper()
 }
 

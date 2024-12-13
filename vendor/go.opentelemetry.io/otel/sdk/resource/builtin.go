@@ -20,15 +20,13 @@ type (
 	// telemetrySDK is a Detector that provides information about
 	// the OpenTelemetry SDK used.  This Detector is included as a
 	// builtin. If these resource attributes are not wanted, use
-	// the WithTelemetrySDK(nil) or WithoutBuiltin() options to
-	// explicitly disable them.
+	// resource.New() to explicitly disable them.
 	telemetrySDK struct{}
 
 	// host is a Detector that provides information about the host
 	// being run on. This Detector is included as a builtin. If
 	// these resource attributes are not wanted, use the
-	// WithHost(nil) or WithoutBuiltin() options to explicitly
-	// disable them.
+	// resource.New() to explicitly disable them.
 	host struct{}
 
 	stringDetector struct {

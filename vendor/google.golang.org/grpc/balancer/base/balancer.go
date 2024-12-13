@@ -36,7 +36,7 @@ type baseBuilder struct {
 	config        Config
 }
 
-func (bb *baseBuilder) Build(cc balancer.ClientConn, opt balancer.BuildOptions) balancer.Balancer {
+func (bb *baseBuilder) Build(cc balancer.ClientConn, _ balancer.BuildOptions) balancer.Balancer {
 	bal := &baseBalancer{
 		cc:            cc,
 		pickerBuilder: bb.pickerBuilder,
@@ -133,7 +133,7 @@ func (b *baseBalancer) UpdateClientConnState(s balancer.ClientConnState) error {
 		}
 	}
 	// If resolver state contains no addresses, return an error so ClientConn
-	// will trigger re-resolve. Also records this as an resolver error, so when
+	// will trigger re-resolve. Also records this as a resolver error, so when
 	// the overall state turns transient failure, the error message will have
 	// the zero address information.
 	if len(s.ResolverState.Addresses) == 0 {
@@ -259,6 +259,6 @@ type errPicker struct {
 	err error // Pick() always returns this err.
 }
 
-func (p *errPicker) Pick(info balancer.PickInfo) (balancer.PickResult, error) {
+func (p *errPicker) Pick(balancer.PickInfo) (balancer.PickResult, error) {
 	return balancer.PickResult{}, p.err
 }

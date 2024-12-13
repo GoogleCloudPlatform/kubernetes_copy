@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-// flagInterface is an cut down interface to `flag`
+// flagInterface is a cut down interface to `flag`
 type flagInterface interface {
 	Var(value flag.Value, name string, usage string)
 }

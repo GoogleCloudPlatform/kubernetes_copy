@@ -195,7 +195,7 @@ func splitHostPort(hostport string) (host string, port int) {
 	if err != nil {
 		return
 	}
-	return host, int(p)
+	return host, int(p) // nolint: gosec  // Bitsize checked to be 16 above.
 }
 
 func netProtocol(proto string) (name string, version string) {

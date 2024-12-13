@@ -26,7 +26,7 @@ is designed so the following goals can be achieved.
       go.opentelemetry.io/otel/v2 v2.0.1`) and in the package import path
       (e.g., `import "go.opentelemetry.io/otel/v2/trace"`). This includes the
       paths used in `go get` commands (e.g., `go get
-      go.opentelemetry.io/otel/v2@v2.0.1`.  Note there is both a `/v2` and a
+      go.opentelemetry.io/otel/v2@v2.0.1`).  Note there is both a `/v2` and a
       `@v2.0.1` in that example. One way to think about it is that the module
       name now includes the `/v2`, so include `/v2` whenever you are using the
       module name).

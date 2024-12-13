@@ -138,17 +138,19 @@ func (s *Status) WithDetails(details ...protoadapt.MessageV1) (*Status, error) {
 	// s.Code() != OK implies that s.Proto() != nil.
 	p := s.Proto()
 	for _, detail := range details {
-		any, err := anypb.New(protoadapt.MessageV2Of(detail))
+		m, err := anypb.New(protoadapt.MessageV2Of(detail))
 		if err != nil {
 			return nil, err
 		}
-		p.Details = append(p.Details, any)
+		p.Details = append(p.Details, m)
 	}
 	return &Status{s: p}, nil
 }
 
 // Details returns a slice of details messages attached to the status.
 // If a detail cannot be decoded, the error is returned in place of the detail.
+// If the detail can be decoded, the proto message returned is of the same
+// type that was given to WithDetails().
 func (s *Status) Details() []any {
 	if s == nil || s.s == nil {
 		return nil
@@ -160,7 +162,38 @@ func (s *Status) Details() []any {
 			details = append(details, err)
 			continue
 		}
-		details = append(details, detail)
+		// The call to MessageV1Of is required to unwrap the proto message if
+		// it implemented only the MessageV1 API. The proto message would have
+		// been wrapped in a V2 wrapper in Status.WithDetails. V2 messages are
+		// added to a global registry used by any.UnmarshalNew().
+		// MessageV1Of has the following behaviour:
+		// 1. If the given message is a wrapped MessageV1, it returns the
+		//   unwrapped value.
+		// 2. If the given message already implements MessageV1, it returns it
+		//   as is.
+		// 3. Else, it wraps the MessageV2 in a MessageV1 wrapper.
+		//
+		// Since the Status.WithDetails() API only accepts MessageV1, calling
+		// MessageV1Of ensures we return the same type that was given to
+		// WithDetails:
+		// * If the give type implemented only MessageV1, the unwrapping from
+		//   point 1 above will restore the type.
+		// * If the given type implemented both MessageV1 and MessageV2, point 2
+		//   above will ensure no wrapping is performed.
+		// * If the given type implemented only MessageV2 and was wrapped using
+		//   MessageV1Of before passing to WithDetails(), it would be unwrapped
+		//   in WithDetails by calling MessageV2Of(). Point 3 above will ensure
+		//   that the type is wrapped in a MessageV1 wrapper again before
+		//   returning. Note that protoc-gen-go doesn't generate code which
+		//   implements ONLY MessageV2 at the time of writing.
+		//
+		// NOTE: Status details can also be added using the FromProto method.
+		// This could theoretically allow passing a Detail message that only
+		// implements the V2 API. In such a case the message will be wrapped in
+		// a MessageV1 wrapper when fetched using Details().
+		// Since protoc-gen-go generates only code that implements both V1 and
+		// V2 APIs for backward compatibility, this is not a concern.
+		details = append(details, protoadapt.MessageV1Of(detail))
 	}
 	return details
 }

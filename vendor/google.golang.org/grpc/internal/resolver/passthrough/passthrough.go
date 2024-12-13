@@ -55,7 +55,7 @@ func (r *passthroughResolver) start() {
 	r.cc.UpdateState(resolver.State{Addresses: []resolver.Address{{Addr: r.target.Endpoint()}}})
 }
 
-func (*passthroughResolver) ResolveNow(o resolver.ResolveNowOptions) {}
+func (*passthroughResolver) ResolveNow(resolver.ResolveNowOptions) {}
 
 func (*passthroughResolver) Close() {}
 

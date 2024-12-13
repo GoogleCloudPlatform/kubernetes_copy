@@ -1,4 +1,4 @@
-{{.Comment}}
+{{ replace .Comment "assert." "require."}}
 func {{.DocInfo.Name}}(t TestingT, {{.Params}}) {
 	if h, ok := t.(tHelper); ok { h.Helper() }
 	if assert.{{.DocInfo.Name}}(t, {{.ForwardedParams}}) { return }

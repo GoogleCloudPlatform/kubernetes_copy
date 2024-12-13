@@ -49,6 +49,16 @@ func (c *CompressingResponseWriter) CloseNotify() <-chan bool {
 	return c.writer.(http.CloseNotifier).CloseNotify()
 }
 
+// Flush is part of http.Flusher interface. Noop if the underlying writer doesn't support it.
+func (c *CompressingResponseWriter) Flush() {
+	flusher, ok := c.writer.(http.Flusher)
+	if !ok {
+		// writer doesn't support http.Flusher interface
+		return
+	}
+	flusher.Flush()
+}
+
 // Close the underlying compressor
 func (c *CompressingResponseWriter) Close() error {
 	if c.isCompressorClosed() {

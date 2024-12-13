@@ -46,10 +46,10 @@ func (c CurlyRouter) SelectRoute(
 // selectRoutes return a collection of Route from a WebService that matches the path tokens from the request.
 func (c CurlyRouter) selectRoutes(ws *WebService, requestTokens []string) sortableCurlyRoutes {
 	candidates := make(sortableCurlyRoutes, 0, 8)
-	for _, each := range ws.routes {
-		matches, paramCount, staticCount := c.matchesRouteByPathTokens(each.pathParts, requestTokens, each.hasCustomVerb)
+	for _, eachRoute := range ws.routes {
+		matches, paramCount, staticCount := c.matchesRouteByPathTokens(eachRoute.pathParts, requestTokens, eachRoute.hasCustomVerb)
 		if matches {
-			candidates.add(curlyRoute{each, paramCount, staticCount}) // TODO make sure Routes() return pointers?
+			candidates.add(curlyRoute{eachRoute, paramCount, staticCount}) // TODO make sure Routes() return pointers?
 		}
 	}
 	sort.Sort(candidates)
@@ -72,7 +72,7 @@ func (c CurlyRouter) matchesRouteByPathTokens(routeTokens, requestTokens []strin
 			return false, 0, 0
 		}
 		requestToken := requestTokens[i]
-		if routeHasCustomVerb && hasCustomVerb(routeToken){
+		if routeHasCustomVerb && hasCustomVerb(routeToken) {
 			if !isMatchCustomVerb(routeToken, requestToken) {
 				return false, 0, 0
 			}
@@ -129,44 +129,52 @@ func (c CurlyRouter) detectRoute(candidateRoutes sortableCurlyRoutes, httpReques
 // detectWebService returns the best matching webService given the list of path tokens.
 // see also computeWebserviceScore
 func (c CurlyRouter) detectWebService(requestTokens []string, webServices []*WebService) *WebService {
-	var best *WebService
+	var bestWs *WebService
 	score := -1
-	for _, each := range webServices {
-		matches, eachScore := c.computeWebserviceScore(requestTokens, each.pathExpr.tokens)
+	for _, eachWS := range webServices {
+		matches, eachScore := c.computeWebserviceScore(requestTokens, eachWS.pathExpr.tokens)
 		if matches && (eachScore > score) {
-			best = each
+			bestWs = eachWS
 			score = eachScore
 		}
 	}
-	return best
+	return bestWs
 }
 
 // computeWebserviceScore returns whether tokens match and
 // the weighted score of the longest matching consecutive tokens from the beginning.
-func (c CurlyRouter) computeWebserviceScore(requestTokens []string, tokens []string) (bool, int) {
-	if len(tokens) > len(requestTokens) {
+func (c CurlyRouter) computeWebserviceScore(requestTokens []string, routeTokens []string) (bool, int) {
+	if len(routeTokens) > len(requestTokens) {
 		return false, 0
 	}
 	score := 0
-	for i := 0; i < len(tokens); i++ {
-		each := requestTokens[i]
-		other := tokens[i]
-		if len(each) == 0 && len(other) == 0 {
+	for i := 0; i < len(routeTokens); i++ {
+		eachRequestToken := requestTokens[i]
+		eachRouteToken := routeTokens[i]
+		if len(eachRequestToken) == 0 && len(eachRouteToken) == 0 {
 			score++
 			continue
 		}
-		if len(other) > 0 && strings.HasPrefix(other, "{") {
+		if len(eachRouteToken) > 0 && strings.HasPrefix(eachRouteToken, "{") {
 			// no empty match
-			if len(each) == 0 {
+			if len(eachRequestToken) == 0 {
 				return false, score
 			}
-			score += 1
+			score++
+
+			if colon := strings.Index(eachRouteToken, ":"); colon != -1 {
+				// match by regex
+				matchesToken, _ := c.regularMatchesPathToken(eachRouteToken, colon, eachRequestToken)
+				if matchesToken {
+					score++ // extra score for regex match
+				}
+			}			
 		} else {
 			// not a parameter
-			if each != other {
+			if eachRequestToken != eachRouteToken {
 				return false, score
 			}
-			score += (len(tokens) - i) * 10 //fuzzy
+			score += (len(routeTokens) - i) * 10 //fuzzy
 		}
 	}
 	return true, score

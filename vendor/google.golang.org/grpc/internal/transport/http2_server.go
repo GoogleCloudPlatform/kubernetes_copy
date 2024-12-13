@@ -39,6 +39,7 @@ import (
 	"google.golang.org/grpc/internal/grpcutil"
 	"google.golang.org/grpc/internal/pretty"
 	"google.golang.org/grpc/internal/syscall"
+	"google.golang.org/grpc/mem"
 	"google.golang.org/protobuf/proto"
 
 	"google.golang.org/grpc/codes"
@@ -119,7 +120,7 @@ type http2Server struct {
 
 	// Fields below are for channelz metric collection.
 	channelz   *channelz.Socket
-	bufferPool *bufferPool
+	bufferPool mem.BufferPool
 
 	connectionID uint64
 
@@ -261,7 +262,7 @@ func NewServerTransport(conn net.Conn, config *ServerConfig) (_ ServerTransport,
 		idle:              time.Now(),
 		kep:               kep,
 		initialWindowSize: iwz,
-		bufferPool:        newBufferPool(),
+		bufferPool:        config.BufferPool,
 	}
 	var czSecurity credentials.ChannelzSecurityValue
 	if au, ok := authInfo.(credentials.ChannelzSecurityInfo); ok {
@@ -330,7 +331,7 @@ func NewServerTransport(conn net.Conn, config *ServerConfig) (_ ServerTransport,
 	t.handleSettings(sf)
 
 	go func() {
-		t.loopy = newLoopyWriter(serverSide, t.framer, t.controlBuf, t.bdpEst, t.conn, t.logger, t.outgoingGoAwayHandler)
+		t.loopy = newLoopyWriter(serverSide, t.framer, t.controlBuf, t.bdpEst, t.conn, t.logger, t.outgoingGoAwayHandler, t.bufferPool)
 		err := t.loopy.run()
 		close(t.loopyWriterDone)
 		if !isIOError(err) {
@@ -613,10 +614,9 @@ func (t *http2Server) operateHeaders(ctx context.Context, frame *http2.MetaHeade
 	s.wq = newWriteQuota(defaultWriteQuota, s.ctxDone)
 	s.trReader = &transportReader{
 		reader: &recvBufferReader{
-			ctx:        s.ctx,
-			ctxDone:    s.ctxDone,
-			recv:       s.buf,
-			freeBuffer: t.bufferPool.put,
+			ctx:     s.ctx,
+			ctxDone: s.ctxDone,
+			recv:    s.buf,
 		},
 		windowHandler: func(n int) {
 			t.updateWindow(s, uint32(n))
@@ -813,10 +813,13 @@ func (t *http2Server) handleData(f *http2.DataFrame) {
 		// guarantee f.Data() is consumed before the arrival of next frame.
 		// Can this copy be eliminated?
 		if len(f.Data()) > 0 {
-			buffer := t.bufferPool.get()
-			buffer.Reset()
-			buffer.Write(f.Data())
-			s.write(recvMsg{buffer: buffer})
+			pool := t.bufferPool
+			if pool == nil {
+				// Note that this is only supposed to be nil in tests. Otherwise, stream is
+				// always initialized with a BufferPool.
+				pool = mem.DefaultBufferPool()
+			}
+			s.write(recvMsg{buffer: mem.Copy(f.Data(), pool)})
 		}
 	}
 	if f.StreamEnded() {
@@ -1089,7 +1092,9 @@ func (t *http2Server) WriteStatus(s *Stream, st *status.Status) error {
 		onWrite:   t.setResetPingStrikes,
 	}
 
-	success, err := t.controlBuf.execute(t.checkForHeaderListSize, trailingHeader)
+	success, err := t.controlBuf.executeAndPut(func() bool {
+		return t.checkForHeaderListSize(trailingHeader)
+	}, nil)
 	if !success {
 		if err != nil {
 			return err
@@ -1112,27 +1117,37 @@ func (t *http2Server) WriteStatus(s *Stream, st *status.Status) error {
 
 // Write converts the data into HTTP2 data frame and sends it out. Non-nil error
 // is returns if it fails (e.g., framing error, transport error).
-func (t *http2Server) Write(s *Stream, hdr []byte, data []byte, opts *Options) error {
+func (t *http2Server) Write(s *Stream, hdr []byte, data mem.BufferSlice, _ *Options) error {
+	reader := data.Reader()
+
 	if !s.isHeaderSent() { // Headers haven't been written yet.
 		if err := t.WriteHeader(s, nil); err != nil {
+			_ = reader.Close()
 			return err
 		}
 	} else {
 		// Writing headers checks for this condition.
 		if s.getState() == streamDone {
+			_ = reader.Close()
 			return t.streamContextErr(s)
 		}
 	}
+
 	df := &dataFrame{
 		streamID:    s.id,
 		h:           hdr,
-		d:           data,
+		reader:      reader,
 		onEachWrite: t.setResetPingStrikes,
 	}
-	if err := s.wq.get(int32(len(hdr) + len(data))); err != nil {
+	if err := s.wq.get(int32(len(hdr) + df.reader.Remaining())); err != nil {
+		_ = reader.Close()
 		return t.streamContextErr(s)
 	}
-	return t.controlBuf.put(df)
+	if err := t.controlBuf.put(df); err != nil {
+		_ = reader.Close()
+		return err
+	}
+	return nil
 }
 
 // keepalive running in a separate goroutine does the following:
@@ -1223,7 +1238,7 @@ func (t *http2Server) keepalive() {
 			// timeoutLeft. This will ensure that we wait only for kp.Time
 			// before sending out the next ping (for cases where the ping is
 			// acked).
-			sleepDuration := minTime(t.kp.Time, kpTimeoutLeft)
+			sleepDuration := min(t.kp.Time, kpTimeoutLeft)
 			kpTimeoutLeft -= sleepDuration
 			kpTimer.Reset(sleepDuration)
 		case <-t.done:

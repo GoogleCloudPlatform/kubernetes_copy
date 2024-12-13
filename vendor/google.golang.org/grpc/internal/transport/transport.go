@@ -22,7 +22,6 @@
 package transport
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -37,6 +36,7 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/internal/channelz"
 	"google.golang.org/grpc/keepalive"
+	"google.golang.org/grpc/mem"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/resolver"
@@ -47,32 +47,10 @@ import (
 
 const logLevel = 2
 
-type bufferPool struct {
-	pool sync.Pool
-}
-
-func newBufferPool() *bufferPool {
-	return &bufferPool{
-		pool: sync.Pool{
-			New: func() any {
-				return new(bytes.Buffer)
-			},
-		},
-	}
-}
-
-func (p *bufferPool) get() *bytes.Buffer {
-	return p.pool.Get().(*bytes.Buffer)
-}
-
-func (p *bufferPool) put(b *bytes.Buffer) {
-	p.pool.Put(b)
-}
-
 // recvMsg represents the received msg from the transport. All transport
 // protocol specific info has been removed.
 type recvMsg struct {
-	buffer *bytes.Buffer
+	buffer mem.Buffer
 	// nil: received some data
 	// io.EOF: stream is completed. data is nil.
 	// other non-nil error: transport failure. data is nil.
@@ -102,6 +80,9 @@ func newRecvBuffer() *recvBuffer {
 func (b *recvBuffer) put(r recvMsg) {
 	b.mu.Lock()
 	if b.err != nil {
+		// drop the buffer on the floor. Since b.err is not nil, any subsequent reads
+		// will always return an error, making this buffer inaccessible.
+		r.buffer.Free()
 		b.mu.Unlock()
 		// An error had occurred earlier, don't accept more
 		// data or errors.
@@ -148,45 +129,70 @@ type recvBufferReader struct {
 	ctx         context.Context
 	ctxDone     <-chan struct{} // cache of ctx.Done() (for performance).
 	recv        *recvBuffer
-	last        *bytes.Buffer // Stores the remaining data in the previous calls.
+	last        mem.Buffer // Stores the remaining data in the previous calls.
 	err         error
-	freeBuffer  func(*bytes.Buffer)
 }
 
-// Read reads the next len(p) bytes from last. If last is drained, it tries to
-// read additional data from recv. It blocks if there no additional data available
-// in recv. If Read returns any non-nil error, it will continue to return that error.
-func (r *recvBufferReader) Read(p []byte) (n int, err error) {
+func (r *recvBufferReader) ReadHeader(header []byte) (n int, err error) {
 	if r.err != nil {
 		return 0, r.err
 	}
 	if r.last != nil {
-		// Read remaining data left in last call.
-		copied, _ := r.last.Read(p)
-		if r.last.Len() == 0 {
-			r.freeBuffer(r.last)
-			r.last = nil
-		}
-		return copied, nil
+		n, r.last = mem.ReadUnsafe(header, r.last)
+		return n, nil
 	}
 	if r.closeStream != nil {
-		n, r.err = r.readClient(p)
+		n, r.err = r.readHeaderClient(header)
 	} else {
-		n, r.err = r.read(p)
+		n, r.err = r.readHeader(header)
 	}
 	return n, r.err
 }
 
-func (r *recvBufferReader) read(p []byte) (n int, err error) {
+// Read reads the next n bytes from last. If last is drained, it tries to read
+// additional data from recv. It blocks if there no additional data available in
+// recv. If Read returns any non-nil error, it will continue to return that
+// error.
+func (r *recvBufferReader) Read(n int) (buf mem.Buffer, err error) {
+	if r.err != nil {
+		return nil, r.err
+	}
+	if r.last != nil {
+		buf = r.last
+		if r.last.Len() > n {
+			buf, r.last = mem.SplitUnsafe(buf, n)
+		} else {
+			r.last = nil
+		}
+		return buf, nil
+	}
+	if r.closeStream != nil {
+		buf, r.err = r.readClient(n)
+	} else {
+		buf, r.err = r.read(n)
+	}
+	return buf, r.err
+}
+
+func (r *recvBufferReader) readHeader(header []byte) (n int, err error) {
 	select {
 	case <-r.ctxDone:
 		return 0, ContextErr(r.ctx.Err())
 	case m := <-r.recv.get():
-		return r.readAdditional(m, p)
+		return r.readHeaderAdditional(m, header)
 	}
 }
 
-func (r *recvBufferReader) readClient(p []byte) (n int, err error) {
+func (r *recvBufferReader) read(n int) (buf mem.Buffer, err error) {
+	select {
+	case <-r.ctxDone:
+		return nil, ContextErr(r.ctx.Err())
+	case m := <-r.recv.get():
+		return r.readAdditional(m, n)
+	}
+}
+
+func (r *recvBufferReader) readHeaderClient(header []byte) (n int, err error) {
 	// If the context is canceled, then closes the stream with nil metadata.
 	// closeStream writes its error parameter to r.recv as a recvMsg.
 	// r.readAdditional acts on that message and returns the necessary error.
@@ -207,25 +213,67 @@ func (r *recvBufferReader) readClient(p []byte) (n int, err error) {
 		// faster.
 		r.closeStream(ContextErr(r.ctx.Err()))
 		m := <-r.recv.get()
-		return r.readAdditional(m, p)
+		return r.readHeaderAdditional(m, header)
 	case m := <-r.recv.get():
-		return r.readAdditional(m, p)
+		return r.readHeaderAdditional(m, header)
 	}
 }
 
-func (r *recvBufferReader) readAdditional(m recvMsg, p []byte) (n int, err error) {
+func (r *recvBufferReader) readClient(n int) (buf mem.Buffer, err error) {
+	// If the context is canceled, then closes the stream with nil metadata.
+	// closeStream writes its error parameter to r.recv as a recvMsg.
+	// r.readAdditional acts on that message and returns the necessary error.
+	select {
+	case <-r.ctxDone:
+		// Note that this adds the ctx error to the end of recv buffer, and
+		// reads from the head. This will delay the error until recv buffer is
+		// empty, thus will delay ctx cancellation in Recv().
+		//
+		// It's done this way to fix a race between ctx cancel and trailer. The
+		// race was, stream.Recv() may return ctx error if ctxDone wins the
+		// race, but stream.Trailer() may return a non-nil md because the stream
+		// was not marked as done when trailer is received. This closeStream
+		// call will mark stream as done, thus fix the race.
+		//
+		// TODO: delaying ctx error seems like a unnecessary side effect. What
+		// we really want is to mark the stream as done, and return ctx error
+		// faster.
+		r.closeStream(ContextErr(r.ctx.Err()))
+		m := <-r.recv.get()
+		return r.readAdditional(m, n)
+	case m := <-r.recv.get():
+		return r.readAdditional(m, n)
+	}
+}
+
+func (r *recvBufferReader) readHeaderAdditional(m recvMsg, header []byte) (n int, err error) {
 	r.recv.load()
 	if m.err != nil {
+		if m.buffer != nil {
+			m.buffer.Free()
+		}
 		return 0, m.err
 	}
-	copied, _ := m.buffer.Read(p)
-	if m.buffer.Len() == 0 {
-		r.freeBuffer(m.buffer)
-		r.last = nil
-	} else {
-		r.last = m.buffer
+
+	n, r.last = mem.ReadUnsafe(header, m.buffer)
+
+	return n, nil
+}
+
+func (r *recvBufferReader) readAdditional(m recvMsg, n int) (b mem.Buffer, err error) {
+	r.recv.load()
+	if m.err != nil {
+		if m.buffer != nil {
+			m.buffer.Free()
+		}
+		return nil, m.err
 	}
-	return copied, nil
+
+	if m.buffer.Len() > n {
+		m.buffer, r.last = mem.SplitUnsafe(m.buffer, n)
+	}
+
+	return m.buffer, nil
 }
 
 type streamState uint32
@@ -241,7 +289,7 @@ const (
 type Stream struct {
 	id           uint32
 	st           ServerTransport    // nil for client side Stream
-	ct           *http2Client       // nil for server side Stream
+	ct           ClientTransport    // nil for server side Stream
 	ctx          context.Context    // the associated context of the stream
 	cancel       context.CancelFunc // always nil for client side Stream
 	done         chan struct{}      // closed at the end of stream to unblock writers. On the client side.
@@ -251,7 +299,7 @@ type Stream struct {
 	recvCompress string
 	sendCompress string
 	buf          *recvBuffer
-	trReader     io.Reader
+	trReader     *transportReader
 	fc           *inFlow
 	wq           *writeQuota
 
@@ -408,7 +456,7 @@ func (s *Stream) TrailersOnly() bool {
 	return s.noHeaders
 }
 
-// Trailer returns the cached trailer metedata. Note that if it is not called
+// Trailer returns the cached trailer metadata. Note that if it is not called
 // after the entire stream is done, it could return an empty MD. Client
 // side only.
 // It can be safely read only after stream has ended that is either read
@@ -499,36 +547,96 @@ func (s *Stream) write(m recvMsg) {
 	s.buf.put(m)
 }
 
-// Read reads all p bytes from the wire for this stream.
-func (s *Stream) Read(p []byte) (n int, err error) {
+// ReadHeader reads data into the provided header slice from the stream. It
+// first checks if there was an error during a previous read operation and
+// returns it if present. It then requests a read operation for the length of
+// the header. It continues to read from the stream until the entire header
+// slice is filled or an error occurs. If an `io.EOF` error is encountered
+// with partially read data, it is converted to `io.ErrUnexpectedEOF` to
+// indicate an unexpected end of the stream. The method returns any error
+// encountered during the read process or nil if the header was successfully
+// read.
+func (s *Stream) ReadHeader(header []byte) (err error) {
 	// Don't request a read if there was an error earlier
-	if er := s.trReader.(*transportReader).er; er != nil {
-		return 0, er
+	if er := s.trReader.er; er != nil {
+		return er
 	}
-	s.requestRead(len(p))
-	return io.ReadFull(s.trReader, p)
+	s.requestRead(len(header))
+	for len(header) != 0 {
+		n, err := s.trReader.ReadHeader(header)
+		header = header[n:]
+		if len(header) == 0 {
+			err = nil
+		}
+		if err != nil {
+			if n > 0 && err == io.EOF {
+				err = io.ErrUnexpectedEOF
+			}
+			return err
+		}
+	}
+	return nil
 }
 
-// tranportReader reads all the data available for this Stream from the transport and
+// Read reads n bytes from the wire for this stream.
+func (s *Stream) Read(n int) (data mem.BufferSlice, err error) {
+	// Don't request a read if there was an error earlier
+	if er := s.trReader.er; er != nil {
+		return nil, er
+	}
+	s.requestRead(n)
+	for n != 0 {
+		buf, err := s.trReader.Read(n)
+		var bufLen int
+		if buf != nil {
+			bufLen = buf.Len()
+		}
+		n -= bufLen
+		if n == 0 {
+			err = nil
+		}
+		if err != nil {
+			if bufLen > 0 && err == io.EOF {
+				err = io.ErrUnexpectedEOF
+			}
+			data.Free()
+			return nil, err
+		}
+		data = append(data, buf)
+	}
+	return data, nil
+}
+
+// transportReader reads all the data available for this Stream from the transport and
 // passes them into the decoder, which converts them into a gRPC message stream.
 // The error is io.EOF when the stream is done or another non-nil error if
 // the stream broke.
 type transportReader struct {
-	reader io.Reader
+	reader *recvBufferReader
 	// The handler to control the window update procedure for both this
 	// particular stream and the associated transport.
 	windowHandler func(int)
 	er            error
 }
 
-func (t *transportReader) Read(p []byte) (n int, err error) {
-	n, err = t.reader.Read(p)
+func (t *transportReader) ReadHeader(header []byte) (int, error) {
+	n, err := t.reader.ReadHeader(header)
 	if err != nil {
 		t.er = err
-		return
+		return 0, err
 	}
 	t.windowHandler(n)
-	return
+	return n, nil
+}
+
+func (t *transportReader) Read(n int) (mem.Buffer, error) {
+	buf, err := t.reader.Read(n)
+	if err != nil {
+		t.er = err
+		return buf, err
+	}
+	t.windowHandler(buf.Len())
+	return buf, nil
 }
 
 // BytesReceived indicates whether any bytes have been received on this stream.
@@ -574,6 +682,7 @@ type ServerConfig struct {
 	ChannelzParent        *channelz.Server
 	MaxHeaderListSize     *uint32
 	HeaderTableSize       *uint32
+	BufferPool            mem.BufferPool
 }
 
 // ConnectOptions covers all relevant options for communicating with the server.
@@ -612,6 +721,8 @@ type ConnectOptions struct {
 	MaxHeaderListSize *uint32
 	// UseProxy specifies if a proxy should be used.
 	UseProxy bool
+	// The mem.BufferPool to use when reading/writing to the wire.
+	BufferPool mem.BufferPool
 }
 
 // NewClientTransport establishes the transport with the required ConnectOptions
@@ -673,7 +784,7 @@ type ClientTransport interface {
 
 	// Write sends the data for the given stream. A nil stream indicates
 	// the write is to be performed on the transport as a whole.
-	Write(s *Stream, hdr []byte, data []byte, opts *Options) error
+	Write(s *Stream, hdr []byte, data mem.BufferSlice, opts *Options) error
 
 	// NewStream creates a Stream for an RPC.
 	NewStream(ctx context.Context, callHdr *CallHdr) (*Stream, error)
@@ -725,7 +836,7 @@ type ServerTransport interface {
 
 	// Write sends the data for the given stream.
 	// Write may not be called on all streams.
-	Write(s *Stream, hdr []byte, data []byte, opts *Options) error
+	Write(s *Stream, hdr []byte, data mem.BufferSlice, opts *Options) error
 
 	// WriteStatus sends the status of a stream to the client.  WriteStatus is
 	// the final call made on a stream and always occurs.
@@ -798,7 +909,7 @@ var (
 	// connection is draining. This could be caused by goaway or balancer
 	// removing the address.
 	errStreamDrain = status.Error(codes.Unavailable, "the connection is draining")
-	// errStreamDone is returned from write at the client side to indiacte application
+	// errStreamDone is returned from write at the client side to indicate application
 	// layer of an error.
 	errStreamDone = errors.New("the stream is done")
 	// StatusGoAway indicates that the server sent a GOAWAY that included this
