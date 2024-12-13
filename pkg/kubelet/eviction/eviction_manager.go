@@ -181,10 +181,10 @@ func (m *managerImpl) Admit(attrs *lifecycle.PodAdmitAttributes) lifecycle.PodAd
 }
 
 // Start starts the control loop to observe and response to low compute resources.
-func (m *managerImpl) Start(diskInfoProvider DiskInfoProvider, podFunc ActivePodsFunc, podCleanedUpFunc PodCleanedUpFunc, monitoringInterval time.Duration) {
+func (m *managerImpl) Start(diskInfoProvider DiskInfoProvider, podFunc ActivePodsFunc, terminatedPodFunc TerminatedPodsFunc, podCleanedUpFunc PodCleanedUpFunc, monitoringInterval time.Duration) {
 	thresholdHandler := func(message string) {
 		klog.InfoS(message)
-		m.synchronize(diskInfoProvider, podFunc)
+		m.synchronize(diskInfoProvider, podFunc, terminatedPodFunc)
 	}
 	klog.InfoS("Eviction manager: starting control loop")
 	if m.config.KernelMemcgNotification || runtime.GOOS == "windows" {
@@ -203,7 +203,7 @@ func (m *managerImpl) Start(diskInfoProvider DiskInfoProvider, podFunc ActivePod
 	// start the eviction manager monitoring
 	go func() {
 		for {
-			evictedPods, err := m.synchronize(diskInfoProvider, podFunc)
+			evictedPods, err := m.synchronize(diskInfoProvider, podFunc, terminatedPodFunc)
 			if evictedPods != nil && err == nil {
 				klog.InfoS("Eviction manager: pods evicted, waiting for pod to be cleaned up", "pods", klog.KObjSlice(evictedPods))
 				m.waitForPodsCleanup(podCleanedUpFunc, evictedPods)
@@ -240,7 +240,7 @@ func (m *managerImpl) IsUnderPIDPressure() bool {
 
 // synchronize is the main control loop that enforces eviction thresholds.
 // Returns the pod that was killed, or nil if no pod was killed.
-func (m *managerImpl) synchronize(diskInfoProvider DiskInfoProvider, podFunc ActivePodsFunc) ([]*v1.Pod, error) {
+func (m *managerImpl) synchronize(diskInfoProvider DiskInfoProvider, podFunc ActivePodsFunc, terminatedPodFunc TerminatedPodsFunc) ([]*v1.Pod, error) {
 	ctx := context.Background()
 	// if we have nothing to do, just return
 	thresholds := m.config.Thresholds
@@ -378,6 +378,11 @@ func (m *managerImpl) synchronize(diskInfoProvider DiskInfoProvider, podFunc Act
 	// record an event about the resources we are now attempting to reclaim via eviction
 	m.recorder.Eventf(m.nodeRef, v1.EventTypeWarning, "EvictionThresholdMet", "Attempting to reclaim %s", resourceToReclaim)
 
+	// Evict terminated pods, so their resources can be reclaimed
+	if evictedPods := m.evictTerminatedPods(thresholds, statsFunc, resourceToReclaim, terminatedPodFunc, observations, thresholdToReclaim); len(evictedPods) != 0 {
+		klog.InfoS("Eviction manager: evicted", "terminated pods", klog.KObjSlice(evictedPods))
+	}
+
 	// check if there are node-level resources we can reclaim to reduce pressure before evicting end-user pods.
 	if m.reclaimNodeLevelResources(ctx, thresholdToReclaim.Signal, resourceToReclaim) {
 		klog.InfoS("Eviction manager: able to reduce resource pressure without evicting pods.", "resourceName", resourceToReclaim)
@@ -437,6 +442,36 @@ func (m *managerImpl) synchronize(diskInfoProvider DiskInfoProvider, podFunc Act
 	}
 	klog.InfoS("Eviction manager: unable to evict any pods from the node")
 	return nil, nil
+}
+
+func (m *managerImpl) evictTerminatedPods(thresholds []evictionapi.Threshold, statsFunc statsFunc, resourceToReclaim v1.ResourceName, terminatedPodFunc TerminatedPodsFunc, observations signalObservations, thresholdToReclaim evictionapi.Threshold) []*v1.Pod {
+	evictedPods := []*v1.Pod{}
+	if resourceToReclaim == v1.ResourceName(v1.NodeDiskPressure) {
+		return evictedPods
+	}
+
+	terminatedPods := terminatedPodFunc()
+
+	gracePeriodOverride := int64(immediateEvictionGracePeriodSeconds)
+
+	for i := range terminatedPods {
+		pod := terminatedPods[i]
+		klog.InfoS("Eviction manager: evicted terminated pod", "pod", pod.Name)
+
+		message, annotations := evictionMessage(resourceToReclaim, pod, statsFunc, thresholds, observations)
+		condition := &v1.PodCondition{
+			Type:    v1.DisruptionTarget,
+			Status:  v1.ConditionTrue,
+			Reason:  v1.PodReasonTerminationByKubelet,
+			Message: message,
+		}
+		if m.evictPod(pod, gracePeriodOverride, message, annotations, condition) {
+			metrics.Evictions.WithLabelValues(string(thresholdToReclaim.Signal)).Inc()
+			evictedPods = append(evictedPods, pod)
+		}
+	}
+
+	return evictedPods
 }
 
 func (m *managerImpl) waitForPodsCleanup(podCleanedUpFunc PodCleanedUpFunc, pods []*v1.Pod) {

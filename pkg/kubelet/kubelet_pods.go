@@ -222,6 +222,14 @@ func (kl *Kubelet) getAllocatedPods() []*v1.Pod {
 	return allocatedPods
 }
 
+// Returns all terminated pods.
+func (kl *Kubelet) getTerminatedPods() []*v1.Pod {
+	allPods := kl.podManager.GetPods()
+
+	terminatedPods := kl.filterOutActivePods(allPods)
+	return terminatedPods
+}
+
 // makeBlockVolumes maps the raw block devices specified in the path of the container
 // Experimental
 func (kl *Kubelet) makeBlockVolumes(pod *v1.Pod, container *v1.Container, podVolumes kubecontainer.VolumeMap, blkutil volumepathhandler.BlockVolumePathHandler) ([]kubecontainer.DeviceInfo, error) {
@@ -1078,6 +1086,21 @@ func (kl *Kubelet) filterOutInactivePods(pods []*v1.Pod) []*v1.Pod {
 			continue
 		}
 
+		filteredPods = append(filteredPods, p)
+	}
+	return filteredPods
+}
+
+// filterOutActivePods returns pods that are in a terminal phase
+func (kl *Kubelet) filterOutActivePods(pods []*v1.Pod) []*v1.Pod {
+	filteredPods := make([]*v1.Pod, 0, len(pods))
+	for _, p := range pods {
+		// skip pod if it is not in a terminal phase
+		if !(p.Status.Phase == v1.PodFailed || p.Status.Phase == v1.PodSucceeded) {
+			continue
+		}
+
+		klog.InfoS("Eviction manager - Test: filterOutActivePods", "terminated pod", p)
 		filteredPods = append(filteredPods, p)
 	}
 	return filteredPods

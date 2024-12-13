@@ -1651,7 +1651,7 @@ func (kl *Kubelet) initializeRuntimeDependentModules() {
 	}
 	// eviction manager must start after cadvisor because it needs to know if the container runtime has a dedicated imagefs
 	// Eviction decisions are based on the allocated (rather than desired) pod resources.
-	kl.evictionManager.Start(kl.StatsProvider, kl.getAllocatedPods, kl.PodIsFinished, evictionMonitoringPeriod)
+	kl.evictionManager.Start(kl.StatsProvider, kl.getAllocatedPods, kl.getTerminatedPods, kl.PodIsFinished, evictionMonitoringPeriod)
 
 	// container log manager must start after container runtime is up to retrieve information from container runtime
 	// and inform container to reopen log file after log rotation.
