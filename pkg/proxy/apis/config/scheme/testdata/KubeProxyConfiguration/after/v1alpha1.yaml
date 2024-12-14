@@ -52,6 +52,7 @@ logging:
 metricsBindAddress: 127.0.0.1:10249
 mode: ""
 nftables:
+  fastpathPacketThreshold: 20
   masqueradeAll: false
   masqueradeBit: 14
   minSyncPeriod: 0s

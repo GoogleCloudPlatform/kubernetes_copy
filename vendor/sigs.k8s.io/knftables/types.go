@@ -382,3 +382,30 @@ type Element struct {
 	// Comment is an optional comment for the element
 	Comment *string
 }
+
+type FlowtableIngressPriority string
+
+const (
+	// FilterIngressPriority is the priority for the filter value in the Ingress hook
+	// that stands for 0.
+	FilterIngressPriority FlowtableIngressPriority = "filter"
+)
+
+// Flowtable represents an nftables flowtable.
+// https://wiki.nftables.org/wiki-nftables/index.php/Flowtables
+type Flowtable struct {
+	// Name is the name of the flowtable.
+	Name string
+
+	// The Priority can be a signed integer or FlowtableIngressPriority which stands for 0.
+	// Addition and subtraction can be used to set relative priority, e.g. filter + 5 equals to 5.
+	Priority *FlowtableIngressPriority
+
+	// The Devices are specified as iifname(s) of the input interface(s) of the traffic
+	// that should be offloaded.
+	Devices []string
+
+	// Handle is an identifier that can be used to uniquely identify an object when
+	// deleting it. When adding a new object, this must be nil
+	Handle *int
+}

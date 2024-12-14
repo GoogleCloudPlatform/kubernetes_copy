@@ -195,6 +195,11 @@ func (in *KubeProxyNFTablesConfiguration) DeepCopyInto(out *KubeProxyNFTablesCon
 	}
 	out.SyncPeriod = in.SyncPeriod
 	out.MinSyncPeriod = in.MinSyncPeriod
+	if in.FastpathPacketThreshold != nil {
+		in, out := &in.FastpathPacketThreshold, &out.FastpathPacketThreshold
+		*out = new(int32)
+		**out = **in
+	}
 	return
 }
 

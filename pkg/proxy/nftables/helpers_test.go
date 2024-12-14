@@ -32,7 +32,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/lithammer/dedent"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	netutils "k8s.io/utils/net"
 	"sigs.k8s.io/knftables"
@@ -286,6 +286,9 @@ var ignoredRegexp = regexp.MustCompile(strings.Join(
 		// The trace tests only check new connections, so for our purposes, this
 		// check always succeeds (and thus can be ignored).
 		`^ct state new`,
+
+		// The trace tests does not check flowtables offloading
+		`^.*flow offload.*$`,
 	},
 	"|",
 ))

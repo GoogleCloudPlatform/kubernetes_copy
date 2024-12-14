@@ -293,11 +293,13 @@ func autoConvert_v1alpha1_KubeProxyNFTablesConfiguration_To_config_KubeProxyNFTa
 	// WARNING: in.MasqueradeAll requires manual conversion: does not exist in peer-type
 	// WARNING: in.SyncPeriod requires manual conversion: does not exist in peer-type
 	// WARNING: in.MinSyncPeriod requires manual conversion: does not exist in peer-type
+	out.FastpathPacketThreshold = (*int32)(unsafe.Pointer(in.FastpathPacketThreshold))
 	return nil
 }
 
 func autoConvert_config_KubeProxyNFTablesConfiguration_To_v1alpha1_KubeProxyNFTablesConfiguration(in *config.KubeProxyNFTablesConfiguration, out *configv1alpha1.KubeProxyNFTablesConfiguration, s conversion.Scope) error {
 	out.MasqueradeBit = (*int32)(unsafe.Pointer(in.MasqueradeBit))
+	out.FastpathPacketThreshold = (*int32)(unsafe.Pointer(in.FastpathPacketThreshold))
 	return nil
 }
 

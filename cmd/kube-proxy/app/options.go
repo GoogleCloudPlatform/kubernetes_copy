@@ -175,6 +175,8 @@ func (o *Options) AddFlags(fs *pflag.FlagSet) {
 	fs.Int32Var(&o.metricsPort, "metrics-port", o.metricsPort, "The port to bind the metrics server. Use 0 to disable.")
 	_ = fs.MarkDeprecated("metrics-port", "This flag is deprecated and will be removed in a future release. Please use --metrics-bind-address instead.")
 
+	fs.Int32Var(o.config.NFTables.FastpathPacketThreshold, "fastpath-packet-threshold", ptr.Deref(o.config.NFTables.FastpathPacketThreshold, 20),
+		"Number of packets required for the proxy to offload the connection to the fastpath. Use 0 to disable.")
 	logsapi.AddFlags(&o.config.Logging, fs)
 }
 

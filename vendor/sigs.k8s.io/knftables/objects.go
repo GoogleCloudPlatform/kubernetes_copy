@@ -579,3 +579,80 @@ func (element *Element) parse(line string) error {
 	}
 	return nil
 }
+
+// Object implementation for Flowtable
+func (flowtable *Flowtable) validate(verb verb) error {
+	switch verb {
+	case addVerb, createVerb:
+		if flowtable.Name == "" {
+			return fmt.Errorf("no name specified for flowtable")
+		}
+		if flowtable.Handle != nil {
+			return fmt.Errorf("cannot specify Handle in %s operation", verb)
+		}
+	case deleteVerb:
+		if flowtable.Name == "" && flowtable.Handle == nil {
+			return fmt.Errorf("must specify either name or handle")
+		}
+	default:
+		return fmt.Errorf("%s is not implemented for flowtables", verb)
+	}
+
+	return nil
+}
+
+func (flowtable *Flowtable) writeOperation(verb verb, ctx *nftContext, writer io.Writer) {
+	// Special case for delete-by-handle
+	if verb == deleteVerb && flowtable.Handle != nil {
+		fmt.Fprintf(writer, "delete flowtable %s %s handle %d", ctx.family, ctx.table, *flowtable.Handle)
+		return
+	}
+
+	fmt.Fprintf(writer, "%s flowtable %s %s %s", verb, ctx.family, ctx.table, flowtable.Name)
+	if verb == addVerb || verb == createVerb {
+		fmt.Fprintf(writer, " {")
+
+		if flowtable.Priority != nil {
+			// since there is only one priority value allowed "filter" just use the value
+			// provided and not try to parse it.
+			fmt.Fprintf(writer, " hook ingress priority %s ;", *flowtable.Priority)
+		}
+
+		if len(flowtable.Devices) > 0 {
+			fmt.Fprintf(writer, " devices = { %s } ;", strings.Join(flowtable.Devices, ", "))
+		}
+
+		fmt.Fprintf(writer, " }")
+	}
+
+	fmt.Fprintf(writer, "\n")
+}
+
+// nft add flowtable inet example_table example_flowtable { hook ingress priority filter ; devices = { eth0 };  }
+var flowtableRegexp = regexp.MustCompile(fmt.Sprintf(
+	`%s(?: {(?: hook ingress priority %s ;)(?: devices = {(.*)} ;) })?`,
+	noSpaceGroup, noSpaceGroup))
+
+func (flowtable *Flowtable) parse(line string) error {
+	match := flowtableRegexp.FindStringSubmatch(line)
+	if match == nil {
+		return fmt.Errorf("failed parsing flowtableRegexp add command")
+	}
+	flowtable.Name = match[1]
+	if match[2] != "" {
+		flowtable.Priority = (*FlowtableIngressPriority)(&match[2])
+	}
+	// to avoid complex regular expressions the regex match everything between the brackets
+	// to match a single interface or a comma separated list of interfaces, and it is postprocessed
+	// here to remove the whitespaces.
+	if match[3] != "" {
+		devices := strings.Split(strings.TrimSpace(match[3]), ",")
+		for i := range devices {
+			devices[i] = strings.TrimSpace(devices[i])
+		}
+		if len(devices) > 0 {
+			flowtable.Devices = devices
+		}
+	}
+	return nil
+}

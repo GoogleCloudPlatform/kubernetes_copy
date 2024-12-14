@@ -61964,8 +61964,15 @@ func schema_k8sio_kube_proxy_config_v1alpha1_KubeProxyNFTablesConfiguration(ref 
 							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Duration"),
 						},
 					},
+					"fastpathPacketThreshold": {
+						SchemaProps: spec.SchemaProps{
+							Description: "FastpathPacketThreshold is the number of packets untile the proxy starts offloading the connection to the fast path and skipping the kernel stack. Set to 0 to disable it.",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
 				},
-				Required: []string{"masqueradeBit", "masqueradeAll", "syncPeriod", "minSyncPeriod"},
+				Required: []string{"masqueradeBit", "masqueradeAll", "syncPeriod", "minSyncPeriod", "fastpathPacketThreshold"},
 			},
 		},
 		Dependencies: []string{

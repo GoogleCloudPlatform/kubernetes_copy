@@ -132,6 +132,14 @@ func SetDefaults_KubeProxyConfiguration(obj *kubeproxyconfigv1alpha1.KubeProxyCo
 	if obj.ClientConnection.Burst == 0 {
 		obj.ClientConnection.Burst = 10
 	}
+	if obj.NFTables.FastpathPacketThreshold == nil {
+		// Number of packets required to offload the connection to the fastpath.
+		// Short connections will not benefit much from the switch to fastpath,
+		// so we consider that a connection that has exchanged more than 20 packets
+		// in each direction should be offloaded by default.
+		temp := int32(20)
+		obj.NFTables.FastpathPacketThreshold = &temp
+	}
 	if obj.FeatureGates == nil {
 		obj.FeatureGates = make(map[string]bool)
 	}

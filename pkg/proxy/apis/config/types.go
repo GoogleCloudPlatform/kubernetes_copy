@@ -83,6 +83,11 @@ type KubeProxyNFTablesConfiguration struct {
 	// masqueradeBit is the bit of the iptables fwmark space to use for SNAT if using
 	// the nftables proxy mode. Values must be within the range [0, 31].
 	MasqueradeBit *int32
+
+	// FastpathPacketThreshold is the number of packets untile the proxy starts offloading
+	// the connection to the fast path and skipping the kernel stack.
+	// Set to 0 to disable it.
+	FastpathPacketThreshold *int32
 }
 
 // KubeProxyConntrackConfiguration contains conntrack settings for

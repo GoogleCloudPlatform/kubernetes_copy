@@ -94,6 +94,10 @@ type KubeProxyNFTablesConfiguration struct {
 	// '1m', '2h22m'). A value of 0 means every Service or EndpointSlice change will
 	// result in an immediate iptables resync.
 	MinSyncPeriod metav1.Duration `json:"minSyncPeriod"`
+	// FastpathPacketThreshold is the number of packets untile the proxy starts offloading
+	// the connection to the fast path and skipping the kernel stack.
+	// Set to 0 to disable it.
+	FastpathPacketThreshold *int32 `json:"fastpathPacketThreshold"`
 }
 
 // KubeProxyConntrackConfiguration contains conntrack settings for

@@ -214,6 +214,11 @@ func (in *KubeProxyNFTablesConfiguration) DeepCopyInto(out *KubeProxyNFTablesCon
 		*out = new(int32)
 		**out = **in
 	}
+	if in.FastpathPacketThreshold != nil {
+		in, out := &in.FastpathPacketThreshold, &out.FastpathPacketThreshold
+		*out = new(int32)
+		**out = **in
+	}
 	return
 }
 

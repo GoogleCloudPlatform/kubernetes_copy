@@ -134,6 +134,7 @@ The `Transaction` methods take arguments of type `knftables.Object`.
 The currently-supported objects are:
 
 - `Table`
+- `Flowtable`
 - `Chain`
 - `Rule`
 - `Set`
