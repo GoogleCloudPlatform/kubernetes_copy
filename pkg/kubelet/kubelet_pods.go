@@ -1748,10 +1748,6 @@ func getPhase(pod *v1.Pod, info []v1.ContainerStatus, podIsTerminal bool) v1.Pod
 }
 
 func (kl *Kubelet) determinePodResizeStatus(allocatedPod *v1.Pod, podStatus *kubecontainer.PodStatus, podIsTerminal bool) v1.PodResizeStatus {
-	if kubetypes.IsStaticPod(allocatedPod) {
-		return ""
-	}
-
 	// If pod is terminal, clear the resize status.
 	if podIsTerminal {
 		kl.statusManager.SetPodResizeStatus(allocatedPod.UID, "")
