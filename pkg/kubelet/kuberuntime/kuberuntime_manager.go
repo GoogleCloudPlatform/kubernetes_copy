@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"time"
 
@@ -549,18 +550,18 @@ func containerSucceeded(c *v1.Container, podStatus *kubecontainer.PodStatus) boo
 }
 
 func IsInPlacePodVerticalScalingAllowed(pod *v1.Pod) bool {
-	if !utilfeature.DefaultFeatureGate.Enabled(features.InPlacePodVerticalScaling) {
-		return false
-	}
-	if types.IsStaticPod(pod) {
-		return false
-	}
-	return true
+	return utilfeature.DefaultFeatureGate.Enabled(features.InPlacePodVerticalScaling) &&
+		!types.IsStaticPod(pod) &&
+		runtime.GOOS != "windows"
 }
 
 // computePodResizeAction determines the actions required (if any) to resize the given container.
 // Returns whether to keep (true) or restart (false) the container.
 func (m *kubeGenericRuntimeManager) computePodResizeAction(pod *v1.Pod, containerIdx int, kubeContainerStatus *kubecontainer.Status, changes *podActions) (keepContainer bool) {
+	if !IsInPlacePodVerticalScalingAllowed(pod) {
+		return true
+	}
+
 	container := pod.Spec.Containers[containerIdx]
 
 	// Determine if the *running* container needs resource update by comparing v1.Spec.Resources (desired)
@@ -1068,7 +1069,7 @@ func (m *kubeGenericRuntimeManager) computePodActions(ctx context.Context, pod *
 			// If the container failed the startup probe, we should kill it.
 			message = fmt.Sprintf("Container %s failed startup probe", container.Name)
 			reason = reasonStartupProbe
-		} else if IsInPlacePodVerticalScalingAllowed(pod) && !m.computePodResizeAction(pod, idx, containerStatus, &changes) {
+		} else if !m.computePodResizeAction(pod, idx, containerStatus, &changes) {
 			// computePodResizeAction updates 'changes' if resize policy requires restarting this container
 			continue
 		} else {
