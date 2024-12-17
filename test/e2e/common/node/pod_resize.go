@@ -977,21 +977,21 @@ func doPodResizeTests() {
 				},
 				{
 					Name:      "c2",
-					Resources: &e2epod.ContainerResources{CPUReq: "200m", CPULim: "300m", MemReq: "200Mi", MemLim: "300Mi"},
+					Resources: &e2epod.ContainerResources{CPUReq: originalCPU, CPULim: originalCPULimit, MemReq: originalMem, MemLim: originalMemLimit},
 					CPUPolicy: &noRestart,
 					MemPolicy: &noRestart,
 				},
 			},
-			patchString: `{"spec":{"containers":[
-						{"name":"c2", "resources":{"requests":{"memory":"250Mi"}}}
-					]}}`,
+			patchString: fmt.Sprintf(`{"spec":{"containers":[
+						{"name":"c2", "resources":{"requests":{"memory":"%s"}}}
+					]}}`, increasedMem),
 			expected: []e2epod.ResizableContainerInfo{
 				{
 					Name: "c1",
 				},
 				{
 					Name:      "c2",
-					Resources: &e2epod.ContainerResources{CPUReq: "200m", CPULim: "300m", MemReq: "250Mi", MemLim: "300Mi"},
+					Resources: &e2epod.ContainerResources{CPUReq: originalCPU, CPULim: originalCPULimit, MemReq: increasedMem, MemLim: originalMemLimit},
 					CPUPolicy: &noRestart,
 					MemPolicy: &noRestart,
 				},
