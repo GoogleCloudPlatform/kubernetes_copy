@@ -1002,6 +1002,7 @@ func doPodResizeTests() {
 	for idx := range tests {
 		tc := tests[idx]
 		f := framework.NewDefaultFramework("pod-resize-tests")
+		f.NamespacePodSecurityLevel = admissionapi.LevelPrivileged // for using HostPath
 
 		ginkgo.It(tc.name, func(ctx context.Context) {
 			podClient := e2epod.NewPodClient(f)
@@ -1187,6 +1188,7 @@ func doPodResizeErrorTests() {
 	for idx := range tests {
 		tc := tests[idx]
 		f := framework.NewDefaultFramework("pod-resize-error-tests")
+		f.NamespacePodSecurityLevel = admissionapi.LevelPrivileged // for using HostPath
 
 		ginkgo.It(tc.name, func(ctx context.Context) {
 			podClient := e2epod.NewPodClient(f)
@@ -1240,7 +1242,6 @@ func doPodResizeErrorTests() {
 
 var _ = SIGDescribe("Pod InPlace Resize Container", feature.InPlacePodVerticalScaling, func() {
 	f := framework.NewDefaultFramework("pod-resize-tests")
-	f.NamespacePodSecurityLevel = admissionapi.LevelPrivileged // for using HostPath
 
 	ginkgo.BeforeEach(func(ctx context.Context) {
 		node, err := e2enode.GetRandomReadySchedulableNode(ctx, f.ClientSet)
