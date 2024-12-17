@@ -703,10 +703,18 @@ func exceedMemoryRequests(stats statsFunc) cmpFunc {
 			return cmpBool(!p1Found, !p2Found)
 		}
 
+		p1Swap := swapUsage(p1Stats.Swap)
+		p2Swap := swapUsage(p2Stats.Swap)
 		p1Memory := memoryUsage(p1Stats.Memory)
 		p2Memory := memoryUsage(p2Stats.Memory)
-		p1ExceedsRequests := p1Memory.Cmp(v1resource.GetResourceRequestQuantity(p1, v1.ResourceMemory)) == 1
-		p2ExceedsRequests := p2Memory.Cmp(v1resource.GetResourceRequestQuantity(p2, v1.ResourceMemory)) == 1
+
+		p1MemAndSwap := p1Swap.DeepCopy()
+		p2MemAndSwap := p2Swap.DeepCopy()
+		p1MemAndSwap.Add(*p1Memory)
+		p2MemAndSwap.Add(*p2Memory)
+
+		p1ExceedsRequests := p1MemAndSwap.Cmp(v1resource.GetResourceRequestQuantity(p1, v1.ResourceMemory)) == 1
+		p2ExceedsRequests := p2MemAndSwap.Cmp(v1resource.GetResourceRequestQuantity(p2, v1.ResourceMemory)) == 1
 
 		klog.InfoS("DEBUG exceedMemoryRequests()", "pod", p1.Name, "exceeds?", p1ExceedsRequests)
 		klog.InfoS("DEBUG exceedMemoryRequests()", "pod", p2.Name, "exceeds?", p2ExceedsRequests)
