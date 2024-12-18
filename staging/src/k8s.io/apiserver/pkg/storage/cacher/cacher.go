@@ -431,7 +431,12 @@ func NewCacherFromConfig(config Config) (*Cacher, error) {
 	listerWatcher := NewListerWatcher(config.Storage, config.ResourcePrefix, config.NewListFunc, contextMetadata)
 	reflectorName := "storage/cacher.go:" + config.ResourcePrefix
 
-	reflector := cache.NewNamedReflector(reflectorName, listerWatcher, obj, watchCache, 0)
+	reflectorOpts := cache.ReflectorOptions{
+		Name:         reflectorName,
+		ResyncPeriod: 0,
+		DisableReflectorConsistencyCheckEvenIfRequested: true,
+	}
+	reflector := cache.NewReflectorWithOptions(listerWatcher, obj, watchCache, reflectorOpts)
 	// Configure reflector's pager to for an appropriate pagination chunk size for fetching data from
 	// storage. The pager falls back to full list if paginated list calls fail due to an "Expired" error.
 	reflector.WatchListPageSize = storageWatchListPageSize

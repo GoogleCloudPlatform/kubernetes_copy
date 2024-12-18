@@ -19,6 +19,7 @@ package main
 import (
 	"os"
 
+	"k8s.io/client-go/util/consistencydetector"
 	"k8s.io/component-base/cli"
 	_ "k8s.io/component-base/logs/json/register" // for JSON log format registration
 	_ "k8s.io/component-base/metrics/prometheus/clientgo"
@@ -27,6 +28,7 @@ import (
 )
 
 func main() {
+	consistencydetector.ForceDataConsistencyDetectionForReflector()
 	command := app.NewSchedulerCommand()
 	code := cli.Run(command)
 	os.Exit(code)
