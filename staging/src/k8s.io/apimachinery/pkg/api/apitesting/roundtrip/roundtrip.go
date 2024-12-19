@@ -255,7 +255,7 @@ func roundTripToAllExternalVersions(t *testing.T, scheme *runtime.Scheme, codecF
 
 		// TODO remove this hack after we're past the intermediate steps
 		if !skipProtobuf && externalGVK.Group != "kubeadm.k8s.io" {
-			s := protobuf.NewSerializer(scheme, scheme)
+			s := protobuf.NewSerializer(scheme, scheme, protobuf.SerializerOptions{})
 			protobufCodec := codecFactory.CodecForVersions(s, s, externalGVK.GroupVersion(), nil)
 			roundTrip(t, scheme, protobufCodec, object)
 		}
@@ -281,7 +281,7 @@ func roundTripOfExternalType(t *testing.T, scheme *runtime.Scheme, codecFactory 
 
 	// TODO remove this hack after we're past the intermediate steps
 	if !skipProtobuf {
-		roundTrip(t, scheme, protobuf.NewSerializer(scheme, scheme), object)
+		roundTrip(t, scheme, protobuf.NewSerializer(scheme, scheme, protobuf.SerializerOptions{}), object)
 	}
 }
 

@@ -84,7 +84,7 @@ func (d *testBufferedMarshalable) DeepCopyObject() runtime.Object {
 }
 
 func TestRecognize(t *testing.T) {
-	s := protobuf.NewSerializer(nil, nil)
+	s := protobuf.NewSerializer(nil, nil, protobuf.SerializerOptions{})
 	ignores := [][]byte{
 		nil,
 		{},
@@ -172,7 +172,7 @@ func TestEncode(t *testing.T) {
 	}
 
 	for i, test := range testCases {
-		s := protobuf.NewSerializer(nil, nil)
+		s := protobuf.NewSerializer(nil, nil, protobuf.SerializerOptions{})
 		data, err := runtime.Encode(s, test.obj)
 
 		switch {
@@ -257,7 +257,7 @@ func TestProtobufDecode(t *testing.T) {
 	}
 
 	for i, test := range testCases {
-		s := protobuf.NewSerializer(nil, nil)
+		s := protobuf.NewSerializer(nil, nil, protobuf.SerializerOptions{})
 		unk := &runtime.Unknown{}
 		err := runtime.DecodeInto(s, test.data, unk)
 
@@ -334,7 +334,7 @@ func TestDecodeObjects(t *testing.T) {
 	for i, test := range testCases {
 		scheme.AddKnownTypes(schema.GroupVersion{Version: "v1"}, &v1.Carp{})
 		require.NoError(t, v1.AddToScheme(scheme))
-		s := protobuf.NewSerializer(scheme, scheme)
+		s := protobuf.NewSerializer(scheme, scheme, protobuf.SerializerOptions{})
 		obj, err := runtime.Decode(s, test.data)
 
 		switch {

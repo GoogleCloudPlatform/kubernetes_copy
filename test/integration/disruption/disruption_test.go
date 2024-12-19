@@ -523,7 +523,7 @@ func createPDBUsingRemovedAPI(ctx context.Context, etcdClient *clientv3.Client, 
 	rest.FillObjectMetaSystemFields(betaPDB)
 	ctx = genericapirequest.WithNamespace(ctx, nsName)
 	key := path.Join("/", etcdStoragePrefix, "poddisruptionbudgets", nsName, betaPDB.Name)
-	protoSerializer := protobuf.NewSerializer(legacyscheme.Scheme, legacyscheme.Scheme)
+	protoSerializer := protobuf.NewSerializer(legacyscheme.Scheme, legacyscheme.Scheme, protobuf.SerializerOptions{})
 	buffer := bytes.NewBuffer(nil)
 	if err := protoSerializer.Encode(betaPDB, buffer); err != nil {
 		return err
