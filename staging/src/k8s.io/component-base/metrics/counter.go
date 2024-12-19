@@ -37,8 +37,8 @@ type Counter struct {
 }
 
 type CounterWithContext struct {
-	ctx context.Context
 	*Counter
+	ctx context.Context
 }
 
 // The implementation of the Metric interface is expected by testutil.GetCounterMetricValue.

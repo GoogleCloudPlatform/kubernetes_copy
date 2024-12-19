@@ -41,8 +41,8 @@ var _ metricWithExemplar = &HistogramWithContext{}
 
 // HistogramWithContext holds a context to extract exemplar labels from, and a historgram metric to attach them to. It implements the metricWithExemplar interface.
 type HistogramWithContext struct {
-	ctx context.Context
 	*Histogram
+	ctx context.Context
 }
 
 type HistogramVecWithContextWithObserver struct {
