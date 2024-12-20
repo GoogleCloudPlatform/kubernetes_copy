@@ -74,7 +74,7 @@ func ParallelizeUntil(ctx context.Context, workers, pieces int, doWorkPiece DoWo
 	wg.Add(workers)
 	for i := 0; i < workers; i++ {
 		go func() {
-			defer utilruntime.HandleCrash()
+			defer utilruntime.HandleCrashWithContext(ctx)
 			defer wg.Done()
 			for chunk := range toProcess {
 				start := chunk * chunkSize
