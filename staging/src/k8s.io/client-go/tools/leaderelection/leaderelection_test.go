@@ -37,6 +37,7 @@ import (
 	fakeclient "k8s.io/client-go/testing"
 	rl "k8s.io/client-go/tools/leaderelection/resourcelock"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/klog/v2/ktesting"
 	"k8s.io/utils/clock"
 )
 
@@ -265,6 +266,8 @@ func testTryAcquireOrRenew(t *testing.T, objectType string) {
 	for i := range tests {
 		test := &tests[i]
 		t.Run(test.name, func(t *testing.T) {
+			_, ctx := ktesting.NewTestContext(t)
+
 			// OnNewLeader is called async so we have to wait for it.
 			var wg sync.WaitGroup
 			wg.Add(1)
@@ -316,10 +319,10 @@ func testTryAcquireOrRenew(t *testing.T, objectType string) {
 				clock:             clock,
 				metrics:           globalMetricsFactory.newLeaderMetrics(),
 			}
-			if test.expectSuccess != le.tryAcquireOrRenew(context.Background()) {
+			if test.expectSuccess != le.tryAcquireOrRenew(ctx) {
 				if test.retryAfter != 0 {
 					time.Sleep(test.retryAfter)
-					if test.expectSuccess != le.tryAcquireOrRenew(context.Background()) {
+					if test.expectSuccess != le.tryAcquireOrRenew(ctx) {
 						t.Errorf("unexpected result of tryAcquireOrRenew: [succeeded=%v]", !test.expectSuccess)
 					}
 				} else {
@@ -411,6 +414,8 @@ func TestTryCoordinatedRenew(t *testing.T) {
 	for i := range tests {
 		test := &tests[i]
 		t.Run(test.name, func(t *testing.T) {
+			_, ctx := ktesting.NewTestContext(t)
+
 			// OnNewLeader is called async so we have to wait for it.
 			var wg sync.WaitGroup
 			wg.Add(1)
@@ -457,10 +462,10 @@ func TestTryCoordinatedRenew(t *testing.T) {
 				clock:             clock,
 				metrics:           globalMetricsFactory.newLeaderMetrics(),
 			}
-			if test.expectSuccess != le.tryCoordinatedRenew(context.Background()) {
+			if test.expectSuccess != le.tryCoordinatedRenew(ctx) {
 				if test.retryAfter != 0 {
 					time.Sleep(test.retryAfter)
-					if test.expectSuccess != le.tryCoordinatedRenew(context.Background()) {
+					if test.expectSuccess != le.tryCoordinatedRenew(ctx) {
 						t.Errorf("unexpected result of tryCoordinatedRenew: [succeeded=%v]", !test.expectSuccess)
 					}
 				} else {
@@ -583,6 +588,8 @@ func testReleaseLease(t *testing.T, objectType string) {
 	for i := range tests {
 		test := &tests[i]
 		t.Run(test.name, func(t *testing.T) {
+			logger, ctx := ktesting.NewTestContext(t)
+
 			// OnNewLeader is called async so we have to wait for it.
 			var wg sync.WaitGroup
 			wg.Add(1)
@@ -634,7 +641,7 @@ func testReleaseLease(t *testing.T, objectType string) {
 				clock:             clock.RealClock{},
 				metrics:           globalMetricsFactory.newLeaderMetrics(),
 			}
-			if !le.tryAcquireOrRenew(context.Background()) {
+			if !le.tryAcquireOrRenew(ctx) {
 				t.Errorf("unexpected result of tryAcquireOrRenew: [succeeded=%v]", true)
 			}
 
@@ -644,7 +651,7 @@ func testReleaseLease(t *testing.T, objectType string) {
 			wg.Wait()
 			wg.Add(1)
 
-			if test.expectSuccess != le.release() {
+			if test.expectSuccess != le.release(logger) {
 				t.Errorf("unexpected result of release: [succeeded=%v]", !test.expectSuccess)
 			}
 
@@ -841,6 +848,8 @@ func testReleaseOnCancellation(t *testing.T, objectType string) {
 	for i := range tests {
 		test := &tests[i]
 		t.Run(test.name, func(t *testing.T) {
+			_, ctx := ktesting.NewTestContext(t)
+
 			wg.Add(1)
 			resetVars()
 
@@ -868,7 +877,7 @@ func testReleaseOnCancellation(t *testing.T, objectType string) {
 				t.Fatal("Failed to create leader elector: ", err)
 			}
 
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancel(ctx)
 
 			go elector.Run(ctx)
 
@@ -1082,6 +1091,8 @@ func TestFastPathLeaderElection(t *testing.T) {
 	for i := range tests {
 		test := &tests[i]
 		t.Run(test.name, func(t *testing.T) {
+			_, ctx := ktesting.NewTestContext(t)
+
 			resetVars()
 
 			recorder := record.NewFakeRecorder(100)
@@ -1108,7 +1119,7 @@ func TestFastPathLeaderElection(t *testing.T) {
 				t.Fatal("Failed to create leader elector: ", err)
 			}
 
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancel(ctx)
 			cancelFunc = cancel
 
 			elector.Run(ctx)

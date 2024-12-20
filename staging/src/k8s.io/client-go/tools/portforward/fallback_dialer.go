@@ -50,6 +50,7 @@ func NewFallbackDialer(primary, secondary httpstream.Dialer, shouldFallback func
 func (f *FallbackDialer) Dial(protocols ...string) (httpstream.Connection, string, error) {
 	conn, version, err := f.primary.Dial(protocols...)
 	if err != nil && f.shouldFallback(err) {
+		//nolint:logcheck // This code is only used by kubectl where contextual logging is not that useful.
 		klog.V(4).Infof("fallback to secondary dialer from primary dialer err: %v", err)
 		return f.secondary.Dial(protocols...)
 	}

@@ -60,7 +60,8 @@ func NewTunnelingHandler(upgradeHandler http.Handler) *TunnelingHandler {
 // case the upstream upgrade fails, we delegate communication to the passed
 // in "w" ResponseWriter.
 func (h *TunnelingHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	klog.V(4).Infoln("TunnelingHandler ServeHTTP")
+	logger := klog.FromContext(req.Context())
+	logger.V(4).Info("TunnelingHandler ServeHTTP")
 
 	spdyProtocols := spdyProtocolsFromWebsocketProtocols(req)
 	if len(spdyProtocols) == 0 {
@@ -75,10 +76,12 @@ func (h *TunnelingHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	// and the "conn" is hijacked and used in the subsequent upgradeHandler, or
 	// the upgrade failed, and "w" is the delegate used for the non-upgrade response.
 	writer := &tunnelingResponseWriter{
+		logger: logger,
 		// "w" is used in the non-upgrade error cases called in the upgradeHandler.
 		w: w,
 		// "conn" is returned in the successful upgrade case when hijacked in the upgradeHandler.
 		conn: &headerInterceptingConn{
+			logger: logger,
 			initializableConn: &tunnelingWebsocketUpgraderConn{
 				w:   w,
 				req: req,
@@ -86,7 +89,7 @@ func (h *TunnelingHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		},
 	}
 
-	klog.V(4).Infoln("Tunnel spdy through websockets using the UpgradeAwareProxy")
+	logger.V(4).Info("Tunnel spdy through websockets using the UpgradeAwareProxy")
 	h.upgradeHandler.ServeHTTP(writer, spdyRequest)
 }
 
@@ -131,6 +134,7 @@ var _ http.Hijacker = &tunnelingResponseWriter{}
 // Once Write or WriteHeader is called, Hijack returns an error.
 // Once Hijack is called, Write, WriteHeader, and Hijack return errors.
 type tunnelingResponseWriter struct {
+	logger klog.Logger
 	// w is used to delegate Header(), WriteHeader(), and Write() calls
 	w http.ResponseWriter
 	// conn is returned from Hijack()
@@ -150,15 +154,15 @@ func (w *tunnelingResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) 
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	if w.written {
-		klog.Errorf("Hijack called after write")
+		w.logger.Error(nil, "Hijack called after write")
 		return nil, nil, errors.New("connection has already been written to")
 	}
 	if w.hijacked {
-		klog.Errorf("Hijack called after hijack")
+		w.logger.Error(nil, "Hijack called after hijack")
 		return nil, nil, errors.New("connection has already been hijacked")
 	}
 	w.hijacked = true
-	klog.V(6).Infof("Hijack returning websocket tunneling net.Conn")
+	w.logger.V(6).Info("Hijack returning websocket tunneling net.Conn")
 	return w.conn, nil, nil
 }
 
@@ -172,7 +176,7 @@ func (w *tunnelingResponseWriter) Write(p []byte) (int, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	if w.hijacked {
-		klog.Errorf("Write called after hijack")
+		w.logger.Error(nil, "Write called after hijack")
 		return 0, http.ErrHijacked
 	}
 	w.written = true
@@ -184,18 +188,18 @@ func (w *tunnelingResponseWriter) WriteHeader(statusCode int) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	if w.written {
-		klog.Errorf("WriteHeader called after write")
+		w.logger.Error(nil, "WriteHeader called after write")
 		return
 	}
 	if w.hijacked {
-		klog.Errorf("WriteHeader called after hijack")
+		w.logger.Error(nil, "WriteHeader called after hijack")
 		return
 	}
 	w.written = true
 
 	if statusCode == http.StatusSwitchingProtocols {
 		// 101 upgrade responses must come via the hijacked connection, not WriteHeader
-		klog.Errorf("WriteHeader called with 101 upgrade")
+		w.logger.Error(nil, "WriteHeader called with 101 upgrade")
 		http.Error(w.w, "unexpected upgrade", http.StatusInternalServerError)
 		return
 	}
@@ -208,6 +212,7 @@ func (w *tunnelingResponseWriter) WriteHeader(statusCode int) {
 // HTTP response status/headers from the upstream SPDY connection, then use
 // that to decide how to initialize the delegate connection for writes.
 type headerInterceptingConn struct {
+	logger klog.Logger
 	// initializableConn is delegated to for all net.Conn methods.
 	// initializableConn.Write() is not called until response headers have been read
 	// and initializableConn#InitializeWrite() has been called with the result.
@@ -274,7 +279,7 @@ func (h *headerInterceptingConn) Write(b []byte) (int, error) {
 	}
 	resp, err := http.ReadResponse(bufio.NewReader(bytes.NewReader(headerBytes)), nil)
 	if err != nil {
-		klog.Errorf("invalid headers: %v", err)
+		h.logger.Error(err, "Invalid headers")
 		h.initializeErr = err
 		return len(b), err
 	}
@@ -324,11 +329,12 @@ func (u *tunnelingWebsocketUpgraderConn) InitializeWrite(backendResponse *http.R
 		return u.err
 	}
 
+	logger := klog.FromContext(u.req.Context())
 	if backendResponse.StatusCode == http.StatusSwitchingProtocols {
 		connectionHeader := strings.ToLower(backendResponse.Header.Get(httpstream.HeaderConnection))
 		upgradeHeader := strings.ToLower(backendResponse.Header.Get(httpstream.HeaderUpgrade))
 		if !strings.Contains(connectionHeader, strings.ToLower(httpstream.HeaderUpgrade)) || !strings.Contains(upgradeHeader, strings.ToLower(spdy.HeaderSpdy31)) {
-			klog.Errorf("unable to upgrade: missing upgrade headers in response: %#v", backendResponse.Header)
+			logger.Error(nil, "Unable to upgrade: missing upgrade headers in response", "headers", backendResponse.Header)
 			u.err = fmt.Errorf("unable to upgrade: missing upgrade headers in response")
 			metrics.IncStreamTunnelRequest(context.Background(), strconv.Itoa(http.StatusInternalServerError))
 			http.Error(u.w, u.err.Error(), http.StatusInternalServerError)
@@ -351,26 +357,26 @@ func (u *tunnelingWebsocketUpgraderConn) InitializeWrite(backendResponse *http.R
 		}
 		conn, err := upgrader.Upgrade(u.w, u.req, nil)
 		if err != nil {
-			klog.Errorf("error upgrading websocket connection: %v", err)
+			logger.Error(err, "Error upgrading websocket connection")
 			metrics.IncStreamTunnelRequest(context.Background(), strconv.Itoa(http.StatusInternalServerError))
 			u.err = err
 			return u.err
 		}
 
-		klog.V(4).Infof("websocket connection created: %s", conn.Subprotocol())
+		logger.V(4).Info("Websocket connection created", "protocol", conn.Subprotocol())
 		metrics.IncStreamTunnelRequest(context.Background(), strconv.Itoa(http.StatusSwitchingProtocols))
-		u.conn = portforward.NewTunnelingConnection("server", conn)
+		u.conn = portforward.NewTunnelingConnectionWithLogger(klog.LoggerWithName(logger, "server"), conn)
 		return nil
 	}
 
 	// anything other than an upgrade should pass through the backend response
-	klog.Errorf("SPDY upgrade failed: %s", backendResponse.Status)
+	logger.Error(nil, "SPDY upgrade failed", "status", backendResponse.Status)
 	metrics.IncStreamTunnelRequest(context.Background(), strconv.Itoa(backendResponse.StatusCode))
 
 	// try to hijack
 	conn, _, err = u.w.(http.Hijacker).Hijack()
 	if err != nil {
-		klog.Errorf("Unable to hijack response: %v", err)
+		logger.Error(err, "Unable to hijack response")
 		u.err = err
 		return u.err
 	}
