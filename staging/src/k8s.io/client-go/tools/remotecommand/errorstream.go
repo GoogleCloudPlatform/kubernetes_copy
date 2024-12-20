@@ -21,6 +21,7 @@ import (
 	"io"
 
 	"k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/klog/v2"
 )
 
 // errorStreamDecoder interprets the data on the error channel and creates a go error object from it.
@@ -32,11 +33,11 @@ type errorStreamDecoder interface {
 // decodes it with the given errorStreamDecoder, sends the decoded error (or nil if the remote
 // command exited successfully) to the returned error channel, and closes it.
 // This function returns immediately.
-func watchErrorStream(errorStream io.Reader, d errorStreamDecoder) chan error {
+func watchErrorStream(logger klog.Logger, errorStream io.Reader, d errorStreamDecoder) chan error {
 	errorChan := make(chan error)
 
 	go func() {
-		defer runtime.HandleCrash()
+		defer runtime.HandleCrashWithLogger(logger)
 
 		message, err := io.ReadAll(errorStream)
 		switch {
