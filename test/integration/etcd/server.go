@@ -36,7 +36,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/json"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	genericapiserveroptions "k8s.io/apiserver/pkg/server/options"
 	"k8s.io/apiserver/pkg/util/feature"
@@ -66,17 +65,6 @@ MHcCAQEEIEZmTmUhuanLjPA2CLquXivuwBDHTt5XYwgIr/kA1LtRoAoGCCqGSM49
 AwEHoUQDQgAEH6cuzP8XuD5wal6wf9M6xDljTOPLX2i8uIp/C/ASqiIGUeeKQtX0
 /IR3qCXyThP/dbCiHrF3v1cuhBOHY8CLVg==
 -----END EC PRIVATE KEY-----`
-
-func registerEffectiveEmulationVersion(t *testing.T) {
-	featureGate := feature.DefaultMutableFeatureGate
-	featureGate.AddMetrics()
-
-	effectiveVersion := utilversion.DefaultKubeEffectiveVersion()
-	effectiveVersion.SetEmulationVersion(featureGate.EmulationVersion())
-	featuregatetesting.SetFeatureGateEmulationVersionDuringTest(t, featureGate, effectiveVersion.EmulationVersion())
-	featuregate.DefaultComponentGlobalsRegistry.Reset()
-	utilruntime.Must(featuregate.DefaultComponentGlobalsRegistry.Register(featuregate.DefaultKubeComponent, effectiveVersion, featureGate))
-}
 
 // StartRealAPIServerOrDie starts an API server that is appropriate for use in tests that require one of every resource
 func StartRealAPIServerOrDie(t *testing.T, configFuncs ...func(*options.ServerRunOptions)) *APIServer {
@@ -108,6 +96,18 @@ func StartRealAPIServerOrDie(t *testing.T, configFuncs ...func(*options.ServerRu
 	}
 
 	opts := options.NewServerRunOptions()
+	// If EmulationVersion of DefaultFeatureGate is set during test, we need to propagate it to the apiserver ComponentGlobalsRegistry.
+	featureGate := feature.DefaultMutableFeatureGate.DeepCopy()
+	featureGate.AddMetrics()
+	effectiveVersion := utilversion.DefaultKubeEffectiveVersion()
+	effectiveVersion.SetEmulationVersion(featureGate.EmulationVersion())
+	// set up new instance of ComponentGlobalsRegistry instead of using the DefaultComponentGlobalsRegistry to avoid contention in parallel tests.
+	componentGlobalsRegistry := featuregate.NewComponentGlobalsRegistry()
+	if err := componentGlobalsRegistry.Register(featuregate.DefaultKubeComponent, effectiveVersion, featureGate); err != nil {
+		t.Fatal(err)
+	}
+	opts.GenericServerRunOptions.ComponentGlobalsRegistry = componentGlobalsRegistry
+
 	opts.Options.SecureServing.Listener = listener
 	opts.Options.SecureServing.ServerCert.CertDirectory = certDir
 	opts.Options.ServiceAccountSigningKeyFile = saSigningKeyFile.Name()
@@ -123,6 +123,18 @@ func StartRealAPIServerOrDie(t *testing.T, configFuncs ...func(*options.ServerRu
 	for _, f := range configFuncs {
 		f(opts)
 	}
+
+	// If the local ComponentGlobalsRegistry is changed by configFuncs,
+	// we need to copy the new feature values back to the DefaultFeatureGate because most feature checks still use the DefaultFeatureGate.
+	if !featureGate.EmulationVersion().EqualTo(feature.DefaultMutableFeatureGate.EmulationVersion()) {
+		featuregatetesting.SetFeatureGateEmulationVersionDuringTest(t, feature.DefaultMutableFeatureGate, effectiveVersion.EmulationVersion())
+	}
+	for f := range feature.DefaultMutableFeatureGate.GetAll() {
+		if featureGate.Enabled(f) != feature.DefaultFeatureGate.Enabled(f) {
+			featuregatetesting.SetFeatureGateDuringTest(t, feature.DefaultFeatureGate, f, featureGate.Enabled(f))
+		}
+	}
+
 	completedOptions, err := opts.Complete(tCtx)
 	if err != nil {
 		t.Fatal(err)

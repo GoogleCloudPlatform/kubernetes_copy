@@ -711,7 +711,8 @@ func prepareAggregatedWardleAPIServer(ctx context.Context, t *testing.T, namespa
 		framework.SharedEtcd())
 	t.Cleanup(func() { testServer.TearDownFn() })
 
-	_, _ = featuregate.DefaultComponentGlobalsRegistry.ComponentGlobalsOrRegister(
+	componentGlobalsRegistry := testServer.ServerOpts.Options.GenericServerRunOptions.ComponentGlobalsRegistry
+	_, _ = componentGlobalsRegistry.ComponentGlobalsOrRegister(
 		apiserver.WardleComponentName, utilversion.NewEffectiveVersion(wardleBinaryVersion),
 		featuregate.NewVersionedFeatureGate(version.MustParse(wardleBinaryVersion)))
 
@@ -740,6 +741,7 @@ func prepareAggregatedWardleAPIServer(ctx context.Context, t *testing.T, namespa
 	}
 
 	wardleOptions := sampleserver.NewWardleServerOptions(os.Stdout, os.Stderr)
+	wardleOptions.ComponentGlobalsRegistry = componentGlobalsRegistry
 	// ensure this is a SAN on the generated cert for service FQDN
 	wardleOptions.AlternateDNS = []string{
 		fmt.Sprintf("api.%s.svc", namespace),

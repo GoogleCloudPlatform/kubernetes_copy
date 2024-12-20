@@ -104,7 +104,6 @@ func testEtcdStoragePathWithVersion(t *testing.T, v string) {
 		// only understand v1beta1.
 		featuregatetesting.SetFeatureGateDuringTest(t, feature.DefaultFeatureGate, features.MultiCIDRServiceAllocator, false)
 	}
-	registerEffectiveEmulationVersion(t)
 
 	apiServer := StartRealAPIServerOrDie(t, func(opts *options.ServerRunOptions) {
 		// Disable alphas when emulating previous versions.

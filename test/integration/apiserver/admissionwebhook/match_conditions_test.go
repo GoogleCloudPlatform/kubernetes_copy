@@ -22,7 +22,6 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"io"
-	"k8s.io/apimachinery/pkg/util/version"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -634,9 +633,9 @@ func TestMatchConditionsWithoutStrictCostEnforcement(t *testing.T) {
 	for _, testcase := range testcases {
 		t.Run(testcase.name, func(t *testing.T) {
 			upCh := recorder.Reset()
-			featuregatetesting.SetFeatureGateEmulationVersionDuringTest(t, utilfeature.DefaultFeatureGate, version.MustParse("1.31"))
-			featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, genericfeatures.StrictCostEnforcementForWebhooks, false)
-			server, err := apiservertesting.StartTestServer(t, &apiservertesting.TestServerInstanceOptions{EmulationVersion: "1.31"}, []string{
+			server, err := apiservertesting.StartTestServer(t, nil, []string{
+				"--emulated-version", "1.31",
+				"--feature-gates", "StrictCostEnforcementForWebhooks=false",
 				"--disable-admission-plugins=ServiceAccount",
 			}, framework.SharedEtcd())
 			if err != nil {
