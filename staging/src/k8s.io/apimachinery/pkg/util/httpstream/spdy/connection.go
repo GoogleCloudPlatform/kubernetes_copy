@@ -169,6 +169,7 @@ func (c *connection) newSpdyStream(stream *spdystream.Stream) {
 	err := c.newStreamHandler(stream, replySent)
 	rejectStream := (err != nil)
 	if rejectStream {
+		//nolint:logcheck // Hopefully this never gets triggered.
 		klog.Warningf("Stream rejected: %v", err)
 		stream.Reset()
 		return
@@ -195,6 +196,7 @@ func (c *connection) sendPings(period time.Duration) {
 		case <-t.C:
 		}
 		if _, err := c.ping(); err != nil {
+			//nolint:logcheck // Hopefully this never gets triggered.
 			klog.V(3).Infof("SPDY Ping failed: %v", err)
 			// Continue, in case this is a transient failure.
 			// c.conn.CloseChan above will tell us when the connection is
