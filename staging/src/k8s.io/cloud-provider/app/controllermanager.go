@@ -183,13 +183,20 @@ func Run(c *cloudcontrollerconfig.CompletedConfig, cloud cloudprovider.Interface
 		if len(webhooks) > 0 {
 			klog.Info("Webhook Handlers enabled: ", webhooks)
 			handler := newHandler(webhooks)
-			if _, _, err := c.WebhookSecureServing.Serve(handler, 0, stopCh); err != nil {
+			webhookServerShutdownCh, webhookListenerStoppedCh, err := c.WebhookSecureServing.Serve(handler, 0, stopCh)
+			if err != nil {
 				return err
 			}
+			defer func() {
+				// for graceful shutdown
+				<-webhookServerShutdownCh
+				<-webhookListenerStoppedCh
+			}()
 		}
 	}
 
 	healthzHandler := controllerhealthz.NewMutableHealthzHandler(checks...)
+
 	// Start the controller manager HTTP server
 	if c.SecureServing != nil {
 		unsecuredMux := genericcontrollermanager.NewBaseHandler(&c.ComponentConfig.Generic.Debugging, healthzHandler)
@@ -197,10 +204,15 @@ func Run(c *cloudcontrollerconfig.CompletedConfig, cloud cloudprovider.Interface
 		slis.SLIMetricsWithReset{}.Install(unsecuredMux)
 
 		handler := genericcontrollermanager.BuildHandlerChain(unsecuredMux, &c.Authorization, &c.Authentication)
-		// TODO: handle stoppedCh and listenerStoppedCh returned by c.SecureServing.Serve
-		if _, _, err := c.SecureServing.Serve(handler, 0, stopCh); err != nil {
+		serverShutdownCh, listenerStoppedCh, err := c.SecureServing.Serve(handler, 0, stopCh)
+		if err != nil {
 			return err
 		}
+		defer func() {
+			// for graceful shutdown
+			<-serverShutdownCh
+			<-listenerStoppedCh
+		}()
 	}
 
 	run := func(ctx context.Context, controllerInitializers map[string]InitFunc) {
@@ -289,6 +301,7 @@ func Run(c *cloudcontrollerconfig.CompletedConfig, cloud cloudprovider.Interface
 	}
 
 	<-stopCh
+
 	return nil
 }
 

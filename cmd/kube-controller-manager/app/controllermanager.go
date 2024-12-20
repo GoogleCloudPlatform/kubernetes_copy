@@ -214,10 +214,15 @@ func Run(ctx context.Context, c *config.CompletedConfig) error {
 		slis.SLIMetricsWithReset{}.Install(unsecuredMux)
 
 		handler := genericcontrollermanager.BuildHandlerChain(unsecuredMux, &c.Authorization, &c.Authentication)
-		// TODO: handle stoppedCh and listenerStoppedCh returned by c.SecureServing.Serve
-		if _, _, err := c.SecureServing.Serve(handler, 0, stopCh); err != nil {
+		serverShutdownCh, listenerStoppedCh, err := c.SecureServing.Serve(handler, 0, stopCh)
+		if err != nil {
 			return err
 		}
+		defer func() {
+			// for graceful shutdown
+			<-serverShutdownCh
+			<-listenerStoppedCh
+		}()
 	}
 
 	clientBuilder, rootClientBuilder := createClientBuilders(c)
@@ -359,6 +364,7 @@ func Run(ctx context.Context, c *config.CompletedConfig) error {
 	}
 
 	<-stopCh
+
 	return nil
 }
 
