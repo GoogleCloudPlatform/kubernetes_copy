@@ -64,6 +64,7 @@ func TestStreamWatcher(t *testing.T) {
 	}
 
 	fd := fakeDecoder{items: make(chan Event, 5)}
+	//nolint:logcheck // Intentionally uses the old API.
 	sw := NewStreamWatcher(fd, nil)
 
 	for _, item := range table {
@@ -87,6 +88,7 @@ func TestStreamWatcher(t *testing.T) {
 func TestStreamWatcherError(t *testing.T) {
 	fd := fakeDecoder{err: fmt.Errorf("test error")}
 	fr := &fakeReporter{}
+	//nolint:logcheck // Intentionally uses the old API.
 	sw := NewStreamWatcher(fd, fr)
 	evt, ok := <-sw.ResultChan()
 	if !ok {
@@ -110,6 +112,7 @@ func TestStreamWatcherError(t *testing.T) {
 func TestStreamWatcherRace(t *testing.T) {
 	fd := fakeDecoder{err: fmt.Errorf("test error")}
 	fr := &fakeReporter{}
+	//nolint:logcheck // Intentionally uses the old API.
 	sw := NewStreamWatcher(fd, fr)
 	time.Sleep(10 * time.Millisecond)
 	sw.Stop()

@@ -18,6 +18,7 @@ package watch
 
 import (
 	"context"
+	"errors"
 	"reflect"
 	goruntime "runtime"
 	"sort"
@@ -39,6 +40,8 @@ import (
 	fakeclientset "k8s.io/client-go/kubernetes/fake"
 	testcore "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/klog/v2"
+	"k8s.io/klog/v2/ktesting"
 )
 
 // TestEventProcessorExit is expected to timeout if the event processor fails
@@ -320,6 +323,7 @@ func TestNewInformerWatcher(t *testing.T) {
 					return fake.CoreV1().Secrets("").Watch(context.TODO(), options)
 				},
 			}
+			//nolint:logcheck // Intentionally uses the older API.
 			_, _, outputWatcher, informerDoneCh := NewIndexerInformerWatcher(lw, &corev1.Secret{})
 			outputCh := outputWatcher.ResultChan()
 			timeoutCh := time.After(wait.ForeverTestTimeout)
@@ -413,6 +417,7 @@ func TestInformerWatcherDeletedFinalStateUnknown(t *testing.T) {
 			return w, nil
 		},
 	}
+	//nolint:logcheck // Intentionally uses the older API.
 	_, _, w, done := NewIndexerInformerWatcher(lw, &corev1.Secret{})
 	defer w.Stop()
 
@@ -461,4 +466,30 @@ func TestInformerWatcherDeletedFinalStateUnknown(t *testing.T) {
 	if watchCalls < 1 {
 		t.Fatalf("expected at least 1 watch call, got %d", watchCalls)
 	}
+}
+
+func TestInformerContext(t *testing.T) {
+	logger, ctx := ktesting.NewTestContext(t)
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	// Whatever gets called first will stop.
+	validateContext := func(ctx context.Context) error {
+		if reflect.TypeOf(logger.GetSink()) != reflect.TypeOf(klog.FromContext(ctx).GetSink()) {
+			t.Errorf("Expected logger %+v from context, got %+v", logger, klog.FromContext(ctx))
+		}
+		cancel()
+		return errors.New("not implemented by text")
+	}
+	lw := &cache.ListWatch{
+		ListFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+			return nil, validateContext(ctx)
+		},
+		WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+			return nil, validateContext(ctx)
+		},
+	}
+
+	_, _, _, done := NewIndexerInformerWatcherWithContext(ctx, lw, &corev1.Secret{})
+	<-done
 }

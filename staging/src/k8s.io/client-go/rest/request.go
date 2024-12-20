@@ -1008,7 +1008,8 @@ func (r *Request) newStreamWatcher(ctx context.Context, resp *http.Response) (wa
 	frameReader := framer.NewFrameReader(resp.Body)
 	watchEventDecoder := streaming.NewDecoder(frameReader, streamingSerializer)
 
-	return watch.NewStreamWatcher(
+	return watch.NewStreamWatcherWithLogger(
+		klog.FromContext(ctx),
 		restclientwatch.NewDecoder(watchEventDecoder, objectDecoder),
 		// use 500 to indicate that the cause of the error is unknown - other error codes
 		// are more specific to HTTP interactions, and set a reason
