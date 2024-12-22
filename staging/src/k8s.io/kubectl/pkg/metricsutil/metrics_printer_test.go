@@ -130,7 +130,7 @@ node1   1000m        10%      1024Mi          10%
 			for _, n := range test.nodes {
 				availableResources[n.Name] = n.Status.Capacity
 			}
-			top := NewTopCmdPrinter(out)
+			top := NewTopCmdPrinter(out, false)
 			err := top.PrintNodeMetrics(test.nodeMetric, availableResources, test.noHeader, test.sortBy)
 			assert.Equal(t, test.expectedErr, err)
 			assert.Equal(t, test.expectedOutput, out.String())
@@ -374,7 +374,7 @@ test-1   400m         5120Mi
 			// Create a new TopCmdPrinter with a test writer.
 			_, _, out, _ := genericiooptions.NewTestIOStreams()
 
-			top := NewTopCmdPrinter(out)
+			top := NewTopCmdPrinter(out, false)
 			err := top.PrintPodMetrics(test.podMetric, test.printContainers,
 				test.withNamespace, test.noHeader, test.sortBy, test.sum)
 			assert.Equal(t, test.expectedErr, err)

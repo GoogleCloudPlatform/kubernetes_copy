@@ -18,10 +18,12 @@ package top
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
-
+	"fmt"
 	"github.com/spf13/cobra"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/cli-runtime/pkg/genericiooptions"
@@ -45,6 +47,7 @@ type TopNodeOptions struct {
 	NoHeaders          bool
 	UseProtocolBuffers bool
 	ShowCapacity       bool
+	ShowSwap           bool
 
 	NodeClient      corev1client.CoreV1Interface
 	Printer         *metricsutil.TopCmdPrinter
@@ -95,6 +98,7 @@ func NewCmdTopNode(f cmdutil.Factory, o *TopNodeOptions, streams genericiooption
 	cmd.Flags().BoolVar(&o.NoHeaders, "no-headers", o.NoHeaders, "If present, print output without headers")
 	cmd.Flags().BoolVar(&o.UseProtocolBuffers, "use-protocol-buffers", o.UseProtocolBuffers, "Enables using protocol-buffers to access Metrics API.")
 	cmd.Flags().BoolVar(&o.ShowCapacity, "show-capacity", o.ShowCapacity, "Print node resources based on Capacity instead of Allocatable(default) of the nodes.")
+	cmd.Flags().BoolVar(&o.ShowSwap, "show-swap", o.ShowSwap, "Print node resources related to swap memory.")
 
 	return cmd
 }
@@ -127,7 +131,7 @@ func (o *TopNodeOptions) Complete(f cmdutil.Factory, cmd *cobra.Command, args []
 
 	o.NodeClient = clientset.CoreV1()
 
-	o.Printer = metricsutil.NewTopCmdPrinter(o.Out)
+	o.Printer = metricsutil.NewTopCmdPrinter(o.Out, o.ShowSwap)
 	return nil
 }
 
@@ -198,6 +202,14 @@ func (o TopNodeOptions) RunTopNode() error {
 		} else {
 			availableResources[n.Name] = n.Status.Capacity
 		}
+
+		if o.ShowSwap {
+			availableSwap, err := getNodeSwapCapacity(o.NodeClient, n.Name)
+			if err != nil {
+				return fmt.Errorf("failed to get swap memory capacity for node %s: %w", n.Name, err)
+			}
+			availableResources[n.Name]["swap"] = *availableSwap
+		}
 	}
 
 	return o.Printer.PrintNodeMetrics(metrics.Items, availableResources, o.NoHeaders, o.SortBy)
@@ -226,4 +238,39 @@ func getNodeMetricsFromMetricsAPI(metricsClient metricsclientset.Interface, reso
 		return nil, err
 	}
 	return metrics, nil
+}
+
+func getNodeSwapCapacity(nodeClient corev1client.CoreV1Interface, nodeName string) (*resource.Quantity, error) {
+	summaryBytes, err := nodeClient.RESTClient().Get().
+		AbsPath("/api/v1/nodes", nodeName, "proxy/stats/summary").
+		DoRaw(context.TODO())
+	if err != nil {
+		return nil, fmt.Errorf("failed to get node summary: %w", err)
+	}
+
+	summary := Summary{}
+	err = json.Unmarshal(summaryBytes, &summary)
+	if err != nil {
+		return nil, err
+	}
+
+	if summary.Node.Swap == nil || summary.Node.Swap.SwapAvailableBytes == nil || summary.Node.Swap.SwapUsageBytes == nil {
+		return nil, fmt.Errorf("failed to get swap memory information for node %s", nodeName)
+	}
+
+	availableSwap := *summary.Node.Swap.SwapAvailableBytes + *summary.Node.Swap.SwapUsageBytes
+	return resource.NewQuantity(int64(availableSwap), resource.DecimalSI), nil
+}
+
+type Summary struct {
+	Node NodeStats `json:"node"`
+}
+
+type NodeStats struct {
+	Swap *SwapStats `json:"swap,omitempty"`
+}
+
+type SwapStats struct {
+	SwapAvailableBytes *uint64 `json:"swapAvailableBytes,omitempty"`
+	SwapUsageBytes     *uint64 `json:"swapUsageBytes,omitempty"`
 }

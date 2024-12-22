@@ -45,7 +45,7 @@ type TopCmdPrinter struct {
 	podColumns        []string
 }
 
-func NewTopCmdPrinter(out io.Writer) *TopCmdPrinter {
+func NewTopCmdPrinter(out io.Writer, showSwap bool) *TopCmdPrinter {
 	printer := &TopCmdPrinter{
 		out: out,
 		measuredResources: []v1.ResourceName{
@@ -54,6 +54,12 @@ func NewTopCmdPrinter(out io.Writer) *TopCmdPrinter {
 		},
 		nodeColumns: []string{"NAME", "CPU(cores)", "CPU(%)", "MEMORY(bytes)", "MEMORY(%)"},
 		podColumns:  []string{"NAME", "CPU(cores)", "MEMORY(bytes)"},
+	}
+
+	if showSwap {
+		printer.measuredResources = append(printer.measuredResources, "swap")
+		printer.nodeColumns = append(printer.nodeColumns, "SWAP(bytes)")
+		printer.nodeColumns = append(printer.nodeColumns, "SWAP(%)")
 	}
 
 	return printer
@@ -208,7 +214,10 @@ func (printer *TopCmdPrinter) printAllResourceUsages(out io.Writer, metrics *Res
 		printSingleResourceUsage(out, res, quantity)
 		fmt.Fprint(out, "\t")
 		if available, found := metrics.Available[res]; found {
-			fraction := float64(quantity.MilliValue()) / float64(available.MilliValue()) * 100
+			fraction := 0.0
+			if !available.IsZero() {
+				fraction = float64(quantity.MilliValue()) / float64(available.MilliValue()) * 100
+			}
 			fmt.Fprintf(out, "%d%%\t", int64(fraction))
 		}
 	}
@@ -218,7 +227,7 @@ func printSingleResourceUsage(out io.Writer, resourceType v1.ResourceName, quant
 	switch resourceType {
 	case v1.ResourceCPU:
 		fmt.Fprintf(out, "%vm", quantity.MilliValue())
-	case v1.ResourceMemory:
+	case v1.ResourceMemory, "swap":
 		fmt.Fprintf(out, "%vMi", quantity.Value()/(1024*1024))
 	default:
 		fmt.Fprintf(out, "%v", quantity.Value())

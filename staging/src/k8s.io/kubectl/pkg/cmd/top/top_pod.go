@@ -152,7 +152,7 @@ func (o *TopPodOptions) Complete(f cmdutil.Factory, cmd *cobra.Command, args []s
 
 	o.PodClient = clientset.CoreV1()
 
-	o.Printer = metricsutil.NewTopCmdPrinter(o.Out)
+	o.Printer = metricsutil.NewTopCmdPrinter(o.Out, false)
 	return nil
 }
 
