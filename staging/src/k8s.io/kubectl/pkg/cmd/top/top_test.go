@@ -63,6 +63,7 @@ func testNodeV1beta1MetricsData() (*metricsv1beta1api.NodeMetricsList, *v1.NodeL
 				Window:     metav1.Duration{Duration: time.Minute},
 				Usage: v1.ResourceList{
 					v1.ResourceCPU:     *resource.NewMilliQuantity(1, resource.DecimalSI),
+					"swap":             *resource.NewQuantity(1*(1024*1024), resource.DecimalSI),
 					v1.ResourceMemory:  *resource.NewQuantity(2*(1024*1024), resource.DecimalSI),
 					v1.ResourceStorage: *resource.NewQuantity(3*(1024*1024), resource.DecimalSI),
 				},
@@ -72,6 +73,7 @@ func testNodeV1beta1MetricsData() (*metricsv1beta1api.NodeMetricsList, *v1.NodeL
 				Window:     metav1.Duration{Duration: time.Minute},
 				Usage: v1.ResourceList{
 					v1.ResourceCPU:     *resource.NewMilliQuantity(5, resource.DecimalSI),
+					"swap":             *resource.NewQuantity(2*(1024*1024), resource.DecimalSI),
 					v1.ResourceMemory:  *resource.NewQuantity(6*(1024*1024), resource.DecimalSI),
 					v1.ResourceStorage: *resource.NewQuantity(7*(1024*1024), resource.DecimalSI),
 				},
@@ -81,6 +83,7 @@ func testNodeV1beta1MetricsData() (*metricsv1beta1api.NodeMetricsList, *v1.NodeL
 				Window:     metav1.Duration{Duration: time.Minute},
 				Usage: v1.ResourceList{
 					v1.ResourceCPU:     *resource.NewMilliQuantity(3, resource.DecimalSI),
+					"swap":             *resource.NewQuantity(0, resource.DecimalSI),
 					v1.ResourceMemory:  *resource.NewQuantity(4*(1024*1024), resource.DecimalSI),
 					v1.ResourceStorage: *resource.NewQuantity(5*(1024*1024), resource.DecimalSI),
 				},
