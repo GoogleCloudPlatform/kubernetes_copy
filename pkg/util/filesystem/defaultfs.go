@@ -90,7 +90,7 @@ func MkdirAllWithPathCheck(path string, perm os.FileMode) error {
 		// 1. for Unix/Linux OS, check if the path is directory.
 		// 2. for windows NTFS, check if the path is symlink instead of directory.
 		if dir.IsDir() ||
-			(runtime.GOOS == "windows" && (dir.Mode()&os.ModeSymlink != 0)) {
+			(runtime.GOOS == "windows" && (dir.Mode()&os.ModeSymlink != 0 || dir.Mode()&os.ModeIrregular != 0)) {
 			return nil
 		}
 		return fmt.Errorf("path %v exists but is not a directory", path)
