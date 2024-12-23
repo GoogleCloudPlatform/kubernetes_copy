@@ -61,6 +61,7 @@ func NewTopCmdPrinter(out io.Writer, showSwap bool) *TopCmdPrinter {
 		printer.measuredResources = append(printer.measuredResources, "swap")
 		printer.nodeColumns = append(printer.nodeColumns, "SWAP(bytes)")
 		printer.nodeColumns = append(printer.nodeColumns, "SWAP(%)")
+		printer.podColumns = append(printer.podColumns, "SWAP(bytes)")
 	}
 
 	return printer
