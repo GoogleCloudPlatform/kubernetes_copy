@@ -19,6 +19,7 @@ package metricsutil
 import (
 	"fmt"
 	"io"
+	"slices"
 	"sort"
 
 	"k8s.io/api/core/v1"
@@ -73,19 +74,31 @@ func (printer *TopCmdPrinter) PrintNodeMetrics(metrics []metricsapi.NodeMetrics,
 	defer w.Flush()
 
 	measuredResources := printer.measuredResources
+	nodeColumns := printer.nodeColumns
+	if slices.Contains(measuredResources, "swap") {
+		nodeColumns = append(nodeColumns, "SWAP CAPACITY(bytes)")
+		measuredResources = append(measuredResources, "swap capacity")
+	}
+
 	sort.Sort(NewNodeMetricsSorter(metrics, sortBy))
 
 	if !noHeaders {
-		printColumnNames(w, printer.nodeColumns)
+		printColumnNames(w, nodeColumns)
 	}
 	var usage v1.ResourceList
 	for _, m := range metrics {
 		m.Usage.DeepCopyInto(&usage)
-		printer.printMetricsLine(w, &ResourceMetricsInfo{
+		metricInfo := &ResourceMetricsInfo{
 			Name:      m.Name,
 			Metrics:   usage,
 			Available: availableResources[m.Name],
-		}, measuredResources)
+		}
+
+		if slices.Contains(measuredResources, "swap capacity") {
+			metricInfo.Metrics["swap capacity"] = availableResources[m.Name]["swap"]
+		}
+
+		printer.printMetricsLine(w, metricInfo, measuredResources)
 		delete(availableResources, m.Name)
 	}
 
@@ -227,7 +240,7 @@ func printSingleResourceUsage(out io.Writer, resourceType v1.ResourceName, quant
 	switch resourceType {
 	case v1.ResourceCPU:
 		fmt.Fprintf(out, "%vm", quantity.MilliValue())
-	case v1.ResourceMemory, "swap":
+	case v1.ResourceMemory, "swap", "swap capacity":
 		fmt.Fprintf(out, "%vMi", quantity.Value()/(1024*1024))
 	default:
 		fmt.Fprintf(out, "%v", quantity.Value())
