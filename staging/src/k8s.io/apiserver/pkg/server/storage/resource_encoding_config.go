@@ -22,6 +22,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	apimachineryversion "k8s.io/apimachinery/pkg/util/version"
+	"k8s.io/apiserver/pkg/util/compatibility"
 	version "k8s.io/component-base/version"
 )
 
@@ -54,7 +55,7 @@ type OverridingResourceEncoding struct {
 var _ ResourceEncodingConfig = &DefaultResourceEncodingConfig{}
 
 func NewDefaultResourceEncodingConfig(scheme *runtime.Scheme) *DefaultResourceEncodingConfig {
-	return &DefaultResourceEncodingConfig{resources: map[schema.GroupResource]*OverridingResourceEncoding{}, scheme: scheme, effectiveVersion: version.DefaultKubeEffectiveVersion()}
+	return &DefaultResourceEncodingConfig{resources: map[schema.GroupResource]*OverridingResourceEncoding{}, scheme: scheme, effectiveVersion: compatibility.DefaultKubeEffectiveVersion()}
 }
 
 func (o *DefaultResourceEncodingConfig) SetResourceEncoding(resourceBeingStored schema.GroupResource, externalEncodingVersion, internalVersion schema.GroupVersion) {

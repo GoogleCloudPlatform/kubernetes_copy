@@ -55,7 +55,7 @@ func (registry) binaryVersion() *version.Version {
 		return effectiveVer.BinaryVersion()
 	}
 
-	return utilversion.DefaultKubeEffectiveVersion().BinaryVersion()
+	return version.MustParse(utilversion.Get().String())
 }
 
 func (registry) emulationVersion() *version.Version {

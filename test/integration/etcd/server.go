@@ -38,6 +38,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/json"
 	"k8s.io/apimachinery/pkg/util/wait"
 	genericapiserveroptions "k8s.io/apiserver/pkg/server/options"
+	"k8s.io/apiserver/pkg/util/compatibility"
 	"k8s.io/apiserver/pkg/util/feature"
 	cacheddiscovery "k8s.io/client-go/discovery/cached/memory"
 	"k8s.io/client-go/dynamic"
@@ -47,7 +48,6 @@ import (
 	utiltesting "k8s.io/client-go/util/testing"
 	"k8s.io/component-base/featuregate"
 	featuregatetesting "k8s.io/component-base/featuregate/testing"
-	utilversion "k8s.io/component-base/version"
 	"k8s.io/kubernetes/cmd/kube-apiserver/app"
 	"k8s.io/kubernetes/cmd/kube-apiserver/app/options"
 	"k8s.io/kubernetes/test/integration"
@@ -99,7 +99,7 @@ func StartRealAPIServerOrDie(t *testing.T, configFuncs ...func(*options.ServerRu
 	// If EmulationVersion of DefaultFeatureGate is set during test, we need to propagate it to the apiserver ComponentGlobalsRegistry.
 	featureGate := feature.DefaultMutableFeatureGate.DeepCopy()
 	featureGate.AddMetrics()
-	effectiveVersion := utilversion.DefaultKubeEffectiveVersion()
+	effectiveVersion := compatibility.DefaultKubeEffectiveVersion()
 	effectiveVersion.SetEmulationVersion(featureGate.EmulationVersion())
 	// set up new instance of ComponentGlobalsRegistry instead of using the DefaultComponentGlobalsRegistry to avoid contention in parallel tests.
 	componentGlobalsRegistry := featuregate.NewComponentGlobalsRegistry()

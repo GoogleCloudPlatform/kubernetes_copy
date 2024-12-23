@@ -570,7 +570,7 @@ func TestStorageFactoryCompatibilityVersion(t *testing.T) {
 		gvk := gvks[0]
 		t.Run(gvk.GroupKind().String()+"@"+tc.effectiveVersion, func(t *testing.T) {
 			config := NewDefaultResourceEncodingConfig(sch)
-			config.SetEffectiveVersion(version.NewEffectiveVersion(tc.effectiveVersion))
+			config.SetEffectiveVersion(version.NewEffectiveVersionFromString(tc.effectiveVersion))
 			f := NewDefaultStorageFactory(
 				storagebackend.Config{},
 				"",

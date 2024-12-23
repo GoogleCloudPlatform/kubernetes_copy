@@ -32,9 +32,9 @@ import (
 	celconfig "k8s.io/apiserver/pkg/apis/cel"
 	"k8s.io/apiserver/pkg/cel/library"
 	genericfeatures "k8s.io/apiserver/pkg/features"
+	"k8s.io/apiserver/pkg/util/compatibility"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/component-base/featuregate"
-	utilversion "k8s.io/component-base/version"
 )
 
 // DefaultCompatibilityVersion returns a default compatibility version for use with EnvSet
@@ -52,7 +52,7 @@ import (
 func DefaultCompatibilityVersion() *version.Version {
 	effectiveVer := featuregate.DefaultComponentGlobalsRegistry.EffectiveVersionFor(featuregate.DefaultKubeComponent)
 	if effectiveVer == nil {
-		effectiveVer = utilversion.DefaultKubeEffectiveVersion()
+		effectiveVer = compatibility.DefaultKubeEffectiveVersion()
 	}
 	return effectiveVer.MinCompatibilityVersion()
 }

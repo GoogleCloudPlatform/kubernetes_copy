@@ -56,7 +56,7 @@ func TestAddFlags(t *testing.T) {
 		componentGlobalsRegistry.Reset()
 	})
 	fs := pflag.NewFlagSet("addflagstest", pflag.PanicOnError)
-	utilruntime.Must(componentGlobalsRegistry.Register("test", utilversion.NewEffectiveVersion("1.32"), featuregate.NewFeatureGate()))
+	utilruntime.Must(componentGlobalsRegistry.Register("test", utilversion.NewEffectiveVersionFromString("1.32"), featuregate.NewFeatureGate()))
 	s := NewOptions()
 	var fss cliflag.NamedFlagSets
 	s.AddFlags(&fss)

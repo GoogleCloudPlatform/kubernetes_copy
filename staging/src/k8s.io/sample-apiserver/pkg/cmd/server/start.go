@@ -33,6 +33,7 @@ import (
 	"k8s.io/apiserver/pkg/endpoints/openapi"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	genericoptions "k8s.io/apiserver/pkg/server/options"
+	"k8s.io/apiserver/pkg/util/compatibility"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/component-base/featuregate"
 	utilversion "k8s.io/component-base/version"
@@ -65,7 +66,7 @@ func WardleVersionToKubeVersion(ver *version.Version) *version.Version {
 	if ver.Major() != 1 {
 		return nil
 	}
-	kubeVer := utilversion.DefaultKubeEffectiveVersion().BinaryVersion()
+	kubeVer := compatibility.DefaultKubeEffectiveVersion().BinaryVersion()
 	// "1.2" maps to kubeVer
 	offset := int(ver.Minor()) - 2
 	mappedVer := kubeVer.OffsetMinor(offset)
@@ -139,7 +140,7 @@ func NewCommandStartWardleServer(ctx context.Context, defaults *WardleServerOpti
 	// associating it with its effective version and feature gate configuration.
 	// Will skip if the component has been registered, like in the integration test.
 	_, wardleFeatureGate := defaults.ComponentGlobalsRegistry.ComponentGlobalsOrRegister(
-		apiserver.WardleComponentName, utilversion.NewEffectiveVersion(defaultWardleVersion),
+		apiserver.WardleComponentName, utilversion.NewEffectiveVersionFromString(defaultWardleVersion),
 		featuregate.NewVersionedFeatureGate(version.MustParse(defaultWardleVersion)))
 
 	// Add versioned feature specifications for the "BanFlunder" feature.
@@ -154,7 +155,7 @@ func NewCommandStartWardleServer(ctx context.Context, defaults *WardleServerOpti
 
 	// Register the default kube component if not already present in the global registry.
 	_, _ = defaults.ComponentGlobalsRegistry.ComponentGlobalsOrRegister(featuregate.DefaultKubeComponent,
-		utilversion.NewEffectiveVersion(utilversion.DefaultKubeBinaryVersion), utilfeature.DefaultMutableFeatureGate)
+		utilversion.NewEffectiveVersionFromString(utilversion.DefaultKubeBinaryVersion), utilfeature.DefaultMutableFeatureGate)
 
 	// Set the emulation version mapping from the "Wardle" component to the kube component.
 	// This ensures that the emulation version of the latter is determined by the emulation version of the former.

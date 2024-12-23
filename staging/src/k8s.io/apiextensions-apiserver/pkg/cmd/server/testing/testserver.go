@@ -35,6 +35,7 @@ import (
 	openapinamer "k8s.io/apiserver/pkg/endpoints/openapi"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	"k8s.io/apiserver/pkg/storage/storagebackend"
+	"k8s.io/apiserver/pkg/util/compatibility"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/apiserver/pkg/util/openapi"
 	"k8s.io/client-go/kubernetes"
@@ -42,7 +43,6 @@ import (
 	"k8s.io/component-base/featuregate"
 	featuregatetesting "k8s.io/component-base/featuregate/testing"
 	logsapi "k8s.io/component-base/logs/api/v1"
-	utilversion "k8s.io/component-base/version"
 	"k8s.io/klog/v2"
 )
 
@@ -128,7 +128,7 @@ func StartTestServer(t Logger, _ *TestServerInstanceOptions, customFlags []strin
 
 	// set up new instance of ComponentGlobalsRegistry instead of using the DefaultComponentGlobalsRegistry to avoid contention in parallel tests.
 	featureGate := utilfeature.DefaultMutableFeatureGate.DeepCopy()
-	effectiveVersion := utilversion.DefaultKubeEffectiveVersion()
+	effectiveVersion := compatibility.DefaultKubeEffectiveVersion()
 	effectiveVersion.SetEmulationVersion(featureGate.EmulationVersion())
 	componentGlobalsRegistry := featuregate.NewComponentGlobalsRegistry()
 	if err := componentGlobalsRegistry.Register(featuregate.DefaultKubeComponent, effectiveVersion, featureGate); err != nil {

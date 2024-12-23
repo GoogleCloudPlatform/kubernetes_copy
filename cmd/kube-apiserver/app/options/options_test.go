@@ -55,7 +55,7 @@ func TestAddFlags(t *testing.T) {
 	})
 	fs := pflag.NewFlagSet("addflagstest", pflag.PanicOnError)
 
-	utilruntime.Must(componentGlobalsRegistry.Register("test", utilversion.NewEffectiveVersion("1.32"), featuregate.NewFeatureGate()))
+	utilruntime.Must(componentGlobalsRegistry.Register("test", utilversion.NewEffectiveVersionFromString("1.32"), featuregate.NewFeatureGate()))
 	s := NewServerRunOptions()
 	for _, f := range s.Flags().FlagSets {
 		fs.AddFlagSet(f)

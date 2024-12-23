@@ -743,7 +743,7 @@ func TestEmulatedVersion(t *testing.T) {
 			componentGlobalsRegistry.Reset() // make sure this test doesn't leak a dirty state
 		})
 
-		verKube := utilversion.NewEffectiveVersion("1.32")
+		verKube := utilversion.NewEffectiveVersionFromString("1.32").WithEmulationVersionFloor(version.MustParse("1.31"))
 		fg := featuregate.NewVersionedFeatureGate(version.MustParse("1.32"))
 		utilruntime.Must(fg.AddVersioned(map[featuregate.Feature]featuregate.VersionedSpecs{
 			"kubeA": {

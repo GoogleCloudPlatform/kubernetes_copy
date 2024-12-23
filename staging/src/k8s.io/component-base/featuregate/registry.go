@@ -33,7 +33,7 @@ import (
 // DefaultComponentGlobalsRegistry is the global var to store the effective versions and feature gates for all components for easy access.
 // Example usage:
 // // register the component effective version and feature gate first
-// _, _ = utilversion.DefaultComponentGlobalsRegistry.ComponentGlobalsOrRegister(utilversion.DefaultKubeComponent, utilversion.DefaultKubeEffectiveVersion(), utilfeature.DefaultMutableFeatureGate)
+// _, _ = utilversion.DefaultComponentGlobalsRegistry.ComponentGlobalsOrRegister(utilversion.DefaultKubeComponent, compatibility.DefaultKubeEffectiveVersion(), utilfeature.DefaultMutableFeatureGate)
 // wardleEffectiveVersion := utilversion.NewEffectiveVersion("1.2")
 // wardleFeatureGate := featuregate.NewFeatureGate()
 // utilruntime.Must(utilversion.DefaultComponentGlobalsRegistry.Register(apiserver.WardleComponentName, wardleEffectiveVersion, wardleFeatureGate, false))
@@ -219,22 +219,16 @@ func (r *componentGlobalsRegistry) unsafeKnownFeatures() []string {
 func (r *componentGlobalsRegistry) unsafeVersionFlagOptions(isEmulation bool) []string {
 	var vs []string
 	for component, globals := range r.componentGlobals {
-		binaryVer := globals.effectiveVersion.BinaryVersion()
 		if isEmulation {
 			if globals.dependentEmulationVersion {
 				continue
 			}
-			// emulated version could be between binaryMajor.{binaryMinor} and binaryMajor.{binaryMinor}
-			// TODO: change to binaryMajor.{binaryMinor-1} and binaryMajor.{binaryMinor} in 1.32
-			vs = append(vs, fmt.Sprintf("%s=%s..%s (default=%s)", component,
-				binaryVer.SubtractMinor(0).String(), binaryVer.String(), globals.effectiveVersion.EmulationVersion().String()))
+			vs = append(vs, fmt.Sprintf("%s=%s", component, globals.effectiveVersion.AllowedEmulationVersionRange()))
 		} else {
 			if globals.dependentMinCompatibilityVersion {
 				continue
 			}
-			// min compatibility version could be between binaryMajor.{binaryMinor-1} and binaryMajor.{binaryMinor}
-			vs = append(vs, fmt.Sprintf("%s=%s..%s (default=%s)", component,
-				binaryVer.SubtractMinor(1).String(), binaryVer.String(), globals.effectiveVersion.MinCompatibilityVersion().String()))
+			vs = append(vs, fmt.Sprintf("%s=%s", component, globals.effectiveVersion.AllowedMinCompatibilityVersionRange()))
 		}
 	}
 	sort.Strings(vs)

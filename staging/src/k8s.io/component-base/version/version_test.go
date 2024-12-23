@@ -24,102 +24,75 @@ import (
 
 func TestValidate(t *testing.T) {
 	tests := []struct {
-		name                    string
-		binaryVersion           string
-		emulationVersion        string
-		minCompatibilityVersion string
-		expectErrors            bool
+		name                         string
+		binaryVersion                string
+		emulationVersion             string
+		minCompatibilityVersion      string
+		emulationVersionFloor        string
+		minCompatibilityVersionFloor string
+		expectErrors                 bool
 	}{
 		{
 			name:                    "patch version diff ok",
-			binaryVersion:           "v1.32.2",
-			emulationVersion:        "v1.32.1",
-			minCompatibilityVersion: "v1.31.5",
+			binaryVersion:           "v1.32.1",
+			emulationVersion:        "v1.32.2",
+			minCompatibilityVersion: "v1.32.5",
 		},
 		{
-			name:                    "emulation version one minor lower than binary ok",
-			binaryVersion:           "v1.32.2",
-			emulationVersion:        "v1.31.0",
-			minCompatibilityVersion: "v1.31.0",
-		},
-		{
-			name:                    "emulation version two minor lower than binary ok",
-			binaryVersion:           "v1.33.2",
-			emulationVersion:        "v1.31.0",
-			minCompatibilityVersion: "v1.31.0",
-			expectErrors:            false,
-		},
-		{
-			name:                    "emulation version three minor lower than binary ok",
-			binaryVersion:           "v1.35.0",
-			emulationVersion:        "v1.32.0",
-			minCompatibilityVersion: "v1.32.0",
-		},
-		{
-			name:                    "emulation version four minor lower than binary not ok",
-			binaryVersion:           "v1.36.0",
-			emulationVersion:        "v1.32.0",
-			minCompatibilityVersion: "v1.32.0",
-			expectErrors:            true,
-		},
-		{
-			name:                    "emulation version one minor higher than binary not ok",
+			name:                    "emulation version greater than binary not ok",
 			binaryVersion:           "v1.32.2",
 			emulationVersion:        "v1.33.0",
 			minCompatibilityVersion: "v1.31.0",
 			expectErrors:            true,
 		},
 		{
-			name:                    "emulation version two minor higher than binary not ok",
+			name:                    "min compatibility version greater than emulation version not ok",
 			binaryVersion:           "v1.32.2",
-			emulationVersion:        "v1.34.0",
-			minCompatibilityVersion: "v1.31.0",
-			expectErrors:            true,
-		},
-		{
-			name:                    "compatibility version same as binary ok",
-			binaryVersion:           "v1.32.2",
-			emulationVersion:        "v1.32.0",
+			emulationVersion:        "v1.31.0",
 			minCompatibilityVersion: "v1.32.0",
-			expectErrors:            false,
-		},
-		{
-			name:                    "compatibility version two minor lower than binary ok",
-			binaryVersion:           "v1.32.2",
-			emulationVersion:        "v1.32.0",
-			minCompatibilityVersion: "v1.30.0",
-			expectErrors:            false,
-		},
-		{
-			name:                    "compatibility version three minor lower than binary ok",
-			binaryVersion:           "v1.34.2",
-			emulationVersion:        "v1.33.0",
-			minCompatibilityVersion: "v1.31.0",
-			expectErrors:            false,
-		},
-		{
-			name:                    "compatibility version one minor higher than binary not ok",
-			binaryVersion:           "v1.32.2",
-			emulationVersion:        "v1.32.0",
-			minCompatibilityVersion: "v1.33.0",
 			expectErrors:            true,
 		},
 		{
-			name:                    "emulation version lower than compatibility version not ok",
-			binaryVersion:           "v1.34.2",
-			emulationVersion:        "v1.32.0",
-			minCompatibilityVersion: "v1.33.0",
-			expectErrors:            true,
+			name:                         "between floor and binary ok",
+			binaryVersion:                "v1.32.1",
+			emulationVersion:             "v1.31.0",
+			minCompatibilityVersion:      "v1.30.0",
+			emulationVersionFloor:        "v1.31.0",
+			minCompatibilityVersionFloor: "v1.30.0",
+		},
+		{
+			name:                         "emulation version less than floor not ok",
+			binaryVersion:                "v1.32.1",
+			emulationVersion:             "v1.30.0",
+			minCompatibilityVersion:      "v1.30.0",
+			emulationVersionFloor:        "v1.31.0",
+			minCompatibilityVersionFloor: "v1.30.0",
+			expectErrors:                 true,
+		},
+		{
+			name:                         "min compatibility version less than floor not ok",
+			binaryVersion:                "v1.32.1",
+			emulationVersion:             "v1.31.0",
+			minCompatibilityVersion:      "v1.29.0",
+			emulationVersionFloor:        "v1.31.0",
+			minCompatibilityVersionFloor: "v1.30.0",
+			expectErrors:                 true,
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			binaryVersion := version.MustParseGeneric(test.binaryVersion)
-			effective := &effectiveVersion{}
+			effective := NewEffectiveVersion(binaryVersion)
 			emulationVersion := version.MustParseGeneric(test.emulationVersion)
 			minCompatibilityVersion := version.MustParseGeneric(test.minCompatibilityVersion)
 			effective.Set(binaryVersion, emulationVersion, minCompatibilityVersion)
+			if len(test.emulationVersionFloor) > 0 {
+				effective = effective.WithEmulationVersionFloor(version.MustParseGeneric(test.emulationVersionFloor))
+			}
+			if len(test.minCompatibilityVersionFloor) > 0 {
+				effective = effective.WithMinCompatibilityVersionFloor(version.MustParseGeneric(test.minCompatibilityVersionFloor))
+			}
 
 			errs := effective.Validate()
 			if len(errs) > 0 && !test.expectErrors {
@@ -133,52 +106,49 @@ func TestValidate(t *testing.T) {
 	}
 }
 
-func TestValidateKubeEffectiveVersion(t *testing.T) {
+func TestSetEmulationVersion(t *testing.T) {
 	tests := []struct {
-		name                    string
-		emulationVersion        string
-		minCompatibilityVersion string
-		expectErr               bool
+		name                          string
+		binaryVersion                 string
+		emulationVersion              string
+		expectMinCompatibilityVersion string
+		emulationVersionFloor         string
+		minCompatibilityVersionFloor  string
 	}{
 		{
-			name:                    "valid versions",
-			emulationVersion:        "v1.31.0",
-			minCompatibilityVersion: "v1.31.0",
-			expectErr:               false,
+			name:                          "minCompatibilityVersion default to 1 minor less than emulationVersion",
+			binaryVersion:                 "v1.34",
+			emulationVersion:              "v1.32",
+			expectMinCompatibilityVersion: "v1.31",
+			emulationVersionFloor:         "v1.31",
+			minCompatibilityVersionFloor:  "v1.31",
 		},
 		{
-			name:                    "emulationVersion too low",
-			emulationVersion:        "v1.30.0",
-			minCompatibilityVersion: "v1.31.0",
-			expectErr:               true,
-		},
-		{
-			name:                    "minCompatibilityVersion too low",
-			emulationVersion:        "v1.31.0",
-			minCompatibilityVersion: "v1.29.0",
-			expectErr:               true,
-		},
-		{
-			name:                    "both versions too low",
-			emulationVersion:        "v1.30.0",
-			minCompatibilityVersion: "v1.30.0",
-			expectErr:               true,
+			name:                          "minCompatibilityVersion default to emulationVersion when hitting the floor",
+			binaryVersion:                 "v1.34",
+			emulationVersion:              "v1.31",
+			expectMinCompatibilityVersion: "v1.31",
+			emulationVersionFloor:         "v1.31",
+			minCompatibilityVersionFloor:  "v1.31",
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			binaryVersion := version.MustParseGeneric(test.binaryVersion)
+			effective := NewEffectiveVersion(binaryVersion).WithEmulationVersionFloor(version.MustParseGeneric(test.emulationVersionFloor)).WithMinCompatibilityVersionFloor(version.MustParseGeneric(test.minCompatibilityVersionFloor))
 
-			effective := NewEffectiveVersion("1.32")
-			effective.SetEmulationVersion(version.MustParseGeneric(test.emulationVersion))
-			effective.SetMinCompatibilityVersion(version.MustParseGeneric(test.minCompatibilityVersion))
-
-			err := ValidateKubeEffectiveVersion(effective)
-			if test.expectErr && err == nil {
-				t.Error("expected error, but got nil")
+			emulationVersion := version.MustParseGeneric(test.emulationVersion)
+			effective.SetEmulationVersion(emulationVersion)
+			errs := effective.Validate()
+			if len(errs) > 0 {
+				t.Fatalf("expected no Validate errors, errors found %+v", errs)
+				return
 			}
-			if !test.expectErr && err != nil {
-				t.Errorf("unexpected error: %v", err)
+
+			expectMinCompatibilityVersion := version.MustParseGeneric(test.expectMinCompatibilityVersion)
+			if !effective.MinCompatibilityVersion().EqualTo(expectMinCompatibilityVersion) {
+				t.Errorf("expected minCompatibilityVersion %s, got %s", expectMinCompatibilityVersion.String(), effective.MinCompatibilityVersion().String())
 			}
 		})
 	}

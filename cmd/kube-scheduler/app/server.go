@@ -39,6 +39,7 @@ import (
 	"k8s.io/apiserver/pkg/server/healthz"
 	"k8s.io/apiserver/pkg/server/mux"
 	"k8s.io/apiserver/pkg/server/routes"
+	"k8s.io/apiserver/pkg/util/compatibility"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -87,7 +88,7 @@ func NewSchedulerCommand(registryOptions ...Option) *cobra.Command {
 	// explicitly register (if not already registered) the kube effective version and feature gate in DefaultComponentGlobalsRegistry,
 	// which will be used in NewOptions.
 	_, _ = featuregate.DefaultComponentGlobalsRegistry.ComponentGlobalsOrRegister(
-		featuregate.DefaultKubeComponent, utilversion.DefaultBuildEffectiveVersion(), utilfeature.DefaultMutableFeatureGate)
+		featuregate.DefaultKubeComponent, compatibility.DefaultBuildEffectiveVersion(), utilfeature.DefaultMutableFeatureGate)
 	opts := options.NewOptions()
 
 	cmd := &cobra.Command{

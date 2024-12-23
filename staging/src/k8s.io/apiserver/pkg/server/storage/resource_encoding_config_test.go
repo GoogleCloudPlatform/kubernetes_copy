@@ -40,14 +40,14 @@ func TestEmulatedStorageVersion(t *testing.T) {
 			name:             "pick compatible",
 			scheme:           AlphaBetaScheme(utilversion.MustParse("1.31"), utilversion.MustParse("1.32")),
 			binaryVersion:    v1beta1,
-			effectiveVersion: version.NewEffectiveVersion("1.32"),
+			effectiveVersion: version.NewEffectiveVersionFromString("1.32"),
 			want:             v1alpha1,
 		},
 		{
 			name:             "alpha has been replaced, pick binary version",
 			scheme:           AlphaReplacedBetaScheme(utilversion.MustParse("1.31"), utilversion.MustParse("1.32")),
 			binaryVersion:    v1beta1,
-			effectiveVersion: version.NewEffectiveVersion("1.32"),
+			effectiveVersion: version.NewEffectiveVersionFromString("1.32"),
 			want:             v1beta1,
 		},
 	}

@@ -60,6 +60,7 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/apiserver/pkg/endpoints/handlers"
 	"k8s.io/apiserver/pkg/storage/storagebackend"
+	"k8s.io/apiserver/pkg/util/compatibility"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/client-go/discovery/cached/memory"
 	"k8s.io/client-go/dynamic"
@@ -70,7 +71,6 @@ import (
 	"k8s.io/client-go/restmapper"
 	"k8s.io/client-go/tools/pager"
 	featuregatetesting "k8s.io/component-base/featuregate/testing"
-	utilversion "k8s.io/component-base/version"
 	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/cmd/kube-apiserver/app/options"
 	kubeapiservertesting "k8s.io/kubernetes/cmd/kube-apiserver/app/testing"
@@ -3302,7 +3302,7 @@ func TestAllowedEmulationVersions(t *testing.T) {
 	}{
 		{
 			name:             "default",
-			emulationVersion: utilversion.DefaultKubeEffectiveVersion().EmulationVersion().String(),
+			emulationVersion: compatibility.DefaultKubeEffectiveVersion().EmulationVersion().String(),
 		},
 	}
 

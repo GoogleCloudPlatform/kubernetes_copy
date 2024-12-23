@@ -40,6 +40,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apiserver/pkg/server/healthz"
 	"k8s.io/apiserver/pkg/server/mux"
+	"k8s.io/apiserver/pkg/util/compatibility"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	cacheddiscovery "k8s.io/client-go/discovery/cached/memory"
 	"k8s.io/client-go/informers"
@@ -96,7 +97,7 @@ const (
 // NewControllerManagerCommand creates a *cobra.Command object with default parameters
 func NewControllerManagerCommand() *cobra.Command {
 	_, _ = featuregate.DefaultComponentGlobalsRegistry.ComponentGlobalsOrRegister(
-		featuregate.DefaultKubeComponent, utilversion.DefaultBuildEffectiveVersion(), utilfeature.DefaultMutableFeatureGate)
+		featuregate.DefaultKubeComponent, compatibility.DefaultBuildEffectiveVersion(), utilfeature.DefaultMutableFeatureGate)
 
 	s, err := options.NewKubeControllerManagerOptions()
 	if err != nil {

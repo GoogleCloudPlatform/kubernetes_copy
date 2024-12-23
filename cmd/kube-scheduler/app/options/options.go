@@ -28,6 +28,7 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/uuid"
 	apiserveroptions "k8s.io/apiserver/pkg/server/options"
+	"k8s.io/apiserver/pkg/util/compatibility"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/dynamic/dynamicinformer"
@@ -45,7 +46,6 @@ import (
 	"k8s.io/component-base/logs"
 	logsapi "k8s.io/component-base/logs/api/v1"
 	"k8s.io/component-base/metrics"
-	utilversion "k8s.io/component-base/version"
 	zpagesfeatures "k8s.io/component-base/zpages/features"
 	"k8s.io/component-base/zpages/flagz"
 	"k8s.io/klog/v2"
@@ -89,7 +89,7 @@ func NewOptions() *Options {
 	// make sure DefaultKubeComponent is registered in the DefaultComponentGlobalsRegistry.
 	if featuregate.DefaultComponentGlobalsRegistry.EffectiveVersionFor(featuregate.DefaultKubeComponent) == nil {
 		featureGate := utilfeature.DefaultMutableFeatureGate
-		effectiveVersion := utilversion.DefaultKubeEffectiveVersion()
+		effectiveVersion := compatibility.DefaultKubeEffectiveVersion()
 		utilruntime.Must(featuregate.DefaultComponentGlobalsRegistry.Register(featuregate.DefaultKubeComponent, effectiveVersion, featureGate))
 	}
 	o := &Options{
@@ -286,11 +286,6 @@ func (o *Options) Validate() []error {
 	errs = append(errs, o.Authentication.Validate()...)
 	errs = append(errs, o.Authorization.Validate()...)
 	errs = append(errs, o.Metrics.Validate()...)
-
-	effectiveVersion := o.ComponentGlobalsRegistry.EffectiveVersionFor(featuregate.DefaultKubeComponent)
-	if err := utilversion.ValidateKubeEffectiveVersion(effectiveVersion); err != nil {
-		errs = append(errs, err)
-	}
 
 	return errs
 }

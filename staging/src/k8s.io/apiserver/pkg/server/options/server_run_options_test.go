@@ -34,7 +34,7 @@ import (
 func TestServerRunOptionsValidate(t *testing.T) {
 	testRegistry := featuregate.NewComponentGlobalsRegistry()
 	featureGate := utilfeature.DefaultFeatureGate.DeepCopy()
-	effectiveVersion := utilversion.NewEffectiveVersion("1.35")
+	effectiveVersion := utilversion.NewEffectiveVersionFromString("1.35").WithEmulationVersionFloor(version.MajorMinor(1, 32))
 	effectiveVersion.SetEmulationVersion(version.MajorMinor(1, 31))
 	testComponent := "test"
 	utilruntime.Must(testRegistry.Register(testComponent, effectiveVersion, featureGate))

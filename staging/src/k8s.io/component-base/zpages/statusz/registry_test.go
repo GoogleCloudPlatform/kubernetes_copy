@@ -42,7 +42,7 @@ func TestBinaryVersion(t *testing.T) {
 		},
 		{
 			name:              "binaryVersion without effective version",
-			wantBinaryVersion: utilversion.DefaultKubeEffectiveVersion().BinaryVersion(),
+			wantBinaryVersion: version.MustParse(utilversion.Get().String()),
 		},
 	}
 
@@ -50,7 +50,7 @@ func TestBinaryVersion(t *testing.T) {
 		componentGlobalsRegistry.Reset()
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.setFakeEffectiveVersion {
-				verKube := utilversion.NewEffectiveVersion(tt.fakeVersion)
+				verKube := utilversion.NewEffectiveVersionFromString(tt.fakeVersion)
 				fg := featuregate.NewVersionedFeatureGate(version.MustParse(tt.fakeVersion))
 				utilruntime.Must(componentGlobalsRegistry.Register(featuregate.DefaultKubeComponent, verKube, fg))
 			}
@@ -86,7 +86,7 @@ func TestEmulationVersion(t *testing.T) {
 		componentGlobalsRegistry.Reset()
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.setFakeEffectiveVersion {
-				verKube := utilversion.NewEffectiveVersion("0.0.0")
+				verKube := utilversion.NewEffectiveVersionFromString("0.0.0")
 				verKube.SetEmulationVersion(version.MustParse(tt.fakeEmulVer))
 				fg := featuregate.NewVersionedFeatureGate(version.MustParse(tt.fakeEmulVer))
 				utilruntime.Must(componentGlobalsRegistry.Register(featuregate.DefaultKubeComponent, verKube, fg))

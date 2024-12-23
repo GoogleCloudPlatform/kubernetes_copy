@@ -34,6 +34,7 @@ import (
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	"k8s.io/apiserver/pkg/server/egressselector"
 	serverstorage "k8s.io/apiserver/pkg/server/storage"
+	"k8s.io/apiserver/pkg/util/compatibility"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/apiserver/pkg/util/notfoundhandler"
 	"k8s.io/apiserver/pkg/util/webhook"
@@ -65,7 +66,7 @@ func init() {
 // NewAPIServerCommand creates a *cobra.Command object with default parameters
 func NewAPIServerCommand() *cobra.Command {
 	_, featureGate := featuregate.DefaultComponentGlobalsRegistry.ComponentGlobalsOrRegister(
-		featuregate.DefaultKubeComponent, utilversion.DefaultBuildEffectiveVersion(), utilfeature.DefaultMutableFeatureGate)
+		featuregate.DefaultKubeComponent, compatibility.DefaultBuildEffectiveVersion(), utilfeature.DefaultMutableFeatureGate)
 	s := options.NewServerRunOptions()
 	ctx := genericapiserver.SetupSignalContext()
 

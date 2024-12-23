@@ -27,9 +27,9 @@ import (
 	"k8s.io/apimachinery/pkg/util/errors"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apiserver/pkg/server"
+	"k8s.io/apiserver/pkg/util/compatibility"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/component-base/featuregate"
-	utilversion "k8s.io/component-base/version"
 
 	"github.com/spf13/pflag"
 )
@@ -103,7 +103,7 @@ type ServerRunOptions struct {
 func NewServerRunOptions() *ServerRunOptions {
 	if featuregate.DefaultComponentGlobalsRegistry.EffectiveVersionFor(featuregate.DefaultKubeComponent) == nil {
 		featureGate := utilfeature.DefaultMutableFeatureGate
-		effectiveVersion := utilversion.DefaultKubeEffectiveVersion()
+		effectiveVersion := compatibility.DefaultKubeEffectiveVersion()
 		utilruntime.Must(featuregate.DefaultComponentGlobalsRegistry.Register(featuregate.DefaultKubeComponent, effectiveVersion, featureGate))
 	}
 
