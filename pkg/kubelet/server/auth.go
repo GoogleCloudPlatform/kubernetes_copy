@@ -27,6 +27,7 @@ import (
 	"k8s.io/apiserver/pkg/server/healthz"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/component-base/configz"
+	"k8s.io/component-base/zpages/flagz"
 	"k8s.io/component-base/zpages/statusz"
 	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/features"
@@ -74,6 +75,7 @@ func isSubpath(subpath, path string) bool {
 //	/runningPods/*	=> verb=<api verb from request>, resource=nodes, name=<node name>, subresource(s)=pods,proxy
 //	/healthz/* 		=> verb=<api verb from request>, resource=nodes, name=<node name>, subresource(s)=healthz,proxy
 //	/configz 		=> verb=<api verb from request>, resource=nodes, name=<node name>, subresource(s)=configz,proxy
+//	/flagz 		    => verb=<api verb from request>, resource=nodes, name=<node name>, subresource(s)=configz,proxy
 func (n nodeAuthorizerAttributesGetter) GetRequestAttributes(u user.Info, r *http.Request) []authorizer.Attributes {
 
 	apiVerb := ""
@@ -99,7 +101,8 @@ func (n nodeAuthorizerAttributesGetter) GetRequestAttributes(u user.Info, r *htt
 			subresources = append(subresources, "pods")
 		case isSubpath(requestPath, healthz.DefaultHealthzPath):
 			subresources = append(subresources, "healthz")
-		case isSubpath(requestPath, configz.DefaultConfigzPath):
+		case isSubpath(requestPath, configz.DefaultConfigzPath),
+			isSubpath(requestPath, flagz.DefaultFlagzPath):
 			subresources = append(subresources, "configz")
 		// We put runningpods last since it will allocate a new string on every
 		// check since the handler path has a trailing slash.
