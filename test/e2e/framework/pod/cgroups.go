@@ -252,15 +252,37 @@ func verifyContainerCgroupValues(f *framework.Framework, pod *v1.Pod, tc *v1.Con
 }
 
 func verifyPodCPUWeight(f *framework.Framework, pod *v1.Pod, podCgPath string, expectedResources *v1.ResourceRequirements) error {
-	return verifyCPUWeight(f, pod, pod.Spec.Containers[0].Name, podCgPath, expectedResources, true)
+	if err := verifyCPUWeight(f, pod, pod.Spec.Containers[0].Name, podCgPath, expectedResources, true); err != nil {
+		return fmt.Errorf("pod cgroup cpu weight verification failed: %w", err)
+	}
+	return nil
 }
 
 func verifyPodCPULimit(f *framework.Framework, pod *v1.Pod, podCgPath string, expectedResources *v1.ResourceRequirements) error {
-	return verifyCPULimit(f, pod, pod.Spec.Containers[0].Name, podCgPath, expectedResources, true)
+	if strings.Contains(podCgPath, strings.ReplaceAll(string(pod.UID), "-", "_")) {
+		// When systemd cgroup driver is used, pod cpu limit is rounded up to the nearest 10ms.
+		if expectedResources.Limits.Cpu().MilliValue()%10 != 0 {
+			roundUpValue := (expectedResources.Limits.Cpu().MilliValue()/10 + 1) * 10
+			roundedResources := &v1.ResourceRequirements{Limits: v1.ResourceList{v1.ResourceCPU: *resource.NewMilliQuantity(roundUpValue, resource.DecimalSI)}}
+			if err := verifyCPULimit(f, pod, pod.Spec.Containers[0].Name, podCgPath, roundedResources, true); err == nil {
+				// FIXME: Due to #129357, even if systemd cgroup driver is used, the non-rounded value can be set to pod cgroup.
+				//        As workaround, verify again with the original value when this verification is failed.
+				return nil
+			}
+		}
+	}
+
+	if err := verifyCPULimit(f, pod, pod.Spec.Containers[0].Name, podCgPath, expectedResources, true); err != nil {
+		return fmt.Errorf("pod cgroup cpu limit verification failed: %w", err)
+	}
+	return nil
 }
 
 func verifyPodMemoryLimit(f *framework.Framework, pod *v1.Pod, podCgPath string, expectedResources *v1.ResourceRequirements) error {
-	return verifyMemoryLimit(f, pod, pod.Spec.Containers[0].Name, podCgPath, expectedResources, true)
+	if err := verifyMemoryLimit(f, pod, pod.Spec.Containers[0].Name, podCgPath, expectedResources, true); err != nil {
+		return fmt.Errorf("pod cgroup memory limit verification failed: %w", err)
+	}
+	return nil
 }
 
 // VerifyPodCgroups verifies pod cgroup is configured on a node as expected.
