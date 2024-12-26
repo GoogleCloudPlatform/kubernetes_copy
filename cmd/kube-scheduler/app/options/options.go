@@ -93,6 +93,10 @@ func NewOptions() *Options {
 		effectiveVersion := compatibility.DefaultKubeEffectiveVersion()
 		utilruntime.Must(componentGlobalsRegistry.Register(basecompatibility.DefaultKubeComponent, effectiveVersion, featureGate))
 	}
+	return NewOptionsWithComponentGlobalsRegistry(componentGlobalsRegistry)
+}
+
+func NewOptionsWithComponentGlobalsRegistry(componentGlobalsRegistry basecompatibility.ComponentGlobalsRegistry) *Options {
 	o := &Options{
 		SecureServing:  apiserveroptions.NewSecureServingOptions().WithLoopback(),
 		Authentication: apiserveroptions.NewDelegatingAuthenticationOptions(),

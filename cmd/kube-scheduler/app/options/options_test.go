@@ -32,7 +32,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	apiserveroptions "k8s.io/apiserver/pkg/server/options"
-	"k8s.io/apiserver/pkg/util/compatibility"
+	basecompatibility "k8s.io/component-base/compatibility"
 	componentbaseconfig "k8s.io/component-base/config"
 	"k8s.io/component-base/logs"
 	"k8s.io/klog/v2/ktesting"
@@ -282,7 +282,7 @@ profiles:
 	defaultPodMaxBackoffSeconds := int64(10)
 	defaultPercentageOfNodesToScore := ptr.To[int32](0)
 
-	componentGlobalsRegistry := compatibility.DefaultComponentGlobalsRegistry
+	componentGlobalsRegistry := basecompatibility.NewComponentGlobalsRegistry()
 
 	testcases := []struct {
 		name             string

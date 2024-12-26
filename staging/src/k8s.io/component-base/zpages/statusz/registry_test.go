@@ -28,7 +28,6 @@ import (
 )
 
 func TestBinaryVersion(t *testing.T) {
-	componentGlobalsRegistry := compatibility.NewComponentGlobalsRegistry()
 	tests := []struct {
 		name                    string
 		setFakeEffectiveVersion bool
@@ -48,7 +47,7 @@ func TestBinaryVersion(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		componentGlobalsRegistry.Reset()
+		componentGlobalsRegistry := compatibility.NewComponentGlobalsRegistry()
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.setFakeEffectiveVersion {
 				verKube := compatibility.NewEffectiveVersionFromString(tt.fakeVersion)
@@ -64,7 +63,6 @@ func TestBinaryVersion(t *testing.T) {
 }
 
 func TestEmulationVersion(t *testing.T) {
-	componentGlobalsRegistry := compatibility.NewComponentGlobalsRegistry()
 	tests := []struct {
 		name                    string
 		setFakeEffectiveVersion bool
@@ -84,7 +82,7 @@ func TestEmulationVersion(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		componentGlobalsRegistry.Reset()
+		componentGlobalsRegistry := compatibility.NewComponentGlobalsRegistry()
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.setFakeEffectiveVersion {
 				verKube := compatibility.NewEffectiveVersionFromString("0.0.0")

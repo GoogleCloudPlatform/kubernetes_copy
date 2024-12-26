@@ -32,7 +32,6 @@ import (
 	apiserveroptions "k8s.io/apiserver/pkg/server/options"
 	"k8s.io/apiserver/pkg/storage/etcd3"
 	"k8s.io/apiserver/pkg/storage/storagebackend"
-	"k8s.io/apiserver/pkg/util/compatibility"
 	auditbuffered "k8s.io/apiserver/plugin/pkg/audit/buffered"
 	audittruncate "k8s.io/apiserver/plugin/pkg/audit/truncate"
 	cliflag "k8s.io/component-base/cli/flag"
@@ -50,14 +49,12 @@ import (
 )
 
 func TestAddFlags(t *testing.T) {
-	componentGlobalsRegistry := compatibility.DefaultComponentGlobalsRegistry
-	t.Cleanup(func() {
-		componentGlobalsRegistry.Reset()
-	})
+	componentGlobalsRegistry := basecompatibility.NewComponentGlobalsRegistry()
 	fs := pflag.NewFlagSet("addflagstest", pflag.PanicOnError)
 
 	utilruntime.Must(componentGlobalsRegistry.Register("test", basecompatibility.NewEffectiveVersionFromString("1.32"), featuregate.NewFeatureGate()))
 	s := NewServerRunOptions()
+	s.GenericServerRunOptions.ComponentGlobalsRegistry = componentGlobalsRegistry
 	for _, f := range s.Flags().FlagSets {
 		fs.AddFlagSet(f)
 	}

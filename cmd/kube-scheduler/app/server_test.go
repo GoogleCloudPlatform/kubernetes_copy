@@ -35,7 +35,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/version"
-	"k8s.io/apiserver/pkg/util/compatibility"
 	"k8s.io/apiserver/pkg/util/feature"
 	basecompatibility "k8s.io/component-base/compatibility"
 	componentbaseconfig "k8s.io/component-base/config"
@@ -439,11 +438,7 @@ leaderElection:
 			for k, v := range tc.restoreFeatures {
 				featuregatetesting.SetFeatureGateDuringTest(t, feature.DefaultFeatureGate, k, v)
 			}
-			componentGlobalsRegistry := compatibility.DefaultComponentGlobalsRegistry
-			t.Cleanup(func() {
-				componentGlobalsRegistry.Reset()
-			})
-			componentGlobalsRegistry.Reset()
+			componentGlobalsRegistry := basecompatibility.NewComponentGlobalsRegistry()
 			verKube := basecompatibility.NewEffectiveVersionFromString("1.32").WithEmulationVersionFloor(version.MustParse("1.31"))
 			fg := feature.DefaultFeatureGate.DeepCopy()
 			utilruntime.Must(fg.AddVersioned(map[featuregate.Feature]featuregate.VersionedSpecs{
@@ -458,7 +453,7 @@ leaderElection:
 			utilruntime.Must(componentGlobalsRegistry.Register(basecompatibility.DefaultKubeComponent, verKube, fg))
 
 			fs := pflag.NewFlagSet("test", pflag.PanicOnError)
-			opts := options.NewOptions()
+			opts := options.NewOptionsWithComponentGlobalsRegistry(componentGlobalsRegistry)
 
 			// use listeners instead of static ports so parallel test runs don't conflict
 			opts.SecureServing.Listener = makeListener(t)
