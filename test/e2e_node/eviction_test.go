@@ -553,7 +553,7 @@ type podEvictSpec struct {
 	evictionMaxPodGracePeriod    int
 	evictionSoftGracePeriod      int
 	preCreatePodModificationFunc func(pod *v1.Pod)
-	postPressureValidationFunc   func()
+	postPressureValidationFunc   func(pod *v1.Pod)
 }
 
 // runEvictionTest sets up a testing environment given the provided pods, and checks a few things:
@@ -620,7 +620,8 @@ func runEvictionTest(f *framework.Framework, pressureTimeout time.Duration, expe
 			ginkgo.By("running postPressureValidationFuncs()")
 			for _, spec := range testSpecs {
 				if spec.postPressureValidationFunc != nil {
-					spec.postPressureValidationFunc()
+					p := spec.pod.DeepCopy()
+					spec.postPressureValidationFunc(p)
 				}
 			}
 

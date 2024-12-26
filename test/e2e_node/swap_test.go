@@ -401,8 +401,8 @@ var _ = SIGDescribe("Swap", "[LinuxOnly]", nodefeature.Swap, framework.WithSeria
 
 		var maxSwapUsageBytes uint64
 
-		getPostPressureValidationFunc := func(expectedSwapUsagePercentage float64) func() {
-			return func() {
+		getPostPressureValidationFunc := func(expectedSwapUsagePercentage float64) func(_ *v1.Pod) {
+			return func(_ *v1.Pod) {
 				swapCapacity := getSwapCapacity()
 				swapUsagePercentage := (float64(maxSwapUsageBytes) / float64(swapCapacity.Value())) * 100.0
 
@@ -498,6 +498,100 @@ var _ = SIGDescribe("Swap", "[LinuxOnly]", nodefeature.Swap, framework.WithSeria
 					evictionPriority:             1,
 					pod:                          getMemhogPod("memory-hog-pod", "memory-hog", v1.ResourceRequirements{}),
 					preCreatePodModificationFunc: preCreatePodModificationFunc,
+					postPressureValidationFunc:   postPressureValidationFunc,
+				},
+				{
+					evictionPriority: 0,
+					pod:              innocentPod(),
+				},
+			})
+		})
+
+		ginkgo.Context("with swapping caused by pod-level pressure by breaching memory limits", func() {
+			const expectedSwapUsagePercentage = 0.01 // just to ensure that some swap is used
+
+			setupTest(func(_, _ resource.Quantity) (memoryHardEvictionThreshold resource.Quantity) {
+				return resource.MustParse("512Mi")
+			})
+
+			memFillerPreCreatePodModificationFunc := func(pod *v1.Pod) {
+				// Some memory request is needed here so the pod is of Burstable QoS, hence it can be individually evicted.
+				memoryRequest := resource.MustParse("10Mi")
+				pod.Spec.Containers[0].Resources = v1.ResourceRequirements{
+					Requests: map[v1.ResourceName]resource.Quantity{
+						v1.ResourceMemory: memoryRequest,
+					},
+				}
+
+				framework.Logf("Setting up pod %s with memory request %s", pod.Name, memoryRequest.String())
+
+				const stressSizeFactor = 1.1
+				stressSize := getSwapCapacity()
+				stressSize.Add(getMemoryCapacity())
+				stressSize = *resource.NewQuantity(int64(float64(stressSize.Value())*stressSizeFactor), stressSize.Format)
+
+				pod.Spec.Containers[0].Args = overrideArgsFunc(pod,
+					"--mem-total", strconv.Itoa(int(stressSize.Value())),
+					"--mem-alloc-size", "150Mi",
+					"--mem-alloc-sleep", "12s",
+				)
+			}
+
+			postPressureValidationFunc := getPostPressureValidationFunc(expectedSwapUsagePercentage)
+
+			crossLimitPreCreatePodModificationFunc := func(pod *v1.Pod) {
+				memoryCapacity := getMemoryCapacity()
+				swapCapacity := getSwapCapacity()
+
+				memoryRequest := resource.MustParse("2048Mi")
+				memoryLimit := memoryRequest.DeepCopy()
+				memoryLimit.Add(resource.MustParse("20Mi"))
+
+				pod.Spec.Containers[0].Resources = v1.ResourceRequirements{
+					Requests: map[v1.ResourceName]resource.Quantity{
+						v1.ResourceMemory: memoryRequest,
+					},
+					Limits: map[v1.ResourceName]resource.Quantity{
+						v1.ResourceMemory: memoryLimit,
+					},
+				}
+
+				framework.Logf("Setting up pod %s with memory request %s and memory limit %s", pod.Name, memoryRequest.String(), memoryLimit.String())
+
+				accessibleSwap := *resource.NewQuantity(int64(float64(memoryRequest.Value())/float64(memoryCapacity.Value())*float64(swapCapacity.Value())), swapCapacity.Format)
+				framework.Logf("accessible swap for pod %s: %s", pod.Name, accessibleSwap.String())
+
+				stressSize := memoryRequest.DeepCopy()
+				stressSize.Add(accessibleSwap)
+				stressSize.Sub(resource.MustParse("50Mi")) // To ensure stability
+
+				gomega.Expect(stressSize.Cmp(memoryLimit)).To(gomega.BeNumerically(">", 0),
+					fmt.Sprintf("stress size %s should be greater than memory limit %s", stressSize.String(), memoryLimit.String()))
+
+				pod.Spec.Containers[0].Args = overrideArgsFunc(pod,
+					"--mem-total", strconv.Itoa(int(stressSize.Value())),
+					"--mem-alloc-size", "10Mi",
+					"--mem-alloc-sleep", "100ms",
+				)
+			}
+
+			crossLimitPostPressureValidationFunc := func(pod *v1.Pod) {
+				//usage, err := getSwapUsage(f, pod)
+				//gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				//gomega.Expect(usage.IsZero()).To(gomega.BeFalseBecause(fmt.Sprintf("swap usage is expected to be non-zero but is %s", usage.String())))
+			}
+
+			runEvictionTest(f, pressureTimeout, expectedNodeCondition, expectedStarvedResource, logFunc, []podEvictSpec{
+				{
+					evictionPriority:             2,
+					pod:                          getMemhogPod("pod-crossing-limits", "crossing-limits", v1.ResourceRequirements{}),
+					preCreatePodModificationFunc: crossLimitPreCreatePodModificationFunc,
+					postPressureValidationFunc:   crossLimitPostPressureValidationFunc,
+				},
+				{
+					evictionPriority:             1,
+					pod:                          getMemhogPod("memory-hog-pod", "memory-hog", v1.ResourceRequirements{}),
+					preCreatePodModificationFunc: memFillerPreCreatePodModificationFunc,
 					postPressureValidationFunc:   postPressureValidationFunc,
 				},
 				{
