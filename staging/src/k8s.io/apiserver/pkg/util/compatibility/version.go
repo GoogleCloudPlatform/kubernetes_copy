@@ -18,6 +18,7 @@ package compatibility
 
 import (
 	"k8s.io/apimachinery/pkg/util/version"
+	basecompatibility "k8s.io/component-base/compatibility"
 	baseversion "k8s.io/component-base/version"
 )
 
@@ -27,16 +28,16 @@ var minimumKubeEmulationVersion *version.Version = version.MajorMinor(1, 31)
 
 // DefaultBuildEffectiveVersion returns the MutableEffectiveVersion based on the
 // current build information.
-func DefaultBuildEffectiveVersion() baseversion.MutableEffectiveVersion {
+func DefaultBuildEffectiveVersion() basecompatibility.MutableEffectiveVersion {
 	binaryVersion := defaultBuildBinaryVersion()
 	if binaryVersion.Major() == 0 && binaryVersion.Minor() == 0 {
 		return DefaultKubeEffectiveVersion()
 	}
-	effectiveVersion := baseversion.NewEffectiveVersion(binaryVersion)
+	effectiveVersion := basecompatibility.NewEffectiveVersion(binaryVersion)
 	return withKubeEffectiveVersionFloors(effectiveVersion)
 }
 
-func withKubeEffectiveVersionFloors(effectiveVersion baseversion.MutableEffectiveVersion) baseversion.MutableEffectiveVersion {
+func withKubeEffectiveVersionFloors(effectiveVersion basecompatibility.MutableEffectiveVersion) basecompatibility.MutableEffectiveVersion {
 	// // both emulationVersion and minCompatibilityVersion can be set to binaryVersion - 3
 	versionFloor := effectiveVersion.BinaryVersion().WithPatch(0).SubtractMinor(3)
 	if versionFloor.LessThan(minimumKubeEmulationVersion) {
@@ -47,9 +48,9 @@ func withKubeEffectiveVersionFloors(effectiveVersion baseversion.MutableEffectiv
 
 // DefaultKubeEffectiveVersion returns the MutableEffectiveVersion based on the
 // latest K8s release.
-func DefaultKubeEffectiveVersion() baseversion.MutableEffectiveVersion {
+func DefaultKubeEffectiveVersion() basecompatibility.MutableEffectiveVersion {
 	binaryVersion := version.MustParse(baseversion.DefaultKubeBinaryVersion).WithInfo(baseversion.Get())
-	effectiveVersion := baseversion.NewEffectiveVersion(binaryVersion)
+	effectiveVersion := basecompatibility.NewEffectiveVersion(binaryVersion)
 	return withKubeEffectiveVersionFloors(effectiveVersion)
 }
 

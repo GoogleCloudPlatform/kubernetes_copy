@@ -52,7 +52,7 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes/fake"
 	restclient "k8s.io/client-go/rest"
-	utilversion "k8s.io/component-base/version"
+	basecompatibility "k8s.io/component-base/compatibility"
 	"k8s.io/klog/v2/ktesting"
 	kubeopenapi "k8s.io/kube-openapi/pkg/common"
 	"k8s.io/kube-openapi/pkg/validation/spec"
@@ -138,7 +138,7 @@ func setUp(t *testing.T) (Config, *assert.Assertions) {
 	if clientset == nil {
 		t.Fatal("unable to create fake client set")
 	}
-	config.EffectiveVersion = utilversion.NewEffectiveVersionFromString("")
+	config.EffectiveVersion = basecompatibility.NewEffectiveVersionFromString("")
 	config.OpenAPIConfig = DefaultOpenAPIConfig(testGetOpenAPIDefinitions, openapinamer.NewDefinitionNamer(runtime.NewScheme()))
 	config.OpenAPIConfig.Info.Version = "unversioned"
 	config.OpenAPIV3Config = DefaultOpenAPIV3Config(testGetOpenAPIDefinitions, openapinamer.NewDefinitionNamer(runtime.NewScheme()))
@@ -460,7 +460,7 @@ func TestNotRestRoutesHaveAuth(t *testing.T) {
 	config.EnableProfiling = true
 
 	kubeVersion := fakeVersion()
-	effectiveVersion := utilversion.NewEffectiveVersionFromString(kubeVersion.String())
+	effectiveVersion := basecompatibility.NewEffectiveVersionFromString(kubeVersion.String())
 	effectiveVersion.Set(effectiveVersion.BinaryVersion().WithInfo(kubeVersion), effectiveVersion.EmulationVersion(), effectiveVersion.MinCompatibilityVersion())
 	config.EffectiveVersion = effectiveVersion
 

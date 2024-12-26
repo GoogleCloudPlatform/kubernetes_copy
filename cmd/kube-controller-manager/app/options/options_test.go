@@ -35,7 +35,7 @@ import (
 	"k8s.io/apiserver/pkg/apis/apiserver"
 	apiserveroptions "k8s.io/apiserver/pkg/server/options"
 	"k8s.io/apiserver/pkg/util/compatibility"
-	utilversion "k8s.io/component-base/version"
+	basecompatibility "k8s.io/component-base/compatibility"
 
 	componentbaseconfig "k8s.io/component-base/config"
 	"k8s.io/component-base/featuregate"
@@ -744,7 +744,7 @@ func TestEmulatedVersion(t *testing.T) {
 			componentGlobalsRegistry.Reset() // make sure this test doesn't leak a dirty state
 		})
 
-		verKube := utilversion.NewEffectiveVersionFromString("1.32").WithEmulationVersionFloor(version.MustParse("1.31"))
+		verKube := basecompatibility.NewEffectiveVersionFromString("1.32").WithEmulationVersionFloor(version.MustParse("1.31"))
 		fg := featuregate.NewVersionedFeatureGate(version.MustParse("1.32"))
 		utilruntime.Must(fg.AddVersioned(map[featuregate.Feature]featuregate.VersionedSpecs{
 			"kubeA": {
@@ -755,7 +755,7 @@ func TestEmulatedVersion(t *testing.T) {
 				{Version: version.MustParse("1.31"), Default: false, PreRelease: featuregate.Alpha},
 			},
 		}))
-		utilruntime.Must(componentGlobalsRegistry.Register(featuregate.DefaultKubeComponent, verKube, fg))
+		utilruntime.Must(componentGlobalsRegistry.Register(basecompatibility.DefaultKubeComponent, verKube, fg))
 		return fg
 	}
 

@@ -23,7 +23,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	apimachineryversion "k8s.io/apimachinery/pkg/util/version"
 	"k8s.io/apiserver/pkg/util/compatibility"
-	version "k8s.io/component-base/version"
+	basecompatibility "k8s.io/component-base/compatibility"
 )
 
 type ResourceEncodingConfig interface {
@@ -44,7 +44,7 @@ type DefaultResourceEncodingConfig struct {
 	// resources records the overriding encoding configs for individual resources.
 	resources        map[schema.GroupResource]*OverridingResourceEncoding
 	scheme           *runtime.Scheme
-	effectiveVersion version.EffectiveVersion
+	effectiveVersion basecompatibility.EffectiveVersion
 }
 
 type OverridingResourceEncoding struct {
@@ -65,7 +65,7 @@ func (o *DefaultResourceEncodingConfig) SetResourceEncoding(resourceBeingStored 
 	}
 }
 
-func (o *DefaultResourceEncodingConfig) SetEffectiveVersion(effectiveVersion version.EffectiveVersion) {
+func (o *DefaultResourceEncodingConfig) SetEffectiveVersion(effectiveVersion basecompatibility.EffectiveVersion) {
 	o.effectiveVersion = effectiveVersion
 }
 
@@ -122,7 +122,7 @@ type replacementInterface interface {
 	APILifecycleReplacement() schema.GroupVersionKind
 }
 
-func emulatedStorageVersion(binaryVersionOfResource schema.GroupVersion, example runtime.Object, effectiveVersion version.EffectiveVersion, scheme *runtime.Scheme) (schema.GroupVersion, error) {
+func emulatedStorageVersion(binaryVersionOfResource schema.GroupVersion, example runtime.Object, effectiveVersion basecompatibility.EffectiveVersion, scheme *runtime.Scheme) (schema.GroupVersion, error) {
 	if example == nil || effectiveVersion == nil {
 		return binaryVersionOfResource, nil
 	}

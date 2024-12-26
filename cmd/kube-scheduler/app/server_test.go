@@ -37,10 +37,10 @@ import (
 	"k8s.io/apimachinery/pkg/util/version"
 	"k8s.io/apiserver/pkg/util/compatibility"
 	"k8s.io/apiserver/pkg/util/feature"
+	basecompatibility "k8s.io/component-base/compatibility"
 	componentbaseconfig "k8s.io/component-base/config"
 	"k8s.io/component-base/featuregate"
 	featuregatetesting "k8s.io/component-base/featuregate/testing"
-	utilversion "k8s.io/component-base/version"
 	configv1 "k8s.io/kube-scheduler/config/v1"
 	"k8s.io/kubernetes/cmd/kube-scheduler/app/options"
 	"k8s.io/kubernetes/pkg/features"
@@ -444,7 +444,7 @@ leaderElection:
 				componentGlobalsRegistry.Reset()
 			})
 			componentGlobalsRegistry.Reset()
-			verKube := utilversion.NewEffectiveVersionFromString("1.32").WithEmulationVersionFloor(version.MustParse("1.31"))
+			verKube := basecompatibility.NewEffectiveVersionFromString("1.32").WithEmulationVersionFloor(version.MustParse("1.31"))
 			fg := feature.DefaultFeatureGate.DeepCopy()
 			utilruntime.Must(fg.AddVersioned(map[featuregate.Feature]featuregate.VersionedSpecs{
 				"kubeA": {
@@ -455,7 +455,7 @@ leaderElection:
 					{Version: version.MustParse("1.31"), Default: false, PreRelease: featuregate.Alpha},
 				},
 			}))
-			utilruntime.Must(componentGlobalsRegistry.Register(featuregate.DefaultKubeComponent, verKube, fg))
+			utilruntime.Must(componentGlobalsRegistry.Register(basecompatibility.DefaultKubeComponent, verKube, fg))
 
 			fs := pflag.NewFlagSet("test", pflag.PanicOnError)
 			opts := options.NewOptions()

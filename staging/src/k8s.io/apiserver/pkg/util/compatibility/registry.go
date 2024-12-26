@@ -19,13 +19,13 @@ package compatibility
 import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
-	"k8s.io/component-base/featuregate"
+	basecompatibility "k8s.io/component-base/compatibility"
 )
 
 // DefaultComponentGlobalsRegistry is the global var to store the effective versions and feature gates for all components for easy access.
 // Example usage:
 // // register the component effective version and feature gate first
-// wardleEffectiveVersion := utilversion.NewEffectiveVersion("1.2")
+// wardleEffectiveVersion := basecompatibility.NewEffectiveVersion("1.2")
 // wardleFeatureGate := featuregate.NewFeatureGate()
 // utilruntime.Must(compatibility.DefaultComponentGlobalsRegistry.Register(apiserver.WardleComponentName, wardleEffectiveVersion, wardleFeatureGate, false))
 //
@@ -46,8 +46,8 @@ import (
 // flags := cmd.Flags()
 // // add flags
 // compatibility.DefaultComponentGlobalsRegistry.AddFlags(flags)
-var DefaultComponentGlobalsRegistry featuregate.ComponentGlobalsRegistry = featuregate.NewComponentGlobalsRegistry()
+var DefaultComponentGlobalsRegistry basecompatibility.ComponentGlobalsRegistry = basecompatibility.NewComponentGlobalsRegistry()
 
 func init() {
-	utilruntime.Must(DefaultComponentGlobalsRegistry.Register(featuregate.DefaultKubeComponent, DefaultBuildEffectiveVersion(), utilfeature.DefaultMutableFeatureGate))
+	utilruntime.Must(DefaultComponentGlobalsRegistry.Register(basecompatibility.DefaultKubeComponent, DefaultBuildEffectiveVersion(), utilfeature.DefaultMutableFeatureGate))
 }

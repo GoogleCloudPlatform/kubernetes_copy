@@ -37,6 +37,7 @@ import (
 	cpnames "k8s.io/cloud-provider/names"
 	cpoptions "k8s.io/cloud-provider/options"
 	cliflag "k8s.io/component-base/cli/flag"
+	basecompatibility "k8s.io/component-base/compatibility"
 	"k8s.io/component-base/featuregate"
 	"k8s.io/component-base/logs"
 	logsapi "k8s.io/component-base/logs/api/v1"
@@ -106,7 +107,7 @@ type KubeControllerManagerOptions struct {
 	ShowHiddenMetricsForVersion string
 
 	// ComponentGlobalsRegistry is the registry where the effective versions and feature gates for all components are stored.
-	ComponentGlobalsRegistry featuregate.ComponentGlobalsRegistry
+	ComponentGlobalsRegistry basecompatibility.ComponentGlobalsRegistry
 }
 
 // NewKubeControllerManagerOptions creates a new KubeControllerManagerOptions with a default config.
@@ -118,10 +119,10 @@ func NewKubeControllerManagerOptions() (*KubeControllerManagerOptions, error) {
 
 	componentGlobalsRegistry := compatibility.DefaultComponentGlobalsRegistry
 
-	if componentGlobalsRegistry.EffectiveVersionFor(featuregate.DefaultKubeComponent) == nil {
+	if componentGlobalsRegistry.EffectiveVersionFor(basecompatibility.DefaultKubeComponent) == nil {
 		featureGate := utilfeature.DefaultMutableFeatureGate
 		effectiveVersion := compatibility.DefaultKubeEffectiveVersion()
-		utilruntime.Must(componentGlobalsRegistry.Register(featuregate.DefaultKubeComponent, effectiveVersion, featureGate))
+		utilruntime.Must(componentGlobalsRegistry.Register(basecompatibility.DefaultKubeComponent, effectiveVersion, featureGate))
 	}
 
 	s := KubeControllerManagerOptions{

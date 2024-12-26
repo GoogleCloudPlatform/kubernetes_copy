@@ -36,10 +36,10 @@ import (
 	auditbuffered "k8s.io/apiserver/plugin/pkg/audit/buffered"
 	audittruncate "k8s.io/apiserver/plugin/pkg/audit/truncate"
 	cliflag "k8s.io/component-base/cli/flag"
+	basecompatibility "k8s.io/component-base/compatibility"
 	"k8s.io/component-base/featuregate"
 	"k8s.io/component-base/logs"
 	"k8s.io/component-base/metrics"
-	utilversion "k8s.io/component-base/version"
 	kapi "k8s.io/kubernetes/pkg/apis/core"
 	controlplaneapiserver "k8s.io/kubernetes/pkg/controlplane/apiserver/options"
 	"k8s.io/kubernetes/pkg/controlplane/reconcilers"
@@ -56,7 +56,7 @@ func TestAddFlags(t *testing.T) {
 	})
 	fs := pflag.NewFlagSet("addflagstest", pflag.PanicOnError)
 
-	utilruntime.Must(componentGlobalsRegistry.Register("test", utilversion.NewEffectiveVersionFromString("1.32"), featuregate.NewFeatureGate()))
+	utilruntime.Must(componentGlobalsRegistry.Register("test", basecompatibility.NewEffectiveVersionFromString("1.32"), featuregate.NewFeatureGate()))
 	s := NewServerRunOptions()
 	for _, f := range s.Flags().FlagSets {
 		fs.AddFlagSet(f)
@@ -151,7 +151,7 @@ func TestAddFlags(t *testing.T) {
 				JSONPatchMaxCopyBytes:        int64(3 * 1024 * 1024),
 				MaxRequestBodyBytes:          int64(3 * 1024 * 1024),
 				ComponentGlobalsRegistry:     componentGlobalsRegistry,
-				ComponentName:                featuregate.DefaultKubeComponent,
+				ComponentName:                basecompatibility.DefaultKubeComponent,
 			},
 			Admission: &kubeoptions.AdmissionOptions{
 				GenericAdmission: &apiserveroptions.AdmissionOptions{

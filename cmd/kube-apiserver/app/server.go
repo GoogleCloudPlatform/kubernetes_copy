@@ -41,6 +41,7 @@ import (
 	"k8s.io/client-go/rest"
 	cliflag "k8s.io/component-base/cli/flag"
 	"k8s.io/component-base/cli/globalflag"
+	basecompatibility "k8s.io/component-base/compatibility"
 	"k8s.io/component-base/featuregate"
 	"k8s.io/component-base/logs"
 	logsapi "k8s.io/component-base/logs/api/v1"
@@ -66,7 +67,7 @@ func init() {
 func NewAPIServerCommand() *cobra.Command {
 	s := options.NewServerRunOptions()
 	ctx := genericapiserver.SetupSignalContext()
-	featureGate := s.GenericServerRunOptions.ComponentGlobalsRegistry.FeatureGateFor(featuregate.DefaultKubeComponent)
+	featureGate := s.GenericServerRunOptions.ComponentGlobalsRegistry.FeatureGateFor(basecompatibility.DefaultKubeComponent)
 
 	cmd := &cobra.Command{
 		Use: "kube-apiserver",

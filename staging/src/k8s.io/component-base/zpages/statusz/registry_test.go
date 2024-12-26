@@ -22,12 +22,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/version"
+	"k8s.io/component-base/compatibility"
 	"k8s.io/component-base/featuregate"
 	utilversion "k8s.io/component-base/version"
 )
 
 func TestBinaryVersion(t *testing.T) {
-	componentGlobalsRegistry := featuregate.NewComponentGlobalsRegistry()
+	componentGlobalsRegistry := compatibility.NewComponentGlobalsRegistry()
 	tests := []struct {
 		name                    string
 		setFakeEffectiveVersion bool
@@ -50,9 +51,9 @@ func TestBinaryVersion(t *testing.T) {
 		componentGlobalsRegistry.Reset()
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.setFakeEffectiveVersion {
-				verKube := utilversion.NewEffectiveVersionFromString(tt.fakeVersion)
+				verKube := compatibility.NewEffectiveVersionFromString(tt.fakeVersion)
 				fg := featuregate.NewVersionedFeatureGate(version.MustParse(tt.fakeVersion))
-				utilruntime.Must(componentGlobalsRegistry.Register(featuregate.DefaultKubeComponent, verKube, fg))
+				utilruntime.Must(componentGlobalsRegistry.Register(compatibility.DefaultKubeComponent, verKube, fg))
 			}
 
 			registry := &registry{componentGlobalsRegistry: componentGlobalsRegistry}
@@ -63,7 +64,7 @@ func TestBinaryVersion(t *testing.T) {
 }
 
 func TestEmulationVersion(t *testing.T) {
-	componentGlobalsRegistry := featuregate.NewComponentGlobalsRegistry()
+	componentGlobalsRegistry := compatibility.NewComponentGlobalsRegistry()
 	tests := []struct {
 		name                    string
 		setFakeEffectiveVersion bool
@@ -86,10 +87,10 @@ func TestEmulationVersion(t *testing.T) {
 		componentGlobalsRegistry.Reset()
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.setFakeEffectiveVersion {
-				verKube := utilversion.NewEffectiveVersionFromString("0.0.0")
+				verKube := compatibility.NewEffectiveVersionFromString("0.0.0")
 				verKube.SetEmulationVersion(version.MustParse(tt.fakeEmulVer))
 				fg := featuregate.NewVersionedFeatureGate(version.MustParse(tt.fakeEmulVer))
-				utilruntime.Must(componentGlobalsRegistry.Register(featuregate.DefaultKubeComponent, verKube, fg))
+				utilruntime.Must(componentGlobalsRegistry.Register(compatibility.DefaultKubeComponent, verKube, fg))
 			}
 
 			registry := &registry{componentGlobalsRegistry: componentGlobalsRegistry}

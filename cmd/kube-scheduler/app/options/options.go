@@ -40,9 +40,9 @@ import (
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	"k8s.io/client-go/tools/record"
 	cliflag "k8s.io/component-base/cli/flag"
+	basecompatibility "k8s.io/component-base/compatibility"
 	componentbaseconfig "k8s.io/component-base/config"
 	"k8s.io/component-base/config/options"
-	"k8s.io/component-base/featuregate"
 	"k8s.io/component-base/logs"
 	logsapi "k8s.io/component-base/logs/api/v1"
 	"k8s.io/component-base/metrics"
@@ -78,7 +78,7 @@ type Options struct {
 	Master string
 
 	// ComponentGlobalsRegistry is the registry where the effective versions and feature gates for all components are stored.
-	ComponentGlobalsRegistry featuregate.ComponentGlobalsRegistry
+	ComponentGlobalsRegistry basecompatibility.ComponentGlobalsRegistry
 
 	// Flags hold the parsed CLI flags.
 	Flags *cliflag.NamedFlagSets
@@ -88,10 +88,10 @@ type Options struct {
 func NewOptions() *Options {
 	componentGlobalsRegistry := compatibility.DefaultComponentGlobalsRegistry
 	// make sure DefaultKubeComponent is registered in the DefaultComponentGlobalsRegistry.
-	if componentGlobalsRegistry.EffectiveVersionFor(featuregate.DefaultKubeComponent) == nil {
+	if componentGlobalsRegistry.EffectiveVersionFor(basecompatibility.DefaultKubeComponent) == nil {
 		featureGate := utilfeature.DefaultMutableFeatureGate
 		effectiveVersion := compatibility.DefaultKubeEffectiveVersion()
-		utilruntime.Must(componentGlobalsRegistry.Register(featuregate.DefaultKubeComponent, effectiveVersion, featureGate))
+		utilruntime.Must(componentGlobalsRegistry.Register(basecompatibility.DefaultKubeComponent, effectiveVersion, featureGate))
 	}
 	o := &Options{
 		SecureServing:  apiserveroptions.NewSecureServingOptions().WithLoopback(),

@@ -40,7 +40,7 @@ import (
 	"k8s.io/apiserver/pkg/util/openapi"
 	"k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
-	"k8s.io/component-base/featuregate"
+	basecompatibility "k8s.io/component-base/compatibility"
 	featuregatetesting "k8s.io/component-base/featuregate/testing"
 	logsapi "k8s.io/component-base/logs/api/v1"
 	"k8s.io/klog/v2"
@@ -130,8 +130,8 @@ func StartTestServer(t Logger, _ *TestServerInstanceOptions, customFlags []strin
 	featureGate := utilfeature.DefaultMutableFeatureGate.DeepCopy()
 	effectiveVersion := compatibility.DefaultKubeEffectiveVersion()
 	effectiveVersion.SetEmulationVersion(featureGate.EmulationVersion())
-	componentGlobalsRegistry := featuregate.NewComponentGlobalsRegistry()
-	if err := componentGlobalsRegistry.Register(featuregate.DefaultKubeComponent, effectiveVersion, featureGate); err != nil {
+	componentGlobalsRegistry := basecompatibility.NewComponentGlobalsRegistry()
+	if err := componentGlobalsRegistry.Register(basecompatibility.DefaultKubeComponent, effectiveVersion, featureGate); err != nil {
 		return result, err
 	}
 	s.ServerRunOptions.ComponentGlobalsRegistry = componentGlobalsRegistry

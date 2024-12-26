@@ -20,9 +20,9 @@ import (
 	"time"
 
 	"k8s.io/apimachinery/pkg/util/version"
-	"k8s.io/component-base/featuregate"
 	"k8s.io/klog/v2"
 
+	"k8s.io/component-base/compatibility"
 	compbasemetrics "k8s.io/component-base/metrics"
 	utilversion "k8s.io/component-base/version"
 )
@@ -35,7 +35,7 @@ type statuszRegistry interface {
 }
 
 type registry struct {
-	componentGlobalsRegistry featuregate.ComponentGlobalsRegistry
+	componentGlobalsRegistry compatibility.ComponentGlobalsRegistry
 }
 
 func (*registry) processStartTime() time.Time {
@@ -53,7 +53,7 @@ func (*registry) goVersion() string {
 
 func (r *registry) binaryVersion() *version.Version {
 	if r.componentGlobalsRegistry != nil {
-		effectiveVer := r.componentGlobalsRegistry.EffectiveVersionFor(featuregate.DefaultKubeComponent)
+		effectiveVer := r.componentGlobalsRegistry.EffectiveVersionFor(compatibility.DefaultKubeComponent)
 		if effectiveVer != nil {
 			return effectiveVer.BinaryVersion()
 		}
@@ -65,7 +65,7 @@ func (r *registry) emulationVersion() *version.Version {
 	if r.componentGlobalsRegistry == nil {
 		return nil
 	}
-	effectiveVer := r.componentGlobalsRegistry.EffectiveVersionFor(featuregate.DefaultKubeComponent)
+	effectiveVer := r.componentGlobalsRegistry.EffectiveVersionFor(compatibility.DefaultKubeComponent)
 	if effectiveVer != nil {
 		return effectiveVer.EmulationVersion()
 	}

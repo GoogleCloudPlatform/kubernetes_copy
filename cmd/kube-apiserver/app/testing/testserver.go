@@ -54,10 +54,9 @@ import (
 	clientgotransport "k8s.io/client-go/transport"
 	"k8s.io/client-go/util/cert"
 	"k8s.io/client-go/util/keyutil"
-	"k8s.io/component-base/featuregate"
+	basecompatibility "k8s.io/component-base/compatibility"
 	featuregatetesting "k8s.io/component-base/featuregate/testing"
 	logsapi "k8s.io/component-base/logs/api/v1"
-	utilversion "k8s.io/component-base/version"
 	"k8s.io/klog/v2"
 	"k8s.io/kube-aggregator/pkg/apiserver"
 	"k8s.io/kubernetes/pkg/features"
@@ -194,10 +193,10 @@ func StartTestServer(t ktesting.TB, instanceOptions *TestServerInstanceOptions, 
 	featureGate.AddMetrics()
 	effectiveVersion := compatibility.DefaultKubeEffectiveVersion()
 	if instanceOptions.BinaryVersion != "" {
-		effectiveVersion = utilversion.NewEffectiveVersionFromString(instanceOptions.BinaryVersion)
+		effectiveVersion = basecompatibility.NewEffectiveVersionFromString(instanceOptions.BinaryVersion)
 	}
-	componentGlobalsRegistry := featuregate.NewComponentGlobalsRegistry()
-	if err := componentGlobalsRegistry.Register(featuregate.DefaultKubeComponent, effectiveVersion, featureGate); err != nil {
+	componentGlobalsRegistry := basecompatibility.NewComponentGlobalsRegistry()
+	if err := componentGlobalsRegistry.Register(basecompatibility.DefaultKubeComponent, effectiveVersion, featureGate); err != nil {
 		return result, err
 	}
 

@@ -40,7 +40,7 @@ import (
 	client "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/cert"
-	"k8s.io/component-base/featuregate"
+	basecompatibility "k8s.io/component-base/compatibility"
 	featuregatetesting "k8s.io/component-base/featuregate/testing"
 	aggregatorscheme "k8s.io/kube-aggregator/pkg/apiserver/scheme"
 	netutils "k8s.io/utils/net"
@@ -146,8 +146,8 @@ func StartTestServer(ctx context.Context, t testing.TB, setup TestServerSetup) (
 	effectiveVersion := compatibility.DefaultKubeEffectiveVersion()
 	effectiveVersion.SetEmulationVersion(featureGate.EmulationVersion())
 	// set up new instance of ComponentGlobalsRegistry instead of using the DefaultComponentGlobalsRegistry to avoid contention in parallel tests.
-	componentGlobalsRegistry := featuregate.NewComponentGlobalsRegistry()
-	if err := componentGlobalsRegistry.Register(featuregate.DefaultKubeComponent, effectiveVersion, featureGate); err != nil {
+	componentGlobalsRegistry := basecompatibility.NewComponentGlobalsRegistry()
+	if err := componentGlobalsRegistry.Register(basecompatibility.DefaultKubeComponent, effectiveVersion, featureGate); err != nil {
 		t.Fatal(err)
 	}
 	opts.GenericServerRunOptions.ComponentGlobalsRegistry = componentGlobalsRegistry

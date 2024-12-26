@@ -27,15 +27,14 @@ import (
 	"k8s.io/apimachinery/pkg/util/version"
 	"k8s.io/apiserver/pkg/util/compatibility"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
-	"k8s.io/component-base/featuregate"
-	utilversion "k8s.io/component-base/version"
+	basecompatibility "k8s.io/component-base/compatibility"
 	netutils "k8s.io/utils/net"
 )
 
 func TestServerRunOptionsValidate(t *testing.T) {
-	testRegistry := featuregate.NewComponentGlobalsRegistry()
+	testRegistry := basecompatibility.NewComponentGlobalsRegistry()
 	featureGate := utilfeature.DefaultFeatureGate.DeepCopy()
-	effectiveVersion := utilversion.NewEffectiveVersionFromString("1.35").WithEmulationVersionFloor(version.MajorMinor(1, 32))
+	effectiveVersion := basecompatibility.NewEffectiveVersionFromString("1.35").WithEmulationVersionFloor(version.MajorMinor(1, 32))
 	effectiveVersion.SetEmulationVersion(version.MajorMinor(1, 31))
 	testComponent := "test"
 	utilruntime.Must(testRegistry.Register(testComponent, effectiveVersion, featureGate))

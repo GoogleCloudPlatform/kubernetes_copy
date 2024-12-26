@@ -55,9 +55,9 @@ import (
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 	"k8s.io/client-go/transport"
 	"k8s.io/client-go/util/cert"
+	basecompatibility "k8s.io/component-base/compatibility"
 	"k8s.io/component-base/featuregate"
 	featuregatetesting "k8s.io/component-base/featuregate/testing"
-	utilversion "k8s.io/component-base/version"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	aggregatorclient "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset"
 	"k8s.io/kubernetes/cmd/kube-apiserver/app"
@@ -713,7 +713,7 @@ func prepareAggregatedWardleAPIServer(ctx context.Context, t *testing.T, namespa
 
 	componentGlobalsRegistry := testServer.ServerOpts.Options.GenericServerRunOptions.ComponentGlobalsRegistry
 	_, _ = componentGlobalsRegistry.ComponentGlobalsOrRegister(
-		apiserver.WardleComponentName, utilversion.NewEffectiveVersionFromString(wardleBinaryVersion),
+		apiserver.WardleComponentName, basecompatibility.NewEffectiveVersionFromString(wardleBinaryVersion),
 		featuregate.NewVersionedFeatureGate(version.MustParse(wardleBinaryVersion)))
 
 	kubeClient := client.NewForConfigOrDie(getKubeConfig(testServer))
