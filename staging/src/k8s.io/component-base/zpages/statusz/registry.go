@@ -34,9 +34,11 @@ type statuszRegistry interface {
 	emulationVersion() *version.Version
 }
 
-type registry struct{}
+type registry struct {
+	componentGlobalsRegistry featuregate.ComponentGlobalsRegistry
+}
 
-func (registry) processStartTime() time.Time {
+func (*registry) processStartTime() time.Time {
 	start, err := compbasemetrics.GetProcessStart()
 	if err != nil {
 		klog.Errorf("Could not get process start time, %v", err)
@@ -45,21 +47,25 @@ func (registry) processStartTime() time.Time {
 	return time.Unix(int64(start), 0)
 }
 
-func (registry) goVersion() string {
+func (*registry) goVersion() string {
 	return utilversion.Get().GoVersion
 }
 
-func (registry) binaryVersion() *version.Version {
-	effectiveVer := featuregate.DefaultComponentGlobalsRegistry.EffectiveVersionFor(featuregate.DefaultKubeComponent)
-	if effectiveVer != nil {
-		return effectiveVer.BinaryVersion()
+func (r *registry) binaryVersion() *version.Version {
+	if r.componentGlobalsRegistry != nil {
+		effectiveVer := r.componentGlobalsRegistry.EffectiveVersionFor(featuregate.DefaultKubeComponent)
+		if effectiveVer != nil {
+			return effectiveVer.BinaryVersion()
+		}
 	}
-
 	return version.MustParse(utilversion.Get().String())
 }
 
-func (registry) emulationVersion() *version.Version {
-	effectiveVer := featuregate.DefaultComponentGlobalsRegistry.EffectiveVersionFor(featuregate.DefaultKubeComponent)
+func (r *registry) emulationVersion() *version.Version {
+	if r.componentGlobalsRegistry == nil {
+		return nil
+	}
+	effectiveVer := r.componentGlobalsRegistry.EffectiveVersionFor(featuregate.DefaultKubeComponent)
 	if effectiveVer != nil {
 		return effectiveVer.EmulationVersion()
 	}

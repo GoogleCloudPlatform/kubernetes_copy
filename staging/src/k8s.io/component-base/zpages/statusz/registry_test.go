@@ -27,7 +27,7 @@ import (
 )
 
 func TestBinaryVersion(t *testing.T) {
-	componentGlobalsRegistry := featuregate.DefaultComponentGlobalsRegistry
+	componentGlobalsRegistry := featuregate.NewComponentGlobalsRegistry()
 	tests := []struct {
 		name                    string
 		setFakeEffectiveVersion bool
@@ -55,7 +55,7 @@ func TestBinaryVersion(t *testing.T) {
 				utilruntime.Must(componentGlobalsRegistry.Register(featuregate.DefaultKubeComponent, verKube, fg))
 			}
 
-			registry := &registry{}
+			registry := &registry{componentGlobalsRegistry: componentGlobalsRegistry}
 			got := registry.binaryVersion()
 			assert.Equal(t, tt.wantBinaryVersion, got)
 		})
@@ -63,7 +63,7 @@ func TestBinaryVersion(t *testing.T) {
 }
 
 func TestEmulationVersion(t *testing.T) {
-	componentGlobalsRegistry := featuregate.DefaultComponentGlobalsRegistry
+	componentGlobalsRegistry := featuregate.NewComponentGlobalsRegistry()
 	tests := []struct {
 		name                    string
 		setFakeEffectiveVersion bool
@@ -92,7 +92,7 @@ func TestEmulationVersion(t *testing.T) {
 				utilruntime.Must(componentGlobalsRegistry.Register(featuregate.DefaultKubeComponent, verKube, fg))
 			}
 
-			registry := &registry{}
+			registry := &registry{componentGlobalsRegistry: componentGlobalsRegistry}
 			got := registry.emulationVersion()
 			if tt.wantEmul != nil && got != nil {
 				assert.Equal(t, tt.wantEmul.Major(), got.Major())

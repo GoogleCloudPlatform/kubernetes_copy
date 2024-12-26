@@ -35,6 +35,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/version"
+	"k8s.io/apiserver/pkg/util/compatibility"
 	"k8s.io/apiserver/pkg/util/feature"
 	componentbaseconfig "k8s.io/component-base/config"
 	"k8s.io/component-base/featuregate"
@@ -438,7 +439,7 @@ leaderElection:
 			for k, v := range tc.restoreFeatures {
 				featuregatetesting.SetFeatureGateDuringTest(t, feature.DefaultFeatureGate, k, v)
 			}
-			componentGlobalsRegistry := featuregate.DefaultComponentGlobalsRegistry
+			componentGlobalsRegistry := compatibility.DefaultComponentGlobalsRegistry
 			t.Cleanup(func() {
 				componentGlobalsRegistry.Reset()
 			})

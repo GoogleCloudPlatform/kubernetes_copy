@@ -34,6 +34,7 @@ import (
 
 	"k8s.io/apiserver/pkg/apis/apiserver"
 	apiserveroptions "k8s.io/apiserver/pkg/server/options"
+	"k8s.io/apiserver/pkg/util/compatibility"
 	utilversion "k8s.io/component-base/version"
 
 	componentbaseconfig "k8s.io/component-base/config"
@@ -450,7 +451,7 @@ func TestAddFlags(t *testing.T) {
 		Master:                   "192.168.4.20",
 		Metrics:                  &metrics.Options{},
 		Logs:                     logs.NewOptions(),
-		ComponentGlobalsRegistry: featuregate.DefaultComponentGlobalsRegistry,
+		ComponentGlobalsRegistry: compatibility.DefaultComponentGlobalsRegistry,
 	}
 
 	// Sort GCIgnoredResources because it's built from a map, which means the
@@ -737,7 +738,7 @@ func TestApplyTo(t *testing.T) {
 
 func TestEmulatedVersion(t *testing.T) {
 	var cleanupAndSetupFunc = func() featuregate.FeatureGate {
-		componentGlobalsRegistry := featuregate.DefaultComponentGlobalsRegistry
+		componentGlobalsRegistry := compatibility.DefaultComponentGlobalsRegistry
 		componentGlobalsRegistry.Reset() // make sure this test have a clean state
 		t.Cleanup(func() {
 			componentGlobalsRegistry.Reset() // make sure this test doesn't leak a dirty state

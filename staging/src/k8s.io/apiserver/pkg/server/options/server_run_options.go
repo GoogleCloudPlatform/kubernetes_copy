@@ -101,13 +101,13 @@ type ServerRunOptions struct {
 }
 
 func NewServerRunOptions() *ServerRunOptions {
-	if featuregate.DefaultComponentGlobalsRegistry.EffectiveVersionFor(featuregate.DefaultKubeComponent) == nil {
+	if compatibility.DefaultComponentGlobalsRegistry.EffectiveVersionFor(featuregate.DefaultKubeComponent) == nil {
 		featureGate := utilfeature.DefaultMutableFeatureGate
 		effectiveVersion := compatibility.DefaultKubeEffectiveVersion()
-		utilruntime.Must(featuregate.DefaultComponentGlobalsRegistry.Register(featuregate.DefaultKubeComponent, effectiveVersion, featureGate))
+		utilruntime.Must(compatibility.DefaultComponentGlobalsRegistry.Register(featuregate.DefaultKubeComponent, effectiveVersion, featureGate))
 	}
 
-	return NewServerRunOptionsForComponent(featuregate.DefaultKubeComponent, featuregate.DefaultComponentGlobalsRegistry)
+	return NewServerRunOptionsForComponent(featuregate.DefaultKubeComponent, compatibility.DefaultComponentGlobalsRegistry)
 }
 
 func NewServerRunOptionsForComponent(componentName string, componentGlobalsRegistry featuregate.ComponentGlobalsRegistry) *ServerRunOptions {

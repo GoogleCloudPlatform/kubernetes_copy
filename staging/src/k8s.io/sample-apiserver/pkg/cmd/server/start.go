@@ -83,7 +83,7 @@ func NewWardleServerOptions(out, errOut io.Writer) *WardleServerOptions {
 			defaultEtcdPathPrefix,
 			apiserver.Codecs.LegacyCodec(v1alpha1.SchemeGroupVersion),
 		),
-		ComponentGlobalsRegistry: featuregate.DefaultComponentGlobalsRegistry,
+		ComponentGlobalsRegistry: compatibility.DefaultComponentGlobalsRegistry,
 
 		StdOut: out,
 		StdErr: errOut,

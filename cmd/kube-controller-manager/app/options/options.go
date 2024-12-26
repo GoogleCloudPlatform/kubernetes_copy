@@ -116,10 +116,12 @@ func NewKubeControllerManagerOptions() (*KubeControllerManagerOptions, error) {
 		return nil, err
 	}
 
-	if featuregate.DefaultComponentGlobalsRegistry.EffectiveVersionFor(featuregate.DefaultKubeComponent) == nil {
+	componentGlobalsRegistry := compatibility.DefaultComponentGlobalsRegistry
+
+	if componentGlobalsRegistry.EffectiveVersionFor(featuregate.DefaultKubeComponent) == nil {
 		featureGate := utilfeature.DefaultMutableFeatureGate
 		effectiveVersion := compatibility.DefaultKubeEffectiveVersion()
-		utilruntime.Must(featuregate.DefaultComponentGlobalsRegistry.Register(featuregate.DefaultKubeComponent, effectiveVersion, featureGate))
+		utilruntime.Must(componentGlobalsRegistry.Register(featuregate.DefaultKubeComponent, effectiveVersion, featureGate))
 	}
 
 	s := KubeControllerManagerOptions{
@@ -211,7 +213,7 @@ func NewKubeControllerManagerOptions() (*KubeControllerManagerOptions, error) {
 		Authorization:            apiserveroptions.NewDelegatingAuthorizationOptions(),
 		Metrics:                  metrics.NewOptions(),
 		Logs:                     logs.NewOptions(),
-		ComponentGlobalsRegistry: featuregate.DefaultComponentGlobalsRegistry,
+		ComponentGlobalsRegistry: componentGlobalsRegistry,
 	}
 
 	s.Authentication.RemoteKubeConfigFileOptional = true

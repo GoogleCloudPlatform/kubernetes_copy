@@ -32,6 +32,7 @@ import (
 	apiserveroptions "k8s.io/apiserver/pkg/server/options"
 	"k8s.io/apiserver/pkg/storage/etcd3"
 	"k8s.io/apiserver/pkg/storage/storagebackend"
+	"k8s.io/apiserver/pkg/util/compatibility"
 	auditbuffered "k8s.io/apiserver/plugin/pkg/audit/buffered"
 	audittruncate "k8s.io/apiserver/plugin/pkg/audit/truncate"
 	cliflag "k8s.io/component-base/cli/flag"
@@ -49,7 +50,7 @@ import (
 )
 
 func TestAddFlags(t *testing.T) {
-	componentGlobalsRegistry := featuregate.DefaultComponentGlobalsRegistry
+	componentGlobalsRegistry := compatibility.DefaultComponentGlobalsRegistry
 	t.Cleanup(func() {
 		componentGlobalsRegistry.Reset()
 	})

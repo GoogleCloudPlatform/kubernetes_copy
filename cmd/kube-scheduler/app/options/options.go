@@ -86,11 +86,12 @@ type Options struct {
 
 // NewOptions returns default scheduler app options.
 func NewOptions() *Options {
+	componentGlobalsRegistry := compatibility.DefaultComponentGlobalsRegistry
 	// make sure DefaultKubeComponent is registered in the DefaultComponentGlobalsRegistry.
-	if featuregate.DefaultComponentGlobalsRegistry.EffectiveVersionFor(featuregate.DefaultKubeComponent) == nil {
+	if componentGlobalsRegistry.EffectiveVersionFor(featuregate.DefaultKubeComponent) == nil {
 		featureGate := utilfeature.DefaultMutableFeatureGate
 		effectiveVersion := compatibility.DefaultKubeEffectiveVersion()
-		utilruntime.Must(featuregate.DefaultComponentGlobalsRegistry.Register(featuregate.DefaultKubeComponent, effectiveVersion, featureGate))
+		utilruntime.Must(componentGlobalsRegistry.Register(featuregate.DefaultKubeComponent, effectiveVersion, featureGate))
 	}
 	o := &Options{
 		SecureServing:  apiserveroptions.NewSecureServingOptions().WithLoopback(),
@@ -110,7 +111,7 @@ func NewOptions() *Options {
 		},
 		Metrics:                  metrics.NewOptions(),
 		Logs:                     logs.NewOptions(),
-		ComponentGlobalsRegistry: featuregate.DefaultComponentGlobalsRegistry,
+		ComponentGlobalsRegistry: componentGlobalsRegistry,
 	}
 
 	o.Authentication.TolerateInClusterLookupFailure = true
