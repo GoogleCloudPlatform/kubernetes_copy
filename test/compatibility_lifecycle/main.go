@@ -16,7 +16,7 @@ limitations under the License.
 
 package main
 
-import "k8s.io/kubernetes/test/featuregates_linter/cmd"
+import "k8s.io/kubernetes/test/compatibility_lifecycle/cmd"
 
 func main() {
 	cmd.Execute()
