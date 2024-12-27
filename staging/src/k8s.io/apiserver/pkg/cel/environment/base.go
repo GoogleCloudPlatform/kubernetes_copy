@@ -52,7 +52,7 @@ import (
 func DefaultCompatibilityVersion() *version.Version {
 	effectiveVer := compatibility.DefaultComponentGlobalsRegistry.EffectiveVersionFor(basecompatibility.DefaultKubeComponent)
 	if effectiveVer == nil {
-		effectiveVer = compatibility.DefaultKubeEffectiveVersion()
+		effectiveVer = compatibility.DefaultBuildEffectiveVersion()
 	}
 	return effectiveVer.MinCompatibilityVersion()
 }

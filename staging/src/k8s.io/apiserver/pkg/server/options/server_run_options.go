@@ -103,7 +103,7 @@ type ServerRunOptions struct {
 func NewServerRunOptions() *ServerRunOptions {
 	if compatibility.DefaultComponentGlobalsRegistry.EffectiveVersionFor(basecompatibility.DefaultKubeComponent) == nil {
 		featureGate := utilfeature.DefaultMutableFeatureGate
-		effectiveVersion := compatibility.DefaultKubeEffectiveVersion()
+		effectiveVersion := compatibility.DefaultBuildEffectiveVersion()
 		utilruntime.Must(compatibility.DefaultComponentGlobalsRegistry.Register(basecompatibility.DefaultKubeComponent, effectiveVersion, featureGate))
 	}
 

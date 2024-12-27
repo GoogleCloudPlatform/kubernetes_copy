@@ -56,6 +56,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	utiljson "k8s.io/apimachinery/pkg/util/json"
 	"k8s.io/apimachinery/pkg/util/uuid"
+	"k8s.io/apimachinery/pkg/util/version"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/apiserver/pkg/endpoints/handlers"
@@ -3198,8 +3199,7 @@ func TestEmulatedStorageVersion(t *testing.T) {
 	for emulatedVersion, cases := range groupedCases {
 		t.Run(emulatedVersion, func(t *testing.T) {
 			server := kubeapiservertesting.StartTestServerOrDie(
-				t, &kubeapiservertesting.TestServerInstanceOptions{BinaryVersion: emulatedVersion},
-				[]string{"--emulated-version=kube=" + emulatedVersion, `--storage-media-type=application/json`}, framework.SharedEtcd())
+				t, nil, []string{"--emulated-version=kube=" + emulatedVersion, `--storage-media-type=application/json`}, framework.SharedEtcd())
 			defer server.TearDownFn()
 
 			client := clientset.NewForConfigOrDie(server.ClientConfig)
@@ -3337,6 +3337,7 @@ func TestAllowedEmulationVersions(t *testing.T) {
 }
 
 func TestEnableEmulationVersion(t *testing.T) {
+	featuregatetesting.SetFeatureGateEmulationVersionDuringTest(t, utilfeature.DefaultMutableFeatureGate, version.MustParse("1.32"))
 	server := kubeapiservertesting.StartTestServerOrDie(t,
 		&kubeapiservertesting.TestServerInstanceOptions{BinaryVersion: "1.32"},
 		[]string{"--emulated-version=kube=1.31"}, framework.SharedEtcd())
@@ -3398,6 +3399,7 @@ func TestEnableEmulationVersion(t *testing.T) {
 }
 
 func TestDisableEmulationVersion(t *testing.T) {
+	featuregatetesting.SetFeatureGateEmulationVersionDuringTest(t, utilfeature.DefaultMutableFeatureGate, version.MustParse("1.32"))
 	server := kubeapiservertesting.StartTestServerOrDie(t,
 		&kubeapiservertesting.TestServerInstanceOptions{BinaryVersion: "1.32"},
 		[]string{}, framework.SharedEtcd())

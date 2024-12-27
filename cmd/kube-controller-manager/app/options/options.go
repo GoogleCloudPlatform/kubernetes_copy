@@ -121,7 +121,7 @@ func NewKubeControllerManagerOptions() (*KubeControllerManagerOptions, error) {
 
 	if componentGlobalsRegistry.EffectiveVersionFor(basecompatibility.DefaultKubeComponent) == nil {
 		featureGate := utilfeature.DefaultMutableFeatureGate
-		effectiveVersion := compatibility.DefaultKubeEffectiveVersion()
+		effectiveVersion := compatibility.DefaultBuildEffectiveVersion()
 		utilruntime.Must(componentGlobalsRegistry.Register(basecompatibility.DefaultKubeComponent, effectiveVersion, featureGate))
 	}
 

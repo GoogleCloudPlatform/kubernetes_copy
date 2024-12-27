@@ -102,7 +102,7 @@ type TestServerInstanceOptions struct {
 	// an apiserver version skew scenario where all apiservers use the same proxyCA to verify client connections.
 	ProxyCA *ProxyCA
 	// Set the BinaryVersion of server effective version.
-	// If empty, effective version will default to version.DefaultKubeBinaryVersion.
+	// If empty, effective version will default to DefaultKubeEffectiveVersion.
 	BinaryVersion string
 	// Set non-default request timeout in the server.
 	RequestTimeout time.Duration
@@ -195,6 +195,7 @@ func StartTestServer(t ktesting.TB, instanceOptions *TestServerInstanceOptions, 
 	if instanceOptions.BinaryVersion != "" {
 		effectiveVersion = basecompatibility.NewEffectiveVersionFromString(instanceOptions.BinaryVersion)
 	}
+	effectiveVersion.SetEmulationVersion(featureGate.EmulationVersion())
 	componentGlobalsRegistry := basecompatibility.NewComponentGlobalsRegistry()
 	if err := componentGlobalsRegistry.Register(basecompatibility.DefaultKubeComponent, effectiveVersion, featureGate); err != nil {
 		return result, err
