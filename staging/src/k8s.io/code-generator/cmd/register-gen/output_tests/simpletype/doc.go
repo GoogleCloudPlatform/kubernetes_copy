@@ -14,5 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// +k8s:register-gen=simpletype
+
 // +groupName=simpletype.foo.bar
 package simpletype
