@@ -10,7 +10,7 @@ require (
 	github.com/client9/misspell v0.3.4
 	github.com/golangci/golangci-lint v1.56.2
 	github.com/jcchavezs/porto v0.6.0
-	github.com/vektra/mockery/v2 v2.40.3
+	github.com/vektra/mockery/v2 v2.50.0
 	go.uber.org/automaxprocs v1.5.2
 	golang.org/x/mod v0.20.0
 	gotest.tools/gotestsum v1.12.0

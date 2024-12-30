@@ -406,14 +406,14 @@ func TestTLSConfig(t *testing.T) {
 			test:       "server cert with SHA1 signature",
 			clientCA:   caCert,
 			serverCert: append(append(sha1ServerCertInter, byte('\n')), caCertInter...), serverKey: serverKey,
-			errRegex:                         "x509: cannot verify signature: insecure algorithm SHA1-RSA \\(temporarily override with GODEBUG=x509sha1=1\\)",
+			errRegex:                         "x509: cannot verify signature: insecure algorithm SHA1-RSA",
 			increaseSHA1SignatureWarnCounter: true,
 		},
 		{
 			test:       "server cert signed by an intermediate CA with SHA1 signature",
 			clientCA:   caCert,
 			serverCert: append(append(serverCertInterSHA1, byte('\n')), caCertInterSHA1...), serverKey: serverKey,
-			errRegex:                         "x509: cannot verify signature: insecure algorithm SHA1-RSA \\(temporarily override with GODEBUG=x509sha1=1\\)",
+			errRegex:                         "x509: cannot verify signature: insecure algorithm SHA1-RSA",
 			increaseSHA1SignatureWarnCounter: true,
 		},
 	}

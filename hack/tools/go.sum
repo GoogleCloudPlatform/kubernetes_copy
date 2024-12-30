@@ -581,6 +581,8 @@ github.com/uudashr/gocognit v1.1.2 h1:l6BAEKJqQH2UpKAPKdMfZf5kE4W/2xk8pfU1OVLvni
 github.com/uudashr/gocognit v1.1.2/go.mod h1:aAVdLURqcanke8h3vg35BC++eseDm66Z7KmchI5et4k=
 github.com/vektra/mockery/v2 v2.40.3 h1:IZ2lydSDFsY0khnEsbSu13VLcqSsa6UYSS/8F+uOJmo=
 github.com/vektra/mockery/v2 v2.40.3/go.mod h1:KYBZF/7sqOa86BaOZPYsoCZWEWLS90a5oBLg2pVudxY=
+github.com/vektra/mockery/v2 v2.50.0 h1:0GYRH38nKiRghwUq+0aJXG1sT3yyTYj/J1xQRM8kGzQ=
+github.com/vektra/mockery/v2 v2.50.0/go.mod h1:xO2DeYemEPC2tCzIZ+a1tifZ/7Laf/Chxg3vlc+oDsI=
 github.com/xen0n/gosmopolitan v1.2.2 h1:/p2KTnMzwRexIW8GlKawsTWOxn7UHA+jCMF/V8HHtvU=
 github.com/xen0n/gosmopolitan v1.2.2/go.mod h1:7XX7Mj61uLYrj0qmeN0zi7XDon9JRAEhYQqAPLVNTeg=
 github.com/yagipy/maintidx v1.0.0 h1:h5NvIsCz+nRDapQ0exNv4aJ0yXSI0420omVANTv3GJM=
