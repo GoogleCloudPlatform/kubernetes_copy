@@ -490,6 +490,17 @@ func AddHandlers(h printers.PrintHandler) {
 	_ = h.TableHandler(resourceQuotaColumnDefinitions, printResourceQuota)
 	_ = h.TableHandler(resourceQuotaColumnDefinitions, printResourceQuotaList)
 
+	limitrangesColumndefinitions := []metav1.TableColumnDefinition{
+		{Name: "Name", Type: "string", Format: "name", Description: metav1.ObjectMeta{}.SwaggerDoc()["name"]},
+		{Name: "Age", Type: "string", Description: metav1.ObjectMeta{}.SwaggerDoc()["creationTimestamp"]},
+		{Name: "Type", Type: "string", Description: "Type of object that this limit applies to"},
+		{Name: "Min", Type: "string", Description: "Min usage constraints on this kind by resource name"},
+		{Name: "Max", Type: "string", Description: "Max usage constraints on this kind by resource name"},
+	}
+
+	_ = h.TableHandler(limitrangesColumndefinitions, printLimitRanges)
+	_ = h.TableHandler(limitrangesColumndefinitions, printLimitRangesList)
+
 	priorityClassColumnDefinitions := []metav1.TableColumnDefinition{
 		{Name: "Name", Type: "string", Format: "name", Description: metav1.ObjectMeta{}.SwaggerDoc()["name"]},
 		{Name: "Value", Type: "integer", Description: schedulingv1.PriorityClass{}.SwaggerDoc()["value"]},
@@ -2800,6 +2811,62 @@ func printResourceQuotaList(list *api.ResourceQuotaList, options printers.Genera
 	rows := make([]metav1.TableRow, 0, len(list.Items))
 	for i := range list.Items {
 		r, err := printResourceQuota(&list.Items[i], options)
+		if err != nil {
+			return nil, err
+		}
+		rows = append(rows, r...)
+	}
+	return rows, nil
+}
+
+func printLimitRanges(limitRange *api.LimitRange, options printers.GenerateOptions) ([]metav1.TableRow, error) {
+	row := metav1.TableRow{
+		Object: runtime.RawExtension{Object: limitRange},
+	}
+	age := translateTimestampSince(limitRange.CreationTimestamp)
+
+	row.Cells = append(row.Cells, limitRange.Name, age)
+	if options.Wide {
+		maxItemsToShow := 2
+		showEllipsis := len(limitRange.Spec.Limits) > maxItemsToShow
+
+		for i, item := range limitRange.Spec.Limits {
+			if i >= maxItemsToShow {
+				break
+			}
+
+			formatResourceList := func(resources api.ResourceList) string {
+				parts := make([]string, 0)
+				var keys []string
+				for r := range resources {
+					keys = append(keys, string(r))
+				}
+				sort.Strings(keys)
+
+				for _, k := range keys {
+					q := resources[api.ResourceName(k)]
+					parts = append(parts, fmt.Sprintf("%s=%s", k, q.String()))
+				}
+				return strings.Join(parts, ", ")
+			}
+
+			typeStr := string(item.Type)
+			minStr := formatResourceList(item.Min)
+			maxStr := formatResourceList(item.Max)
+			row.Cells = append(row.Cells, typeStr, minStr, maxStr)
+		}
+
+		if showEllipsis {
+			row.Cells = append(row.Cells, "...")
+		}
+	}
+	return []metav1.TableRow{row}, nil
+}
+
+func printLimitRangesList(list *api.LimitRangeList, options printers.GenerateOptions) ([]metav1.TableRow, error) {
+	rows := make([]metav1.TableRow, 0, len(list.Items))
+	for i := range list.Items {
+		r, err := printLimitRanges(&list.Items[i], options)
 		if err != nil {
 			return nil, err
 		}

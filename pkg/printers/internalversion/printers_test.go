@@ -5758,6 +5758,153 @@ func TestPrintLease(t *testing.T) {
 	}
 }
 
+func TestPrintLimitRanges(t *testing.T) {
+
+	getResources := func(cpu, memory, ephemeralStorage, persistentStorage string) api.ResourceList {
+		res := api.ResourceList{}
+		if cpu != "" {
+			res[api.ResourceCPU] = resource.MustParse(cpu)
+		}
+		if memory != "" {
+			res[api.ResourceMemory] = resource.MustParse(memory)
+		}
+		if ephemeralStorage != "" {
+			res[api.ResourceEphemeralStorage] = resource.MustParse(ephemeralStorage)
+		}
+		if persistentStorage != "" {
+			res[api.ResourceStorage] = resource.MustParse(persistentStorage)
+		}
+		return res
+	}
+
+	tests := []struct {
+		name     string
+		options  printers.GenerateOptions
+		lr       api.LimitRange
+		expected []metav1.TableRow
+	}{
+		{
+			lr: api.LimitRange{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:              "test-limitrange",
+					Namespace:         "default",
+					CreationTimestamp: metav1.Time{Time: time.Now().Add(1.9e9)},
+				},
+				Spec: api.LimitRangeSpec{
+					Limits: []api.LimitRangeItem{
+						{
+							Type:           api.LimitTypeContainer,
+							Max:            getResources("100m", "10000m", "", ""),
+							Min:            getResources("0m", "100m", "", ""),
+							DefaultRequest: getResources("10m", "100m", "", ""),
+						},
+					},
+				},
+			},
+			expected: []metav1.TableRow{{Cells: []interface{}{"test-limitrange", string("0s")}}},
+		},
+		{
+			options: printers.GenerateOptions{Wide: true},
+			lr: api.LimitRange{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:              "test-limitrange",
+					Namespace:         "default",
+					CreationTimestamp: metav1.Time{Time: time.Now().Add(1.9e9)},
+				},
+				Spec: api.LimitRangeSpec{
+					Limits: []api.LimitRangeItem{
+						{
+							Type:           api.LimitTypeContainer,
+							Max:            getResources("100m", "10000m", "", ""),
+							Min:            getResources("0m", "100m", "", ""),
+							DefaultRequest: getResources("10m", "100m", "", ""),
+						},
+					},
+				},
+			},
+			expected: []metav1.TableRow{{Cells: []interface{}{"test-limitrange", string("0s"), string("Container"), string("cpu=0, memory=100m"), string("cpu=100m, memory=10")}}},
+		},
+		{
+			options: printers.GenerateOptions{Wide: true},
+			lr: api.LimitRange{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:              "test-limitrange",
+					Namespace:         "default",
+					CreationTimestamp: metav1.Time{Time: time.Now().Add(1.9e9)},
+				},
+				Spec: api.LimitRangeSpec{
+					Limits: []api.LimitRangeItem{
+						{
+							Type:                 api.LimitTypeContainer,
+							Max:                  getResources("100m", "10000Mi", "", ""),
+							Min:                  getResources("0m", "100Mi", "", ""),
+							Default:              getResources("50m", "500Mi", "", ""),
+							DefaultRequest:       getResources("10m", "200Mi", "", ""),
+							MaxLimitRequestRatio: getResources("10", "", "", ""),
+						},
+						{
+							Type:           api.LimitTypePod,
+							Max:            getResources("500m", "50000Mi", "", ""),
+							Min:            getResources("100m", "5000Mi", "", ""),
+							Default:        getResources("50m", "500Mi", "", ""),
+							DefaultRequest: getResources("10m", "200Mi", "", ""),
+						},
+					},
+				},
+			},
+			expected: []metav1.TableRow{{Cells: []interface{}{"test-limitrange", string("0s"), string("Container"), string("cpu=0, memory=100Mi"), string("cpu=100m, memory=10000Mi"), string("Pod"), string("cpu=100m, memory=5000Mi"), string("cpu=500m, memory=50000Mi")}}},
+		},
+		{
+			options: printers.GenerateOptions{Wide: true},
+			lr: api.LimitRange{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:              "test-limitrange",
+					Namespace:         "default",
+					CreationTimestamp: metav1.Time{Time: time.Now().Add(1.9e9)},
+				},
+				Spec: api.LimitRangeSpec{
+					Limits: []api.LimitRangeItem{
+						{
+							Type:                 api.LimitTypeContainer,
+							Max:                  getResources("100m", "10000Mi", "", ""),
+							Min:                  getResources("0m", "100Mi", "", ""),
+							Default:              getResources("50m", "500Mi", "", ""),
+							DefaultRequest:       getResources("10m", "200Mi", "", ""),
+							MaxLimitRequestRatio: getResources("10", "", "", ""),
+						},
+						{
+							Type:           api.LimitTypePod,
+							Max:            getResources("500m", "50000Mi", "", ""),
+							Min:            getResources("100m", "5000Mi", "", ""),
+							Default:        getResources("50m", "500Mi", "", ""),
+							DefaultRequest: getResources("10m", "200Mi", "", ""),
+						},
+						{
+							Type: api.LimitTypePersistentVolumeClaim,
+							Min:  getResources("", "", "", "1Gi"),
+							Max:  getResources("", "", "", "10Gi"),
+						},
+					},
+				},
+			},
+			expected: []metav1.TableRow{{Cells: []interface{}{"test-limitrange", string("0s"), string("Container"), string("cpu=0, memory=100Mi"), string("cpu=100m, memory=10000Mi"), string("Pod"), string("cpu=100m, memory=5000Mi"), string("cpu=500m, memory=50000Mi"), string("...")}}},
+		},
+	}
+
+	for i, test := range tests {
+		rows, err := printLimitRanges(&test.lr, test.options)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for i := range rows {
+			rows[i].Object.Object = nil
+		}
+		if !reflect.DeepEqual(test.expected, rows) {
+			t.Errorf("test case %s: %d mismatch: %s", test.name, i, cmp.Diff(test.expected, rows))
+		}
+	}
+}
+
 func TestPrintPriorityClass(t *testing.T) {
 	preemptNever := api.PreemptNever
 	preemptLowerPriority := api.PreemptLowerPriority
@@ -7207,6 +7354,12 @@ func TestTableRowDeepCopyShouldNotPanic(t *testing.T) {
 			name: "ResourceQuota",
 			printer: func() ([]metav1.TableRow, error) {
 				return printResourceQuota(&api.ResourceQuota{}, printers.GenerateOptions{})
+			},
+		},
+		{
+			name: "LimitRange",
+			printer: func() ([]metav1.TableRow, error) {
+				return printLimitRanges(&api.LimitRange{}, printers.GenerateOptions{})
 			},
 		},
 		{
