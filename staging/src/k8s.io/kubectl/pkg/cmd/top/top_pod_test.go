@@ -168,6 +168,12 @@ func TestTopPod(t *testing.T) {
 			namespaces: []string{testNS, testNS, testNS},
 			containers: true,
 		},
+		{
+			name:            "with swap",
+			options:         &TopPodOptions{AllNamespaces: true, ShowSwap: true},
+			namespaces:      []string{testNS, "secondtestns", "thirdtestns"},
+			listsNamespaces: true,
+		},
 	}
 	cmdtesting.InitTestErrorHandler(t)
 	for _, testCase := range testCases {
@@ -282,6 +288,11 @@ func TestTopPod(t *testing.T) {
 				resultContainers := getResultColumnValues(result, 1)
 				if !reflect.DeepEqual(testCase.expectedContainers, resultContainers) {
 					t.Errorf("containers not matching:\n\texpectedContainers: %v\n\tresultContainers: %v\n", testCase.expectedContainers, resultContainers)
+				}
+			}
+			if testCase.options != nil && testCase.options.ShowSwap {
+				if !strings.Contains(result, "SWAP(bytes)") {
+					t.Errorf("missing SWAP(bytes) header: \n%s", result)
 				}
 			}
 		})
