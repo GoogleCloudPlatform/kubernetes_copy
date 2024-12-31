@@ -273,7 +273,7 @@ func TestValidateResourceSlice(t *testing.T) {
 			}(),
 		},
 		"bad-node-selection": {
-			wantFailures: field.ErrorList{field.Invalid(field.NewPath("spec"), nil, "exactly one of `nodeName`, `nodeSelector`, or `allNodes` is required")},
+			wantFailures: field.ErrorList{field.Invalid(field.NewPath("spec"), nil, "exactly one of `nodeName`, `nodeSelector`, or `allNodes` is required, but multiple fields are set: `nodeName`, `nodeSelector`")},
 			slice: func() *resourceapi.ResourceSlice {
 				slice := testResourceSlice(goodName, goodName, driverName, 1)
 				slice.Spec.NodeName = "worker"
@@ -284,7 +284,7 @@ func TestValidateResourceSlice(t *testing.T) {
 			}(),
 		},
 		"bad-node-selection-all-nodes": {
-			wantFailures: field.ErrorList{field.Invalid(field.NewPath("spec"), nil, "exactly one of `nodeName`, `nodeSelector`, or `allNodes` is required")},
+			wantFailures: field.ErrorList{field.Invalid(field.NewPath("spec"), nil, "exactly one of `nodeName`, `nodeSelector`, or `allNodes` is required, but multiple fields are set: `nodeName`, `allNodes`")},
 			slice: func() *resourceapi.ResourceSlice {
 				slice := testResourceSlice(goodName, goodName, driverName, 1)
 				slice.Spec.NodeName = "worker"
