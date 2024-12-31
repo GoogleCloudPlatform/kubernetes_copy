@@ -25,6 +25,97 @@ import (
 	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
 )
 
+func buildPodsByCreationTime() PodsByCreationTime {
+	return []*v1.Pod{
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "foo1",
+				Namespace: v1.NamespaceDefault,
+				CreationTimestamp: metav1.Time{
+					Time: time.Now(),
+				},
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "foo2",
+				Namespace: v1.NamespaceDefault,
+				CreationTimestamp: metav1.Time{
+					Time: time.Now().Add(time.Hour * 1),
+				},
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "foo3",
+				Namespace: v1.NamespaceDefault,
+				CreationTimestamp: metav1.Time{
+					Time: time.Now().Add(time.Hour * 2),
+				},
+			},
+		},
+	}
+}
+
+func TestPodsByCreationTimeLen(t *testing.T) {
+	fooTests := []struct {
+		pods PodsByCreationTime
+		el   int
+	}{
+		{[]*v1.Pod{}, 0},
+		{buildPodsByCreationTime(), 3},
+		{[]*v1.Pod{nil, {}}, 2},
+		{nil, 0},
+	}
+
+	for _, fooTest := range fooTests {
+		r := fooTest.pods.Len()
+		if r != fooTest.el {
+			t.Errorf("returned %d but expected %d for the len of PodsByCreationTime=%s", r, fooTest.el, fooTest.pods)
+		}
+	}
+}
+
+func TestPodsByCreationTimeSwap(t *testing.T) {
+	fooTests := []struct {
+		pods PodsByCreationTime
+		i    int
+		j    int
+	}{
+		{buildPodsByCreationTime(), 0, 1},
+		{buildPodsByCreationTime(), 2, 1},
+	}
+
+	for _, fooTest := range fooTests {
+		fooi := fooTest.pods[fooTest.i]
+		fooj := fooTest.pods[fooTest.j]
+		fooTest.pods.Swap(fooTest.i, fooTest.j)
+		if fooi.GetName() != fooTest.pods[fooTest.j].GetName() || fooj.GetName() != fooTest.pods[fooTest.i].GetName() {
+			t.Errorf("failed to swap for %v", fooTest)
+		}
+	}
+}
+
+func TestPodsByCreationTimeLess(t *testing.T) {
+	fooTests := []struct {
+		pods PodsByCreationTime
+		i    int
+		j    int
+		er   bool
+	}{
+		// ascending order
+		{buildPodsByCreationTime(), 0, 2, true},
+		{buildPodsByCreationTime(), 1, 0, false},
+	}
+
+	for _, fooTest := range fooTests {
+		r := fooTest.pods.Less(fooTest.i, fooTest.j)
+		if r != fooTest.er {
+			t.Errorf("returned %t but expected %t for the foo=%s", r, fooTest.er, fooTest.pods)
+		}
+	}
+}
+
 func buildByImageSize() ByImageSize {
 	return []kubecontainer.Image{
 		{
