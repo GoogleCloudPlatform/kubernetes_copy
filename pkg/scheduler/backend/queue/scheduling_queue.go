@@ -541,9 +541,10 @@ func (p *PriorityQueue) runPreEnqueuePlugins(ctx context.Context, pInfo *framewo
 
 	shouldRecordMetric := rand.Intn(100) < p.pluginMetricsSamplePercent
 	logger := klog.FromContext(ctx)
-	if pInfo.GatingPlugin != "" {
+	gatingPlugin := pInfo.GatingPlugin
+	if gatingPlugin != "" {
 		// Run the gating plugin first
-		s := p.runPreEnqueuePlugin(ctx, logger, p.preEnqueuePluginMap[pod.Spec.SchedulerName][pInfo.GatingPlugin], pInfo, shouldRecordMetric)
+		s := p.runPreEnqueuePlugin(ctx, logger, p.preEnqueuePluginMap[pod.Spec.SchedulerName][gatingPlugin], pInfo, shouldRecordMetric)
 		if !s.IsSuccess() {
 			// No need to iterate other plugins
 			return
@@ -551,7 +552,7 @@ func (p *PriorityQueue) runPreEnqueuePlugins(ctx context.Context, pInfo *framewo
 	}
 
 	for _, pl := range p.preEnqueuePluginMap[pod.Spec.SchedulerName] {
-		if pInfo.GatingPlugin != "" && pl.Name() == pInfo.GatingPlugin {
+		if gatingPlugin != "" && pl.Name() == gatingPlugin {
 			// should be run already above.
 			continue
 		}
@@ -574,6 +575,9 @@ func (p *PriorityQueue) runPreEnqueuePlugin(ctx context.Context, logger klog.Log
 		p.metricsRecorder.ObservePluginDurationAsync(preEnqueue, pl.Name(), s.Code().String(), p.clock.Since(startTime).Seconds())
 	}
 	if s.IsSuccess() {
+		// This plugin passed, remove it from the unschedulable plugins.
+		// No need to change GatingPlugin; it's overwritten by the next PreEnqueue plugin if they gate this pod, or it's overwritten with an empty string if all PreEnqueue plugins pass.
+		pInfo.UnschedulablePlugins.Delete(pl.Name())
 		return s
 	}
 	pInfo.UnschedulablePlugins.Insert(pl.Name())
