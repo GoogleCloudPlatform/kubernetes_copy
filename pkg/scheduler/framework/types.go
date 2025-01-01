@@ -379,9 +379,9 @@ type QueuedPodInfo struct {
 	// But, we don't want to calculate the backoff time in the same way as the normal unschedulable reason
 	// since the purpose is different; the backoff for a unschedulable status etc is for the punishment of wasting the scheduling cycles,
 	// whereas the backoff for the error status is for the protection of the kube-apiserver.
-	// That's why we need to distinguish ErrorCount for the error status and UnschedulableCount for the unschedulable status.
+	// That's why we need to distinguish ConsecutiveErrorsCount for the error status and UnschedulableCount for the unschedulable status.
 	// See https://github.com/kubernetes/kubernetes/issues/128744 for the discussion.
-	ErrorCount int
+	ConsecutiveErrorsCount int
 	// The time when the pod is added to the queue for the first time. The pod may be added
 	// back to the queue multiple times before it's successfully scheduled.
 	// It shouldn't be updated once initialized. It's used to record the e2e scheduling
@@ -411,7 +411,7 @@ func (pqi *QueuedPodInfo) DeepCopy() *QueuedPodInfo {
 		UnschedulablePlugins:    pqi.UnschedulablePlugins.Clone(),
 		PendingPlugins:          pqi.PendingPlugins.Clone(),
 		Gated:                   pqi.Gated,
-		ErrorCount:              pqi.ErrorCount,
+		ConsecutiveErrorsCount:  pqi.ConsecutiveErrorsCount,
 	}
 }
 

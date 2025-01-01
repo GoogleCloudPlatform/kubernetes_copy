@@ -730,18 +730,15 @@ func (p *PriorityQueue) addUnschedulableWithoutQueueingHint(logger klog.Logger, 
 		metrics.UnschedulableReason(plugin, pInfo.Pod.Spec.SchedulerName).Inc()
 	}
 	if p.moveRequestCycle >= podSchedulingCycle || len(rejectorPlugins) == 0 {
-		// Two cases to move a Pod to the active/backoff queue:
+		// Two cases to move a Pod to ctive/backoff queue:
 		// - The Pod is rejected by some plugins, but a move request is received after this Pod's scheduling cycle is started.
 		//   In this case, the received event may be make Pod schedulable and we should retry scheduling it.
 		// - No unschedulable plugins are associated with this Pod,
 		//   meaning something unusual (a temporal failure on kube-apiserver, etc) happened and this Pod gets moved back to the queue.
 		//   In this case, we should retry scheduling it because this Pod may not be retried until the next flush.
-		queue := p.requeuePodWithQueueingStrategy(logger, pInfo, queueAfterBackoff, framework.ScheduleAttemptFailure)
-		logger.V(5).Info("Pod is pushed to an internal scheduling queue", "pod", klog.KObj(pod), "event", framework.ScheduleAttemptFailure, "queue", queue)
-		if queue == activeQ {
-			// When the Pod is moved to activeQ, need to let p.cond know so that the Pod will be pop()ed out.
-			p.activeQ.broadcast()
-		}
+		p.podBackoffQ.AddOrUpdate(pInfo)
+		logger.V(5).Info("Pod moved to an internal scheduling queue", "pod", klog.KObj(pod), "event", framework.ScheduleAttemptFailure, "queue", backoffQ)
+		metrics.SchedulerQueueIncomingPods.WithLabelValues("backoff", framework.ScheduleAttemptFailure).Inc()
 	} else {
 		p.unschedulablePods.addOrUpdate(pInfo)
 		logger.V(5).Info("Pod moved to an internal scheduling queue", "pod", klog.KObj(pod), "event", framework.ScheduleAttemptFailure, "queue", unschedulablePods)
@@ -776,12 +773,12 @@ func (p *PriorityQueue) AddUnschedulableIfNotPresent(logger klog.Logger, pInfo *
 
 	if len(pInfo.UnschedulablePlugins) == 0 && len(pInfo.PendingPlugins) == 0 {
 		// This Pod came back because of some unexpected errors (e.g., a network issue).
-		pInfo.ErrorCount++
+		pInfo.ConsecutiveErrorsCount++
 	} else {
 		// This Pod is rejected by some plugins, not coming back due to unexpected errors (e.g., a network issue)
 		pInfo.UnschedulableCount++
 		// We should reset the error count because the error is gone.
-		pInfo.ErrorCount = 0
+		pInfo.ConsecutiveErrorsCount = 0
 	}
 
 	if !p.isSchedulingQueueHintEnabled {
@@ -1319,7 +1316,7 @@ func (p *PriorityQueue) getBackoffTime(podInfo *framework.QueuedPodInfo) time.Ti
 // calculateBackoffDuration is a helper function for calculating the backoffDuration
 // based on the number of attempts the pod has made.
 func (p *PriorityQueue) calculateBackoffDuration(podInfo *framework.QueuedPodInfo) time.Duration {
-	if podInfo.UnschedulableCount == 0 && podInfo.ErrorCount == 0 {
+	if podInfo.UnschedulableCount == 0 && podInfo.ConsecutiveErrorsCount == 0 {
 		// When the Pod hasn't experienced any scheduling attempts,
 		// they don't have to get a backoff.
 		return 0
@@ -1327,10 +1324,10 @@ func (p *PriorityQueue) calculateBackoffDuration(podInfo *framework.QueuedPodInf
 
 	duration := p.podInitialBackoffDuration
 	count := podInfo.UnschedulableCount
-	if podInfo.ErrorCount > 0 {
+	if podInfo.ConsecutiveErrorsCount > 0 {
 		// This Pod has experienced an error status at the last scheduling cycle,
 		// and we should consider the error count for the backoff duration.
-		count = podInfo.ErrorCount
+		count = podInfo.ConsecutiveErrorsCount
 	}
 
 	for i := 1; i < count; i++ {
