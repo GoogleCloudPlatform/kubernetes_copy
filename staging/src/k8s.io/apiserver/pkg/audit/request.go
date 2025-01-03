@@ -104,7 +104,7 @@ func LogRequestPatch(ctx context.Context, patch []byte) {
 // LogResponseObject fills in the response object into an audit event. The passed runtime.Object
 // will be converted to the given gv.
 func LogResponseObject(ctx context.Context, obj runtime.Object, gv schema.GroupVersion, s runtime.NegotiatedSerializer) {
-	ac := AuditContextFrom(ctx)
+	ac := AuditContextFrom(WithAuditContext(ctx))
 	if ac.EventIsNil() || ac.Level().Less(auditinternal.LevelMetadata) {
 		return
 	}

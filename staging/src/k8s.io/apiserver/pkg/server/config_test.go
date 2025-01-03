@@ -351,7 +351,7 @@ func TestAuthenticationAuditAnnotationsDefaultChain(t *testing.T) {
 		}
 
 		// confirm that we have an audit event
-		ae := audit.AuditEventFrom(r.Context())
+		ae := audit.AuditContextFrom(r.Context())
 		if ae == nil {
 			t.Error("unexpected nil audit event")
 		}

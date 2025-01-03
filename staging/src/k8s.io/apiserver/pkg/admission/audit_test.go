@@ -144,8 +144,7 @@ func TestWithAudit(t *testing.T) {
 		var handler Interface = fakeHandler{tc.admit, tc.admitAnnotations, tc.validate, tc.validateAnnotations, tc.handles}
 		ctx := audit.WithAuditContext(context.Background())
 		ac := audit.AuditContextFrom(ctx)
-		ae := &ac.Event
-		ae.Level = auditinternal.LevelMetadata
+		ac.SetEventLevel(auditinternal.LevelMetadata)
 		auditHandler := WithAudit(handler)
 		a := attributes()
 
@@ -171,9 +170,9 @@ func TestWithAudit(t *testing.T) {
 			annotations[k] = v
 		}
 		if len(annotations) == 0 {
-			assert.Nil(t, ae.Annotations, tcName+": unexptected annotations set in audit event")
+			assert.Nil(t, ac.GetEventAnnotations(), tcName+": unexptected annotations set in audit event")
 		} else {
-			assert.Equal(t, annotations, ae.Annotations, tcName+": unexptected annotations set in audit event")
+			assert.Equal(t, annotations, ac.GetEventAnnotations(), tcName+": unexptected annotations set in audit event")
 		}
 	}
 }
@@ -188,7 +187,7 @@ func TestWithAuditConcurrency(t *testing.T) {
 	var handler Interface = fakeHandler{admitAnnotations: admitAnnotations, handles: true}
 	ctx := audit.WithAuditContext(context.Background())
 	ac := audit.AuditContextFrom(ctx)
-	ac.Event.Level = auditinternal.LevelMetadata
+	ac.SetEventLevel(auditinternal.LevelMetadata)
 	auditHandler := WithAudit(handler)
 	a := attributes()
 

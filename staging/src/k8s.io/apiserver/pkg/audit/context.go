@@ -18,6 +18,7 @@ package audit
 
 import (
 	"context"
+	"maps"
 	"net"
 	"sync"
 	"time"
@@ -222,6 +223,95 @@ func (ac *AuditContext) LogRequestPatch(patch []byte) {
 			ContentType: runtime.ContentTypeJSON,
 		}
 	})
+}
+
+func (ac *AuditContext) GetEventAnnotation(key string) (string, bool) {
+	var val string
+	var ok bool
+	ac.visitEventIfNotNil(func(event *auditinternal.Event) {
+		val, ok = event.Annotations[key]
+	})
+	return val, ok
+}
+
+func (ac *AuditContext) GetEventLevel() auditinternal.Level {
+	var level auditinternal.Level
+	ac.visitEventIfNotNil(func(event *auditinternal.Event) {
+		level = event.Level
+	})
+	return level
+}
+
+func (ac *AuditContext) SetEventLevel(level auditinternal.Level) {
+	ac.visitEventIfNotNil(func(event *auditinternal.Event) {
+		event.Level = level
+	})
+}
+
+func (ac *AuditContext) SetEventStage(stage auditinternal.Stage) {
+	ac.visitEventIfNotNil(func(event *auditinternal.Event) {
+		event.Stage = stage
+	})
+}
+
+func (ac *AuditContext) GetEventStage() auditinternal.Stage {
+	var stage auditinternal.Stage
+	ac.visitEventIfNotNil(func(event *auditinternal.Event) {
+		stage = event.Stage
+	})
+	return stage
+}
+
+func (ac *AuditContext) SetEventStageTimestamp(timestamp metav1.MicroTime) {
+	ac.visitEventIfNotNil(func(event *auditinternal.Event) {
+		event.StageTimestamp = timestamp
+	})
+}
+
+func (ac *AuditContext) GetEventResponseStatus() *metav1.Status {
+	var status *metav1.Status
+	ac.visitEventIfNotNil(func(event *auditinternal.Event) {
+		status = event.ResponseStatus
+	})
+	return status
+}
+
+func (ac *AuditContext) GetEventRequestReceivedTimestamp() metav1.MicroTime {
+	var timestamp metav1.MicroTime
+	ac.visitEventIfNotNil(func(event *auditinternal.Event) {
+		timestamp = event.RequestReceivedTimestamp
+	})
+	return timestamp
+}
+
+func (ac *AuditContext) GetEventStageTimestamp() metav1.MicroTime {
+	var timestamp metav1.MicroTime
+	ac.visitEventIfNotNil(func(event *auditinternal.Event) {
+		timestamp = event.StageTimestamp
+	})
+	return timestamp
+}
+
+func (ac *AuditContext) SetEventResponseStatus(status *metav1.Status) {
+	ac.visitEventIfNotNil(func(event *auditinternal.Event) {
+		event.ResponseStatus = status
+	})
+}
+
+func (ac *AuditContext) GetEventAnnotations() map[string]string {
+	var annotations map[string]string
+	ac.visitEventIfNotNil(func(event *auditinternal.Event) {
+		annotations = maps.Clone(event.Annotations)
+	})
+	return annotations
+}
+
+func (ac *AuditContext) Invoke(f func(e *auditinternal.Event) bool) bool {
+	var done bool
+	ac.visitEventIfNotNil(func(event *auditinternal.Event) {
+		done = f(ac.event)
+	})
+	return done
 }
 
 // AddAuditAnnotation sets the audit annotation for the given key, value pair.

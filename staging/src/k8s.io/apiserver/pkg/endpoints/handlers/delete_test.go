@@ -74,7 +74,7 @@ func TestDeleteResourceAuditLogRequestObject(t *testing.T) {
 
 	ctx := audit.WithAuditContext(context.TODO())
 	ac := audit.AuditContextFrom(ctx)
-	ac.Event.Level = auditapis.LevelRequestResponse
+	ac.SetEventLevel(auditapis.LevelRequestResponse)
 
 	policy := metav1.DeletePropagationBackground
 	deleteOption := &metav1.DeleteOptions{

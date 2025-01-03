@@ -119,15 +119,14 @@ func withFailedRequestAudit(failedHandler http.Handler, statusErr *apierrors.Sta
 			failedHandler.ServeHTTP(w, req)
 			return
 		}
-		ev := &ac.Event
 
-		ev.ResponseStatus = &metav1.Status{}
-		ev.Stage = auditinternal.StageResponseStarted
+		ac.SetEventResponseStatus(&metav1.Status{})
+		ac.SetEventStage(auditinternal.StageResponseStarted)
 		if statusErr != nil {
-			ev.ResponseStatus.Message = statusErr.Error()
+			ac.GetEventResponseStatus().Message = statusErr.Error()
 		}
 
-		rw := decorateResponseWriter(req.Context(), w, ev, sink, ac.RequestAuditConfig.OmitStages)
+		rw := decorateResponseWriter(req.Context(), w, sink, ac.RequestAuditConfig.OmitStages)
 		failedHandler.ServeHTTP(rw, req)
 	})
 }

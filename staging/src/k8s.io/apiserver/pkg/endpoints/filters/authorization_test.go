@@ -286,11 +286,21 @@ func TestAuditAnnotation(t *testing.T) {
 
 		req, _ := http.NewRequest("GET", "/api/v1/namespaces/default/pods", nil)
 		req = withTestContext(req, nil, &auditinternal.Event{Level: auditinternal.LevelMetadata})
-		ae := audit.AuditEventFrom(req.Context())
+		ae := audit.AuditContextFrom(req.Context())
 		req.RemoteAddr = "127.0.0.1"
 		handler.ServeHTTP(httptest.NewRecorder(), req)
-		assert.Equal(t, tc.decisionAnnotation, ae.Annotations[decisionAnnotationKey], k+": unexpected decision annotation")
-		assert.Equal(t, tc.reasonAnnotation, ae.Annotations[reasonAnnotationKey], k+": unexpected reason annotation")
+
+		var annotation string
+		var ok bool
+		if len(tc.decisionAnnotation) > 0 {
+			annotation, ok = ae.GetEventAnnotation(decisionAnnotationKey)
+			assert.True(t, ok, k+": decision annotation not found")
+			assert.Equal(t, tc.decisionAnnotation, annotation, k+": unexpected decision annotation")
+		}
+
+		annotation, ok = ae.GetEventAnnotation(reasonAnnotationKey)
+		assert.True(t, ok, k+": reason annotation not found")
+		assert.Equal(t, tc.reasonAnnotation, annotation, k+": unexpected reason annotation")
 	}
 
 }

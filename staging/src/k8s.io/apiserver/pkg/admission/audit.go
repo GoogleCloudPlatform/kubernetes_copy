@@ -83,7 +83,7 @@ func ensureAnnotationGetter(a Attributes) error {
 }
 
 func (handler *auditHandler) logAnnotations(ctx context.Context, a Attributes) {
-	ae := audit.AuditEventFrom(ctx)
+	ae := audit.AuditContextFrom(ctx)
 	if ae == nil {
 		return
 	}
@@ -91,9 +91,9 @@ func (handler *auditHandler) logAnnotations(ctx context.Context, a Attributes) {
 	var annotations map[string]string
 	switch a := a.(type) {
 	case privateAnnotationsGetter:
-		annotations = a.getAnnotations(ae.Level)
+		annotations = a.getAnnotations(ae.GetEventLevel())
 	case AnnotationsGetter:
-		annotations = a.GetAnnotations(ae.Level)
+		annotations = a.GetAnnotations(ae.GetEventLevel())
 	default:
 		// this will never happen, because we have already checked it in ensureAnnotationGetter
 	}
