@@ -923,6 +923,14 @@ var _ = SIGDescribe(framework.WithNodeConformance(), "Containers Lifecycle", fun
 							},
 						}
 
+						// FIXME: This case expects the restartable init container to get into CrashLoopBackoff before
+						//        the regular container is stopped by failure of its liveness probe.
+						//        If Evented PLEG is enabled, it takes more seconds till the init container gets into
+						//        CrashLoopBackoff because the pod worker is blocked at each probe failure (#127312).
+						if e2eskipper.IsFeatureGateEnabled(kubefeatures.EventedPLEG) {
+							podSpec.Spec.Containers[0].LivenessProbe.InitialDelaySeconds = 40
+						}
+
 						preparePod(podSpec)
 
 						podSpec = client.Create(ctx, podSpec)
