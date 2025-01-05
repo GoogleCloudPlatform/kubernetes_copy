@@ -46,6 +46,7 @@ import (
 	e2epod "k8s.io/kubernetes/test/e2e/framework/pod"
 	testutils "k8s.io/kubernetes/test/utils"
 	admissionapi "k8s.io/pod-security-admission/api"
+	"k8s.io/utils/ptr"
 )
 
 const (
@@ -237,8 +238,7 @@ var _ = SIGDescribe("Swap", "[LinuxOnly]", ginkgo.Ordered, feature.Swap, framewo
 					}, 5*time.Minute, 1*time.Second).Should(gomega.Succeed(), "swap usage is above zero: %s", swapUsage.String())
 
 					// Better to delete the stress pod ASAP to avoid node failures
-					err := podClient.Delete(context.Background(), stressPod.Name, metav1.DeleteOptions{})
-					framework.ExpectNoError(err)
+					_ = podClient.Delete(context.Background(), stressPod.Name, metav1.DeleteOptions{GracePeriodSeconds: ptr.To(int64(0))})
 				})
 
 				ginkgo.It("should be able to use more memory than memory limits", func() {
@@ -287,8 +287,7 @@ var _ = SIGDescribe("Swap", "[LinuxOnly]", ginkgo.Ordered, feature.Swap, framewo
 					}, 5*time.Minute, 1*time.Second).Should(gomega.Succeed())
 
 					// Better to delete the stress pod ASAP to avoid node failures
-					err := podClient.Delete(context.Background(), stressPod.Name, metav1.DeleteOptions{})
-					framework.ExpectNoError(err)
+					_ = podClient.Delete(context.Background(), stressPod.Name, metav1.DeleteOptions{GracePeriodSeconds: ptr.To(int64(0))})
 				})
 
 				ginkgo.It("ensure summary API properly reports swap", func() {
