@@ -699,6 +699,7 @@ func exceedMemoryRequests(stats statsFunc) cmpFunc {
 		p1Stats, p1Found := stats(p1)
 		p2Stats, p2Found := stats(p2)
 		if !p1Found || !p2Found {
+			klog.InfoS("DEBUG: exceedMemoryRequests() NOT FOUND", "p1Found", p1Found, "p2Found", p2Found)
 			// prioritize evicting the pod for which no stats were found
 			return cmpBool(!p1Found, !p2Found)
 		}
@@ -730,6 +731,7 @@ func exceedMemoryLimitsWithSwap(stats statsFunc) cmpFunc {
 		p1Stats, p1Found := stats(p1)
 		p2Stats, p2Found := stats(p2)
 		if !p1Found || !p2Found {
+			klog.InfoS("DEBUG: exceedMemoryLimitsWithSwap() NOT FOUND", "p1Found", p1Found, "p2Found", p2Found)
 			// prioritize evicting the pod for which no stats were found
 			return cmpBool(!p1Found, !p2Found)
 		}
@@ -778,6 +780,7 @@ func memory(stats statsFunc) cmpFunc {
 		p1Stats, p1Found := stats(p1)
 		p2Stats, p2Found := stats(p2)
 		if !p1Found || !p2Found {
+			klog.InfoS("DEBUG: memory() NOT FOUND", "p1Found", p1Found, "p2Found", p2Found)
 			// prioritize evicting the pod for which no stats were found
 			return cmpBool(!p1Found, !p2Found)
 		}
@@ -888,6 +891,7 @@ func cmpBool(a, b bool) int {
 // It ranks by whether or not the pod's usage exceeds its requests, then by priority, and
 // finally by memory usage above requests.
 func rankMemoryPressure(pods []*v1.Pod, stats statsFunc) {
+	klog.InfoS("DEBUG: rankMemoryPressure()")
 	orderedBy(exceedMemoryLimitsWithSwap(stats), exceedMemoryRequests(stats), priority, memory(stats)).Sort(pods)
 }
 
@@ -1314,6 +1318,7 @@ func buildSignalToNodeReclaimFuncs(imageGC ImageGC, containerGC ContainerGC, wit
 
 // evictionMessage constructs a useful message about why an eviction occurred, and annotations to provide metadata about the eviction
 func evictionMessage(resourceToReclaim v1.ResourceName, pod *v1.Pod, stats statsFunc, thresholds []evictionapi.Threshold, observations signalObservations) (message string, annotations map[string]string) {
+	klog.InfoS("ihol3 evictionMessage()", "resourceToReclaim", resourceToReclaim, "pod", pod.Name)
 	annotations = make(map[string]string)
 	message = fmt.Sprintf(nodeLowMessageFmt, resourceToReclaim)
 	quantity, available := getThresholdMetInfo(resourceToReclaim, thresholds, observations)
@@ -1338,6 +1343,7 @@ func evictionMessage(resourceToReclaim v1.ResourceName, pod *v1.Pod, stats stats
 		for _, container := range containers {
 			if container.Name == containerStats.Name {
 				requests := container.Resources.Requests[resourceToReclaim]
+				klog.InfoS("ihol3 evictionMessage() loop", "container", container.Name, "request", requests.String(), "containerStats", containerStats)
 				var usage *resource.Quantity
 				switch resourceToReclaim {
 				case v1.ResourceEphemeralStorage:
@@ -1347,15 +1353,18 @@ func evictionMessage(resourceToReclaim v1.ResourceName, pod *v1.Pod, stats stats
 				case v1.ResourceMemory:
 					if containerStats.Memory != nil && containerStats.Memory.WorkingSetBytes != nil {
 						usage = resource.NewQuantity(int64(*containerStats.Memory.WorkingSetBytes), resource.BinarySI)
+						klog.InfoS("ihol3 evictionMessage() memory", "usage", usage.String())
 					}
 					if containerStats.Swap != nil && containerStats.Swap.SwapUsageBytes != nil {
 						usage.Add(*resource.NewQuantity(int64(*containerStats.Swap.SwapUsageBytes), resource.BinarySI))
+						klog.InfoS("ihol3 evictionMessage() swap", "usage", usage.String(), "containerStats.Swap.SwapUsageBytes", *containerStats.Swap.SwapUsageBytes)
 					}
 				}
 				if usage != nil && usage.Cmp(requests) > 0 {
 					message += fmt.Sprintf(containerMessageFmt, container.Name, usage.String(), requests.String(), resourceToReclaim)
 					exceededContainers = append(exceededContainers, container.Name)
 					containerUsage = append(containerUsage, usage.String())
+					klog.InfoS("ihol3 evictionMessage() if usage != nil && usage.Cmp(requests) > 0 {", "exceededContainers", strings.Join(exceededContainers, ","))
 				}
 				// Found the container to compare resource usage with,
 				// so it's safe to break out of the containers loop here.
@@ -1364,6 +1373,7 @@ func evictionMessage(resourceToReclaim v1.ResourceName, pod *v1.Pod, stats stats
 		}
 	}
 	annotations[OffendingContainersKey] = strings.Join(exceededContainers, ",")
+	klog.InfoS("ihol3 evictionMessage() annotations[OffendingContainersKey]", "annotations[OffendingContainersKey]", annotations[OffendingContainersKey])
 	annotations[OffendingContainersUsageKey] = strings.Join(containerUsage, ",")
 	annotations[StarvedResourceKey] = string(resourceToReclaim)
 	return

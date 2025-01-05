@@ -98,6 +98,7 @@ func (p *cadvisorStatsProvider) ListPodStats(ctx context.Context) ([]statsapi.Po
 	// Map each container to a pod and update the PodStats with container data.
 	podToStats := map[statsapi.PodReference]*statsapi.PodStats{}
 	for key, cinfo := range filteredInfos {
+		klog.InfoS("ihol3 ListPodStats() loop", "container name", kubetypes.GetContainerName(cinfo.Spec.Labels))
 		// On systemd using devicemapper each mount into the container has an
 		// associated cgroup. We ignore them to ensure we do not get duplicate
 		// entries in our summary. For details on .mount units:
@@ -107,9 +108,11 @@ func (p *cadvisorStatsProvider) ListPodStats(ctx context.Context) ([]statsapi.Po
 		}
 		// Build the Pod key if this container is managed by a Pod
 		if !isPodManagedContainer(&cinfo) {
+			klog.InfoS("ihol3 ListPodStats() if !isPodManagedContainer(&cinfo) {")
 			continue
 		}
 		ref := buildPodRef(cinfo.Spec.Labels)
+		klog.InfoS("ihol3 ListPodStats() pod ref", "pod name", ref.Name, "pod ref", ref)
 
 		// Lookup the PodStats for the pod using the PodRef. If none exists,
 		// initialize a new entry.
@@ -127,6 +130,7 @@ func (p *cadvisorStatsProvider) ListPodStats(ctx context.Context) ([]statsapi.Po
 			// the user and has network stats.
 			podStats.Network = cadvisorInfoToNetworkStats(&cinfo)
 		} else {
+			klog.InfoS("ihol3 ListPodStats() } else {")
 			containerStat := cadvisorInfoToContainerStats(containerName, &cinfo, &rootFsInfo, &imageFsInfo)
 			// NOTE: This doesn't support the old pod log path, `/var/log/pods/UID`. For containers
 			// using old log path, they will be populated by cadvisorInfoToContainerStats.
@@ -155,6 +159,7 @@ func (p *cadvisorStatsProvider) ListPodStats(ctx context.Context) ([]statsapi.Po
 			cpu, memory := cadvisorInfoToCPUandMemoryStats(podInfo)
 			podStats.CPU = cpu
 			podStats.Memory = memory
+			klog.InfoS("ihol3 ListPodStats() for _, podStats := range podToStats {")
 			podStats.Swap = cadvisorInfoToSwapStats(podInfo)
 			// ProcessStats were accumulated as the containers were iterated.
 		}
@@ -182,12 +187,14 @@ func (p *cadvisorStatsProvider) ListPodStatsAndUpdateCPUNanoCoreUsage(ctx contex
 func (p *cadvisorStatsProvider) ListPodCPUAndMemoryStats(_ context.Context) ([]statsapi.PodStats, error) {
 	infos, err := getCadvisorContainerInfo(p.cadvisor)
 	if err != nil {
+		klog.InfoS("ihol3 ListPodCPUAndMemoryStats() getCadvisorContainerInfo(p.cadvisor) failed", "err", err)
 		return nil, fmt.Errorf("failed to get container info from cadvisor: %v", err)
 	}
 	filteredInfos, allInfos := filterTerminatedContainerInfoAndAssembleByPodCgroupKey(infos)
 	// Map each container to a pod and update the PodStats with container data.
 	podToStats := map[statsapi.PodReference]*statsapi.PodStats{}
 	for key, cinfo := range filteredInfos {
+		klog.InfoS("ihol3 ListPodCPUAndMemoryStats() loop", "container name", kubetypes.GetContainerName(cinfo.Spec.Labels))
 		// On systemd using devicemapper each mount into the container has an
 		// associated cgroup. We ignore them to ensure we do not get duplicate
 		// entries in our summary. For details on .mount units:
@@ -197,9 +204,11 @@ func (p *cadvisorStatsProvider) ListPodCPUAndMemoryStats(_ context.Context) ([]s
 		}
 		// Build the Pod key if this container is managed by a Pod
 		if !isPodManagedContainer(&cinfo) {
+			klog.InfoS("ihol3 ListPodCPUAndMemoryStats() if !isPodManagedContainer(&cinfo) {")
 			continue
 		}
 		ref := buildPodRef(cinfo.Spec.Labels)
+		klog.InfoS("ihol3 ListPodCPUAndMemoryStats() pod ref", "pod name", ref.Name, "pod ref", ref)
 
 		// Lookup the PodStats for the pod using the PodRef. If none exists,
 		// initialize a new entry.
@@ -217,6 +226,7 @@ func (p *cadvisorStatsProvider) ListPodCPUAndMemoryStats(_ context.Context) ([]s
 			// the user and has network stats.
 			podStats.StartTime = metav1.NewTime(cinfo.Spec.CreationTime)
 		} else {
+			klog.InfoS("ihol3 ListPodCPUAndMemoryStats() } else {")
 			podStats.Containers = append(podStats.Containers, *cadvisorInfoToContainerCPUAndMemoryStats(containerName, &cinfo))
 		}
 	}

@@ -805,16 +805,24 @@ func setMemoryStats(s *cgroups.Stats, ret *info.ContainerStats) {
 		ret.Memory.RSS = s.MemoryStats.Stats["anon"]
 		ret.Memory.Swap = s.MemoryStats.SwapUsage.Usage - s.MemoryStats.Usage.Usage
 		ret.Memory.MappedFile = s.MemoryStats.Stats["file_mapped"]
+		klog.Infof("ihol3 cgroups.IsCgroup2UnifiedMode()")
+		klog.Infof("ihol3 s.MemoryStats.SwapUsage.Usage=%d", s.MemoryStats.SwapUsage.Usage)
+		klog.Infof("ihol3 s.MemoryStats.Usage.Usage=%d", s.MemoryStats.Usage.Usage)
+		klog.Infof("ihol3 ret.Memory.Swap=%d", ret.Memory.Swap)
 	} else if s.MemoryStats.UseHierarchy {
 		ret.Memory.Cache = s.MemoryStats.Stats["total_cache"]
 		ret.Memory.RSS = s.MemoryStats.Stats["total_rss"]
 		ret.Memory.Swap = s.MemoryStats.Stats["total_swap"]
 		ret.Memory.MappedFile = s.MemoryStats.Stats["total_mapped_file"]
+		klog.Infof("ihol3 else if s.MemoryStats.UseHierarchy")
+		klog.Infof(`ihol3 s.MemoryStats.Stats["total_swap"]=%d`, s.MemoryStats.Stats["total_swap"])
 	} else {
 		ret.Memory.Cache = s.MemoryStats.Stats["cache"]
 		ret.Memory.RSS = s.MemoryStats.Stats["rss"]
 		ret.Memory.Swap = s.MemoryStats.Stats["swap"]
 		ret.Memory.MappedFile = s.MemoryStats.Stats["mapped_file"]
+		klog.Infof("ihol3 else ")
+		klog.Infof(`ihol3 s.MemoryStats.Stats["swap"]=%d`, s.MemoryStats.Stats["swap"])
 	}
 	if v, ok := s.MemoryStats.Stats["pgfault"]; ok {
 		ret.Memory.ContainerData.Pgfault = v

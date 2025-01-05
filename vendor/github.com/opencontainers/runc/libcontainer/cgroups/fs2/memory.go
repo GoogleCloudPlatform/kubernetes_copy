@@ -3,6 +3,7 @@ package fs2
 import (
 	"bufio"
 	"errors"
+	"k8s.io/klog/v2"
 	"math"
 	"os"
 	"strconv"
@@ -105,18 +106,23 @@ func statMemory(dirPath string, stats *cgroups.Stats) error {
 	// cgroup v2 is always hierarchical.
 	stats.MemoryStats.UseHierarchy = true
 
+	klog.Infof("ihol3 statMemory")
 	memoryUsage, err := getMemoryDataV2(dirPath, "")
+	klog.Infof("ihol3 memoryUsage: %d, err: %v", memoryUsage.Usage, err)
 	if err != nil {
 		if errors.Is(err, unix.ENOENT) && dirPath == UnifiedMountpoint {
 			// The root cgroup does not have memory.{current,max,peak}
 			// so emulate those using data from /proc/meminfo and
 			// /sys/fs/cgroup/memory.stat
-			return rootStatsFromMeminfo(stats)
+			err = rootStatsFromMeminfo(stats)
+			klog.InfoS("ihol3 rootStatsFromMeminfo() if errors.Is(err, unix.ENOENT) && dirPath == UnifiedMountpoint {", "err", err)
+			return err
 		}
 		return err
 	}
 	stats.MemoryStats.Usage = memoryUsage
 	swapOnlyUsage, err := getMemoryDataV2(dirPath, "swap")
+	klog.Infof("ihol3 swapOnlyUsage: %d, err: %v", swapOnlyUsage.Usage, err)
 	if err != nil {
 		return err
 	}
@@ -237,6 +243,7 @@ func rootStatsFromMeminfo(stats *cgroups.Stats) error {
 	stats.MemoryStats.SwapUsage.Usage = (swap_total - swap_free) * 1024
 	stats.MemoryStats.SwapUsage.Limit = math.MaxUint64
 	stats.MemoryStats.SwapUsage.Usage += stats.MemoryStats.Usage.Usage
+	klog.InfoS("ihol3 rootStatsFromMeminfo()", "swap usage", (swap_total-swap_free)*1024, "mem usage", stats.MemoryStats.Usage.Usage, "swap+mem", stats.MemoryStats.SwapUsage.Usage)
 
 	return nil
 }

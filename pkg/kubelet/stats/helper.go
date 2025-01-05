@@ -83,12 +83,14 @@ func cadvisorInfoToCPUandMemoryStats(info *cadvisorapiv2.ContainerInfo) (*statsa
 // cadvisorInfoToContainerStats returns the statsapi.ContainerStats converted
 // from the container and filesystem info.
 func cadvisorInfoToContainerStats(name string, info *cadvisorapiv2.ContainerInfo, rootFs, imageFs *cadvisorapiv2.FsInfo) *statsapi.ContainerStats {
+	klog.InfoS("ihol3 cadvisorInfoToContainerStats() called", "name", name)
 	result := &statsapi.ContainerStats{
 		StartTime: metav1.NewTime(info.Spec.CreationTime),
 		Name:      name,
 	}
 	cstat, found := latestContainerStats(info)
 	if !found {
+		klog.InfoS("ihol3 latestContainerStats() not found", "name", name)
 		return result
 	}
 
@@ -147,6 +149,18 @@ func cadvisorInfoToContainerStats(name string, info *cadvisorapiv2.ContainerInfo
 // cadvisorInfoToContainerCPUAndMemoryStats returns the statsapi.ContainerStats converted
 // from the container and filesystem info.
 func cadvisorInfoToContainerCPUAndMemoryStats(name string, info *cadvisorapiv2.ContainerInfo) *statsapi.ContainerStats {
+	if info != nil {
+		klog.InfoS("ihol3 cadvisorInfoToContainerCPUAndMemoryStats() info not nil", "container stat len", len(info.Stats))
+		for i, stat := range info.Stats {
+			memStatsNil := stat.Memory == nil
+			swap := uint64(0)
+			if memStatsNil {
+				swap = stat.Memory.Swap
+			}
+			klog.InfoS("ihol3 cadvisorInfoToContainerCPUAndMemoryStats() info.Stats", "i", i, "memStatsNil", memStatsNil, "swap", swap)
+		}
+	}
+
 	result := &statsapi.ContainerStats{
 		StartTime: metav1.NewTime(info.Spec.CreationTime),
 		Name:      name,
@@ -155,6 +169,8 @@ func cadvisorInfoToContainerCPUAndMemoryStats(name string, info *cadvisorapiv2.C
 	cpu, memory := cadvisorInfoToCPUandMemoryStats(info)
 	result.CPU = cpu
 	result.Memory = memory
+	klog.InfoS("ihol3 cadvisorInfoToContainerCPUAndMemoryStats() calling cadvisorInfoToSwapStats()")
+	result.Swap = cadvisorInfoToSwapStats(info)
 
 	return result
 }
@@ -285,21 +301,38 @@ func cadvisorInfoToUserDefinedMetrics(info *cadvisorapiv2.ContainerInfo) []stats
 
 func cadvisorInfoToSwapStats(info *cadvisorapiv2.ContainerInfo) *statsapi.SwapStats {
 	cstat, found := latestContainerStats(info)
+
+	if info != nil {
+		klog.InfoS("ihol3 cadvisorInfoToSwapStats() info not nil", "container stat len", len(info.Stats))
+		for i, stat := range info.Stats {
+			memStatsNil := stat.Memory == nil
+			swap := uint64(0)
+			if memStatsNil {
+				swap = stat.Memory.Swap
+			}
+			klog.InfoS("ihol3 cadvisorInfoToSwapStats() info.Stats", "i", i, "memStatsNil", memStatsNil, "swap", swap)
+		}
+	}
+
 	if !found {
+		klog.InfoS("ihol3 latestContainerStats() latestContainerStats(info) not found")
 		return nil
 	}
 
 	var swapStats *statsapi.SwapStats
 
+	klog.InfoS("ihol3 cadvisorInfoToSwapStats() called", "info.Spec.HasMemory", info.Spec.HasMemory, "cstat.Memory nil?", cstat.Memory == nil)
 	if info.Spec.HasMemory && cstat.Memory != nil {
 		swapStats = &statsapi.SwapStats{
 			Time:           metav1.NewTime(cstat.Timestamp),
 			SwapUsageBytes: &cstat.Memory.Swap,
 		}
+		klog.InfoS("ihol3 cadvisorInfoToSwapStats() swapStats", "cstat.Memory.Swap", cstat.Memory.Swap)
 
 		if !isMemoryUnlimited(info.Spec.Memory.SwapLimit) {
 			swapAvailableBytes := info.Spec.Memory.SwapLimit - cstat.Memory.Swap
 			swapStats.SwapAvailableBytes = &swapAvailableBytes
+			klog.InfoS("ihol3 cadvisorInfoToSwapStats() !isMemoryUnlimited(info.Spec.Memory.SwapLimit) {", "swapAvailableBytes", swapAvailableBytes)
 		}
 	}
 

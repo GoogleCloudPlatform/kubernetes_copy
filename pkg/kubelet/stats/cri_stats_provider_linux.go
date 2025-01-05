@@ -21,6 +21,7 @@ package stats
 
 import (
 	"fmt"
+	"k8s.io/klog/v2"
 	"time"
 
 	cadvisorapiv2 "github.com/google/cadvisor/info/v2"
@@ -34,14 +35,17 @@ func (p *criStatsProvider) addCRIPodContainerStats(criSandboxStat *runtimeapi.Po
 	containerMap map[string]*runtimeapi.Container,
 	podSandbox *runtimeapi.PodSandbox,
 	rootFsInfo *cadvisorapiv2.FsInfo, updateCPUNanoCoreUsage bool) error {
+	klog.InfoS("ihol3 addCRIPodContainerStats() called")
 	for _, criContainerStat := range criSandboxStat.Linux.Containers {
 		container, found := containerMap[criContainerStat.Attributes.Id]
+		klog.InfoS("ihol3 addCRIPodContainerStats() loop", "container", container.Metadata.Name, "found", found)
 		if !found {
 			continue
 		}
 		// Fill available stats for full set of required pod stats
 		cs, err := p.makeContainerStats(criContainerStat, container, rootFsInfo, fsIDtoInfo, podSandbox.GetMetadata(),
 			updateCPUNanoCoreUsage)
+		klog.InfoS("ihol3 addCRIPodContainerStats() makeContainerStats", "container", container.Metadata.Name, "swap usage", *cs.Swap.SwapUsageBytes, "err", err)
 		if err != nil {
 			return fmt.Errorf("make container stats: %w", err)
 		}
@@ -67,7 +71,9 @@ func addCRIPodNetworkStats(ps *statsapi.PodStats, criPodStat *runtimeapi.PodSand
 }
 
 func addCRIPodMemoryStats(ps *statsapi.PodStats, criPodStat *runtimeapi.PodSandboxStats) {
+	klog.InfoS("ihol3 addCRIPodMemoryStats() called")
 	if criPodStat == nil || criPodStat.Linux == nil || criPodStat.Linux.Memory == nil {
+		klog.InfoS("ihol3 addCRIPodMemoryStats() if criPodStat == nil || criPodStat.Linux == nil || criPodStat.Linux.Memory == nil {")
 		return
 	}
 	criMemory := criPodStat.Linux.Memory

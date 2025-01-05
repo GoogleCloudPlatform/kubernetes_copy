@@ -186,12 +186,15 @@ func (p *criStatsProvider) listPodStatsPartiallyFromCRI(ctx context.Context, upd
 		containerID := stats.Attributes.Id
 		container, found := containerMap[containerID]
 		if !found {
+			klog.InfoS("ihol3 listPodStatsPartiallyFromCRI() container not found", "containerID", containerID)
 			continue
 		}
+		klog.InfoS("ihol3 listPodStatsPartiallyFromCRI() for _, stats := range resp {", "container name", container.Metadata.Name)
 
 		podSandboxID := container.PodSandboxId
 		podSandbox, found := podSandboxMap[podSandboxID]
 		if !found {
+			klog.InfoS("ihol3 listPodStatsPartiallyFromCRI() pod sandbox not found", "containerID", containerID)
 			continue
 		}
 
@@ -199,6 +202,7 @@ func (p *criStatsProvider) listPodStatsPartiallyFromCRI(ctx context.Context, upd
 		// container belongs to.
 		ps, found := sandboxIDToPodStats[podSandboxID]
 		if !found {
+			klog.InfoS("ihol3 listPodStatsPartiallyFromCRI() pod stats not found", "containerID", containerID)
 			ps = buildPodStats(podSandbox)
 			sandboxIDToPodStats[podSandboxID] = ps
 		}
@@ -206,18 +210,22 @@ func (p *criStatsProvider) listPodStatsPartiallyFromCRI(ctx context.Context, upd
 		// Fill available stats for full set of required pod stats
 		cs, err := p.makeContainerStats(stats, container, rootFsInfo, fsIDtoInfo, podSandbox.GetMetadata(), updateCPUNanoCoreUsage)
 		if err != nil {
+			klog.InfoS("ihol3 listPodStatsPartiallyFromCRI() err makeContainerStats", "err", err)
 			return nil, fmt.Errorf("make container stats: %w", err)
 		}
 		p.addPodNetworkStats(ps, podSandboxID, caInfos, cs, containerNetworkStats[podSandboxID])
 		p.addPodCPUMemoryStats(ps, types.UID(podSandbox.Metadata.Uid), allInfos, cs)
+		klog.InfoS("ihol3 listPodStatsPartiallyFromCRI() calling addSwapStats", "container name", container.Metadata.Name)
 		p.addSwapStats(ps, types.UID(podSandbox.Metadata.Uid), allInfos, cs)
 
 		// If cadvisor stats is available for the container, use it to populate
 		// container stats
 		caStats, caFound := caInfos[containerID]
 		if !caFound {
+			klog.InfoS("ihol3 Unable to find cadvisor stats for container", "containerID", containerID)
 			klog.V(5).InfoS("Unable to find cadvisor stats for container", "containerID", containerID)
 		} else {
+			klog.InfoS("ihol3 ABLE to find cadvisor stats for container", "containerID", containerID)
 			p.addCadvisorContainerStats(cs, &caStats)
 			p.addProcessStats(ps, &caStats)
 		}
@@ -236,8 +244,10 @@ func (p *criStatsProvider) listPodStatsPartiallyFromCRI(ctx context.Context, upd
 }
 
 func (p *criStatsProvider) listPodStatsStrictlyFromCRI(ctx context.Context, updateCPUNanoCoreUsage bool, containerMap map[string]*runtimeapi.Container, podSandboxMap map[string]*runtimeapi.PodSandbox, rootFsInfo *cadvisorapiv2.FsInfo) ([]statsapi.PodStats, error) {
+	klog.InfoS("ihol3 listPodStatsStrictlyFromCRI()")
 	criSandboxStats, err := p.runtimeService.ListPodSandboxStats(ctx, &runtimeapi.PodSandboxStatsFilter{})
 	if err != nil {
+		klog.InfoS("ihol3 listPodStatsStrictlyFromCRI() err ListPodSandboxStats", "err", err)
 		return nil, err
 	}
 
@@ -245,15 +255,19 @@ func (p *criStatsProvider) listPodStatsStrictlyFromCRI(ctx context.Context, upda
 	summarySandboxStats := make([]statsapi.PodStats, 0, len(podSandboxMap))
 	for _, criSandboxStat := range criSandboxStats {
 		if criSandboxStat == nil || criSandboxStat.Attributes == nil {
+			klog.InfoS("ihol3 listPodStatsStrictlyFromCRI() criSandboxStat == nil || criSandboxStat.Attributes == nil")
 			klog.V(5).InfoS("Unable to find CRI stats for sandbox")
 			continue
 		}
+		klog.InfoS("ihol3 listPodStatsStrictlyFromCRI() for _, criSandboxStat := range criSandboxStats {", "sandbox name", criSandboxStat.Attributes.Metadata.Name)
 		podSandbox, found := podSandboxMap[criSandboxStat.Attributes.Id]
 		if !found {
+			klog.InfoS("ihol3 listPodStatsStrictlyFromCRI() podSandbox not found", "sandbox name", criSandboxStat.Attributes.Metadata.Name)
 			continue
 		}
 		ps := buildPodStats(podSandbox)
 		if err := p.addCRIPodContainerStats(criSandboxStat, ps, fsIDtoInfo, containerMap, podSandbox, rootFsInfo, updateCPUNanoCoreUsage); err != nil {
+			klog.InfoS("ihol3 listPodStatsStrictlyFromCRI() err addCRIPodContainerStats", "err", err)
 			return nil, fmt.Errorf("add CRI pod container stats: %w", err)
 		}
 		addCRIPodNetworkStats(ps, criSandboxStat)
@@ -566,8 +580,13 @@ func (p *criStatsProvider) addSwapStats(
 ) {
 	// try get cpu and memory stats from cadvisor first.
 	podCgroupInfo := getCadvisorPodInfoFromPodUID(podUID, allInfos)
+	swapUsageBytes := uint64(0)
 	if podCgroupInfo != nil {
 		ps.Swap = cadvisorInfoToSwapStats(podCgroupInfo)
+		if ps.Swap != nil && ps.Swap.SwapUsageBytes != nil {
+			swapUsageBytes = *ps.Swap.SwapUsageBytes
+		}
+		klog.InfoS("ihol3 addSwapStats() if podCgroupInfo != nil {", "swapUsageBytes", swapUsageBytes)
 		return
 	}
 
@@ -580,6 +599,7 @@ func (p *criStatsProvider) addSwapStats(
 		swapUsageBytes := getUint64Value(cs.Swap.SwapUsageBytes) + getUint64Value(ps.Swap.SwapUsageBytes)
 		ps.Swap.SwapAvailableBytes = &swapAvailableBytes
 		ps.Swap.SwapUsageBytes = &swapUsageBytes
+		klog.InfoS("ihol3 addSwapStats() if cs.Swap != nil {", "swapUsageBytes", swapUsageBytes)
 	}
 }
 
@@ -600,6 +620,7 @@ func (p *criStatsProvider) makeContainerStats(
 	meta *runtimeapi.PodSandboxMetadata,
 	updateCPUNanoCoreUsage bool,
 ) (*statsapi.ContainerStats, error) {
+	klog.InfoS("ihol3 makeContainerStats() called", "container name", container.GetMetadata().GetName())
 	result := &statsapi.ContainerStats{
 		Name: stats.Attributes.Metadata.Name,
 		// The StartTime in the summary API is the container creation time.
@@ -639,14 +660,17 @@ func (p *criStatsProvider) makeContainerStats(
 		result.Memory.WorkingSetBytes = uint64Ptr(0)
 	}
 	if stats.Swap != nil {
+		klog.InfoS("ihol3 makeContainerStats() if stats.Swap != nil {", "container name", container.GetMetadata().GetName())
 		result.Swap.Time = metav1.NewTime(time.Unix(0, stats.Swap.Timestamp))
 		if stats.Swap.SwapUsageBytes != nil {
+			klog.InfoS("ihol3 makeContainerStats() if stats.Swap.SwapUsageBytes != nil {", "swap usage", stats.Swap.SwapUsageBytes.Value)
 			result.Swap.SwapUsageBytes = &stats.Swap.SwapUsageBytes.Value
 		}
 		if stats.Swap.SwapAvailableBytes != nil {
 			result.Swap.SwapAvailableBytes = &stats.Swap.SwapAvailableBytes.Value
 		}
 	} else {
+		klog.InfoS("ihol3 makeContainerStats() ELSE (stats.swap is nil!)")
 		result.Swap.Time = metav1.NewTime(time.Unix(0, time.Now().UnixNano()))
 		result.Swap.SwapUsageBytes = uint64Ptr(0)
 		result.Swap.SwapAvailableBytes = uint64Ptr(0)
@@ -904,6 +928,12 @@ func (p *criStatsProvider) addCadvisorContainerStats(
 	}
 	if memory != nil {
 		cs.Memory = memory
+	}
+	klog.InfoS("ihol3 addCadvisorContainerStats()")
+	swap := cadvisorInfoToSwapStats(caPodStats)
+	if swap != nil {
+		klog.InfoS("ihol3 addCadvisorContainerStats() if swap != nil {", "swap usage", *swap.SwapUsageBytes)
+		cs.Swap = swap
 	}
 }
 
