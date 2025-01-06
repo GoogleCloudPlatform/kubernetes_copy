@@ -57,12 +57,22 @@ type GenericWebhook struct {
 }
 
 // DefaultShouldRetry is a default implementation for the GenericWebhook ShouldRetry function property.
-// If the error reason is one of: networking (connection reset) or http (InternalServerError (500), GatewayTimeout (504), TooManyRequests (429)),
-// or apierrors.SuggestsClientDelay() returns true, then the function advises a retry.
-// Otherwise it returns false for an immediate fail.
+//
+// It is a suitable retry policy for interactive requests.
 func DefaultShouldRetry(err error) bool {
 	// these errors indicate a transient error that should be retried.
-	if utilnet.IsConnectionReset(err) || utilnet.IsHTTP2ConnectionLost(err) || apierrors.IsInternalError(err) || apierrors.IsTimeout(err) || apierrors.IsTooManyRequests(err) {
+	switch {
+	case utilnet.IsConnectionReset(err):
+		return true
+	case utilnet.IsHTTP2ConnectionLost(err):
+		return true
+	case apierrors.IsInternalError(err):
+		return true
+	case apierrors.IsTimeout(err):
+		return true
+	case apierrors.IsTooManyRequests(err):
+		return true
+	case apierrors.IsServiceUnavailable(err):
 		return true
 	}
 	// if the error sends the Retry-After header, we respect it as an explicit confirmation we should retry.

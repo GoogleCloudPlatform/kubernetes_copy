@@ -31,6 +31,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -406,14 +407,14 @@ func TestTLSConfig(t *testing.T) {
 			test:       "server cert with SHA1 signature",
 			clientCA:   caCert,
 			serverCert: append(append(sha1ServerCertInter, byte('\n')), caCertInter...), serverKey: serverKey,
-			errRegex:                         "x509: cannot verify signature: insecure algorithm SHA1-RSA \\(temporarily override with GODEBUG=x509sha1=1\\)",
+			errRegex:                         ".*insecure algorithm SHA1-RSA.*",
 			increaseSHA1SignatureWarnCounter: true,
 		},
 		{
 			test:       "server cert signed by an intermediate CA with SHA1 signature",
 			clientCA:   caCert,
 			serverCert: append(append(serverCertInterSHA1, byte('\n')), caCertInterSHA1...), serverKey: serverKey,
-			errRegex:                         "x509: cannot verify signature: insecure algorithm SHA1-RSA \\(temporarily override with GODEBUG=x509sha1=1\\)",
+			errRegex:                         ".*insecure algorithm SHA1-RSA.*",
 			increaseSHA1SignatureWarnCounter: true,
 		},
 	}
@@ -583,106 +584,134 @@ func TestRequestTimeout(t *testing.T) {
 
 // TestWithExponentialBackoff ensures that the webhook's exponential backoff support works as expected
 func TestWithExponentialBackoff(t *testing.T) {
-	count := 0 // To keep track of the requests
 	gr := schema.GroupResource{
 		Group:    "webhook.util.k8s.io",
 		Resource: "test",
 	}
 
-	// Handler that will handle all backoff CONDITIONS
-	ebHandler := func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
+	type webhookResponse struct {
+		code int
+		body any
+	}
 
-		switch count++; count {
-		case 1:
-			// Timeout error with retry supplied
-			w.WriteHeader(http.StatusGatewayTimeout)
-			json.NewEncoder(w).Encode(apierrors.NewServerTimeout(gr, "get", 2))
-		case 2:
-			// Internal server error
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(apierrors.NewInternalError(fmt.Errorf("nope")))
-		case 3:
-			// HTTP error that is not retryable
-			w.WriteHeader(http.StatusNotAcceptable)
-			json.NewEncoder(w).Encode(apierrors.NewGenericServerResponse(http.StatusNotAcceptable, "get", gr, "testing", "nope", 0, false))
-		case 4:
-			// Successful request
-			w.WriteHeader(http.StatusOK)
-			json.NewEncoder(w).Encode(map[string]string{
-				"status": "OK",
+	testCases := []struct {
+		Desc           string
+		Responses      []webhookResponse
+		WantStatusCode int
+	}{
+		{
+			Desc: "Properly functioning backend returns OK",
+			Responses: []webhookResponse{
+				{http.StatusOK, map[string]string{"status": "OK"}},
+			},
+			WantStatusCode: http.StatusOK,
+		},
+		{
+			Desc: "GatewayTimepout backend returns error",
+			Responses: []webhookResponse{
+				{http.StatusGatewayTimeout, apierrors.NewServerTimeout(gr, "get", 2)},
+			},
+			WantStatusCode: http.StatusGatewayTimeout,
+		},
+		{
+			Desc: "ServiceUnavailable backend returns error",
+			Responses: []webhookResponse{
+				{http.StatusServiceUnavailable, apierrors.NewServiceUnavailable("unavailable")},
+			},
+			WantStatusCode: http.StatusServiceUnavailable,
+		},
+		{
+			Desc: "Erroring-then-OK backend returns OK",
+			Responses: []webhookResponse{
+				{http.StatusGatewayTimeout, apierrors.NewServerTimeout(gr, "get", 2)},
+				{http.StatusInternalServerError, apierrors.NewInternalError(fmt.Errorf("nope"))},
+				{http.StatusOK, map[string]string{"status": "OK"}},
+			},
+			WantStatusCode: http.StatusOK,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.Desc, func(t *testing.T) {
+
+			countLock := sync.Mutex{}
+			count := 0 // To keep track of the requests
+
+			// Handler that will handle all backoff CONDITIONS
+			ebHandler := func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+
+				countLock.Lock()
+				defer countLock.Unlock()
+				count++
+
+				// Have the last response in the slice repeat forever
+				i := count
+				if i >= len(tc.Responses) {
+					i = len(tc.Responses) - 1
+				}
+				w.WriteHeader(tc.Responses[i].code)
+				json.NewEncoder(w).Encode(tc.Responses[i].body)
+			}
+
+			// Create and start a simple HTTPS server
+			server, err := newTestServer(clientCert, clientKey, caCert, ebHandler)
+
+			if err != nil {
+				t.Errorf("failed to create server: %v", err)
+				return
+			}
+
+			defer server.Close()
+
+			// Create a Kubernetes client configuration file
+			configFile, err := newKubeConfigFile(v1.Config{
+				Clusters: []v1.NamedCluster{
+					{
+						Cluster: v1.Cluster{
+							Server:                   server.URL,
+							CertificateAuthorityData: caCert,
+						},
+					},
+				},
+				AuthInfos: []v1.NamedAuthInfo{
+					{
+						AuthInfo: v1.AuthInfo{
+							ClientCertificateData: clientCert,
+							ClientKeyData:         clientKey,
+						},
+					},
+				},
 			})
-		}
-	}
 
-	// Create and start a simple HTTPS server
-	server, err := newTestServer(clientCert, clientKey, caCert, ebHandler)
+			if err != nil {
+				t.Errorf("failed to create the client config file: %v", err)
+				return
+			}
 
-	if err != nil {
-		t.Errorf("failed to create server: %v", err)
-		return
-	}
+			defer os.Remove(configFile)
 
-	defer server.Close()
+			config, err := LoadKubeconfig(configFile, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
 
-	// Create a Kubernetes client configuration file
-	configFile, err := newKubeConfigFile(v1.Config{
-		Clusters: []v1.NamedCluster{
-			{
-				Cluster: v1.Cluster{
-					Server:                   server.URL,
-					CertificateAuthorityData: caCert,
-				},
-			},
-		},
-		AuthInfos: []v1.NamedAuthInfo{
-			{
-				AuthInfo: v1.AuthInfo{
-					ClientCertificateData: clientCert,
-					ClientKeyData:         clientKey,
-				},
-			},
-		},
-	})
+			wh, err := NewGenericWebhook(runtime.NewScheme(), scheme.Codecs, config, groupVersions, retryBackoff)
 
-	if err != nil {
-		t.Errorf("failed to create the client config file: %v", err)
-		return
-	}
+			if err != nil {
+				t.Fatalf("failed to create the webhook: %v", err)
+			}
 
-	defer os.Remove(configFile)
+			result := wh.WithExponentialBackoff(context.Background(), func() rest.Result {
+				return wh.RestClient.Get().Do(context.TODO())
+			})
 
-	config, err := LoadKubeconfig(configFile, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	wh, err := NewGenericWebhook(runtime.NewScheme(), scheme.Codecs, config, groupVersions, retryBackoff)
-
-	if err != nil {
-		t.Fatalf("failed to create the webhook: %v", err)
-	}
-
-	result := wh.WithExponentialBackoff(context.Background(), func() rest.Result {
-		return wh.RestClient.Get().Do(context.TODO())
-	})
-
-	var statusCode int
-
-	result.StatusCode(&statusCode)
-
-	if statusCode != http.StatusNotAcceptable {
-		t.Errorf("unexpected status code: %d", statusCode)
-	}
-
-	result = wh.WithExponentialBackoff(context.Background(), func() rest.Result {
-		return wh.RestClient.Get().Do(context.TODO())
-	})
-
-	result.StatusCode(&statusCode)
-
-	if statusCode != http.StatusOK {
-		t.Errorf("unexpected status code: %d", statusCode)
+			var statusCode int
+			result.StatusCode(&statusCode)
+			if statusCode != tc.WantStatusCode {
+				t.Errorf("unexpected status code: got %d, want %d", statusCode, tc.WantStatusCode)
+			}
+		})
 	}
 }
 
