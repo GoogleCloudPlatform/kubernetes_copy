@@ -9,6 +9,8 @@ linters:
   disable-all: true
   # Specifically enable linters we want to use.
   enable:
+    - asasalint
+    - bodyclose
     - depguard
     - errcheck
     - errorlint
@@ -20,13 +22,16 @@ linters:
     - govet
     - ineffassign
     - misspell
+    - perfsprint
     - revive
     - staticcheck
     - tenv
+    - testifylint
     - typecheck
     - unconvert
     - unused
     - unparam
+    - usestdlibvars
 
 issues:
   # Maximum issues count per one linter.
@@ -58,16 +63,17 @@ issues:
       text: "calls to (.+) only in main[(][)] or init[(][)] functions"
       linters:
         - revive
-    # It's okay to not run gosec in a test.
+    # It's okay to not run gosec and perfsprint in a test.
     - path: _test\.go
       linters:
         - gosec
-    # Igonoring gosec G404: Use of weak random number generator (math/rand instead of crypto/rand)
+        - perfsprint
+    # Ignoring gosec G404: Use of weak random number generator (math/rand instead of crypto/rand)
     # as we commonly use it in tests and examples.
     - text: "G404:"
       linters:
         - gosec
-    # Igonoring gosec G402: TLS MinVersion too low
+    # Ignoring gosec G402: TLS MinVersion too low
     # as the https://pkg.go.dev/crypto/tls#Config handles MinVersion default well.
     - text: "G402: TLS MinVersion too low."
       linters:
@@ -92,6 +98,13 @@ linters-settings:
           - pkg: "crypto/md5"
           - pkg: "crypto/sha1"
           - pkg: "crypto/**/pkix"
+      auto/sdk:
+        files:
+          - "!internal/global/trace.go"
+          - "~internal/global/trace_test.go"
+        deny:
+          - pkg: "go.opentelemetry.io/auto/sdk"
+            desc: Do not use SDK from automatic instrumentation.
       otlp-internal:
         files:
           - "!**/exporters/otlp/internal/**/*.go"
@@ -124,8 +137,6 @@ linters-settings:
           - "**/metric/**/*.go"
           - "**/bridge/*.go"
           - "**/bridge/**/*.go"
-          - "**/example/*.go"
-          - "**/example/**/*.go"
           - "**/trace/*.go"
           - "**/trace/**/*.go"
           - "**/log/*.go"
@@ -153,6 +164,12 @@ linters-settings:
     locale: US
     ignore-words:
       - cancelled
+  perfsprint:
+    err-error: true
+    errorf: true
+    int-conversion: true
+    sprintf1: true
+    strconcat: true
   revive:
     # Sets the default failure confidence.
     # This means that linting errors with less than 0.8 confidence will be ignored.
@@ -300,3 +317,9 @@ linters-settings:
       # https://github.com/mgechev/revive/blob/master/RULES_DESCRIPTIONS.md#waitgroup-by-value
       - name: waitgroup-by-value
         disabled: false
+  testifylint:
+    enable-all: true
+    disable:
+      - float-compare
+      - go-require
+      - require-error

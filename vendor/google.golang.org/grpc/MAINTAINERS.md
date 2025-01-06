@@ -9,21 +9,28 @@ for general contribution guidelines.
 
 ## Maintainers (in alphabetical order)
 
+- [aranjans](https://github.com/aranjans), Google LLC
+- [arjan-bal](https://github.com/arjan-bal), Google LLC
+- [arvindbr8](https://github.com/arvindbr8), Google LLC
 - [atollena](https://github.com/atollena), Datadog, Inc.
-- [cesarghali](https://github.com/cesarghali), Google LLC
 - [dfawley](https://github.com/dfawley), Google LLC
 - [easwars](https://github.com/easwars), Google LLC
-- [menghanl](https://github.com/menghanl), Google LLC
-- [srini100](https://github.com/srini100), Google LLC
+- [erm-g](https://github.com/erm-g), Google LLC
+- [gtcooke94](https://github.com/gtcooke94), Google LLC
+- [purnesh42h](https://github.com/purnesh42h), Google LLC
+- [zasweq](https://github.com/zasweq), Google LLC
 
 ## Emeritus Maintainers (in alphabetical order)
-- [adelez](https://github.com/adelez), Google LLC
-- [canguler](https://github.com/canguler), Google LLC
-- [iamqizhao](https://github.com/iamqizhao), Google LLC
-- [jadekler](https://github.com/jadekler), Google LLC
-- [jtattermusch](https://github.com/jtattermusch), Google LLC
-- [lyuxuan](https://github.com/lyuxuan), Google LLC
-- [makmukhi](https://github.com/makmukhi), Google LLC
-- [matt-kwong](https://github.com/matt-kwong), Google LLC
-- [nicolasnoble](https://github.com/nicolasnoble), Google LLC
-- [yongni](https://github.com/yongni), Google LLC
+- [adelez](https://github.com/adelez)
+- [canguler](https://github.com/canguler)
+- [cesarghali](https://github.com/cesarghali)
+- [iamqizhao](https://github.com/iamqizhao)
+- [jeanbza](https://github.com/jeanbza)
+- [jtattermusch](https://github.com/jtattermusch)
+- [lyuxuan](https://github.com/lyuxuan)
+- [makmukhi](https://github.com/makmukhi)
+- [matt-kwong](https://github.com/matt-kwong)
+- [menghanl](https://github.com/menghanl)
+- [nicolasnoble](https://github.com/nicolasnoble)
+- [srini100](https://github.com/srini100)
+- [yongni](https://github.com/yongni)

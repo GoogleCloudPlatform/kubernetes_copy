@@ -33,7 +33,7 @@ var (
 	// outside this package except by tests.
 	IDGen IDGenerator
 
-	db *channelMap = newChannelMap()
+	db = newChannelMap()
 	// EntriesPerPage defines the number of channelz entries to be shown on a web page.
 	EntriesPerPage = 50
 	curState       int32

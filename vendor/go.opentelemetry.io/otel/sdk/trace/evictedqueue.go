@@ -12,25 +12,26 @@ import (
 
 // evictedQueue is a FIFO queue with a configurable capacity.
 type evictedQueue[T any] struct {
-	queue        []T
-	capacity     int
-	droppedCount int
-	logDropped   func()
+	queue          []T
+	capacity       int
+	droppedCount   int
+	logDroppedMsg  string
+	logDroppedOnce sync.Once
 }
 
 func newEvictedQueueEvent(capacity int) evictedQueue[Event] {
 	// Do not pre-allocate queue, do this lazily.
 	return evictedQueue[Event]{
-		capacity:   capacity,
-		logDropped: sync.OnceFunc(func() { global.Warn("limit reached: dropping trace trace.Event") }),
+		capacity:      capacity,
+		logDroppedMsg: "limit reached: dropping trace trace.Event",
 	}
 }
 
 func newEvictedQueueLink(capacity int) evictedQueue[Link] {
 	// Do not pre-allocate queue, do this lazily.
 	return evictedQueue[Link]{
-		capacity:   capacity,
-		logDropped: sync.OnceFunc(func() { global.Warn("limit reached: dropping trace trace.Link") }),
+		capacity:      capacity,
+		logDroppedMsg: "limit reached: dropping trace trace.Link",
 	}
 }
 
@@ -51,6 +52,10 @@ func (eq *evictedQueue[T]) add(value T) {
 		eq.logDropped()
 	}
 	eq.queue = append(eq.queue, value)
+}
+
+func (eq *evictedQueue[T]) logDropped() {
+	eq.logDroppedOnce.Do(func() { global.Warn(eq.logDroppedMsg) })
 }
 
 // copy returns a copy of the evictedQueue.

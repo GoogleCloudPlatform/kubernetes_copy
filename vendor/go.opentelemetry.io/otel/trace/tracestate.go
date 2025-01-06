@@ -260,6 +260,16 @@ func (ts TraceState) Get(key string) string {
 	return ""
 }
 
+// Walk walks all key value pairs in the TraceState by calling f
+// Iteration stops if f returns false.
+func (ts TraceState) Walk(f func(key, value string) bool) {
+	for _, m := range ts.list {
+		if !f(m.Key, m.Value) {
+			break
+		}
+	}
+}
+
 // Insert adds a new list-member defined by the key/value pair to the
 // TraceState. If a list-member already exists for the given key, that
 // list-member's value is updated. The new or updated list-member is always

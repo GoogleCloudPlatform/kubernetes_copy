@@ -21,13 +21,30 @@ const (
 // Field names for pb.GoFeatures.
 const (
 	GoFeatures_LegacyUnmarshalJsonEnum_field_name protoreflect.Name = "legacy_unmarshal_json_enum"
+	GoFeatures_StripEnumPrefix_field_name         protoreflect.Name = "strip_enum_prefix"
 
 	GoFeatures_LegacyUnmarshalJsonEnum_field_fullname protoreflect.FullName = "pb.GoFeatures.legacy_unmarshal_json_enum"
+	GoFeatures_StripEnumPrefix_field_fullname         protoreflect.FullName = "pb.GoFeatures.strip_enum_prefix"
 )
 
 // Field numbers for pb.GoFeatures.
 const (
 	GoFeatures_LegacyUnmarshalJsonEnum_field_number protoreflect.FieldNumber = 1
+	GoFeatures_StripEnumPrefix_field_number         protoreflect.FieldNumber = 3
+)
+
+// Full and short names for pb.GoFeatures.StripEnumPrefix.
+const (
+	GoFeatures_StripEnumPrefix_enum_fullname = "pb.GoFeatures.StripEnumPrefix"
+	GoFeatures_StripEnumPrefix_enum_name     = "StripEnumPrefix"
+)
+
+// Enum values for pb.GoFeatures.StripEnumPrefix.
+const (
+	GoFeatures_STRIP_ENUM_PREFIX_UNSPECIFIED_enum_value   = 0
+	GoFeatures_STRIP_ENUM_PREFIX_KEEP_enum_value          = 1
+	GoFeatures_STRIP_ENUM_PREFIX_GENERATE_BOTH_enum_value = 2
+	GoFeatures_STRIP_ENUM_PREFIX_STRIP_enum_value         = 3
 )
 
 // Extension numbers

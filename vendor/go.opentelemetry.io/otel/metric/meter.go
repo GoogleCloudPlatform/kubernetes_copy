@@ -52,6 +52,7 @@ type Meter interface {
 	// See the Instrument Name section of the package documentation for more
 	// information.
 	Int64Counter(name string, options ...Int64CounterOption) (Int64Counter, error)
+
 	// Int64UpDownCounter returns a new Int64UpDownCounter instrument
 	// identified by name and configured with options. The instrument is used
 	// to synchronously record int64 measurements during a computational
@@ -61,6 +62,7 @@ type Meter interface {
 	// See the Instrument Name section of the package documentation for more
 	// information.
 	Int64UpDownCounter(name string, options ...Int64UpDownCounterOption) (Int64UpDownCounter, error)
+
 	// Int64Histogram returns a new Int64Histogram instrument identified by
 	// name and configured with options. The instrument is used to
 	// synchronously record the distribution of int64 measurements during a
@@ -70,6 +72,7 @@ type Meter interface {
 	// See the Instrument Name section of the package documentation for more
 	// information.
 	Int64Histogram(name string, options ...Int64HistogramOption) (Int64Histogram, error)
+
 	// Int64Gauge returns a new Int64Gauge instrument identified by name and
 	// configured with options. The instrument is used to synchronously record
 	// instantaneous int64 measurements during a computational operation.
@@ -78,6 +81,7 @@ type Meter interface {
 	// See the Instrument Name section of the package documentation for more
 	// information.
 	Int64Gauge(name string, options ...Int64GaugeOption) (Int64Gauge, error)
+
 	// Int64ObservableCounter returns a new Int64ObservableCounter identified
 	// by name and configured with options. The instrument is used to
 	// asynchronously record increasing int64 measurements once per a
@@ -92,6 +96,7 @@ type Meter interface {
 	// See the Instrument Name section of the package documentation for more
 	// information.
 	Int64ObservableCounter(name string, options ...Int64ObservableCounterOption) (Int64ObservableCounter, error)
+
 	// Int64ObservableUpDownCounter returns a new Int64ObservableUpDownCounter
 	// instrument identified by name and configured with options. The
 	// instrument is used to asynchronously record int64 measurements once per
@@ -106,6 +111,7 @@ type Meter interface {
 	// See the Instrument Name section of the package documentation for more
 	// information.
 	Int64ObservableUpDownCounter(name string, options ...Int64ObservableUpDownCounterOption) (Int64ObservableUpDownCounter, error)
+
 	// Int64ObservableGauge returns a new Int64ObservableGauge instrument
 	// identified by name and configured with options. The instrument is used
 	// to asynchronously record instantaneous int64 measurements once per a
@@ -130,6 +136,7 @@ type Meter interface {
 	// See the Instrument Name section of the package documentation for more
 	// information.
 	Float64Counter(name string, options ...Float64CounterOption) (Float64Counter, error)
+
 	// Float64UpDownCounter returns a new Float64UpDownCounter instrument
 	// identified by name and configured with options. The instrument is used
 	// to synchronously record float64 measurements during a computational
@@ -139,6 +146,7 @@ type Meter interface {
 	// See the Instrument Name section of the package documentation for more
 	// information.
 	Float64UpDownCounter(name string, options ...Float64UpDownCounterOption) (Float64UpDownCounter, error)
+
 	// Float64Histogram returns a new Float64Histogram instrument identified by
 	// name and configured with options. The instrument is used to
 	// synchronously record the distribution of float64 measurements during a
@@ -148,6 +156,7 @@ type Meter interface {
 	// See the Instrument Name section of the package documentation for more
 	// information.
 	Float64Histogram(name string, options ...Float64HistogramOption) (Float64Histogram, error)
+
 	// Float64Gauge returns a new Float64Gauge instrument identified by name and
 	// configured with options. The instrument is used to synchronously record
 	// instantaneous float64 measurements during a computational operation.
@@ -156,6 +165,7 @@ type Meter interface {
 	// See the Instrument Name section of the package documentation for more
 	// information.
 	Float64Gauge(name string, options ...Float64GaugeOption) (Float64Gauge, error)
+
 	// Float64ObservableCounter returns a new Float64ObservableCounter
 	// instrument identified by name and configured with options. The
 	// instrument is used to asynchronously record increasing float64
@@ -170,6 +180,7 @@ type Meter interface {
 	// See the Instrument Name section of the package documentation for more
 	// information.
 	Float64ObservableCounter(name string, options ...Float64ObservableCounterOption) (Float64ObservableCounter, error)
+
 	// Float64ObservableUpDownCounter returns a new
 	// Float64ObservableUpDownCounter instrument identified by name and
 	// configured with options. The instrument is used to asynchronously record
@@ -184,6 +195,7 @@ type Meter interface {
 	// See the Instrument Name section of the package documentation for more
 	// information.
 	Float64ObservableUpDownCounter(name string, options ...Float64ObservableUpDownCounterOption) (Float64ObservableUpDownCounter, error)
+
 	// Float64ObservableGauge returns a new Float64ObservableGauge instrument
 	// identified by name and configured with options. The instrument is used
 	// to asynchronously record instantaneous float64 measurements once per a
@@ -242,6 +254,7 @@ type Observer interface {
 
 	// ObserveFloat64 records the float64 value for obsrv.
 	ObserveFloat64(obsrv Float64Observable, value float64, opts ...ObserveOption)
+
 	// ObserveInt64 records the int64 value for obsrv.
 	ObserveInt64(obsrv Int64Observable, value int64, opts ...ObserveOption)
 }

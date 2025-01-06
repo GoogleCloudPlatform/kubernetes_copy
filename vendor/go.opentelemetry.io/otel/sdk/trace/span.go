@@ -62,7 +62,7 @@ type ReadOnlySpan interface {
 	// InstrumentationLibrary returns information about the instrumentation
 	// library that created the span.
 	// Deprecated: please use InstrumentationScope instead.
-	InstrumentationLibrary() instrumentation.Library
+	InstrumentationLibrary() instrumentation.Library //nolint:staticcheck // This method needs to be define for backwards compatibility
 	// Resource returns information about the entity that produced the span.
 	Resource() *resource.Resource
 	// DroppedAttributes returns the number of attributes dropped by the span
@@ -174,6 +174,17 @@ func (s *recordingSpan) IsRecording() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	return s.isRecording()
+}
+
+// isRecording returns if this span is being recorded. If this span has ended
+// this will return false.
+//
+// This method assumes s.mu.Lock is held by the caller.
+func (s *recordingSpan) isRecording() bool {
+	if s == nil {
+		return false
+	}
 	return s.endTime.IsZero()
 }
 
@@ -182,11 +193,15 @@ func (s *recordingSpan) IsRecording() bool {
 // included in the set status when the code is for an error. If this span is
 // not being recorded than this method does nothing.
 func (s *recordingSpan) SetStatus(code codes.Code, description string) {
-	if !s.IsRecording() {
+	if s == nil {
 		return
 	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if !s.isRecording() {
+		return
+	}
 	if s.status.Code > code {
 		return
 	}
@@ -210,12 +225,15 @@ func (s *recordingSpan) SetStatus(code codes.Code, description string) {
 // attributes the span is configured to have, the last added attributes will
 // be dropped.
 func (s *recordingSpan) SetAttributes(attributes ...attribute.KeyValue) {
-	if !s.IsRecording() {
+	if s == nil || len(attributes) == 0 {
 		return
 	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if !s.isRecording() {
+		return
+	}
 
 	limit := s.tracer.provider.spanLimits.AttributeCountLimit
 	if limit == 0 {
@@ -233,7 +251,7 @@ func (s *recordingSpan) SetAttributes(attributes ...attribute.KeyValue) {
 
 	// Otherwise, add without deduplication. When attributes are read they
 	// will be deduplicated, optimizing the operation.
-	s.attributes = slices.Grow(s.attributes, len(s.attributes)+len(attributes))
+	s.attributes = slices.Grow(s.attributes, len(attributes))
 	for _, a := range attributes {
 		if !a.Valid() {
 			// Drop all invalid attributes.
@@ -280,13 +298,17 @@ func (s *recordingSpan) addOverCapAttrs(limit int, attrs []attribute.KeyValue) {
 
 	// Do not set a capacity when creating this map. Benchmark testing has
 	// showed this to only add unused memory allocations in general use.
-	exists := make(map[attribute.Key]int)
-	s.dedupeAttrsFromRecord(&exists)
+	exists := make(map[attribute.Key]int, len(s.attributes))
+	s.dedupeAttrsFromRecord(exists)
 
 	// Now that s.attributes is deduplicated, adding unique attributes up to
 	// the capacity of s will not over allocate s.attributes.
-	sum := len(attrs) + len(s.attributes)
-	s.attributes = slices.Grow(s.attributes, min(sum, limit))
+
+	// max size = limit
+	maxCap := min(len(attrs)+len(s.attributes), limit)
+	if cap(s.attributes) < maxCap {
+		s.attributes = slices.Grow(s.attributes, maxCap-cap(s.attributes))
+	}
 	for _, a := range attrs {
 		if !a.Valid() {
 			// Drop all invalid attributes.
@@ -296,6 +318,7 @@ func (s *recordingSpan) addOverCapAttrs(limit int, attrs []attribute.KeyValue) {
 
 		if idx, ok := exists[a.Key]; ok {
 			// Perform all updates before dropping, even when at capacity.
+			a = truncateAttr(s.tracer.provider.spanLimits.AttributeValueLengthLimit, a)
 			s.attributes[idx] = a
 			continue
 		}
@@ -324,54 +347,99 @@ func truncateAttr(limit int, attr attribute.KeyValue) attribute.KeyValue {
 	}
 	switch attr.Value.Type() {
 	case attribute.STRING:
-		if v := attr.Value.AsString(); len(v) > limit {
-			return attr.Key.String(safeTruncate(v, limit))
-		}
+		v := attr.Value.AsString()
+		return attr.Key.String(truncate(limit, v))
 	case attribute.STRINGSLICE:
 		v := attr.Value.AsStringSlice()
 		for i := range v {
-			if len(v[i]) > limit {
-				v[i] = safeTruncate(v[i], limit)
-			}
+			v[i] = truncate(limit, v[i])
 		}
 		return attr.Key.StringSlice(v)
 	}
 	return attr
 }
 
-// safeTruncate truncates the string and guarantees valid UTF-8 is returned.
-func safeTruncate(input string, limit int) string {
-	if trunc, ok := safeTruncateValidUTF8(input, limit); ok {
-		return trunc
+// truncate returns a truncated version of s such that it contains less than
+// the limit number of characters. Truncation is applied by returning the limit
+// number of valid characters contained in s.
+//
+// If limit is negative, it returns the original string.
+//
+// UTF-8 is supported. When truncating, all invalid characters are dropped
+// before applying truncation.
+//
+// If s already contains less than the limit number of bytes, it is returned
+// unchanged. No invalid characters are removed.
+func truncate(limit int, s string) string {
+	// This prioritize performance in the following order based on the most
+	// common expected use-cases.
+	//
+	//  - Short values less than the default limit (128).
+	//  - Strings with valid encodings that exceed the limit.
+	//  - No limit.
+	//  - Strings with invalid encodings that exceed the limit.
+	if limit < 0 || len(s) <= limit {
+		return s
 	}
-	trunc, _ := safeTruncateValidUTF8(strings.ToValidUTF8(input, ""), limit)
-	return trunc
-}
 
-// safeTruncateValidUTF8 returns a copy of the input string safely truncated to
-// limit. The truncation is ensured to occur at the bounds of complete UTF-8
-// characters. If invalid encoding of UTF-8 is encountered, input is returned
-// with false, otherwise, the truncated input will be returned with true.
-func safeTruncateValidUTF8(input string, limit int) (string, bool) {
-	for cnt := 0; cnt <= limit; {
-		r, size := utf8.DecodeRuneInString(input[cnt:])
-		if r == utf8.RuneError {
-			return input, false
+	// Optimistically, assume all valid UTF-8.
+	var b strings.Builder
+	count := 0
+	for i, c := range s {
+		if c != utf8.RuneError {
+			count++
+			if count > limit {
+				return s[:i]
+			}
+			continue
 		}
 
-		if cnt+size > limit {
-			return input[:cnt], true
+		_, size := utf8.DecodeRuneInString(s[i:])
+		if size == 1 {
+			// Invalid encoding.
+			b.Grow(len(s) - 1)
+			_, _ = b.WriteString(s[:i])
+			s = s[i:]
+			break
 		}
-		cnt += size
 	}
-	return input, true
+
+	// Fast-path, no invalid input.
+	if b.Cap() == 0 {
+		return s
+	}
+
+	// Truncate while validating UTF-8.
+	for i := 0; i < len(s) && count < limit; {
+		c := s[i]
+		if c < utf8.RuneSelf {
+			// Optimization for single byte runes (common case).
+			_ = b.WriteByte(c)
+			i++
+			count++
+			continue
+		}
+
+		_, size := utf8.DecodeRuneInString(s[i:])
+		if size == 1 {
+			// We checked for all 1-byte runes above, this is a RuneError.
+			i++
+			continue
+		}
+
+		_, _ = b.WriteString(s[i : i+size])
+		i += size
+		count++
+	}
+
+	return b.String()
 }
 
 // End ends the span. This method does nothing if the span is already ended or
 // is not being recorded.
 //
-// The only SpanOption currently supported is WithTimestamp which will set the
-// end time for a Span's life-cycle.
+// The only SpanEndOption currently supported are [trace.WithTimestamp], and
+// [trace.WithStackTrace].
 //
 // If this method is called while panicking an error event is added to the
 // Span before ending it and the panic is continued.
@@ -386,9 +454,10 @@ func (s *recordingSpan) End(options ...trace.SpanEndOption) {
 	// the span's duration in case some operation below takes a while.
 	et := monotonicEndTime(s.startTime)
 
-	// Do relative expensive check now that we have an end time and see if we
-	// need to do any more processing.
-	if !s.IsRecording() {
+	// Lock the span now that we have an end time and see if we need to do any more processing.
+	s.mu.Lock()
+	if !s.isRecording() {
+		s.mu.Unlock()
 		return
 	}
 
@@ -413,10 +482,11 @@ func (s *recordingSpan) End(options ...trace.SpanEndOption) {
 	}
 
 	if s.executionTracerTaskEnd != nil {
+		s.mu.Unlock()
 		s.executionTracerTaskEnd()
+		s.mu.Lock()
 	}
 
-	s.mu.Lock()
 	// Setting endTime to non-zero marks the span as ended and not recording.
 	if config.Timestamp().IsZero() {
 		s.endTime = et
@@ -450,7 +520,13 @@ func monotonicEndTime(start time.Time) time.Time {
 // does not change the Span status. If this span is not being recorded or err is nil
 // than this method does nothing.
 func (s *recordingSpan) RecordError(err error, opts ...trace.EventOption) {
-	if s == nil || err == nil || !s.IsRecording() {
+	if s == nil || err == nil {
+		return
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.isRecording() {
 		return
 	}
 
@@ -486,14 +562,23 @@ func recordStackTrace() string {
 }
 
 // AddEvent adds an event with the provided name and options. If this span is
-// not being recorded than this method does nothing.
+// not being recorded then this method does nothing.
 func (s *recordingSpan) AddEvent(name string, o ...trace.EventOption) {
-	if !s.IsRecording() {
+	if s == nil {
+		return
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.isRecording() {
 		return
 	}
 	s.addEvent(name, o...)
 }
 
+// addEvent adds an event with the provided name and options.
+//
+// This method assumes s.mu.Lock is held by the caller.
 func (s *recordingSpan) addEvent(name string, o ...trace.EventOption) {
 	c := trace.NewEventConfig(o...)
 	e := Event{Name: name, Attributes: c.Attributes(), Time: c.Timestamp()}
@@ -510,20 +595,21 @@ func (s *recordingSpan) addEvent(name string, o ...trace.EventOption) {
 		e.Attributes = e.Attributes[:limit]
 	}
 
-	s.mu.Lock()
 	s.events.add(e)
-	s.mu.Unlock()
 }
 
 // SetName sets the name of this span. If this span is not being recorded than
 // this method does nothing.
 func (s *recordingSpan) SetName(name string) {
-	if !s.IsRecording() {
+	if s == nil {
 		return
 	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if !s.isRecording() {
+		return
+	}
 	s.name = name
 }
 
@@ -579,29 +665,26 @@ func (s *recordingSpan) Attributes() []attribute.KeyValue {
 func (s *recordingSpan) dedupeAttrs() {
 	// Do not set a capacity when creating this map. Benchmark testing has
 	// showed this to only add unused memory allocations in general use.
-	exists := make(map[attribute.Key]int)
-	s.dedupeAttrsFromRecord(&exists)
+	exists := make(map[attribute.Key]int, len(s.attributes))
+	s.dedupeAttrsFromRecord(exists)
 }
 
 // dedupeAttrsFromRecord deduplicates the attributes of s to fit capacity
 // using record as the record of unique attribute keys to their index.
 //
 // This method assumes s.mu.Lock is held by the caller.
-func (s *recordingSpan) dedupeAttrsFromRecord(record *map[attribute.Key]int) {
+func (s *recordingSpan) dedupeAttrsFromRecord(record map[attribute.Key]int) {
 	// Use the fact that slices share the same backing array.
 	unique := s.attributes[:0]
 	for _, a := range s.attributes {
-		if idx, ok := (*record)[a.Key]; ok {
+		if idx, ok := record[a.Key]; ok {
 			unique[idx] = a
 		} else {
 			unique = append(unique, a)
-			(*record)[a.Key] = len(unique) - 1
+			record[a.Key] = len(unique) - 1
 		}
 	}
-	// s.attributes have element types of attribute.KeyValue. These types are
-	// not pointers and they themselves do not contain pointer fields,
-	// therefore the duplicate values do not need to be zeroed for them to be
-	// garbage collected.
+	clear(s.attributes[len(unique):]) // Erase unneeded elements to let GC collect objects.
 	s.attributes = unique
 }
 
@@ -642,7 +725,7 @@ func (s *recordingSpan) InstrumentationScope() instrumentation.Scope {
 
 // InstrumentationLibrary returns the instrumentation.Library associated with
 // the Tracer that created this span.
-func (s *recordingSpan) InstrumentationLibrary() instrumentation.Library {
+func (s *recordingSpan) InstrumentationLibrary() instrumentation.Library { //nolint:staticcheck // This method needs to be define for backwards compatibility
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.tracer.instrumentationScope
@@ -657,11 +740,17 @@ func (s *recordingSpan) Resource() *resource.Resource {
 }
 
 func (s *recordingSpan) AddLink(link trace.Link) {
-	if !s.IsRecording() {
+	if s == nil {
 		return
 	}
 	if !link.SpanContext.IsValid() && len(link.Attributes) == 0 &&
 		link.SpanContext.TraceState().Len() == 0 {
+		return
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.isRecording() {
 		return
 	}
 
@@ -678,9 +767,7 @@ func (s *recordingSpan) AddLink(link trace.Link) {
 		l.Attributes = l.Attributes[:limit]
 	}
 
-	s.mu.Lock()
 	s.links.add(l)
-	s.mu.Unlock()
 }
 
 // DroppedAttributes returns the number of attributes dropped by the span
@@ -755,12 +842,16 @@ func (s *recordingSpan) snapshot() ReadOnlySpan {
 }
 
 func (s *recordingSpan) addChild() {
-	if !s.IsRecording() {
+	if s == nil {
 		return
 	}
+
 	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.isRecording() {
+		return
+	}
 	s.childSpanCount++
-	s.mu.Unlock()
 }
 
 func (*recordingSpan) private() {}

@@ -213,7 +213,7 @@ var _ SpanStartEventOption = attributeOption{}
 
 // WithAttributes adds the attributes related to a span life-cycle event.
 // These attributes are used to describe the work a Span represents when this
-// option is provided to a Span's start or end events. Otherwise, these
+// option is provided to a Span's start event. Otherwise, these
 // attributes provide additional information about the event being recorded
 // (e.g. error, state change, processing progress, system event).
 //

@@ -43,6 +43,8 @@ type Channel struct {
 	// Non-zero traceRefCount means the trace of this channel cannot be deleted.
 	traceRefCount int32
 
+	// ChannelMetrics holds connectivity state, target and call metrics for the
+	// channel within channelz.
 	ChannelMetrics ChannelMetrics
 }
 
@@ -50,6 +52,8 @@ type Channel struct {
 // nesting.
 func (c *Channel) channelzIdentifier() {}
 
+// String returns a string representation of the Channel, including its parent
+// entity and ID.
 func (c *Channel) String() string {
 	if c.Parent == nil {
 		return fmt.Sprintf("Channel #%d", c.ID)
@@ -61,24 +65,31 @@ func (c *Channel) id() int64 {
 	return c.ID
 }
 
+// SubChans returns a copy of the map of sub-channels associated with the
+// Channel.
 func (c *Channel) SubChans() map[int64]string {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 	return copyMap(c.subChans)
 }
 
+// NestedChans returns a copy of the map of nested channels associated with the
+// Channel.
 func (c *Channel) NestedChans() map[int64]string {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 	return copyMap(c.nestedChans)
 }
 
+// Trace returns a copy of the Channel's trace data.
 func (c *Channel) Trace() *ChannelTrace {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 	return c.trace.copy()
 }
 
+// ChannelMetrics holds connectivity state, target and call metrics for the
+// channel within channelz.
 type ChannelMetrics struct {
 	// The current connectivity state of the channel.
 	State atomic.Pointer[connectivity.State]
@@ -136,12 +147,16 @@ func strFromPointer(s *string) string {
 	return *s
 }
 
+// String returns a string representation of the ChannelMetrics, including its
+// state, target, and call metrics.
 func (c *ChannelMetrics) String() string {
 	return fmt.Sprintf("State: %v, Target: %s, CallsStarted: %v, CallsSucceeded: %v, CallsFailed: %v, LastCallStartedTimestamp: %v",
 		c.State.Load(), strFromPointer(c.Target.Load()), c.CallsStarted.Load(), c.CallsSucceeded.Load(), c.CallsFailed.Load(), c.LastCallStartedTimestamp.Load(),
 	)
 }
 
+// NewChannelMetricForTesting creates a new instance of ChannelMetrics with
+// specified initial values for testing purposes.
 func NewChannelMetricForTesting(state connectivity.State, target string, started, succeeded, failed, timestamp int64) *ChannelMetrics {
 	c := &ChannelMetrics{}
 	c.State.Store(&state)

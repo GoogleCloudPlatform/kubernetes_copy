@@ -177,7 +177,7 @@ type dnsResolver struct {
 	// finished. Otherwise, data race will be possible. [Race Example] in
 	// dns_resolver_test we replace the real lookup functions with mocked ones to
 	// facilitate testing. If Close() doesn't wait for watcher() goroutine
-	// finishes, race detector sometimes will warns lookup (READ the lookup
+	// finishes, race detector sometimes will warn lookup (READ the lookup
 	// function pointers) inside watcher() goroutine has data race with
 	// replaceNetFunc (WRITE the lookup function pointers).
 	wg                   sync.WaitGroup
@@ -237,7 +237,9 @@ func (d *dnsResolver) watcher() {
 }
 
 func (d *dnsResolver) lookupSRV(ctx context.Context) ([]resolver.Address, error) {
-	if !EnableSRVLookups {
+	// Skip this particular host to avoid timeouts with some versions of
+	// systemd-resolved.
+	if !EnableSRVLookups || d.host == "metadata.google.internal." {
 		return nil, nil
 	}
 	var newAddrs []resolver.Address

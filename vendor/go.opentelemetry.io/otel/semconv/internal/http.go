@@ -115,7 +115,7 @@ func hostIPNamePort(hostWithPort string) (ip string, name string, port int) {
 		name = hostPart
 	}
 	if parsedPort, err = strconv.ParseUint(portPart, 10, 16); err == nil {
-		port = int(parsedPort)
+		port = int(parsedPort) // nolint: gosec  // Bit size of 16 checked above.
 	}
 	return
 }

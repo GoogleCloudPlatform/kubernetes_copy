@@ -25,6 +25,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"go.opentelemetry.io/auto/sdk"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
@@ -87,6 +88,7 @@ func (p *tracerProvider) Tracer(name string, opts ...trace.TracerOption) trace.T
 		name:    name,
 		version: c.InstrumentationVersion(),
 		schema:  c.SchemaURL(),
+		attrs:   c.InstrumentationAttributes(),
 	}
 
 	if p.tracers == nil {
@@ -102,7 +104,12 @@ func (p *tracerProvider) Tracer(name string, opts ...trace.TracerOption) trace.T
 	return t
 }
 
-type il struct{ name, version, schema string }
+type il struct {
+	name    string
+	version string
+	schema  string
+	attrs   attribute.Set
+}
 
 // tracer is a placeholder for a trace.Tracer.
 //
@@ -137,6 +144,30 @@ func (t *tracer) Start(ctx context.Context, name string, opts ...trace.SpanStart
 	delegate := t.delegate.Load()
 	if delegate != nil {
 		return delegate.(trace.Tracer).Start(ctx, name, opts...)
+	}
+
+	return t.newSpan(ctx, autoInstEnabled, name, opts)
+}
+
+// autoInstEnabled determines if the auto-instrumentation SDK span is returned
+// from the tracer when not backed by a delegate and auto-instrumentation has
+// attached to this process.
+//
+// The auto-instrumentation is expected to overwrite this value to true when it
+// attaches. By default, this will point to false and mean a tracer will return
+// a nonRecordingSpan by default.
+var autoInstEnabled = new(bool)
+
+func (t *tracer) newSpan(ctx context.Context, autoSpan *bool, name string, opts []trace.SpanStartOption) (context.Context, trace.Span) {
+	// autoInstEnabled is passed to newSpan via the autoSpan parameter. This is
+	// so the auto-instrumentation can define a uprobe for (*t).newSpan and be
+	// provided with the address of the bool autoInstEnabled points to. It
+	// needs to be a parameter so that pointer can be reliably determined, it
+	// should not be read from the global.
+
+	if *autoSpan {
+		tracer := sdk.TracerProvider().Tracer(t.name, t.opts...)
+		return tracer.Start(ctx, name, opts...)
 	}
 
 	s := nonRecordingSpan{sc: trace.SpanContextFromContext(ctx), tracer: t}

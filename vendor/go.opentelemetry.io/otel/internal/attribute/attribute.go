@@ -49,12 +49,11 @@ func AsBoolSlice(v interface{}) []bool {
 	if rv.Type().Kind() != reflect.Array {
 		return nil
 	}
-	var zero bool
-	correctLen := rv.Len()
-	correctType := reflect.ArrayOf(correctLen, reflect.TypeOf(zero))
-	cpy := reflect.New(correctType)
-	_ = reflect.Copy(cpy.Elem(), rv)
-	return cpy.Elem().Slice(0, correctLen).Interface().([]bool)
+	cpy := make([]bool, rv.Len())
+	if len(cpy) > 0 {
+		_ = reflect.Copy(reflect.ValueOf(cpy), rv)
+	}
+	return cpy
 }
 
 // AsInt64Slice converts an int64 array into a slice into with same elements as array.
@@ -63,12 +62,11 @@ func AsInt64Slice(v interface{}) []int64 {
 	if rv.Type().Kind() != reflect.Array {
 		return nil
 	}
-	var zero int64
-	correctLen := rv.Len()
-	correctType := reflect.ArrayOf(correctLen, reflect.TypeOf(zero))
-	cpy := reflect.New(correctType)
-	_ = reflect.Copy(cpy.Elem(), rv)
-	return cpy.Elem().Slice(0, correctLen).Interface().([]int64)
+	cpy := make([]int64, rv.Len())
+	if len(cpy) > 0 {
+		_ = reflect.Copy(reflect.ValueOf(cpy), rv)
+	}
+	return cpy
 }
 
 // AsFloat64Slice converts a float64 array into a slice into with same elements as array.
@@ -77,12 +75,11 @@ func AsFloat64Slice(v interface{}) []float64 {
 	if rv.Type().Kind() != reflect.Array {
 		return nil
 	}
-	var zero float64
-	correctLen := rv.Len()
-	correctType := reflect.ArrayOf(correctLen, reflect.TypeOf(zero))
-	cpy := reflect.New(correctType)
-	_ = reflect.Copy(cpy.Elem(), rv)
-	return cpy.Elem().Slice(0, correctLen).Interface().([]float64)
+	cpy := make([]float64, rv.Len())
+	if len(cpy) > 0 {
+		_ = reflect.Copy(reflect.ValueOf(cpy), rv)
+	}
+	return cpy
 }
 
 // AsStringSlice converts a string array into a slice into with same elements as array.
@@ -91,10 +88,9 @@ func AsStringSlice(v interface{}) []string {
 	if rv.Type().Kind() != reflect.Array {
 		return nil
 	}
-	var zero string
-	correctLen := rv.Len()
-	correctType := reflect.ArrayOf(correctLen, reflect.TypeOf(zero))
-	cpy := reflect.New(correctType)
-	_ = reflect.Copy(cpy.Elem(), rv)
-	return cpy.Elem().Slice(0, correctLen).Interface().([]string)
+	cpy := make([]string, rv.Len())
+	if len(cpy) > 0 {
+		_ = reflect.Copy(reflect.ValueOf(cpy), rv)
+	}
+	return cpy
 }

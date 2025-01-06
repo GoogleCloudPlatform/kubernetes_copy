@@ -77,7 +77,7 @@ func (ps *PubSub) Subscribe(sub Subscriber) (cancel func()) {
 
 	if ps.msg != nil {
 		msg := ps.msg
-		ps.cs.Schedule(func(context.Context) {
+		ps.cs.TrySchedule(func(context.Context) {
 			ps.mu.Lock()
 			defer ps.mu.Unlock()
 			if !ps.subscribers[sub] {
@@ -103,7 +103,7 @@ func (ps *PubSub) Publish(msg any) {
 	ps.msg = msg
 	for sub := range ps.subscribers {
 		s := sub
-		ps.cs.Schedule(func(context.Context) {
+		ps.cs.TrySchedule(func(context.Context) {
 			ps.mu.Lock()
 			defer ps.mu.Unlock()
 			if !ps.subscribers[s] {

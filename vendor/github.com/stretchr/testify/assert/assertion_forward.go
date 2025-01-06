@@ -186,8 +186,8 @@ func (a *Assertions) EqualExportedValuesf(expected interface{}, actual interface
 	return EqualExportedValuesf(a.t, expected, actual, msg, args...)
 }
 
-// EqualValues asserts that two objects are equal or convertible to the same types
-// and equal.
+// EqualValues asserts that two objects are equal or convertible to the larger
+// type and equal.
 //
 //	a.EqualValues(uint32(123), int32(123))
 func (a *Assertions) EqualValues(expected interface{}, actual interface{}, msgAndArgs ...interface{}) bool {
@@ -197,8 +197,8 @@ func (a *Assertions) EqualValues(expected interface{}, actual interface{}, msgAn
 	return EqualValues(a.t, expected, actual, msgAndArgs...)
 }
 
-// EqualValuesf asserts that two objects are equal or convertible to the same types
-// and equal.
+// EqualValuesf asserts that two objects are equal or convertible to the larger
+// type and equal.
 //
 //	a.EqualValuesf(uint32(123), int32(123), "error message %s", "formatted")
 func (a *Assertions) EqualValuesf(expected interface{}, actual interface{}, msg string, args ...interface{}) bool {
@@ -336,7 +336,7 @@ func (a *Assertions) Eventually(condition func() bool, waitFor time.Duration, ti
 //	a.EventuallyWithT(func(c *assert.CollectT) {
 //		// add assertions as needed; any assertion failure will fail the current tick
 //		assert.True(c, externalValue, "expected 'externalValue' to be true")
-//	}, 1*time.Second, 10*time.Second, "external state has not changed to 'true'; still false")
+//	}, 10*time.Second, 1*time.Second, "external state has not changed to 'true'; still false")
 func (a *Assertions) EventuallyWithT(condition func(collect *CollectT), waitFor time.Duration, tick time.Duration, msgAndArgs ...interface{}) bool {
 	if h, ok := a.t.(tHelper); ok {
 		h.Helper()
@@ -361,7 +361,7 @@ func (a *Assertions) EventuallyWithT(condition func(collect *CollectT), waitFor 
 //	a.EventuallyWithTf(func(c *assert.CollectT, "error message %s", "formatted") {
 //		// add assertions as needed; any assertion failure will fail the current tick
 //		assert.True(c, externalValue, "expected 'externalValue' to be true")
-//	}, 1*time.Second, 10*time.Second, "external state has not changed to 'true'; still false")
+//	}, 10*time.Second, 1*time.Second, "external state has not changed to 'true'; still false")
 func (a *Assertions) EventuallyWithTf(condition func(collect *CollectT), waitFor time.Duration, tick time.Duration, msg string, args ...interface{}) bool {
 	if h, ok := a.t.(tHelper); ok {
 		h.Helper()
@@ -1128,6 +1128,40 @@ func (a *Assertions) NotContainsf(s interface{}, contains interface{}, msg strin
 	return NotContainsf(a.t, s, contains, msg, args...)
 }
 
+// NotElementsMatch asserts that the specified listA(array, slice...) is NOT equal to specified
+// listB(array, slice...) ignoring the order of the elements. If there are duplicate elements,
+// the number of appearances of each of them in both lists should not match.
+// This is an inverse of ElementsMatch.
+//
+// a.NotElementsMatch([1, 1, 2, 3], [1, 1, 2, 3]) -> false
+//
+// a.NotElementsMatch([1, 1, 2, 3], [1, 2, 3]) -> true
+//
+// a.NotElementsMatch([1, 2, 3], [1, 2, 4]) -> true
+func (a *Assertions) NotElementsMatch(listA interface{}, listB interface{}, msgAndArgs ...interface{}) bool {
+	if h, ok := a.t.(tHelper); ok {
+		h.Helper()
+	}
+	return NotElementsMatch(a.t, listA, listB, msgAndArgs...)
+}
+
+// NotElementsMatchf asserts that the specified listA(array, slice...) is NOT equal to specified
+// listB(array, slice...) ignoring the order of the elements. If there are duplicate elements,
+// the number of appearances of each of them in both lists should not match.
+// This is an inverse of ElementsMatch.
+//
+// a.NotElementsMatchf([1, 1, 2, 3], [1, 1, 2, 3], "error message %s", "formatted") -> false
+//
+// a.NotElementsMatchf([1, 1, 2, 3], [1, 2, 3], "error message %s", "formatted") -> true
+//
+// a.NotElementsMatchf([1, 2, 3], [1, 2, 4], "error message %s", "formatted") -> true
+func (a *Assertions) NotElementsMatchf(listA interface{}, listB interface{}, msg string, args ...interface{}) bool {
+	if h, ok := a.t.(tHelper); ok {
+		h.Helper()
+	}
+	return NotElementsMatchf(a.t, listA, listB, msg, args...)
+}
+
 // NotEmpty asserts that the specified object is NOT empty.  I.e. not nil, "", false, 0 or either
 // a slice or a channel with len == 0.
 //
@@ -1200,7 +1234,25 @@ func (a *Assertions) NotEqualf(expected interface{}, actual interface{}, msg str
 	return NotEqualf(a.t, expected, actual, msg, args...)
 }
 
-// NotErrorIs asserts that at none of the errors in err's chain matches target.
+// NotErrorAs asserts that none of the errors in err's chain matches target,
+// but if so, sets target to that error value.
+func (a *Assertions) NotErrorAs(err error, target interface{}, msgAndArgs ...interface{}) bool {
+	if h, ok := a.t.(tHelper); ok {
+		h.Helper()
+	}
+	return NotErrorAs(a.t, err, target, msgAndArgs...)
+}
+
+// NotErrorAsf asserts that none of the errors in err's chain matches target,
+// but if so, sets target to that error value.
+func (a *Assertions) NotErrorAsf(err error, target interface{}, msg string, args ...interface{}) bool {
+	if h, ok := a.t.(tHelper); ok {
+		h.Helper()
+	}
+	return NotErrorAsf(a.t, err, target, msg, args...)
+}
+
+// NotErrorIs asserts that none of the errors in err's chain matches target.
 // This is a wrapper for errors.Is.
 func (a *Assertions) NotErrorIs(err error, target error, msgAndArgs ...interface{}) bool {
 	if h, ok := a.t.(tHelper); ok {
@@ -1209,7 +1261,7 @@ func (a *Assertions) NotErrorIs(err error, target error, msgAndArgs ...interface
 	return NotErrorIs(a.t, err, target, msgAndArgs...)
 }
 
-// NotErrorIsf asserts that at none of the errors in err's chain matches target.
+// NotErrorIsf asserts that none of the errors in err's chain matches target.
 // This is a wrapper for errors.Is.
 func (a *Assertions) NotErrorIsf(err error, target error, msg string, args ...interface{}) bool {
 	if h, ok := a.t.(tHelper); ok {

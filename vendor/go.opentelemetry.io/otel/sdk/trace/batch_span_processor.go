@@ -280,6 +280,7 @@ func (bsp *batchSpanProcessor) exportSpans(ctx context.Context) error {
 		//
 		// It is up to the exporter to implement any type of retry logic if a batch is failing
 		// to be exported, since it is specific to the protocol and backend being sent to.
+		clear(bsp.batch) // Erase elements to let GC collect objects
 		bsp.batch = bsp.batch[:0]
 
 		if err != nil {
@@ -316,7 +317,11 @@ func (bsp *batchSpanProcessor) processQueue() {
 			bsp.batchMutex.Unlock()
 			if shouldExport {
 				if !bsp.timer.Stop() {
-					<-bsp.timer.C
+					// Handle both GODEBUG=asynctimerchan=[0|1] properly.
+					select {
+					case <-bsp.timer.C:
+					default:
+					}
 				}
 				if err := bsp.exportSpans(ctx); err != nil {
 					otel.Handle(err)

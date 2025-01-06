@@ -3,19 +3,13 @@
 
 module-sets:
   stable-v1:
-    version: v1.28.0
+    version: v1.33.0
     modules:
       - go.opentelemetry.io/otel
       - go.opentelemetry.io/otel/bridge/opencensus
       - go.opentelemetry.io/otel/bridge/opencensus/test
       - go.opentelemetry.io/otel/bridge/opentracing
       - go.opentelemetry.io/otel/bridge/opentracing/test
-      - go.opentelemetry.io/otel/example/dice
-      - go.opentelemetry.io/otel/example/namedtracer
-      - go.opentelemetry.io/otel/example/opencensus
-      - go.opentelemetry.io/otel/example/otel-collector
-      - go.opentelemetry.io/otel/example/passthrough
-      - go.opentelemetry.io/otel/example/zipkin
       - go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc
       - go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp
       - go.opentelemetry.io/otel/exporters/otlp/otlptrace
@@ -29,21 +23,20 @@ module-sets:
       - go.opentelemetry.io/otel/sdk/metric
       - go.opentelemetry.io/otel/trace
   experimental-metrics:
-    version: v0.50.0
+    version: v0.55.0
     modules:
-      - go.opentelemetry.io/otel/example/prometheus
       - go.opentelemetry.io/otel/exporters/prometheus
   experimental-logs:
-    version: v0.4.0
+    version: v0.9.0
     modules:
       - go.opentelemetry.io/otel/log
       - go.opentelemetry.io/otel/sdk/log
+      - go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc
       - go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp
       - go.opentelemetry.io/otel/exporters/stdout/stdoutlog
   experimental-schema:
-    version: v0.0.8
+    version: v0.0.12
     modules:
       - go.opentelemetry.io/otel/schema
 excluded-modules:
   - go.opentelemetry.io/otel/internal/tools
-  - go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc

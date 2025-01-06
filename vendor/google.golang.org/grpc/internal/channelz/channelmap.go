@@ -46,7 +46,7 @@ type entry interface {
 
 // channelMap is the storage data structure for channelz.
 //
-// Methods of channelMap can be divided in two two categories with respect to
+// Methods of channelMap can be divided into two categories with respect to
 // locking.
 //
 // 1. Methods acquire the global lock.
@@ -232,13 +232,6 @@ func copyMap(m map[int64]string) map[int64]string {
 		n[k] = v
 	}
 	return n
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }
 
 func (c *channelMap) getTopChannels(id int64, maxResults int) ([]*Channel, bool) {

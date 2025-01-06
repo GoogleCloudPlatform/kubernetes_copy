@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"go.opentelemetry.io/otel/internal/global"
 )
@@ -163,12 +164,16 @@ func stringToHeader(value string) map[string]string {
 			global.Error(errors.New("missing '="), "parse headers", "input", header)
 			continue
 		}
-		name, err := url.PathUnescape(n)
-		if err != nil {
-			global.Error(err, "escape header key", "key", n)
+
+		trimmedName := strings.TrimSpace(n)
+
+		// Validate the key.
+		if !isValidHeaderKey(trimmedName) {
+			global.Error(errors.New("invalid header key"), "parse headers", "key", trimmedName)
 			continue
 		}
-		trimmedName := strings.TrimSpace(name)
+
+		// Only decode the value.
 		value, err := url.PathUnescape(v)
 		if err != nil {
 			global.Error(err, "escape header value", "value", v)
@@ -188,4 +193,23 @@ func createCertPool(certBytes []byte) (*x509.CertPool, error) {
 		return nil, errors.New("failed to append certificate to the cert pool")
 	}
 	return cp, nil
+}
+
+func isValidHeaderKey(key string) bool {
+	if key == "" {
+		return false
+	}
+	for _, c := range key {
+		if !isTokenChar(c) {
+			return false
+		}
+	}
+	return true
+}
+
+func isTokenChar(c rune) bool {
+	return c <= unicode.MaxASCII && (unicode.IsLetter(c) ||
+		unicode.IsDigit(c) ||
+		c == '!' || c == '#' || c == '$' || c == '%' || c == '&' || c == '\'' || c == '*' ||
+		c == '+' || c == '-' || c == '.' || c == '^' || c == '_' || c == '`' || c == '|' || c == '~')
 }

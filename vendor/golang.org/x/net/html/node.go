@@ -38,6 +38,10 @@ var scopeMarker = Node{Type: scopeMarkerNode}
 // that it looks like "a<b" rather than "a&lt;b". For element nodes, DataAtom
 // is the atom for Data, or zero if Data is not a known tag name.
 //
+// Node trees may be navigated using the link fields (Parent,
+// FirstChild, and so on) or a range loop over iterators such as
+// [Node.Descendants].
+//
 // An empty Namespace implies a "http://www.w3.org/1999/xhtml" namespace.
 // Similarly, "math" is short for "http://www.w3.org/1998/Math/MathML", and
 // "svg" is short for "http://www.w3.org/2000/svg".

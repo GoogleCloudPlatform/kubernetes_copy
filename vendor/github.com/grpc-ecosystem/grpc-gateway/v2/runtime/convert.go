@@ -94,7 +94,7 @@ func Int64(val string) (int64, error) {
 }
 
 // Int64Slice converts 'val' where individual integers are separated by
-// 'sep' into a int64 slice.
+// 'sep' into an int64 slice.
 func Int64Slice(val, sep string) ([]int64, error) {
 	s := strings.Split(val, sep)
 	values := make([]int64, len(s))
@@ -118,7 +118,7 @@ func Int32(val string) (int32, error) {
 }
 
 // Int32Slice converts 'val' where individual integers are separated by
-// 'sep' into a int32 slice.
+// 'sep' into an int32 slice.
 func Int32Slice(val, sep string) ([]int32, error) {
 	s := strings.Split(val, sep)
 	values := make([]int32, len(s))
@@ -190,7 +190,7 @@ func Bytes(val string) ([]byte, error) {
 }
 
 // BytesSlice converts 'val' where individual bytes sequences, encoded in URL-safe
-// base64 without padding, are separated by 'sep' into a slice of bytes slices slice.
+// base64 without padding, are separated by 'sep' into a slice of byte slices.
 func BytesSlice(val, sep string) ([][]byte, error) {
 	s := strings.Split(val, sep)
 	values := make([][]byte, len(s))

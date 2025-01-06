@@ -106,7 +106,7 @@ func (ml *TruncatingMethodLogger) Build(c LogEntryConfig) *binlogpb.GrpcLogEntry
 }
 
 // Log creates a proto binary log entry, and logs it to the sink.
-func (ml *TruncatingMethodLogger) Log(ctx context.Context, c LogEntryConfig) {
+func (ml *TruncatingMethodLogger) Log(_ context.Context, c LogEntryConfig) {
 	ml.sink.Write(ml.Build(c))
 }
 

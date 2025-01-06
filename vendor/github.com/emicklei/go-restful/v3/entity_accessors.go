@@ -5,9 +5,16 @@ package restful
 // that can be found in the LICENSE file.
 
 import (
+	"encoding/json"
 	"encoding/xml"
 	"strings"
 	"sync"
+)
+
+var (
+	MarshalIndent = json.MarshalIndent
+	NewDecoder    = json.NewDecoder
+	NewEncoder    = json.NewEncoder
 )
 
 // EntityReaderWriter can read and write values using an encoding such as JSON,XML.

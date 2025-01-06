@@ -18,7 +18,7 @@ var DefaultClient = &http.Client{Transport: NewTransport(http.DefaultTransport)}
 
 // Get is a convenient replacement for http.Get that adds a span around the request.
 func Get(ctx context.Context, targetURL string) (resp *http.Response, err error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", targetURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetURL, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -27,7 +27,7 @@ func Get(ctx context.Context, targetURL string) (resp *http.Response, err error)
 
 // Head is a convenient replacement for http.Head that adds a span around the request.
 func Head(ctx context.Context, targetURL string) (resp *http.Response, err error) {
-	req, err := http.NewRequestWithContext(ctx, "HEAD", targetURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodHead, targetURL, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -36,7 +36,7 @@ func Head(ctx context.Context, targetURL string) (resp *http.Response, err error
 
 // Post is a convenient replacement for http.Post that adds a span around the request.
 func Post(ctx context.Context, targetURL, contentType string, body io.Reader) (resp *http.Response, err error) {
-	req, err := http.NewRequestWithContext(ctx, "POST", targetURL, body)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, targetURL, body)
 	if err != nil {
 		return nil, err
 	}

@@ -18,18 +18,15 @@
 
 // Package grpclog defines logging for grpc.
 //
-// All logs in transport and grpclb packages only go to verbose level 2.
-// All logs in other packages in grpc are logged in spite of the verbosity level.
-//
-// In the default logger,
-// severity level can be set by environment variable GRPC_GO_LOG_SEVERITY_LEVEL,
-// verbosity level can be set by GRPC_GO_LOG_VERBOSITY_LEVEL.
-package grpclog // import "google.golang.org/grpc/grpclog"
+// In the default logger, severity level can be set by environment variable
+// GRPC_GO_LOG_SEVERITY_LEVEL, verbosity level can be set by
+// GRPC_GO_LOG_VERBOSITY_LEVEL.
+package grpclog
 
 import (
 	"os"
 
-	"google.golang.org/grpc/internal/grpclog"
+	"google.golang.org/grpc/grpclog/internal"
 )
 
 func init() {
@@ -38,58 +35,58 @@ func init() {
 
 // V reports whether verbosity level l is at least the requested verbose level.
 func V(l int) bool {
-	return grpclog.Logger.V(l)
+	return internal.LoggerV2Impl.V(l)
 }
 
 // Info logs to the INFO log.
 func Info(args ...any) {
-	grpclog.Logger.Info(args...)
+	internal.LoggerV2Impl.Info(args...)
 }
 
 // Infof logs to the INFO log. Arguments are handled in the manner of fmt.Printf.
 func Infof(format string, args ...any) {
-	grpclog.Logger.Infof(format, args...)
+	internal.LoggerV2Impl.Infof(format, args...)
 }
 
 // Infoln logs to the INFO log. Arguments are handled in the manner of fmt.Println.
 func Infoln(args ...any) {
-	grpclog.Logger.Infoln(args...)
+	internal.LoggerV2Impl.Infoln(args...)
 }
 
 // Warning logs to the WARNING log.
 func Warning(args ...any) {
-	grpclog.Logger.Warning(args...)
+	internal.LoggerV2Impl.Warning(args...)
 }
 
 // Warningf logs to the WARNING log. Arguments are handled in the manner of fmt.Printf.
 func Warningf(format string, args ...any) {
-	grpclog.Logger.Warningf(format, args...)
+	internal.LoggerV2Impl.Warningf(format, args...)
 }
 
 // Warningln logs to the WARNING log. Arguments are handled in the manner of fmt.Println.
 func Warningln(args ...any) {
-	grpclog.Logger.Warningln(args...)
+	internal.LoggerV2Impl.Warningln(args...)
 }
 
 // Error logs to the ERROR log.
 func Error(args ...any) {
-	grpclog.Logger.Error(args...)
+	internal.LoggerV2Impl.Error(args...)
 }
 
 // Errorf logs to the ERROR log. Arguments are handled in the manner of fmt.Printf.
 func Errorf(format string, args ...any) {
-	grpclog.Logger.Errorf(format, args...)
+	internal.LoggerV2Impl.Errorf(format, args...)
 }
 
 // Errorln logs to the ERROR log. Arguments are handled in the manner of fmt.Println.
 func Errorln(args ...any) {
-	grpclog.Logger.Errorln(args...)
+	internal.LoggerV2Impl.Errorln(args...)
 }
 
 // Fatal logs to the FATAL log. Arguments are handled in the manner of fmt.Print.
 // It calls os.Exit() with exit code 1.
 func Fatal(args ...any) {
-	grpclog.Logger.Fatal(args...)
+	internal.LoggerV2Impl.Fatal(args...)
 	// Make sure fatal logs will exit.
 	os.Exit(1)
 }
@@ -97,15 +94,15 @@ func Fatal(args ...any) {
 // Fatalf logs to the FATAL log. Arguments are handled in the manner of fmt.Printf.
 // It calls os.Exit() with exit code 1.
 func Fatalf(format string, args ...any) {
-	grpclog.Logger.Fatalf(format, args...)
+	internal.LoggerV2Impl.Fatalf(format, args...)
 	// Make sure fatal logs will exit.
 	os.Exit(1)
 }
 
 // Fatalln logs to the FATAL log. Arguments are handled in the manner of fmt.Println.
-// It calle os.Exit()) with exit code 1.
+// It calls os.Exit() with exit code 1.
 func Fatalln(args ...any) {
-	grpclog.Logger.Fatalln(args...)
+	internal.LoggerV2Impl.Fatalln(args...)
 	// Make sure fatal logs will exit.
 	os.Exit(1)
 }
@@ -114,19 +111,76 @@ func Fatalln(args ...any) {
 //
 // Deprecated: use Info.
 func Print(args ...any) {
-	grpclog.Logger.Info(args...)
+	internal.LoggerV2Impl.Info(args...)
 }
 
 // Printf prints to the logger. Arguments are handled in the manner of fmt.Printf.
 //
 // Deprecated: use Infof.
 func Printf(format string, args ...any) {
-	grpclog.Logger.Infof(format, args...)
+	internal.LoggerV2Impl.Infof(format, args...)
 }
 
 // Println prints to the logger. Arguments are handled in the manner of fmt.Println.
 //
 // Deprecated: use Infoln.
 func Println(args ...any) {
-	grpclog.Logger.Infoln(args...)
+	internal.LoggerV2Impl.Infoln(args...)
+}
+
+// InfoDepth logs to the INFO log at the specified depth.
+//
+// # Experimental
+//
+// Notice: This API is EXPERIMENTAL and may be changed or removed in a
+// later release.
+func InfoDepth(depth int, args ...any) {
+	if internal.DepthLoggerV2Impl != nil {
+		internal.DepthLoggerV2Impl.InfoDepth(depth, args...)
+	} else {
+		internal.LoggerV2Impl.Infoln(args...)
+	}
+}
+
+// WarningDepth logs to the WARNING log at the specified depth.
+//
+// # Experimental
+//
+// Notice: This API is EXPERIMENTAL and may be changed or removed in a
+// later release.
+func WarningDepth(depth int, args ...any) {
+	if internal.DepthLoggerV2Impl != nil {
+		internal.DepthLoggerV2Impl.WarningDepth(depth, args...)
+	} else {
+		internal.LoggerV2Impl.Warningln(args...)
+	}
+}
+
+// ErrorDepth logs to the ERROR log at the specified depth.
+//
+// # Experimental
+//
+// Notice: This API is EXPERIMENTAL and may be changed or removed in a
+// later release.
+func ErrorDepth(depth int, args ...any) {
+	if internal.DepthLoggerV2Impl != nil {
+		internal.DepthLoggerV2Impl.ErrorDepth(depth, args...)
+	} else {
+		internal.LoggerV2Impl.Errorln(args...)
+	}
+}
+
+// FatalDepth logs to the FATAL log at the specified depth.
+//
+// # Experimental
+//
+// Notice: This API is EXPERIMENTAL and may be changed or removed in a
+// later release.
+func FatalDepth(depth int, args ...any) {
+	if internal.DepthLoggerV2Impl != nil {
+		internal.DepthLoggerV2Impl.FatalDepth(depth, args...)
+	} else {
+		internal.LoggerV2Impl.Fatalln(args...)
+	}
+	os.Exit(1)
 }
