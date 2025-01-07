@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
@@ -67,6 +68,33 @@ var _ = SIGDescribe("Swap", "[LinuxOnly]", ginkgo.Ordered, feature.Swap, framewo
 
 	ginkgo.BeforeEach(func() {
 		gomega.Expect(isSwapFeatureGateEnabled()).To(gomega.BeTrueBecause("NodeSwap feature should be on"))
+	})
+
+	ginkgo.BeforeEach(func() {
+		ginkgo.By("Checking that swap is available on the node")
+		isSwapEnabled, err := isSwapEnabledOnNode()
+		framework.ExpectNoError(err)
+		gomega.Expect(isSwapEnabled).To(gomega.BeTrueBecause("swap should be enabled on the node"))
+
+		ginkgo.By("Resetting the swap")
+		err = resetSwap()
+		framework.ExpectNoError(err)
+
+		ginkgo.By("Re-checking that swap is available on the node after swap reset")
+		isSwapEnabled, err = isSwapEnabledOnNode()
+		framework.ExpectNoError(err)
+		gomega.Expect(isSwapEnabled).To(gomega.BeTrueBecause("swap should be enabled on the node after reset"))
+
+		ginkgo.By("Checking that swap usage is near zero")
+		usedSwapBytes, err := getUsedSwapOnNode()
+		framework.ExpectNoError(err)
+		gomega.Expect(usedSwapBytes).To(gomega.BeNumerically("<", 200*1024*1024), "swap usage after reset should be less than 200Mi")
+
+		framework.Logf("Swap is reset. Used swap bytes (should be near 0): %d", usedSwapBytes)
+
+		secondsToSleep := 3
+		ginkgo.By(fmt.Sprintf("Sleeping for %d seconds to allow swap to settle", secondsToSleep))
+		time.Sleep(time.Duration(secondsToSleep) * time.Second)
 	})
 
 	f.Context(framework.WithNodeConformance(), func() {
@@ -839,4 +867,78 @@ func setPodMemoryResources(pod *v1.Pod, memoryRequest, memoryLimit *resource.Qua
 			resources.Limits[v1.ResourceMemory] = *memoryLimit
 		}
 	}
+}
+
+func getSwapFile() (string, error) {
+	cmd := "swapon --show=NAME --noheadings"
+	output, err := exec.Command("/bin/sh", "-c", cmd).Output()
+	if err != nil {
+		return "", fmt.Errorf("error executing command %s: %w", cmd, err)
+	}
+
+	swapFilePath := strings.TrimSpace(string(output))
+	if swapFilePath == "" {
+		return "", fmt.Errorf("no swap file found")
+	}
+
+	_, err = os.Stat(swapFilePath)
+	if os.IsNotExist(err) {
+		return "", fmt.Errorf("swap file %s does not exist", swapFilePath)
+	}
+	if err != nil {
+		return "", fmt.Errorf("error checking swap file %s: %w", swapFilePath, err)
+	}
+
+	return swapFilePath, nil
+}
+
+func resetSwap() error {
+	swapFilePath, err := getSwapFile()
+	if err != nil {
+		return fmt.Errorf("error resetting swap, getting swap file: %w", err)
+	}
+
+	_, err = exec.Command("/bin/sh", "-c", fmt.Sprintf("swapoff %s", swapFilePath)).Output()
+	if err != nil {
+		return fmt.Errorf("error executing command swapoff on %s: %w", swapFilePath, err)
+	}
+
+	_, err = exec.Command("/bin/sh", "-c", fmt.Sprintf("swapon %s", swapFilePath)).Output()
+	if err != nil {
+		return fmt.Errorf("error executing command swapon on %s: %w", swapFilePath, err)
+	}
+
+	return nil
+}
+
+func isSwapEnabledOnNode() (bool, error) {
+	cmd := "free -b | grep Swap | awk '{print $2}'"
+	availableSwap, err := exec.Command("/bin/sh", "-c", cmd).Output()
+	if err != nil {
+		return false, fmt.Errorf(`error executing command to check swap with command "%s" %w`, cmd, err)
+	}
+
+	availableSwapStr := strings.TrimSpace(string(availableSwap))
+	swapBytes, err := strconv.Atoi(availableSwapStr)
+	if err != nil {
+		return false, fmt.Errorf("error converting swap size %s to int: %w", availableSwapStr, err)
+	}
+
+	return swapBytes > 0, nil
+}
+
+func getUsedSwapOnNode() (int, error) {
+	cmd := "free -b | grep Swap | awk '{print $3}'"
+	usedSwap, err := exec.Command("/bin/sh", "-c", cmd).Output()
+	if err != nil {
+		return -1, fmt.Errorf(`error executing command to check swap with command "%s" %w`, cmd, err)
+	}
+
+	availableSwapStr := strings.TrimSpace(string(usedSwap))
+	swapBytes, err := strconv.Atoi(availableSwapStr)
+	if err != nil {
+		return -1, fmt.Errorf("error converting swap size %s to int: %w", availableSwapStr, err)
+	}
+
+	return swapBytes, nil
 }
