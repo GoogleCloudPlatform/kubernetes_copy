@@ -559,7 +559,7 @@
 - name: InheritDefaultEvictionValues
   versionedSpecs:
   - default: true
-    lockToDefault: true
+    lockToDefault: false
     preRelease: Beta
     version: "1.32"
 - name: InPlacePodVerticalScaling
@@ -579,6 +579,7 @@
   - default: false
     lockToDefault: false
     preRelease: Alpha
+    version: "1.33"
 - name: InTreePluginPortworxUnregister
   versionedSpecs:
   - default: false
