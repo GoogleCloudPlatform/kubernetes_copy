@@ -77,6 +77,15 @@ func (s *stateMemory) SetContainerResourceAllocation(podUID string, containerNam
 	return nil
 }
 
+func (s *stateMemory) SetPodResourceAllocation(podUID string, alloc map[string]v1.ResourceRequirements) error {
+	s.Lock()
+	defer s.Unlock()
+
+	s.podAllocation[podUID] = alloc
+	klog.V(3).InfoS("Updated pod resource allocation", "podUID", podUID, "allocation", alloc)
+	return nil
+}
+
 func (s *stateMemory) SetPodResizeStatus(podUID string, resizeStatus v1.PodResizeStatus) {
 	s.Lock()
 	defer s.Unlock()
