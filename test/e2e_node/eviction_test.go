@@ -552,6 +552,11 @@ type podEvictSpec struct {
 
 	evictionMaxPodGracePeriod int
 	evictionSoftGracePeriod   int
+
+	// Can be used in order to alter pod using runtime data
+	prePodCreationMofificationFunc func(pod *v1.Pod)
+	// Can be used in order to perform validation on the given pod right after a pressure condition is met.
+	postPressureValidationFunc func(pod *v1.Pod)
 }
 
 // runEvictionTest sets up a testing environment given the provided pods, and checks a few things:
@@ -574,7 +579,11 @@ func runEvictionTest(f *framework.Framework, pressureTimeout time.Duration, expe
 			ginkgo.By("setting up pods to be used by tests")
 			pods := []*v1.Pod{}
 			for _, spec := range testSpecs {
-				pods = append(pods, spec.pod)
+				p := spec.pod.DeepCopy()
+				if spec.prePodCreationMofificationFunc != nil {
+					spec.prePodCreationMofificationFunc(p)
+				}
+				pods = append(pods, p)
 			}
 			e2epod.NewPodClient(f).CreateBatch(ctx, pods)
 		})
@@ -610,6 +619,13 @@ func runEvictionTest(f *framework.Framework, pressureTimeout time.Duration, expe
 
 			ginkgo.By("checking for the expected pod conditions for evicted pods")
 			verifyPodConditions(ctx, f, testSpecs)
+
+			for _, spec := range testSpecs {
+				if spec.postPressureValidationFunc != nil {
+					ginkgo.By("running a post-validation function for pod " + spec.pod.Name)
+					spec.postPressureValidationFunc(spec.pod.DeepCopy())
+				}
+			}
 
 			// We observe pressure from the API server.  The eviction manager observes pressure from the kubelet internal stats.
 			// This means the eviction manager will observe pressure before we will, creating a delay between when the eviction manager
@@ -936,14 +952,12 @@ func logDiskMetrics(ctx context.Context) {
 	}
 }
 
-func logMemoryMetrics(ctx context.Context) {
-	summary, err := getNodeSummary(ctx)
-	if err != nil {
-		framework.Logf("Error getting summary: %v", err)
-		return
-	}
+func logMemoryMetricsWithSummary(ctx context.Context, summary *kubeletstatsv1alpha1.Summary) {
 	if summary.Node.Memory != nil && summary.Node.Memory.WorkingSetBytes != nil && summary.Node.Memory.AvailableBytes != nil {
 		framework.Logf("Node.Memory.WorkingSetBytes: %d, Node.Memory.AvailableBytes: %d", *summary.Node.Memory.WorkingSetBytes, *summary.Node.Memory.AvailableBytes)
+	}
+	if summary.Node.Swap != nil && summary.Node.Swap.SwapUsageBytes != nil && summary.Node.Swap.SwapAvailableBytes != nil {
+		framework.Logf("summary.Node.Swap.SwapUsageBytes: %d, summary.Node.Swap.SwapAvailableBytes: %d", *summary.Node.Swap.SwapUsageBytes, *summary.Node.Swap.SwapAvailableBytes)
 	}
 	for _, sysContainer := range summary.Node.SystemContainers {
 		if sysContainer.Name == kubeletstatsv1alpha1.SystemContainerPods && sysContainer.Memory != nil && sysContainer.Memory.WorkingSetBytes != nil && sysContainer.Memory.AvailableBytes != nil {
@@ -955,9 +969,29 @@ func logMemoryMetrics(ctx context.Context) {
 		for _, container := range pod.Containers {
 			if container.Memory != nil && container.Memory.WorkingSetBytes != nil {
 				framework.Logf("--- summary Container: %s WorkingSetBytes: %d", container.Name, *container.Memory.WorkingSetBytes)
+				if container.Memory.UsageBytes != nil {
+					framework.Logf("--- summary Container: %s UsageBytes: %d", container.Name, *container.Memory.UsageBytes)
+				}
+			}
+			if container.Swap != nil {
+				if container.Swap.SwapUsageBytes != nil {
+					framework.Logf("--- summary Container: %s SwapUsageBytes: %d", container.Name, *container.Swap.SwapUsageBytes)
+				}
+				if container.Swap.SwapAvailableBytes != nil {
+					framework.Logf("--- summary Container: %s SwapAvailableBytes: %d", container.Name, *container.Swap.SwapAvailableBytes)
+				}
 			}
 		}
 	}
+}
+
+func logMemoryMetrics(ctx context.Context) {
+	summary, err := getNodeSummary(ctx)
+	if err != nil {
+		framework.Logf("Error getting summary: %v", err)
+		return
+	}
+	logMemoryMetricsWithSummary(ctx, summary)
 }
 
 func logPidMetrics(ctx context.Context) {
