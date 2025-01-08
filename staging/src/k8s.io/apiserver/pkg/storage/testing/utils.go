@@ -80,7 +80,7 @@ func DeepEqualSafePodSpec() example.PodSpec {
 	}
 }
 
-func computePodKey(obj *example.Pod) string {
+func ComputePodKey(obj *example.Pod) string {
 	return fmt.Sprintf("/pods/%s/%s", obj.Namespace, obj.Name)
 }
 
@@ -88,7 +88,7 @@ func computePodKey(obj *example.Pod) string {
 // keys and stored objects.
 func testPropagateStore(ctx context.Context, t *testing.T, store storage.Interface, obj *example.Pod) (string, *example.Pod) {
 	// Setup store with a key and grab the output for returning.
-	key := computePodKey(obj)
+	key := ComputePodKey(obj)
 
 	// Setup store with the specified key and grab the output for returning.
 	err := store.Delete(ctx, key, &example.Pod{}, nil, storage.ValidateAllObjectFunc, nil, storage.DeleteOptions{})
@@ -385,7 +385,7 @@ func (s sortablePodList) Len() int {
 }
 
 func (s sortablePodList) Less(i, j int) bool {
-	return computePodKey(&s[i]) < computePodKey(&s[j])
+	return ComputePodKey(&s[i]) < ComputePodKey(&s[j])
 }
 
 func (s sortablePodList) Swap(i, j int) {

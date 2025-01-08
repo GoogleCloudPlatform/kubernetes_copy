@@ -338,7 +338,7 @@ func RunTestDelayedWatchDelivery(ctx context.Context, t *testing.T, store storag
 		pod := &example.Pod{
 			ObjectMeta: metav1.ObjectMeta{Name: fmt.Sprintf("foo-%d", i), Namespace: "test-ns"},
 		}
-		err := store.GuaranteedUpdate(ctx, computePodKey(pod), out, true, nil, storage.SimpleUpdate(
+		err := store.GuaranteedUpdate(ctx, ComputePodKey(pod), out, true, nil, storage.SimpleUpdate(
 			func(runtime.Object) (runtime.Object, error) {
 				return pod, nil
 			}), nil)
@@ -374,7 +374,7 @@ func RunTestDelayedWatchDelivery(ctx context.Context, t *testing.T, store storag
 
 func RunTestWatchError(ctx context.Context, t *testing.T, store InterfaceWithPrefixTransformer) {
 	obj := &example.Pod{ObjectMeta: metav1.ObjectMeta{Name: "foo", Namespace: "test-ns"}}
-	key := computePodKey(obj)
+	key := ComputePodKey(obj)
 
 	// Compute the initial resource version from which we can start watching later.
 	list := &example.PodList{}
@@ -410,7 +410,7 @@ func RunTestWatchError(ctx context.Context, t *testing.T, store InterfaceWithPre
 
 func RunTestWatchWithUnsafeDelete(ctx context.Context, t *testing.T, store InterfaceWithCorruptTransformer) {
 	obj := &example.Pod{ObjectMeta: metav1.ObjectMeta{Name: "foo", Namespace: "test-ns"}}
-	key := computePodKey(obj)
+	key := ComputePodKey(obj)
 
 	out := &example.Pod{}
 	if err := store.Create(ctx, key, obj, out, 0); err != nil {
@@ -533,7 +533,7 @@ func RunTestWatcherTimeout(ctx context.Context, t *testing.T, store storage.Inte
 	for i := 0; i < 22; i++ {
 		out := &example.Pod{}
 		pod := &example.Pod{ObjectMeta: metav1.ObjectMeta{Name: fmt.Sprintf("foo-%d", i), Namespace: "test-ns"}}
-		if err := store.Create(ctx, computePodKey(pod), pod, out, 0); err != nil {
+		if err := store.Create(ctx, ComputePodKey(pod), pod, out, 0); err != nil {
 			t.Fatalf("Create failed: %v", err)
 		}
 		testCheckResult(t, readingWatcher, watch.Event{Type: watch.Added, Object: out})
@@ -587,7 +587,7 @@ func RunTestWatchInitializationSignal(ctx context.Context, t *testing.T, store s
 // this test is currently considered optional.
 func RunOptionalTestProgressNotify(ctx context.Context, t *testing.T, store storage.Interface) {
 	input := &example.Pod{ObjectMeta: metav1.ObjectMeta{Name: "name", Namespace: "test-ns"}}
-	key := computePodKey(input)
+	key := ComputePodKey(input)
 	out := &example.Pod{}
 	if err := store.Create(ctx, key, input, out, 0); err != nil {
 		t.Fatalf("Create failed: %v", err)
@@ -1142,7 +1142,7 @@ func RunTestWatchDispatchBookmarkEvents(ctx context.Context, t *testing.T, store
 			// Create events of pods in a different namespace
 			out := &example.Pod{}
 			obj := &example.Pod{ObjectMeta: metav1.ObjectMeta{Name: "foo", Namespace: fmt.Sprintf("other-ns-%d", i)}}
-			objKey := computePodKey(obj)
+			objKey := ComputePodKey(obj)
 
 			if err := store.Create(ctx, objKey, obj, out, 0); err != nil {
 				t.Fatalf("Create failed: %v", err)
@@ -1221,7 +1221,7 @@ func RunTestOptionalWatchBookmarksWithCorrectResourceVersion(ctx context.Context
 						Namespace: "test-ns",
 					},
 				}
-				podKey := computePodKey(pod)
+				podKey := ComputePodKey(pod)
 				if err := store.Create(ctx, podKey, pod, out, 0); err != nil {
 					errc <- fmt.Errorf("failed to create pod %v: %v", pod, err)
 					return
@@ -1511,7 +1511,7 @@ func RunWatchSemantics(ctx context.Context, t *testing.T, store storage.Interfac
 			for _, obj := range scenario.initialPods {
 				obj.Namespace = ns
 				out := &example.Pod{}
-				err := store.Create(ctx, computePodKey(obj), obj, out, 0)
+				err := store.Create(ctx, ComputePodKey(obj), obj, out, 0)
 				require.NoError(t, err, "failed to add a pod: %v", obj)
 				createdPods = append(createdPods, out)
 			}
@@ -1579,7 +1579,7 @@ func RunWatchSemantics(ctx context.Context, t *testing.T, store storage.Interfac
 			for _, obj := range scenario.podsAfterEstablishingWatch {
 				obj.Namespace = ns
 				out := &example.Pod{}
-				err = store.Create(ctx, computePodKey(obj), obj, out, 0)
+				err = store.Create(ctx, ComputePodKey(obj), obj, out, 0)
 				require.NoError(t, err, "failed to add a pod: %v")
 				createdPods = append(createdPods, out)
 			}
@@ -1617,7 +1617,7 @@ func RunWatchSemanticInitialEventsExtended(ctx context.Context, t *testing.T, st
 	for _, initialPod := range []*example.Pod{makePod("1"), makePod("2"), makePod("3"), makePod("4"), makePod("5")} {
 		initialPod.Namespace = ns
 		out := &example.Pod{}
-		err := store.Create(ctx, computePodKey(initialPod), initialPod, out, 0)
+		err := store.Create(ctx, ComputePodKey(initialPod), initialPod, out, 0)
 		require.NoError(t, err, "failed to add a pod: %v")
 		initialPods = append(initialPods, out)
 	}
@@ -1626,7 +1626,7 @@ func RunWatchSemanticInitialEventsExtended(ctx context.Context, t *testing.T, st
 	pod := makePod("1")
 	pod.Namespace = "other-ns-foo"
 	otherNsPod := &example.Pod{}
-	err := store.Create(ctx, computePodKey(pod), pod, otherNsPod, 0)
+	err := store.Create(ctx, ComputePodKey(pod), pod, otherNsPod, 0)
 	require.NoError(t, err, "failed to add a pod: %v")
 
 	opts := storage.ListOptions{Predicate: storage.Everything, Recursive: true}
@@ -1663,14 +1663,14 @@ func RunWatchListMatchSingle(ctx context.Context, t *testing.T, store storage.In
 	expectedPod := &example.Pod{}
 	initialPod := makePod("1")
 	initialPod.Namespace = ns
-	err := store.Create(ctx, computePodKey(initialPod), initialPod, expectedPod, 0)
+	err := store.Create(ctx, ComputePodKey(initialPod), initialPod, expectedPod, 0)
 	require.NoError(t, err, "failed to add a pod: %v")
 
 	// add more pods that won't match the field selector
 	lastAddedPod := &example.Pod{}
 	for _, otherPod := range []*example.Pod{makePod("2"), makePod("3"), makePod("4"), makePod("5")} {
 		otherPod.Namespace = ns
-		err = store.Create(ctx, computePodKey(otherPod), otherPod, lastAddedPod, 0)
+		err = store.Create(ctx, ComputePodKey(otherPod), otherPod, lastAddedPod, 0)
 		require.NoError(t, err, "failed to add a pod: %v")
 	}
 

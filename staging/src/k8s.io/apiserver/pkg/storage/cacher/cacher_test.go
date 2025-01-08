@@ -257,7 +257,7 @@ func TestListResourceVersionMatch(t *testing.T) {
 }
 
 func TestNamespaceScopedList(t *testing.T) {
-	ctx, cacher, terminate := testSetup(t, withSpecNodeNameIndexerFuncs)
+	ctx, cacher, terminate := testSetup(t, withNodeNameAndNamespaceIndex)
 	t.Cleanup(terminate)
 	storagetesting.RunTestNamespaceScopedList(ctx, t, cacher)
 }
@@ -355,13 +355,13 @@ func TestWatchInitializationSignal(t *testing.T) {
 }
 
 func TestClusterScopedWatch(t *testing.T) {
-	ctx, cacher, terminate := testSetup(t, withClusterScopedKeyFunc, withSpecNodeNameIndexerFuncs)
+	ctx, cacher, terminate := testSetup(t, withClusterScopedKeyFunc, withNodeNameAndNamespaceIndex)
 	t.Cleanup(terminate)
 	storagetesting.RunTestClusterScopedWatch(ctx, t, cacher)
 }
 
 func TestNamespaceScopedWatch(t *testing.T) {
-	ctx, cacher, terminate := testSetup(t, withSpecNodeNameIndexerFuncs)
+	ctx, cacher, terminate := testSetup(t, withNodeNameAndNamespaceIndex)
 	t.Cleanup(terminate)
 	storagetesting.RunTestNamespaceScopedWatch(ctx, t, cacher)
 }
@@ -432,7 +432,8 @@ func withClusterScopedKeyFunc(options *setupOptions) {
 	}
 }
 
-func withSpecNodeNameIndexerFuncs(options *setupOptions) {
+// mirror indexer configuration from pkg/registry/core/pod/strategy.go
+func withNodeNameAndNamespaceIndex(options *setupOptions) {
 	options.indexerFuncs = map[string]storage.IndexerFunc{
 		"spec.nodeName": func(obj runtime.Object) string {
 			pod, ok := obj.(*example.Pod)
@@ -446,6 +447,10 @@ func withSpecNodeNameIndexerFuncs(options *setupOptions) {
 		"f:spec.nodeName": func(obj interface{}) ([]string, error) {
 			pod := obj.(*example.Pod)
 			return []string{pod.Spec.NodeName}, nil
+		},
+		"f:metadata.namespace": func(obj interface{}) ([]string, error) {
+			pod := obj.(*example.Pod)
+			return []string{pod.ObjectMeta.Namespace}, nil
 		},
 	}
 }
@@ -547,23 +552,101 @@ func (c *createWrapper) Create(ctx context.Context, key string, obj, out runtime
 	})
 }
 
-func BenchmarkStoreListCreate(b *testing.B) {
+func BenchmarkStoreCreateList(b *testing.B) {
 	klog.SetLogger(logr.Discard())
-	b.Run("RV=NotOlderThan", func(b *testing.B) {
-		ctx, cacher, _, terminate := testSetupWithEtcdServer(b)
-		b.Cleanup(terminate)
-		storagetesting.RunBenchmarkStoreListCreate(ctx, b, cacher, metav1.ResourceVersionMatchNotOlderThan)
-	})
-	b.Run("RV=ExactMatch", func(b *testing.B) {
-		ctx, cacher, _, terminate := testSetupWithEtcdServer(b)
-		b.Cleanup(terminate)
-		storagetesting.RunBenchmarkStoreListCreate(ctx, b, cacher, metav1.ResourceVersionMatchExact)
-	})
+	storeOptions := []struct {
+		name         string
+		btreeEnabled bool
+	}{
+		{
+			name:         "Btree",
+			btreeEnabled: true,
+		},
+		{
+			name:         "Map",
+			btreeEnabled: false,
+		},
+	}
+	for _, store := range storeOptions {
+		b.Run(fmt.Sprintf("Store=%s", store.name), func(b *testing.B) {
+			featuregatetesting.SetFeatureGateDuringTest(b, utilfeature.DefaultFeatureGate, features.BtreeWatchCache, store.btreeEnabled)
+			for _, rvm := range []metav1.ResourceVersionMatch{metav1.ResourceVersionMatchNotOlderThan, metav1.ResourceVersionMatchExact} {
+				b.Run(fmt.Sprintf("RV=%s", rvm), func(b *testing.B) {
+					for _, useIndex := range []bool{true, false} {
+						b.Run(fmt.Sprintf("Indexed=%v", useIndex), func(b *testing.B) {
+							opts := []setupOption{}
+							if useIndex {
+								opts = append(opts, withNodeNameAndNamespaceIndex)
+							}
+							ctx, cacher, _, terminate := testSetupWithEtcdServer(b, opts...)
+							b.Cleanup(terminate)
+							storagetesting.RunBenchmarkStoreListCreate(ctx, b, cacher, rvm)
+						})
+					}
+				})
+			}
+		})
+	}
 }
 
 func BenchmarkStoreList(b *testing.B) {
 	klog.SetLogger(logr.Discard())
-	ctx, cacher, _, terminate := testSetupWithEtcdServer(b, withSpecNodeNameIndexerFuncs)
-	b.Cleanup(terminate)
-	storagetesting.RunBenchmarkStoreList(ctx, b, cacher)
+	dimentions := []struct {
+		namespaceCount       int
+		podPerNamespaceCount int
+		nodeCount            int
+	}{
+		{
+			namespaceCount:       10_000,
+			podPerNamespaceCount: 15,
+			nodeCount:            5_000,
+		},
+		{
+			namespaceCount:       50,
+			podPerNamespaceCount: 3_000,
+			nodeCount:            5_000,
+		},
+		{
+			namespaceCount:       100,
+			podPerNamespaceCount: 1_100,
+			nodeCount:            1000,
+		},
+	}
+	for _, dims := range dimentions {
+		b.Run(fmt.Sprintf("Namespaces=%d/Pods=%d/Nodes=%d", dims.namespaceCount, dims.namespaceCount*dims.podPerNamespaceCount, dims.nodeCount), func(b *testing.B) {
+			data := storagetesting.PrepareBenchchmarkData(dims.namespaceCount, dims.podPerNamespaceCount, dims.nodeCount)
+			storeOptions := []struct {
+				name         string
+				btreeEnabled bool
+			}{
+				{
+					name:         "Btree",
+					btreeEnabled: true,
+				},
+				{
+					name:         "Map",
+					btreeEnabled: false,
+				},
+			}
+			for _, store := range storeOptions {
+				b.Run(fmt.Sprintf("Store=%s", store.name), func(b *testing.B) {
+					featuregatetesting.SetFeatureGateDuringTest(b, utilfeature.DefaultFeatureGate, features.BtreeWatchCache, store.btreeEnabled)
+					ctx, cacher, _, terminate := testSetupWithEtcdServer(b, withNodeNameAndNamespaceIndex)
+					b.Cleanup(terminate)
+					var out example.Pod
+					for _, pod := range data.Pods {
+						err := cacher.Create(ctx, computePodKey(pod), pod, &out, 0)
+						if err != nil {
+							b.Fatal(err)
+						}
+					}
+					for _, useIndex := range []bool{true, false} {
+						b.Run(fmt.Sprintf("Indexed=%v", useIndex), func(b *testing.B) {
+							storagetesting.RunBenchmarkStoreList(ctx, b, cacher, data, useIndex)
+						})
+					}
+				})
+			}
+		})
+	}
 }

@@ -61,7 +61,7 @@ func RunTestCreate(ctx context.Context, t *testing.T, store storage.Interface, v
 		t.Run(tt.name, func(t *testing.T) {
 			out := &example.Pod{} // reset
 			// verify that kv pair is empty before set
-			key := computePodKey(tt.inputObj)
+			key := ComputePodKey(tt.inputObj)
 			if err := store.Get(ctx, key, storage.GetOptions{}, out); !storage.IsNotFound(err) {
 				t.Fatalf("expecting empty result on key %s, got %v", key, err)
 			}
@@ -89,7 +89,7 @@ func RunTestCreateWithTTL(ctx context.Context, t *testing.T, store storage.Inter
 	input := &example.Pod{ObjectMeta: metav1.ObjectMeta{Name: "foo", Namespace: "test-ns"}}
 	out := &example.Pod{}
 
-	key := computePodKey(input)
+	key := ComputePodKey(input)
 	if err := store.Create(ctx, key, input, out, 1); err != nil {
 		t.Fatalf("Create failed: %v", err)
 	}
@@ -130,7 +130,7 @@ func RunTestGet(ctx context.Context, t *testing.T, store storage.Interface) {
 	// create an additional object to increment the resource version for pods above the resource version of the foo object
 	secondObj := &example.Pod{ObjectMeta: metav1.ObjectMeta{Name: "bar", Namespace: "test-ns"}}
 	lastUpdatedObj := &example.Pod{}
-	if err := store.Create(ctx, computePodKey(secondObj), secondObj, lastUpdatedObj, 0); err != nil {
+	if err := store.Create(ctx, ComputePodKey(secondObj), secondObj, lastUpdatedObj, 0); err != nil {
 		t.Fatalf("Set failed: %v", err)
 	}
 
@@ -1259,7 +1259,7 @@ func RunTestList(ctx context.Context, t *testing.T, store storage.Interface, com
 func RunTestConsistentList(ctx context.Context, t *testing.T, store storage.Interface, compaction Compaction, cacheEnabled, consistentReadsSupported bool) {
 	outPod := &example.Pod{}
 	inPod := &example.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "foo"}}
-	err := store.Create(ctx, computePodKey(inPod), inPod, outPod, 0)
+	err := store.Create(ctx, ComputePodKey(inPod), inPod, outPod, 0)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -1346,27 +1346,27 @@ func seedMultiLevelData(ctx context.Context, store storage.Interface) (string, [
 		storedObj *example.Pod
 	}{
 		{
-			key: computePodKey(barFirst),
+			key: ComputePodKey(barFirst),
 			obj: barFirst,
 		},
 		{
-			key: computePodKey(barSecond),
+			key: ComputePodKey(barSecond),
 			obj: barSecond,
 		},
 		{
-			key: computePodKey(fooSecond),
+			key: ComputePodKey(fooSecond),
 			obj: fooSecond,
 		},
 		{
-			key: computePodKey(barfooThird),
+			key: ComputePodKey(barfooThird),
 			obj: barfooThird,
 		},
 		{
-			key: computePodKey(fooThird),
+			key: ComputePodKey(fooThird),
 			obj: fooThird,
 		},
 		{
-			key: computePodKey(bazSecond),
+			key: ComputePodKey(bazSecond),
 			obj: bazSecond,
 		},
 	}
@@ -1391,7 +1391,7 @@ func seedMultiLevelData(ctx context.Context, store storage.Interface) (string, [
 	// test that if a pod with key /pods/first/bar is in fact returned, the returned
 	// pod is the updated one (i.e. with spec.nodeName changed).
 	preset[0].storedObj = &example.Pod{}
-	if err := store.GuaranteedUpdate(ctx, computePodKey(barFirst), preset[0].storedObj, true, nil,
+	if err := store.GuaranteedUpdate(ctx, ComputePodKey(barFirst), preset[0].storedObj, true, nil,
 		func(input runtime.Object, _ storage.ResponseMeta) (output runtime.Object, ttl *uint64, err error) {
 			pod := input.(*example.Pod).DeepCopy()
 			pod.Spec.NodeName = "fakeNode"
@@ -1403,7 +1403,7 @@ func seedMultiLevelData(ctx context.Context, store storage.Interface) (string, [
 	// We now delete bazSecond provided it has been created first. We do this to enable
 	// testing cases that had an object exist initially and then was deleted and how this
 	// would be reflected in responses of different calls.
-	if err := store.Delete(ctx, computePodKey(bazSecond), preset[len(preset)-1].storedObj, nil, storage.ValidateAllObjectFunc, nil, storage.DeleteOptions{}); err != nil {
+	if err := store.Delete(ctx, ComputePodKey(bazSecond), preset[len(preset)-1].storedObj, nil, storage.ValidateAllObjectFunc, nil, storage.DeleteOptions{}); err != nil {
 		return "", nil, fmt.Errorf("failed to delete object: %w", err)
 	}
 
@@ -1707,15 +1707,15 @@ func RunTestListContinuation(ctx context.Context, t *testing.T, store storage.In
 		storedObj *example.Pod
 	}{
 		{
-			key: computePodKey(barFirst),
+			key: ComputePodKey(barFirst),
 			obj: barFirst,
 		},
 		{
-			key: computePodKey(barSecond),
+			key: ComputePodKey(barSecond),
 			obj: barSecond,
 		},
 		{
-			key: computePodKey(fooSecond),
+			key: ComputePodKey(fooSecond),
 			obj: fooSecond,
 		},
 	}
@@ -1842,7 +1842,7 @@ func RunTestListPaginationRareObject(ctx context.Context, t *testing.T, store st
 	var pods []*example.Pod
 	for i := 0; i < podCount; i++ {
 		obj := &example.Pod{ObjectMeta: metav1.ObjectMeta{Name: fmt.Sprintf("pod-%d", i)}}
-		key := computePodKey(obj)
+		key := ComputePodKey(obj)
 		storedObj := &example.Pod{}
 		err := store.Create(ctx, key, obj, storedObj, 0)
 		if err != nil {
@@ -1889,19 +1889,19 @@ func RunTestListContinuationWithFilter(ctx context.Context, t *testing.T, store 
 		storedObj *example.Pod
 	}{
 		{
-			key: computePodKey(foo1),
+			key: ComputePodKey(foo1),
 			obj: foo1,
 		},
 		{
-			key: computePodKey(bar2),
+			key: ComputePodKey(bar2),
 			obj: bar2,
 		},
 		{
-			key: computePodKey(foo3),
+			key: ComputePodKey(foo3),
 			obj: foo3,
 		},
 		{
-			key: computePodKey(foo4),
+			key: ComputePodKey(foo4),
 			obj: foo4,
 		},
 	}
@@ -2010,15 +2010,15 @@ func RunTestListInconsistentContinuation(ctx context.Context, t *testing.T, stor
 		storedObj *example.Pod
 	}{
 		{
-			key: computePodKey(barFirst),
+			key: ComputePodKey(barFirst),
 			obj: barFirst,
 		},
 		{
-			key: computePodKey(barSecond),
+			key: ComputePodKey(barSecond),
 			obj: barSecond,
 		},
 		{
-			key: computePodKey(fooSecond),
+			key: ComputePodKey(fooSecond),
 			obj: fooSecond,
 		},
 	}
@@ -2162,7 +2162,7 @@ func RunTestListResourceVersionMatch(ctx context.Context, t *testing.T, store In
 				},
 			},
 		}
-		return computePodKey(obj), obj
+		return ComputePodKey(obj), obj
 	}
 
 	transformer := &reproducingTransformer{
@@ -2241,7 +2241,7 @@ func RunTestListResourceVersionMatch(ctx context.Context, t *testing.T, store In
 
 func RunTestGuaranteedUpdate(ctx context.Context, t *testing.T, store InterfaceWithPrefixTransformer, validation KeyValidation) {
 	inputObj := &example.Pod{ObjectMeta: metav1.ObjectMeta{Name: "foo", Namespace: "test-ns", UID: "A"}}
-	key := computePodKey(inputObj)
+	key := ComputePodKey(inputObj)
 
 	tests := []struct {
 		name                string
@@ -2397,7 +2397,7 @@ func RunTestGuaranteedUpdate(ctx context.Context, t *testing.T, store InterfaceW
 
 func RunTestGuaranteedUpdateWithTTL(ctx context.Context, t *testing.T, store storage.Interface) {
 	input := &example.Pod{ObjectMeta: metav1.ObjectMeta{Name: "foo", Namespace: "test-ns"}}
-	key := computePodKey(input)
+	key := ComputePodKey(input)
 
 	out := &example.Pod{}
 	err := store.GuaranteedUpdate(ctx, key, out, true, nil,
@@ -2418,7 +2418,7 @@ func RunTestGuaranteedUpdateWithTTL(ctx context.Context, t *testing.T, store sto
 
 func RunTestGuaranteedUpdateChecksStoredData(ctx context.Context, t *testing.T, store InterfaceWithPrefixTransformer) {
 	input := &example.Pod{ObjectMeta: metav1.ObjectMeta{Name: "foo", Namespace: "test-ns"}}
-	key := computePodKey(input)
+	key := ComputePodKey(input)
 
 	// serialize input into etcd with data that would be normalized by a write -
 	// in this case, leading whitespace
@@ -2612,10 +2612,10 @@ func RunTestTransformationFailure(ctx context.Context, t *testing.T, store Inter
 		obj       *example.Pod
 		storedObj *example.Pod
 	}{{
-		key: computePodKey(barFirst),
+		key: ComputePodKey(barFirst),
 		obj: barFirst,
 	}, {
-		key: computePodKey(bazSecond),
+		key: ComputePodKey(bazSecond),
 		obj: bazSecond,
 	}}
 	for i, ps := range preset[:1] {
@@ -2720,7 +2720,7 @@ func RunTestListPaging(ctx context.Context, t *testing.T, store storage.Interfac
 	for i := 0; i < 4; i++ {
 		name := fmt.Sprintf("test-%d", i)
 		pod := &example.Pod{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "paging"}}
-		key := computePodKey(pod)
+		key := ComputePodKey(pod)
 		if err := store.Create(ctx, key, pod, out, 0); err != nil {
 			t.Fatal(err)
 		}
@@ -2752,7 +2752,7 @@ func RunTestListPaging(ctx context.Context, t *testing.T, store storage.Interfac
 		if calls == 2 {
 			name := "test-5"
 			pod := &example.Pod{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "paging"}}
-			key := computePodKey(pod)
+			key := ComputePodKey(pod)
 			if err := store.Create(ctx, key, pod, out, 0); err != nil {
 				t.Fatal(err)
 			}
@@ -3131,7 +3131,7 @@ func RunTestNamespaceScopedList(ctx context.Context, t *testing.T, store storage
 			namespace := fmt.Sprintf("t%d-", i)
 			for _, pod := range tt.inputPods(namespace) {
 				out := &example.Pod{}
-				key := computePodKey(&pod)
+				key := ComputePodKey(&pod)
 				podNames[key] = struct{}{}
 				err := store.Create(ctx, key, &pod, out, 0)
 				if err != nil {
@@ -3153,7 +3153,7 @@ func RunTestNamespaceScopedList(ctx context.Context, t *testing.T, store storage
 			}
 			i := 0
 			for _, pod := range listOut.Items {
-				if _, found := podNames[computePodKey(&pod)]; !found {
+				if _, found := podNames[ComputePodKey(&pod)]; !found {
 					continue
 				}
 				pod.ResourceVersion = ""

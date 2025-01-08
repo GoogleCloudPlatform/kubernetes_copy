@@ -29,12 +29,21 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/apiserver/pkg/apis/example"
+	"k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/apiserver/pkg/storage"
+)
+
+type scope string
+
+var (
+	cluster   scope = "Cluster"
+	node      scope = "Node"
+	namespace scope = "Namespace"
 )
 
 func RunBenchmarkStoreListCreate(ctx context.Context, b *testing.B, store storage.Interface, match metav1.ResourceVersionMatch) {
 	objectCount := atomic.Uint64{}
-	pods := []*example.Pod{}
+	pods := make([]*example.Pod, 0, b.N)
 	for i := 0; i < b.N; i++ {
 		name := rand.String(100)
 		pods = append(pods, &example.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: "ns", Name: name}})
@@ -43,7 +52,7 @@ func RunBenchmarkStoreListCreate(ctx context.Context, b *testing.B, store storag
 	for i := 0; i < b.N; i++ {
 		pod := pods[i]
 		podOut := &example.Pod{}
-		err := store.Create(ctx, computePodKey(pod), pod, podOut, 0)
+		err := store.Create(ctx, ComputePodKey(pod), pod, podOut, 0)
 		if err != nil {
 			panic(fmt.Sprintf("Unexpected error %s", err))
 		}
@@ -69,100 +78,39 @@ func RunBenchmarkStoreListCreate(ctx context.Context, b *testing.B, store storag
 	b.ReportMetric(float64(objectCount.Load())/float64(b.N), "objects/op")
 }
 
-func RunBenchmarkStoreList(ctx context.Context, b *testing.B, store storage.Interface) {
-	namespaceCount := 100
-	podPerNamespaceCount := 100
-	var paginateLimit int64 = 100
-	nodeCount := 100
-	namespacedNames, nodeNames := prepareBenchchmarkData(ctx, store, namespaceCount, podPerNamespaceCount, nodeCount)
-	b.ResetTimer()
-	maxRevision := 1 + namespaceCount*podPerNamespaceCount
-	cases := []struct {
-		name  string
-		match metav1.ResourceVersionMatch
-	}{
-		{
-			name:  "RV=Empty",
-			match: "",
-		},
-		{
-			name:  "RV=NotOlderThan",
-			match: metav1.ResourceVersionMatchNotOlderThan,
-		},
-		{
-			name:  "RV=MatchExact",
-			match: metav1.ResourceVersionMatchExact,
-		},
-	}
-
-	for _, c := range cases {
-		b.Run(c.name, func(b *testing.B) {
-			runBenchmarkStoreList(ctx, b, store, 0, maxRevision, c.match, false, nodeNames)
-		})
-	}
-	b.Run("Paginate", func(b *testing.B) {
-		for _, c := range cases {
-			b.Run(c.name, func(b *testing.B) {
-				runBenchmarkStoreList(ctx, b, store, paginateLimit, maxRevision, c.match, false, nodeNames)
-			})
-		}
-	})
-	b.Run("NodeIndexed", func(b *testing.B) {
-		for _, c := range cases {
-			b.Run(c.name, func(b *testing.B) {
-				runBenchmarkStoreList(ctx, b, store, 0, maxRevision, c.match, true, nodeNames)
-			})
-		}
-		b.Run("Paginate", func(b *testing.B) {
-			for _, c := range cases {
-				b.Run(c.name, func(b *testing.B) {
-					runBenchmarkStoreList(ctx, b, store, paginateLimit, maxRevision, c.match, true, nodeNames)
+func RunBenchmarkStoreList(ctx context.Context, b *testing.B, store storage.Interface, data BenchmarkData, useIndex bool) {
+	for _, rvm := range []metav1.ResourceVersionMatch{"Empty", metav1.ResourceVersionMatchExact, metav1.ResourceVersionMatchNotOlderThan} {
+		b.Run(fmt.Sprintf("RV=%s", rvm), func(b *testing.B) {
+			for _, scope := range []scope{cluster, node, namespace} {
+				b.Run(fmt.Sprintf("Scope=%s", scope), func(b *testing.B) {
+					var expectedElements int
+					switch scope {
+					case namespace:
+						expectedElements = len(data.Pods) / len(data.NamespaceNames)
+					case node:
+						expectedElements = len(data.Pods) / len(data.NodeNames)
+					case cluster:
+						expectedElements = len(data.Pods)
+					}
+					limitOptions := []int64{0}
+					switch {
+					case expectedElements > 1000:
+						limitOptions = append(limitOptions, 1000)
+					case expectedElements > 100:
+						limitOptions = append(limitOptions, 100)
+					}
+					for _, limit := range limitOptions {
+						b.Run(fmt.Sprintf("Paginate=%v", limit), func(b *testing.B) {
+							runBenchmarkStoreList(ctx, b, store, limit, rvm, scope, data, useIndex)
+						})
+					}
 				})
 			}
 		})
-	})
-	b.Run("Namespace", func(b *testing.B) {
-		for _, c := range cases {
-			b.Run(c.name, func(b *testing.B) {
-				runBenchmarkStoreListNamespace(ctx, b, store, maxRevision, c.match, namespacedNames)
-			})
-		}
-	})
-}
-
-func runBenchmarkStoreListNamespace(ctx context.Context, b *testing.B, store storage.Interface, maxRV int, match metav1.ResourceVersionMatch, namespaceNames []string) {
-	wg := sync.WaitGroup{}
-	objectCount := atomic.Uint64{}
-	pageCount := atomic.Uint64{}
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		wg.Add(1)
-		resourceVersion := ""
-		switch match {
-		case metav1.ResourceVersionMatchExact, metav1.ResourceVersionMatchNotOlderThan:
-			resourceVersion = fmt.Sprintf("%d", maxRV-99+i%100)
-		}
-		go func(resourceVersion string) {
-			defer wg.Done()
-			opts := storage.ListOptions{
-				Recursive:            true,
-				ResourceVersion:      resourceVersion,
-				ResourceVersionMatch: match,
-				Predicate:            storage.Everything,
-			}
-			for j := 0; j < len(namespaceNames); j++ {
-				objects, pages := paginate(ctx, store, "/pods/"+namespaceNames[j], opts)
-				objectCount.Add(uint64(objects))
-				pageCount.Add(uint64(pages))
-			}
-		}(resourceVersion)
 	}
-	wg.Wait()
-	b.ReportMetric(float64(objectCount.Load())/float64(b.N), "objects/op")
-	b.ReportMetric(float64(pageCount.Load())/float64(b.N), "pages/op")
 }
 
-func runBenchmarkStoreList(ctx context.Context, b *testing.B, store storage.Interface, limit int64, maxRV int, match metav1.ResourceVersionMatch, perNode bool, nodeNames []string) {
+func runBenchmarkStoreList(ctx context.Context, b *testing.B, store storage.Interface, limit int64, match metav1.ResourceVersionMatch, scope scope, data BenchmarkData, useIndex bool) {
 	wg := sync.WaitGroup{}
 	objectCount := atomic.Uint64{}
 	pageCount := atomic.Uint64{}
@@ -171,9 +119,12 @@ func runBenchmarkStoreList(ctx context.Context, b *testing.B, store storage.Inte
 		resourceVersion := ""
 		switch match {
 		case metav1.ResourceVersionMatchExact, metav1.ResourceVersionMatchNotOlderThan:
-			resourceVersion = fmt.Sprintf("%d", maxRV-99+i%100)
+			maxRevision := 1 + len(data.Pods)
+			resourceVersion = fmt.Sprintf("%d", maxRevision-99+i%100)
+		case "Empty":
+			match = ""
 		}
-		go func(resourceVersion string) {
+		go func(resourceVersion, nodeName, namespaceName string) {
 			defer wg.Done()
 			opts := storage.ListOptions{
 				Recursive:            true,
@@ -186,28 +137,38 @@ func runBenchmarkStoreList(ctx context.Context, b *testing.B, store storage.Inte
 					Limit:    limit,
 				},
 			}
-			if perNode {
-				for _, nodeName := range nodeNames {
+			switch scope {
+			case cluster:
+				objects, pages := paginateList(ctx, store, "/pods/", opts)
+				objectCount.Add(uint64(objects))
+				pageCount.Add(uint64(pages))
+			case node:
+				if useIndex {
 					opts.Predicate.GetAttrs = podAttr
 					opts.Predicate.IndexFields = []string{"spec.nodeName"}
 					opts.Predicate.Field = fields.SelectorFromSet(fields.Set{"spec.nodeName": nodeName})
-					objects, pages := paginate(ctx, store, "/pods/", opts)
-					objectCount.Add(uint64(objects))
-					pageCount.Add(uint64(pages))
 				}
-			} else {
-				objects, pages := paginate(ctx, store, "/pods/", opts)
+				objects, pages := paginateList(ctx, store, "/pods/", opts)
+				objectCount.Add(uint64(objects))
+				pageCount.Add(uint64(pages))
+			case namespace:
+				ctx := ctx
+				if useIndex {
+					opts.Predicate.IndexFields = []string{"metadata.namespace"}
+					ctx = request.WithRequestInfo(ctx, &request.RequestInfo{Namespace: namespaceName})
+				}
+				objects, pages := paginateList(ctx, store, "/pods/"+namespaceName, opts)
 				objectCount.Add(uint64(objects))
 				pageCount.Add(uint64(pages))
 			}
-		}(resourceVersion)
+		}(resourceVersion, data.NodeNames[i%len(data.NodeNames)], data.NamespaceNames[i%len(data.NamespaceNames)])
 	}
 	wg.Wait()
 	b.ReportMetric(float64(objectCount.Load())/float64(b.N), "objects/op")
 	b.ReportMetric(float64(pageCount.Load())/float64(b.N), "pages/op")
 }
 
-func paginate(ctx context.Context, store storage.Interface, key string, opts storage.ListOptions) (objectCount int, pageCount int) {
+func paginateList(ctx context.Context, store storage.Interface, key string, opts storage.ListOptions) (objectCount int, pageCount int) {
 	listOut := &example.PodList{}
 	err := store.GetList(ctx, key, opts, listOut)
 	if err != nil {
@@ -234,28 +195,30 @@ func paginate(ctx context.Context, store storage.Interface, key string, opts sto
 func podAttr(obj runtime.Object) (labels.Set, fields.Set, error) {
 	pod := obj.(*example.Pod)
 	return nil, fields.Set{
-		"spec.nodeName": pod.Spec.NodeName,
+		"spec.nodeName":      pod.Spec.NodeName,
+		"metadata.namespace": pod.Namespace,
 	}, nil
 }
 
-func prepareBenchchmarkData(ctx context.Context, store storage.Interface, namespaceCount, podPerNamespaceCount, nodeCount int) (namespaceNames, nodeNames []string) {
-	nodeNames = make([]string, nodeCount)
+func PrepareBenchchmarkData(namespaceCount, podPerNamespaceCount, nodeCount int) (data BenchmarkData) {
+	data.NodeNames = make([]string, nodeCount)
 	for i := 0; i < nodeCount; i++ {
-		nodeNames[i] = rand.String(100)
+		data.NodeNames[i] = rand.String(10)
 	}
-	namespaceNames = make([]string, nodeCount)
-	out := &example.Pod{}
+	data.NamespaceNames = make([]string, namespaceCount)
 	for i := 0; i < namespaceCount; i++ {
-		namespace := rand.String(100)
-		namespaceNames[i] = namespace
+		namespace := rand.String(10)
+		data.NamespaceNames[i] = namespace
 		for j := 0; j < podPerNamespaceCount; j++ {
-			name := rand.String(100)
-			pod := &example.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: name}, Spec: example.PodSpec{NodeName: nodeNames[rand.Intn(nodeCount)]}}
-			err := store.Create(ctx, computePodKey(pod), pod, out, 0)
-			if err != nil {
-				panic(fmt.Sprintf("Unexpected error %s", err))
-			}
+			name := rand.String(10)
+			data.Pods = append(data.Pods, &example.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: name}, Spec: example.PodSpec{NodeName: data.NodeNames[rand.Intn(nodeCount)]}})
 		}
 	}
-	return namespaceNames, nodeNames
+	return data
+}
+
+type BenchmarkData struct {
+	Pods           []*example.Pod
+	NamespaceNames []string
+	NodeNames      []string
 }
