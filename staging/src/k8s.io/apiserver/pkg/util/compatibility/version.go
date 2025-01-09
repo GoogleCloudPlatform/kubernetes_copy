@@ -33,7 +33,7 @@ func DefaultBuildEffectiveVersion() basecompatibility.MutableEffectiveVersion {
 	if binaryVersion.Major() == 0 && binaryVersion.Minor() == 0 {
 		return DefaultKubeEffectiveVersion()
 	}
-	effectiveVersion := basecompatibility.NewEffectiveVersion(binaryVersion)
+	effectiveVersion := basecompatibility.NewEffectiveVersion(binaryVersion, true)
 	return withKubeEffectiveVersionFloors(effectiveVersion)
 }
 
@@ -52,7 +52,7 @@ func withKubeEffectiveVersionFloors(effectiveVersion basecompatibility.MutableEf
 // TODO: remove after tests does not break with automatic version bump.
 func DefaultKubeEffectiveVersion() basecompatibility.MutableEffectiveVersion {
 	binaryVersion := version.MustParse(baseversion.DefaultKubeBinaryVersion).WithInfo(baseversion.Get())
-	effectiveVersion := basecompatibility.NewEffectiveVersion(binaryVersion)
+	effectiveVersion := basecompatibility.NewEffectiveVersion(binaryVersion, false)
 	return withKubeEffectiveVersionFloors(effectiveVersion)
 }
 

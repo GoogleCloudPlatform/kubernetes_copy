@@ -21,6 +21,7 @@ import (
 	"sync/atomic"
 
 	"k8s.io/apimachinery/pkg/util/version"
+	baseversion "k8s.io/component-base/version"
 )
 
 // EffectiveVersion stores all the version information of a component.
@@ -51,6 +52,8 @@ type MutableEffectiveVersion interface {
 }
 
 type effectiveVersion struct {
+	// When true, BinaryVersion() returns the current binary version
+	useDefaultBuildBinaryVersion atomic.Bool
 	// Holds the last binary version stored in Set()
 	binaryVersion atomic.Pointer[version.Version]
 	// If the emulationVersion is set by the users, it could only contain major and minor versions.
@@ -66,6 +69,9 @@ type effectiveVersion struct {
 }
 
 func (m *effectiveVersion) BinaryVersion() *version.Version {
+	if m.useDefaultBuildBinaryVersion.Load() {
+		return defaultBuildBinaryVersion()
+	}
 	return m.binaryVersion.Load()
 }
 
@@ -187,20 +193,31 @@ func (m *effectiveVersion) Validate() []error {
 	return errs
 }
 
-func NewEffectiveVersion(binaryVersion *version.Version) MutableEffectiveVersion {
+// NewEffectiveVersion creates a MutableEffectiveVersion from the binaryVersion.
+// If useDefaultBuildBinaryVersion is true, the call of BinaryVersion() will always return the current binary version.
+// NewEffectiveVersion(binaryVersion, true) should only be used if the binary version is dynamic.
+// Otherwise, use NewEffectiveVersion(binaryVersion, false) or NewEffectiveVersionFromString.
+func NewEffectiveVersion(binaryVersion *version.Version, useDefaultBuildBinaryVersion bool) MutableEffectiveVersion {
 	effective := &effectiveVersion{
 		emulationVersionFloor:        version.MajorMinor(0, 0),
 		minCompatibilityVersionFloor: version.MajorMinor(0, 0),
 	}
 	compatVersion := binaryVersion.SubtractMinor(1)
 	effective.Set(binaryVersion, binaryVersion, compatVersion)
+	effective.useDefaultBuildBinaryVersion.Store(useDefaultBuildBinaryVersion)
 	return effective
 }
 
+// NewEffectiveVersionFromString creates a MutableEffectiveVersion from the binaryVersion string.
 func NewEffectiveVersionFromString(binaryVer string) MutableEffectiveVersion {
 	if binaryVer == "" {
 		return &effectiveVersion{}
 	}
 	binaryVersion := version.MustParse(binaryVer)
-	return NewEffectiveVersion(binaryVersion)
+	return NewEffectiveVersion(binaryVersion, false)
+}
+
+func defaultBuildBinaryVersion() *version.Version {
+	verInfo := baseversion.Get()
+	return version.MustParse(verInfo.String()).WithInfo(verInfo)
 }
