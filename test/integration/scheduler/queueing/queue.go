@@ -66,6 +66,8 @@ type CoreResourceEnqueueTestCase struct {
 	InitialCSIDrivers []*storagev1.CSIDriver
 	// InitialStorageCapacities are the list of CSIStorageCapacity to be created at first.
 	InitialStorageCapacities []*storagev1.CSIStorageCapacity
+	// InitialVolumeAttachment is the list of VolumeAttachment to be created at first.
+	InitialVolumeAttachment []*storagev1.VolumeAttachment
 	// Pods are the list of Pods to be created.
 	// All of them are expected to be unschedulable at first.
 	Pods []*v1.Pod
@@ -1977,7 +1979,7 @@ var CoreResourceEnqueueTestCases = []*CoreResourceEnqueueTestCase{
 		EnableSchedulingQueueHint: sets.New(true),
 	},
 	{
-		Name:         "Pod rejected the CSI plugin is requeued when the CSINode is added",
+		Name:         "Pod rejected the CSI NodeVolumeLimits plugin is requeued when the CSINode is added",
 		InitialNodes: []*v1.Node{st.MakeNode().Name("fake-node").Label("node", "fake-node").Obj()},
 		InitialPVs: []*v1.PersistentVolume{
 			st.MakePersistentVolume().Name("pv1").
@@ -2016,7 +2018,7 @@ var CoreResourceEnqueueTestCases = []*CoreResourceEnqueueTestCase{
 		EnableSchedulingQueueHint: sets.New(true),
 	},
 	{
-		Name:         "Pod rejected with PVC by the CSI plugin is requeued when the pod having related PVC is deleted",
+		Name:         "Pod rejected with PVC by the CSI NodeVolumeLimits plugin is requeued when the pod having related PVC is deleted",
 		InitialNodes: []*v1.Node{st.MakeNode().Name("fake-node").Label("node", "fake-node").Obj()},
 		InitialPVs: []*v1.PersistentVolume{
 			st.MakePersistentVolume().Name("pv1").
@@ -2069,7 +2071,7 @@ var CoreResourceEnqueueTestCases = []*CoreResourceEnqueueTestCase{
 		WantRequeuedPods: sets.New("pod2"),
 	},
 	{
-		Name:          "Pod rejected with PVC by the CSI plugin is requeued when the related PVC is added",
+		Name:          "Pod rejected with PVC by the CSI NodeVolumeLimits plugin is requeued when the related PVC is added",
 		InitialNodes:  []*v1.Node{st.MakeNode().Name("fake-node").Label("node", "fake-node").Obj()},
 		EnablePlugins: []string{"VolumeBinding"},
 		InitialPVs: []*v1.PersistentVolume{
@@ -2121,6 +2123,52 @@ var CoreResourceEnqueueTestCases = []*CoreResourceEnqueueTestCase{
 			return map[framework.ClusterEvent]uint64{{Resource: framework.PersistentVolumeClaim, ActionType: framework.Add}: 1}, nil
 		},
 		WantRequeuedPods:          sets.New("pod2"),
+		EnableSchedulingQueueHint: sets.New(true),
+	},
+	{
+		Name:         "Pod rejected the CSI NodeVolumeLimits plugin is requeued when the VolumeAttachment is deleted",
+		InitialNodes: []*v1.Node{st.MakeNode().Name("fake-node").Label("node", "fake-node").Obj()},
+		InitialPVs: []*v1.PersistentVolume{
+			st.MakePersistentVolume().Name("pv1").
+				AccessModes([]v1.PersistentVolumeAccessMode{v1.ReadWriteMany}).
+				Capacity(v1.ResourceList{v1.ResourceStorage: resource.MustParse("1Mi")}).
+				PersistentVolumeSource(v1.PersistentVolumeSource{CSI: &v1.CSIPersistentVolumeSource{Driver: "csidriver", VolumeHandle: "volumehandle"}}).
+				Obj()},
+		InitialPVCs: []*v1.PersistentVolumeClaim{
+			st.MakePersistentVolumeClaim().
+				Name("pvc1").
+				Annotation(volume.AnnBindCompleted, "true").
+				VolumeName("pv1").
+				AccessModes([]v1.PersistentVolumeAccessMode{v1.ReadWriteMany}).
+				Resources(v1.VolumeResourceRequirements{Requests: v1.ResourceList{v1.ResourceStorage: resource.MustParse("1Mi")}}).
+				Obj(),
+		},
+		InitialVolumeAttachment: []*storagev1.VolumeAttachment{
+			st.MakeVolumeAttachment().Name("volumeattachment1").
+				NodeName("fake-node").
+				Attacher("test.storage.gke.io").
+				Source(storagev1.VolumeAttachmentSource{PersistentVolumeName: ptr.To("pv1")}).
+				Attached(true).
+				Obj(),
+		},
+		InitialCSIDrivers: []*storagev1.CSIDriver{
+			st.MakeCSIDriver().Name("csidriver").StorageCapacity(ptr.To(true)).Obj(),
+		},
+		InitialCSINodes: []*storagev1.CSINode{
+			st.MakeCSINode().Name("fake-node").Driver(storagev1.CSINodeDriver{Name: "csidriver", NodeID: "fake-node", Allocatable: &storagev1.VolumeNodeResources{
+				Count: ptr.To(int32(0)),
+			}}).Obj(),
+		},
+		Pods: []*v1.Pod{
+			st.MakePod().Name("pod1").Container("image").PVC("pvc1").Obj(),
+		},
+		TriggerFn: func(testCtx *testutils.TestContext) (map[framework.ClusterEvent]uint64, error) {
+			if err := testCtx.ClientSet.StorageV1().VolumeAttachments().Delete(testCtx.Ctx, "volumeattachment1", metav1.DeleteOptions{}); err != nil {
+				return nil, fmt.Errorf("failed to delete VolumeAttachment: %w", err)
+			}
+			return map[framework.ClusterEvent]uint64{{Resource: framework.VolumeAttachment, ActionType: framework.Delete}: 1}, nil
+		},
+		WantRequeuedPods:          sets.New("pod1"),
 		EnableSchedulingQueueHint: sets.New(true),
 	},
 }
@@ -2188,6 +2236,12 @@ func RunTestCoreResourceEnqueue(t *testing.T, tt *CoreResourceEnqueueTestCase) {
 	for _, csc := range tt.InitialStorageCapacities {
 		if _, err := cs.StorageV1().CSIStorageCapacities(ns).Create(ctx, csc, metav1.CreateOptions{}); err != nil {
 			t.Fatalf("Failed to create a CSIStorageCapacity %q: %v", csc.Name, err)
+		}
+	}
+
+	for _, va := range tt.InitialVolumeAttachment {
+		if _, err := cs.StorageV1().VolumeAttachments().Create(ctx, va, metav1.CreateOptions{}); err != nil {
+			t.Fatalf("Failed to create a VolumeAttachment %q: %v", va.Name, err)
 		}
 	}
 

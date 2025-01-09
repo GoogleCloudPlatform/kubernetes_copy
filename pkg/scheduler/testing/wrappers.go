@@ -1298,3 +1298,42 @@ func (c *CSIStorageCapacityWrapper) Capacity(capacity *resource.Quantity) *CSISt
 	c.CSIStorageCapacity.Capacity = capacity
 	return c
 }
+
+// VolumeAttachmentWrapper wraps a VolumeAttachment inside.
+type VolumeAttachmentWrapper struct{ storagev1.VolumeAttachment }
+
+// MakeVolumeAttachment creates a VolumeAttachment wrapper.
+func MakeVolumeAttachment() *VolumeAttachmentWrapper {
+	return &VolumeAttachmentWrapper{}
+}
+
+// Obj returns the inner VolumeAttachment.
+func (c *VolumeAttachmentWrapper) Obj() *storagev1.VolumeAttachment {
+	return &c.VolumeAttachment
+}
+
+// Name sets `n` as the name of the inner VolumeAttachment.
+func (c *VolumeAttachmentWrapper) Name(n string) *VolumeAttachmentWrapper {
+	c.SetName(n)
+	return c
+}
+
+func (c *VolumeAttachmentWrapper) Attacher(attacher string) *VolumeAttachmentWrapper {
+	c.Spec.Attacher = attacher
+	return c
+}
+
+func (c *VolumeAttachmentWrapper) NodeName(nodeName string) *VolumeAttachmentWrapper {
+	c.Spec.NodeName = nodeName
+	return c
+}
+
+func (c *VolumeAttachmentWrapper) Source(source storagev1.VolumeAttachmentSource) *VolumeAttachmentWrapper {
+	c.Spec.Source = source
+	return c
+}
+
+func (c *VolumeAttachmentWrapper) Attached(attached bool) *VolumeAttachmentWrapper {
+	c.Status.Attached = attached
+	return c
+}
