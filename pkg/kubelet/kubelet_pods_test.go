@@ -2034,7 +2034,7 @@ func TestMakeEnvironmentVariables(t *testing.T) {
 				testPod.Annotations[kubetypes.ConfigSourceAnnotationKey] = "file"
 			}
 
-			result, err := kl.makeEnvironmentVariables(testPod, tc.container, podIP, tc.podIPs)
+			result, err := kl.MakeEnvironmentVariables(testPod, tc.container, podIP, tc.podIPs)
 			select {
 			case e := <-fakeRecorder.Events:
 				assert.Equal(t, tc.expectedEvent, e)

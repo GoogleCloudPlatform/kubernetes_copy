@@ -40,7 +40,7 @@ import (
 
 // HandlerRunner runs a lifecycle handler for a container.
 type HandlerRunner interface {
-	Run(ctx context.Context, containerID ContainerID, pod *v1.Pod, container *v1.Container, handler *v1.LifecycleHandler) (string, error)
+	Run(ctx context.Context, containerID ContainerID, pod *v1.Pod, container *v1.Container, handler *v1.LifecycleHandler, getEnvsFunc GetEnvsFunc) (string, error)
 }
 
 // RuntimeHelper wraps kubelet to make container runtime
@@ -69,6 +69,9 @@ type RuntimeHelper interface {
 
 	// SetPodWatchCondition flags a pod to be inspected until the condition is met.
 	SetPodWatchCondition(types.UID, string, func(*PodStatus) bool)
+
+	// MakeEnvironmentVariables Make the environment variables for a pod in the given namespace.
+	MakeEnvironmentVariables(pod *v1.Pod, container *v1.Container, podIP string, podIPs []string) ([]EnvVar, error)
 }
 
 // ShouldContainerBeRestarted checks whether a container needs to be restarted.
@@ -416,4 +419,36 @@ func HasAnyRegularContainerStarted(spec *v1.PodSpec, statuses []v1.ContainerStat
 	}
 
 	return false
+}
+
+// GetEnvsFunc type of function used to get fully resolved environment variables map of a given container
+type GetEnvsFunc func(pod *v1.Pod, container *v1.Container, podIP string, podIPs []string) map[string]string
+
+type GetEnvsHelper interface {
+	MakeEnvironmentVariables(pod *v1.Pod, container *v1.Container, podIP string, podIPs []string) ([]EnvVar, error)
+}
+
+// GetEnvsHelperFunc helper variable to create GetEnvsFunc using GetEnvsHelper
+var GetEnvsHelperFunc = func(helper GetEnvsHelper) GetEnvsFunc {
+	return func(pod *v1.Pod, container *v1.Container, podIP string, podIPs []string) map[string]string {
+		envs := make(map[string]string)
+		envVars, err := helper.MakeEnvironmentVariables(pod, container, podIP, podIPs)
+		if err != nil {
+			klog.ErrorS(err, "Failed to get environment variables", "podName", pod.Name, "containerName", container.Name)
+			return envs
+		}
+		for _, envVar := range envVars {
+			envs[envVar.Name] = envVar.Value
+		}
+		return envs
+	}
+}
+
+// KeyValuesToMap constructs a map of environment name to value from a slice of KeyValue.
+func KeyValuesToMap(kvs []*runtimeapi.KeyValue) map[string]string {
+	mp := make(map[string]string)
+	for _, kv := range kvs {
+		mp[kv.Key] = kv.Value
+	}
+	return mp
 }

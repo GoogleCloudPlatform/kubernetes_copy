@@ -18,6 +18,7 @@ package http
 
 import (
 	"fmt"
+	"k8s.io/kubernetes/third_party/forked/golang/expansion"
 	"net"
 	"net/http"
 	"net/url"
@@ -37,7 +38,7 @@ func NewProbeRequest(url *url.URL, headers http.Header) (*http.Request, error) {
 
 // NewRequestForHTTPGetAction returns an http.Request derived from httpGet.
 // When httpGet.Host is empty, podIP will be used instead.
-func NewRequestForHTTPGetAction(httpGet *v1.HTTPGetAction, container *v1.Container, podIP string, userAgentFragment string) (*http.Request, error) {
+func NewRequestForHTTPGetAction(httpGet *v1.HTTPGetAction, container *v1.Container, podIP string, userAgentFragment string, envs map[string]string) (*http.Request, error) {
 	scheme := strings.ToLower(string(httpGet.Scheme))
 	if scheme == "" {
 		scheme = "http"
@@ -53,7 +54,7 @@ func NewRequestForHTTPGetAction(httpGet *v1.HTTPGetAction, container *v1.Contain
 		return nil, err
 	}
 
-	path := httpGet.Path
+	path := expandPath(httpGet.Path, envs)
 	url := formatURL(scheme, host, port, path)
 	headers := v1HeaderToHTTPHeader(httpGet.HTTPHeaders)
 
@@ -116,4 +117,10 @@ func v1HeaderToHTTPHeader(headerList []v1.HTTPHeader) http.Header {
 		headers.Add(header.Name, header.Value)
 	}
 	return headers
+}
+
+// expandPath expands path using environment variables
+func expandPath(path string, envVars map[string]string) string {
+	mappingFunc := expansion.MappingFuncFor(envVars)
+	return expansion.Expand(path, mappingFunc)
 }

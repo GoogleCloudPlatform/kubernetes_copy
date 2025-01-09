@@ -71,7 +71,7 @@ var ProberDuration = metrics.NewHistogramVec(
 type Manager interface {
 	// AddPod creates new probe workers for every container probe. This should be called for every
 	// pod created.
-	AddPod(pod *v1.Pod)
+	AddPod(pod *v1.Pod, getEnvsFunc kubecontainer.GetEnvsFunc)
 
 	// StopLivenessAndStartup handles stopping liveness and startup probes during termination.
 	StopLivenessAndStartup(pod *v1.Pod)
@@ -178,7 +178,7 @@ func getRestartableInitContainers(pod *v1.Pod) []v1.Container {
 	return restartableInitContainers
 }
 
-func (m *manager) AddPod(pod *v1.Pod) {
+func (m *manager) AddPod(pod *v1.Pod, getEnvsFunc kubecontainer.GetEnvsFunc) {
 	m.workerLock.Lock()
 	defer m.workerLock.Unlock()
 
@@ -193,7 +193,7 @@ func (m *manager) AddPod(pod *v1.Pod) {
 					"pod", klog.KObj(pod), "containerName", c.Name)
 				return
 			}
-			w := newWorker(m, startup, pod, c)
+			w := newWorker(m, startup, pod, c, getEnvsFunc)
 			m.workers[key] = w
 			go w.run()
 		}
@@ -205,7 +205,7 @@ func (m *manager) AddPod(pod *v1.Pod) {
 					"pod", klog.KObj(pod), "containerName", c.Name)
 				return
 			}
-			w := newWorker(m, readiness, pod, c)
+			w := newWorker(m, readiness, pod, c, getEnvsFunc)
 			m.workers[key] = w
 			go w.run()
 		}
@@ -217,7 +217,7 @@ func (m *manager) AddPod(pod *v1.Pod) {
 					"pod", klog.KObj(pod), "containerName", c.Name)
 				return
 			}
-			w := newWorker(m, liveness, pod, c)
+			w := newWorker(m, liveness, pod, c, getEnvsFunc)
 			m.workers[key] = w
 			go w.run()
 		}

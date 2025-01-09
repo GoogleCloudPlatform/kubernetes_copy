@@ -311,7 +311,12 @@ func (m *kubeGenericRuntimeManager) startContainer(ctx context.Context, podSandb
 			Type: m.runtimeName,
 			ID:   containerID,
 		}
-		msg, handlerErr := m.runner.Run(ctx, kubeContainerID, pod, container, container.Lifecycle.PostStart)
+
+		// this func is used to expand path in http probe
+		getEnvsFunc := func(pod *v1.Pod, container *v1.Container, podIP string, podIPs []string) map[string]string {
+			return kubecontainer.KeyValuesToMap(containerConfig.Envs)
+		}
+		msg, handlerErr := m.runner.Run(ctx, kubeContainerID, pod, container, container.Lifecycle.PostStart, getEnvsFunc)
 		if handlerErr != nil {
 			klog.ErrorS(handlerErr, "Failed to execute PostStartHook", "pod", klog.KObj(pod),
 				"podUID", pod.UID, "containerName", container.Name, "containerID", kubeContainerID.String())
@@ -688,7 +693,7 @@ func (m *kubeGenericRuntimeManager) executePreStopHook(ctx context.Context, pod 
 	go func() {
 		defer close(done)
 		defer utilruntime.HandleCrash()
-		if _, err := m.runner.Run(ctx, containerID, pod, containerSpec, containerSpec.Lifecycle.PreStop); err != nil {
+		if _, err := m.runner.Run(ctx, containerID, pod, containerSpec, containerSpec.Lifecycle.PreStop, kubecontainer.GetEnvsHelperFunc(m.runtimeHelper)); err != nil {
 			klog.ErrorS(err, "PreStop hook failed", "pod", klog.KObj(pod), "podUID", pod.UID,
 				"containerName", containerSpec.Name, "containerID", containerID.String())
 			// do not record the message in the event so that secrets won't leak from the server.

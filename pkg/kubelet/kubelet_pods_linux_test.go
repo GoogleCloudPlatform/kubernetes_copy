@@ -489,7 +489,7 @@ func TestMakeMountsEtcHostsFile(t *testing.T) {
 			Annotations: map[string]string{},
 		},
 		Spec: v1.PodSpec{
-			EnableServiceLinks: ptr.To(false), // to avoid errors with kl.makeEnvironmentVariables
+			EnableServiceLinks: ptr.To(false), // to avoid errors with kl.MakeEnvironmentVariables
 		},
 	}
 	testContainer := v1.Container{

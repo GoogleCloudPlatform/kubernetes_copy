@@ -41,6 +41,9 @@ const (
 )
 
 var testContainerID = kubecontainer.ContainerID{Type: "test", ID: "cOnTaInEr_Id"}
+var testGetEnvVarsFunc = func(pod *v1.Pod, container *v1.Container, podIP string, podIPs []string) map[string]string {
+	return make(map[string]string)
+}
 
 func getTestRunningStatus() v1.PodStatus {
 	return getTestRunningStatusWithStarted(true)
@@ -136,7 +139,7 @@ func newTestManager() *manager {
 func newTestWorker(m *manager, probeType probeType, probeSpec v1.Probe) *worker {
 	pod := getTestPod()
 	setTestProbe(pod, probeType, probeSpec)
-	return newWorker(m, probeType, pod, pod.Spec.Containers[0])
+	return newWorker(m, probeType, pod, pod.Spec.Containers[0], testGetEnvVarsFunc)
 }
 
 type fakeExecProber struct {

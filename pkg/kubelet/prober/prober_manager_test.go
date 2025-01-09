@@ -95,13 +95,13 @@ func TestAddRemovePods(t *testing.T) {
 	}
 
 	// Adding a pod with no probes should be a no-op.
-	m.AddPod(&noProbePod)
+	m.AddPod(&noProbePod, testGetEnvVarsFunc)
 	if err := expectProbes(m, nil); err != nil {
 		t.Error(err)
 	}
 
 	// Adding a pod with probes.
-	m.AddPod(&probePod)
+	m.AddPod(&probePod, testGetEnvVarsFunc)
 	probePaths := []probeKey{
 		{"probe_pod", "readiness", readiness},
 		{"probe_pod", "liveness", liveness},
@@ -195,7 +195,7 @@ func TestAddRemovePodsWithRestartableInitContainer(t *testing.T) {
 			}
 
 			// Adding a pod with probes.
-			m.AddPod(&probePod)
+			m.AddPod(&probePod, testGetEnvVarsFunc)
 			if err := expectProbes(m, tc.probePaths); err != nil {
 				t.Error(err)
 			}
@@ -255,8 +255,8 @@ func TestCleanupPods(t *testing.T) {
 			}},
 		},
 	}
-	m.AddPod(&podToCleanup)
-	m.AddPod(&podToKeep)
+	m.AddPod(&podToCleanup, testGetEnvVarsFunc)
+	m.AddPod(&podToKeep, testGetEnvVarsFunc)
 
 	desiredPods := map[types.UID]sets.Empty{}
 	desiredPods[podToKeep.UID] = sets.Empty{}
@@ -298,7 +298,7 @@ func TestCleanupRepeated(t *testing.T) {
 	for i := 0; i < numTestPods; i++ {
 		pod := podTemplate
 		pod.UID = types.UID(strconv.Itoa(i))
-		m.AddPod(&pod)
+		m.AddPod(&pod, testGetEnvVarsFunc)
 	}
 
 	for i := 0; i < 10; i++ {
@@ -582,7 +582,7 @@ func TestUpdateReadiness(t *testing.T) {
 
 	m.statusManager.SetPodStatus(testPod, getTestRunningStatus())
 
-	m.AddPod(testPod)
+	m.AddPod(testPod, testGetEnvVarsFunc)
 	probePaths := []probeKey{{testPodUID, testContainerName, readiness}}
 	if err := expectProbes(m, probePaths); err != nil {
 		t.Error(err)

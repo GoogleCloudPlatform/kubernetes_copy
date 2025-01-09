@@ -17,6 +17,8 @@ limitations under the License.
 package container
 
 import (
+	"errors"
+	runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1"
 	"reflect"
 	"testing"
 	"time"
@@ -987,5 +989,50 @@ func TestHashContainerWithoutResources(t *testing.T) {
 			assert.Equal(t, tc.expectedHash, hash, "[%s]", tc.name)
 			assert.Equal(t, containerCopy, tc.container, "[%s]", tc.name)
 		})
+	}
+}
+
+type mockGetEnvsHelper struct {
+	envVars []EnvVar
+	err     error
+}
+
+func (m mockGetEnvsHelper) MakeEnvironmentVariables(pod *v1.Pod, container *v1.Container, podIP string, podIPs []string) ([]EnvVar, error) {
+	return m.envVars, m.err
+}
+
+func TestGetEnvsHelperFunc(t *testing.T) {
+	testCases := []struct {
+		expected map[string]string
+		envVars  []EnvVar
+		err      error
+	}{
+		{map[string]string{}, nil, nil},
+		{map[string]string{}, []EnvVar{}, nil},
+		{map[string]string{"k1": "v1", "k2": "v2"}, []EnvVar{{"k1", "v1"}, {"k2", "v2"}}, nil},
+		{map[string]string{}, []EnvVar{{"k1", "v1"}, {"k2", "v2"}}, errors.New("some error")},
+	}
+
+	for _, testCase := range testCases {
+		mock := mockGetEnvsHelper{testCase.envVars, testCase.err}
+		getEnvsFunc := GetEnvsHelperFunc(mock)
+		output := getEnvsFunc(&v1.Pod{}, &v1.Container{}, "", []string{})
+		assert.Equal(t, testCase.expected, output)
+	}
+}
+
+func TestKeyValuesToMap(t *testing.T) {
+	testCases := []struct {
+		mp  map[string]string
+		kvs []*runtimeapi.KeyValue
+	}{
+		{map[string]string{}, nil},
+		{map[string]string{"k1": "v1"}, []*runtimeapi.KeyValue{{Key: "k1", Value: "v1"}}},
+		{map[string]string{"k1": "v1", "k2": "v2"}, []*runtimeapi.KeyValue{{Key: "k1", Value: "v1"}, {Key: "k2", Value: "v2"}}},
+	}
+
+	for _, testCase := range testCases {
+		output := KeyValuesToMap(testCase.kvs)
+		assert.Equal(t, testCase.mp, output)
 	}
 }

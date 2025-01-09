@@ -56,6 +56,11 @@ type worker struct {
 	// The probe value during the initial delay.
 	initialValue results.Result
 
+	// Func to get environment variables to use in httpGet path expansion
+	getEnvsFunc kubecontainer.GetEnvsFunc
+	// Map to store environment variables to use in httpGet path expansion
+	envs map[string]string
+
 	// Where to store this workers results.
 	resultsManager results.Manager
 	probeManager   *manager
@@ -86,7 +91,8 @@ func newWorker(
 	m *manager,
 	probeType probeType,
 	pod *v1.Pod,
-	container v1.Container) *worker {
+	container v1.Container,
+	getEnvsFunc kubecontainer.GetEnvsFunc) *worker {
 
 	w := &worker{
 		stopCh:          make(chan struct{}, 1), // Buffer so stop() can be non-blocking.
@@ -95,6 +101,7 @@ func newWorker(
 		container:       container,
 		probeType:       probeType,
 		probeManager:    m,
+		getEnvsFunc:     getEnvsFunc,
 	}
 
 	switch probeType {
@@ -171,6 +178,9 @@ func (w *worker) run() {
 		ProberDuration.Delete(w.proberDurationUnknownMetricLabels)
 	}()
 
+	// Get environment variables to use in httpGet path expansion
+	w.getEnvs()
+
 probeLoop:
 	for w.doProbe(ctx) {
 		// Wait for next probe tick.
@@ -187,6 +197,20 @@ probeLoop:
 			// continue
 		}
 	}
+}
+
+// Get environment variables to use in httpGet path expansion
+func (w *worker) getEnvs() {
+	podIP := ""
+	podIPs := make([]string, 0)
+	status, ok := w.probeManager.statusManager.GetPodStatus(w.pod.UID)
+	if ok {
+		podIP = status.PodIP
+		for _, podIP := range status.PodIPs {
+			podIPs = append(podIPs, podIP.IP)
+		}
+	}
+	w.envs = w.getEnvsFunc(w.pod, &w.container, podIP, podIPs)
 }
 
 // stop stops the probe worker. The worker handles cleanup and removes itself from its manager.
@@ -288,8 +312,8 @@ func (w *worker) doProbe(ctx context.Context) (keepGoing bool) {
 		}
 	}
 
-	// Note, exec probe does NOT have access to pod environment variables or downward API
-	result, err := w.probeManager.prober.probe(ctx, w.probeType, w.pod, status, w.container, w.containerID)
+	// Note, exec probe does NOT have access to downward API
+	result, err := w.probeManager.prober.probe(ctx, w.probeType, w.pod, status, w.container, w.containerID, w.envs)
 	if err != nil {
 		// Prober error, throw away the result.
 		return true

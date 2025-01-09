@@ -19,6 +19,7 @@ package prober
 import (
 	"context"
 	"fmt"
+	"github.com/stretchr/testify/assert"
 	"os"
 	"testing"
 	"time"
@@ -578,4 +579,30 @@ func TestStartupProbeDisabledByStarted(t *testing.T) {
 	msg = "Started, probe failure, result success"
 	expectContinue(t, w, w.doProbe(ctx), msg)
 	expectResult(t, w, results.Success, msg)
+}
+
+func TestGetEnvs(t *testing.T) {
+	testCases := []struct {
+		envs      map[string]string
+		expected  map[string]string
+		podStatus *v1.PodStatus
+	}{
+		{nil, nil, nil},
+		{map[string]string{}, map[string]string{}, &v1.PodStatus{}},
+		{map[string]string{"k1": "v1", "k2": "v2"}, map[string]string{"k1": "v1", "k2": "v2"}, &v1.PodStatus{}},
+		{map[string]string{"k1": "v1", "k2": "v2"}, map[string]string{"k1": "v1", "k2": "v2"}, &v1.PodStatus{PodIP: "127.0.0.1", PodIPs: []v1.PodIP{{"127.0.0.1"}, {"127.0.0.2"}}}},
+	}
+	for _, test := range testCases {
+		m := newTestManager()
+		w := newTestWorker(m, startup, v1.Probe{})
+		w.getEnvsFunc = func(pod *v1.Pod, container *v1.Container, podIP string, podIPs []string) map[string]string {
+			return test.envs
+		}
+		if test.podStatus != nil {
+			m.statusManager.SetPodStatus(w.pod, *test.podStatus)
+		}
+
+		w.getEnvs()
+		assert.Equal(t, test.expected, w.envs, "Environment variable map doesn't match expected value. Expected: %v, got: %v", test.expected, w.envs)
+	}
 }

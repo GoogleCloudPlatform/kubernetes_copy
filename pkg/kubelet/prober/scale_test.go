@@ -141,7 +141,7 @@ func TestTCPPortExhaustion(t *testing.T) {
 				}
 				podManager.AddPod(&pod)
 				m.statusManager.SetPodStatus(&pod, pod.Status)
-				m.AddPod(&pod)
+				m.AddPod(&pod, testGetEnvVarsFunc)
 			}
 			t.Logf("Adding %d pods with %d containers each in %v", numTestPods, numContainers, time.Since(now))
 

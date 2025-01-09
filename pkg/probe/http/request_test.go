@@ -135,3 +135,30 @@ func TestHeaderConversion(t *testing.T) {
 		}
 	}
 }
+
+func TestExpandPath(t *testing.T) {
+	envVars := map[string]string{
+		"VAR_A": "var-a",
+		"VAR_B": "var-b",
+		"VAR_C": "var-c",
+		"VAR_D": "var-d",
+	}
+	testCases := []struct {
+		path         string
+		expectedPath string
+	}{
+		{"", ""},
+		{"/path/to", "/path/to"},
+		{"/bad/path/$(VAR_A", "/bad/path/$(VAR_A"},
+		{"/path/to/$(VAR_A)", "/path/to/var-a"},
+		{"$(VAR_A)/path/to/$(VAR_B)", "var-a/path/to/var-b"},
+		{"$(VAR_A)/path/to/$(VAR_B)?c=$(VAR_C)", "var-a/path/to/var-b?c=var-c"},
+		{"$(VAR_A)/path/to/$(VAR_B)?c=$(VAR_C)&d=$(VAR_D)", "var-a/path/to/var-b?c=var-c&d=var-d"},
+	}
+	for _, test := range testCases {
+		expandedPath := expandPath(test.path, envVars)
+		if expandedPath != test.expectedPath {
+			t.Errorf("Expected %s, got %s", test.expectedPath, expandedPath)
+		}
+	}
+}

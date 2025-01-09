@@ -20,6 +20,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/kubernetes/pkg/kubelet/container"
 )
 
 // FakeManager simulates a prober.Manager for testing.
@@ -28,7 +29,7 @@ type FakeManager struct{}
 // Unused methods below.
 
 // AddPod simulates adding a Pod.
-func (FakeManager) AddPod(_ *v1.Pod) {}
+func (FakeManager) AddPod(_ *v1.Pod, _ container.GetEnvsFunc) {}
 
 // RemovePod simulates removing a Pod.
 func (FakeManager) RemovePod(_ *v1.Pod) {}
