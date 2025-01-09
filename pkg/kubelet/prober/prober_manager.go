@@ -104,6 +104,9 @@ type manager struct {
 	// livenessManager manages the results of liveness probes
 	livenessManager results.Manager
 
+	// recorder records events associated with the probe
+	recorder record.EventRecorder
+
 	// startupManager manages the results of startup probes
 	startupManager results.Manager
 
@@ -130,6 +133,7 @@ func NewManager(
 		livenessManager:  livenessManager,
 		startupManager:   startupManager,
 		workers:          make(map[probeKey]*worker),
+		recorder:         recorder,
 		start:            clock.RealClock{}.Now(),
 	}
 }
