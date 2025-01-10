@@ -792,6 +792,127 @@ func TestCSILimitsAddedPVCQHint(t *testing.T) {
 	}
 }
 
+func TestCSILimitsDeletedVolumeAttachmentQHint(t *testing.T) {
+	tests := []struct {
+		test        string
+		newPod      *v1.Pod
+		existingPvc *v1.PersistentVolumeClaim
+		deletedVA   *storagev1.VolumeAttachment
+		wantQHint   framework.QueueingHint
+	}{
+		{
+			test: "a pod has PVC when VolumeAttachment is deleting",
+			newPod: st.MakePod().Namespace("ns1").Volume(
+				v1.Volume{
+					VolumeSource: v1.VolumeSource{
+						PersistentVolumeClaim: &v1.PersistentVolumeClaimVolumeSource{
+							ClaimName: "pvc1",
+						},
+					},
+				},
+			).Obj(),
+			existingPvc: st.MakePersistentVolumeClaim().Name("pvc1").Namespace("ns1").
+				VolumeName("pv1").Obj(),
+			deletedVA: st.MakeVolumeAttachment().Name("volumeattachment1").
+				NodeName("fake-node").
+				Attacher("test.storage.gke.io").
+				Source(storagev1.VolumeAttachmentSource{PersistentVolumeName: ptr.To("pv1")}).Obj(),
+			wantQHint: framework.Queue,
+		},
+		{
+			test: "a pod has an Inline Migratable volume (AWSEBSDriver) when VolumeAttachment is deleting",
+			newPod: st.MakePod().Namespace("ns1").Volume(
+				v1.Volume{
+					VolumeSource: v1.VolumeSource{
+						AWSElasticBlockStore: &v1.AWSElasticBlockStoreVolumeSource{
+							VolumeID: "test",
+						},
+					},
+				},
+			).Obj(),
+			deletedVA: st.MakeVolumeAttachment().Name("volumeattachment1").
+				NodeName("fake-node").
+				Attacher("ebs.csi.aws.com").
+				Source(storagev1.VolumeAttachmentSource{
+					InlineVolumeSpec: &v1.PersistentVolumeSpec{
+						PersistentVolumeSource: v1.PersistentVolumeSource{
+							CSI: &v1.CSIPersistentVolumeSource{
+								Driver: "ebs.csi.aws.com",
+							},
+						},
+					},
+				}).Obj(),
+			wantQHint: framework.Queue,
+		},
+		{
+			test: "a pod has an Inline Migratable volume (AWSEBSDriver) and PVC when VolumeAttachment is deleting",
+			newPod: st.MakePod().Namespace("ns1").Volume(
+				v1.Volume{
+					VolumeSource: v1.VolumeSource{
+						AWSElasticBlockStore: &v1.AWSElasticBlockStoreVolumeSource{
+							VolumeID: "test",
+						},
+					},
+				},
+			).Volume(
+				v1.Volume{
+					VolumeSource: v1.VolumeSource{
+						PersistentVolumeClaim: &v1.PersistentVolumeClaimVolumeSource{
+							ClaimName: "pvc1",
+						},
+					},
+				},
+			).Obj(),
+			existingPvc: st.MakePersistentVolumeClaim().Name("pvc1").Namespace("ns1").
+				VolumeName("pv1").Obj(),
+			deletedVA: st.MakeVolumeAttachment().Name("volumeattachment1").
+				NodeName("fake-node").
+				Attacher("ebs.csi.aws.com").
+				Source(storagev1.VolumeAttachmentSource{
+					InlineVolumeSpec: &v1.PersistentVolumeSpec{
+						PersistentVolumeSource: v1.PersistentVolumeSource{
+							CSI: &v1.CSIPersistentVolumeSource{
+								Driver: "ebs.csi.aws.com",
+							},
+						},
+					},
+				}).Obj(),
+			wantQHint: framework.Queue,
+		},
+		{
+			test:   "a pod has no PVC when VolumeAttachment is deleting",
+			newPod: st.MakePod().Namespace("ns1").Obj(),
+			deletedVA: st.MakeVolumeAttachment().Name("volumeattachment1").
+				NodeName("fake-node").
+				Attacher("test.storage.gke.io").
+				Source(storagev1.VolumeAttachmentSource{PersistentVolumeName: ptr.To("pv1")}).Obj(),
+			wantQHint: framework.QueueSkip,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.test, func(t *testing.T) {
+			var pvcList tf.PersistentVolumeClaimLister
+			if test.existingPvc != nil {
+				pvcList = append(pvcList, *test.existingPvc)
+			}
+			p := &CSILimits{
+				pvcLister:  pvcList,
+				translator: csitrans.New(),
+			}
+			logger, _ := ktesting.NewTestContext(t)
+
+			qhint, err := p.isSchedulableAfterVolumeAttachmentDeleted(logger, test.newPod, test.deletedVA, nil)
+			if err != nil {
+				t.Errorf("isSchedulableAfterVolumeAttachmentDeleted failed: %v", err)
+			}
+			if qhint != test.wantQHint {
+				t.Errorf("QHint does not match: %v, want: %v", qhint, test.wantQHint)
+			}
+		})
+	}
+}
+
 func getFakeVolumeAttachmentLister(count int, driverNames ...string) tf.VolumeAttachmentLister {
 	vaLister := tf.VolumeAttachmentLister{}
 	for _, driver := range driverNames {
