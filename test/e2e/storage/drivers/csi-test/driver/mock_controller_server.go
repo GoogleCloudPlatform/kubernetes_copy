@@ -864,6 +864,38 @@ func (_c *MockControllerServer_ValidateVolumeCapabilities_Call) RunAndReturn(run
 	return _c
 }
 
+// mustEmbedUnimplementedControllerServer provides a mock function with given fields:
+func (_m *MockControllerServer) mustEmbedUnimplementedControllerServer() {
+	_m.Called()
+}
+
+// MockControllerServer_mustEmbedUnimplementedControllerServer_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'mustEmbedUnimplementedControllerServer'
+type MockControllerServer_mustEmbedUnimplementedControllerServer_Call struct {
+	*mock.Call
+}
+
+// mustEmbedUnimplementedControllerServer is a helper method to define mock.On call
+func (_e *MockControllerServer_Expecter) mustEmbedUnimplementedControllerServer() *MockControllerServer_mustEmbedUnimplementedControllerServer_Call {
+	return &MockControllerServer_mustEmbedUnimplementedControllerServer_Call{Call: _e.mock.On("mustEmbedUnimplementedControllerServer")}
+}
+
+func (_c *MockControllerServer_mustEmbedUnimplementedControllerServer_Call) Run(run func()) *MockControllerServer_mustEmbedUnimplementedControllerServer_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *MockControllerServer_mustEmbedUnimplementedControllerServer_Call) Return() *MockControllerServer_mustEmbedUnimplementedControllerServer_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *MockControllerServer_mustEmbedUnimplementedControllerServer_Call) RunAndReturn(run func()) *MockControllerServer_mustEmbedUnimplementedControllerServer_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // NewMockControllerServer creates a new instance of MockControllerServer. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.
 func NewMockControllerServer(t interface {

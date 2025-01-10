@@ -215,6 +215,38 @@ func (_c *MockIdentityServer_Probe_Call) RunAndReturn(run func(context.Context, 
 	return _c
 }
 
+// mustEmbedUnimplementedIdentityServer provides a mock function with given fields:
+func (_m *MockIdentityServer) mustEmbedUnimplementedIdentityServer() {
+	_m.Called()
+}
+
+// MockIdentityServer_mustEmbedUnimplementedIdentityServer_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'mustEmbedUnimplementedIdentityServer'
+type MockIdentityServer_mustEmbedUnimplementedIdentityServer_Call struct {
+	*mock.Call
+}
+
+// mustEmbedUnimplementedIdentityServer is a helper method to define mock.On call
+func (_e *MockIdentityServer_Expecter) mustEmbedUnimplementedIdentityServer() *MockIdentityServer_mustEmbedUnimplementedIdentityServer_Call {
+	return &MockIdentityServer_mustEmbedUnimplementedIdentityServer_Call{Call: _e.mock.On("mustEmbedUnimplementedIdentityServer")}
+}
+
+func (_c *MockIdentityServer_mustEmbedUnimplementedIdentityServer_Call) Run(run func()) *MockIdentityServer_mustEmbedUnimplementedIdentityServer_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *MockIdentityServer_mustEmbedUnimplementedIdentityServer_Call) Return() *MockIdentityServer_mustEmbedUnimplementedIdentityServer_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *MockIdentityServer_mustEmbedUnimplementedIdentityServer_Call) RunAndReturn(run func()) *MockIdentityServer_mustEmbedUnimplementedIdentityServer_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // NewMockIdentityServer creates a new instance of MockIdentityServer. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.
 func NewMockIdentityServer(t interface {

@@ -510,6 +510,38 @@ func (_c *MockNodeServer_NodeUnstageVolume_Call) RunAndReturn(run func(context.C
 	return _c
 }
 
+// mustEmbedUnimplementedNodeServer provides a mock function with given fields:
+func (_m *MockNodeServer) mustEmbedUnimplementedNodeServer() {
+	_m.Called()
+}
+
+// MockNodeServer_mustEmbedUnimplementedNodeServer_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'mustEmbedUnimplementedNodeServer'
+type MockNodeServer_mustEmbedUnimplementedNodeServer_Call struct {
+	*mock.Call
+}
+
+// mustEmbedUnimplementedNodeServer is a helper method to define mock.On call
+func (_e *MockNodeServer_Expecter) mustEmbedUnimplementedNodeServer() *MockNodeServer_mustEmbedUnimplementedNodeServer_Call {
+	return &MockNodeServer_mustEmbedUnimplementedNodeServer_Call{Call: _e.mock.On("mustEmbedUnimplementedNodeServer")}
+}
+
+func (_c *MockNodeServer_mustEmbedUnimplementedNodeServer_Call) Run(run func()) *MockNodeServer_mustEmbedUnimplementedNodeServer_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *MockNodeServer_mustEmbedUnimplementedNodeServer_Call) Return() *MockNodeServer_mustEmbedUnimplementedNodeServer_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *MockNodeServer_mustEmbedUnimplementedNodeServer_Call) RunAndReturn(run func()) *MockNodeServer_mustEmbedUnimplementedNodeServer_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // NewMockNodeServer creates a new instance of MockNodeServer. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.
 func NewMockNodeServer(t interface {
