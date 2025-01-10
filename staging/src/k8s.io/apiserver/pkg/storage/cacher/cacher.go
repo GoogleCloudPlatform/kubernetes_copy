@@ -528,6 +528,15 @@ type namespacedName struct {
 	name      string
 }
 
+func mustGetUserFromCtx(ctx context.Context) string {
+	username := "unknown"
+	userInfo, ok := request.UserFrom(ctx)
+	if ok {
+		username = userInfo.GetName()
+	}
+	return username
+}
+
 // Watch implements storage.Interface.
 func (c *Cacher) Watch(ctx context.Context, key string, opts storage.ListOptions) (watch.Interface, error) {
 	pred := opts.Predicate
@@ -623,7 +632,7 @@ func (c *Cacher) Watch(ctx context.Context, key string, opts storage.ListOptions
 	// Determine watch timeout('0' means deadline is not set, ignore checking)
 	deadline, _ := ctx.Deadline()
 
-	identifier := fmt.Sprintf("key: %q, labels: %q, fields: %q", key, pred.Label, pred.Field)
+	identifier := fmt.Sprintf("key: %q, labels: %q, fields: %q, username: %s", key, pred.Label, pred.Field, mustGetUserFromCtx(ctx))
 
 	// Create a watcher here to reduce memory allocations under lock,
 	// given that memory allocation may trigger GC and block the thread.
