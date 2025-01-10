@@ -409,11 +409,12 @@ func TestWatchListMatchSingle(t *testing.T) {
 type tearDownFunc func()
 
 type setupOptions struct {
-	resourcePrefix string
-	keyFunc        func(runtime.Object) (string, error)
-	indexerFuncs   map[string]storage.IndexerFunc
-	indexers       cache.Indexers
-	clock          clock.WithTicker
+	resourcePrefix      string
+	keyFunc             func(runtime.Object) (string, error)
+	indexerFuncs        map[string]storage.IndexerFunc
+	indexers            cache.Indexers
+	clock               clock.WithTicker
+	eventsHistoryWindow time.Duration
 }
 
 type setupOption func(*setupOptions)
@@ -424,6 +425,7 @@ func withDefaults(options *setupOptions) {
 	options.resourcePrefix = prefix
 	options.keyFunc = func(obj runtime.Object) (string, error) { return storage.NamespaceKeyFunc(prefix, obj) }
 	options.clock = clock.RealClock{}
+	options.eventsHistoryWindow = DefaultEventFreshDuration
 }
 
 func withClusterScopedKeyFunc(options *setupOptions) {
@@ -455,6 +457,12 @@ func withNodeNameAndNamespaceIndex(options *setupOptions) {
 	}
 }
 
+func withEventsHistoryWindow(duration time.Duration) func(options *setupOptions) {
+	return func(options *setupOptions) {
+		options.eventsHistoryWindow = duration
+	}
+}
+
 func testSetup(t *testing.T, opts ...setupOption) (context.Context, *Cacher, tearDownFunc) {
 	ctx, cacher, _, tearDown := testSetupWithEtcdServer(t, opts...)
 	return ctx, cacher, tearDown
@@ -478,7 +486,7 @@ func testSetupWithEtcdServer(t testing.TB, opts ...setupOption) (context.Context
 		Storage:             wrappedStorage,
 		Versioner:           storage.APIObjectVersioner{},
 		GroupResource:       schema.GroupResource{Resource: "pods"},
-		EventsHistoryWindow: DefaultEventFreshDuration,
+		EventsHistoryWindow: setupOpts.eventsHistoryWindow,
 		ResourcePrefix:      setupOpts.resourcePrefix,
 		KeyFunc:             setupOpts.keyFunc,
 		GetAttrsFunc:        GetPodAttrs,
@@ -574,7 +582,7 @@ func BenchmarkStoreCreateList(b *testing.B) {
 				b.Run(fmt.Sprintf("RV=%s", rvm), func(b *testing.B) {
 					for _, useIndex := range []bool{true, false} {
 						b.Run(fmt.Sprintf("Indexed=%v", useIndex), func(b *testing.B) {
-							opts := []setupOption{}
+							opts := []setupOption{withEventsHistoryWindow(10 * time.Hour)}
 							if useIndex {
 								opts = append(opts, withNodeNameAndNamespaceIndex)
 							}
@@ -632,7 +640,7 @@ func BenchmarkStoreList(b *testing.B) {
 			for _, store := range storeOptions {
 				b.Run(fmt.Sprintf("Store=%s", store.name), func(b *testing.B) {
 					featuregatetesting.SetFeatureGateDuringTest(b, utilfeature.DefaultFeatureGate, features.BtreeWatchCache, store.btreeEnabled)
-					ctx, cacher, _, terminate := testSetupWithEtcdServer(b, withNodeNameAndNamespaceIndex)
+					ctx, cacher, _, terminate := testSetupWithEtcdServer(b, withNodeNameAndNamespaceIndex, withEventsHistoryWindow(10*time.Hour))
 					b.Cleanup(terminate)
 					var out example.Pod
 					for _, pod := range data.Pods {

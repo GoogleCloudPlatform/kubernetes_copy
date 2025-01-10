@@ -21,6 +21,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/go-logr/logr"
 	"io"
 	"net"
 	"net/http"
@@ -382,6 +383,7 @@ var (
 // TestListOptions ensures that list works as expected for valid and invalid combinations of limit, continue,
 // resourceVersion and resourceVersionMatch.
 func TestListOptions(t *testing.T) {
+	klog.SetLogger(logr.Discard())
 
 	for _, watchCacheEnabled := range []bool{true, false} {
 		t.Run(fmt.Sprintf("watchCacheEnabled=%t", watchCacheEnabled), func(t *testing.T) {

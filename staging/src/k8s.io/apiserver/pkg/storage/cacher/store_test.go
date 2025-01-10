@@ -175,3 +175,62 @@ func testStoreIndexers() *cache.Indexers {
 	indexers["by_val"] = testStoreIndexFunc
 	return &indexers
 }
+
+func TestStoreSnapshotter(t *testing.T) {
+	cache := newStoreSnapshotter()
+	cache.Set(20, fakeOrderedLister{rv: 20})
+	cache.Set(30, fakeOrderedLister{rv: 30})
+	cache.Set(40, fakeOrderedLister{rv: 40})
+	assert.Equal(t, 3, cache.snapshots.Len())
+
+	t.Log("No snapshot from before first RV")
+	snapshot, found := cache.Get(19)
+	assert.False(t, found)
+
+	t.Log("Get snapshot from first RV")
+	snapshot, found = cache.Get(20)
+	assert.True(t, found)
+	assert.Equal(t, 20, snapshot.(fakeOrderedLister).rv)
+
+	t.Log("Get first snapshot by larger RV")
+	snapshot, found = cache.Get(21)
+	assert.True(t, found)
+	assert.Equal(t, 20, snapshot.(fakeOrderedLister).rv)
+
+	t.Log("Get second snapshot by larger RV")
+	snapshot, found = cache.Get(32)
+	assert.True(t, found)
+	assert.Equal(t, 30, snapshot.(fakeOrderedLister).rv)
+
+	t.Log("Get third snapshot for future revision")
+	snapshot, found = cache.Get(43)
+	assert.True(t, found)
+	assert.Equal(t, 40, snapshot.(fakeOrderedLister).rv)
+
+	t.Log("Cleanup removes snapshot up to next RV")
+	cache.Clean(20)
+	assert.Equal(t, 2, cache.snapshots.Len())
+	_, found = cache.Get(20)
+	assert.False(t, found)
+	_, found = cache.Get(21)
+	assert.False(t, found)
+
+	t.Log("Cleanup removing all RVs")
+	cache.Clean(40)
+	assert.Equal(t, 0, cache.snapshots.Len())
+	_, found = cache.Get(40)
+	assert.False(t, found)
+}
+
+type fakeOrderedLister struct {
+	rv int
+}
+
+func (f fakeOrderedLister) Add(obj interface{}) error    { return nil }
+func (f fakeOrderedLister) Update(obj interface{}) error { return nil }
+func (f fakeOrderedLister) Delete(obj interface{}) error { return nil }
+func (f fakeOrderedLister) Clone() orderedLister         { return f }
+func (f fakeOrderedLister) ListPrefix(prefixKey, continueKey string, limit int) ([]interface{}, bool) {
+	return nil, false
+}
+func (f fakeOrderedLister) Count(prefixKey, continueKey string) int { return 0 }

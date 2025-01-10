@@ -164,19 +164,28 @@ func key(requestInfo *apirequest.RequestInfo) string {
 //
 //	staging/src/k8s.io/apiserver/pkg/storage/cacher/cacher.go
 func shouldListFromStorage(query url.Values, opts *metav1.ListOptions) bool {
-	resourceVersion := opts.ResourceVersion
-	match := opts.ResourceVersionMatch
-	consistentListFromCacheEnabled := utilfeature.DefaultFeatureGate.Enabled(features.ConsistentListFromCache)
-	requestWatchProgressSupported := etcdfeature.DefaultFeatureSupportChecker.Supports(storage.RequestWatchProgress)
-
-	// Serve consistent reads from storage if ConsistentListFromCache is disabled
-	consistentReadFromStorage := resourceVersion == "" && !(consistentListFromCacheEnabled && requestWatchProgressSupported)
-	// Watch cache doesn't support continuations, so serve them from etcd.
-	hasContinuation := len(opts.Continue) > 0
-	// Watch cache only supports ResourceVersionMatchNotOlderThan (default).
 	// see https://kubernetes.io/docs/reference/using-api/api-concepts/#semantics-for-get-and-list
-	isLegacyExactMatch := opts.Limit > 0 && match == "" && len(resourceVersion) > 0 && resourceVersion != "0"
-	unsupportedMatch := match != "" && match != metav1.ResourceVersionMatchNotOlderThan || isLegacyExactMatch
-
-	return consistentReadFromStorage || hasContinuation || unsupportedMatch
+	switch opts.ResourceVersionMatch {
+	case metav1.ResourceVersionMatchExact:
+		return true
+	case metav1.ResourceVersionMatchNotOlderThan:
+	case "":
+		// Legacy exact match
+		if opts.Limit > 0 && len(opts.ResourceVersion) > 0 && opts.ResourceVersion != "0" {
+			return true
+		}
+	default:
+		return true
+	}
+	// Continue
+	if len(opts.Continue) > 0 {
+		return true
+	}
+	// Consistent Read
+	if opts.ResourceVersion == "" {
+		consistentListFromCacheEnabled := utilfeature.DefaultFeatureGate.Enabled(features.ConsistentListFromCache)
+		requestWatchProgressSupported := etcdfeature.DefaultFeatureSupportChecker.Supports(storage.RequestWatchProgress)
+		return !consistentListFromCacheEnabled || !requestWatchProgressSupported
+	}
+	return false
 }
