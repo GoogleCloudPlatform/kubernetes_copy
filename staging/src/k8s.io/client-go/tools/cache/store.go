@@ -278,6 +278,12 @@ func (c *cache) Resync() error {
 	return nil
 }
 
+// Count returns a count of all the keys of the objects currently
+// in the cache.
+func (c *cache) Count() int64 {
+	return c.cacheStorage.Count()
+}
+
 // NewStore returns a Store implemented simply with a map and a lock.
 func NewStore(keyFunc KeyFunc) Store {
 	return &cache{

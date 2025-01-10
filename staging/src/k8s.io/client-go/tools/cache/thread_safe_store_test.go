@@ -165,6 +165,35 @@ func TestThreadSafeStoreIndexingFunctionsWithMultipleValues(t *testing.T) {
 	assert.NoError(compare("baz", []string{}))
 }
 
+func TestCount(t *testing.T) {
+	testIndexer := "testIndexer"
+
+	indexers := Indexers{
+		testIndexer: func(obj interface{}) ([]string, error) {
+			return strings.Split(obj.(string), ","), nil
+		},
+	}
+
+	indices := Indices{}
+	store := NewThreadSafeStore(indexers, indices).(*threadSafeMap)
+
+	store.Add("key1", "foo")
+	store.Add("key2", "bar")
+
+	assert := assert.New(t)
+
+	assert.Equal(int64(2), store.Count(), "count should be equal")
+
+	store.Update("key1", "foo,bar")
+	assert.Equal(int64(2), store.Count(), "count should be equal")
+
+	store.Add("key3", "foo,bar,baz")
+	assert.Equal(int64(3), store.Count(), "count should be equal")
+
+	store.Delete("key1")
+	assert.Equal(int64(2), store.Count(), "count should be equal")
+}
+
 func BenchmarkIndexer(b *testing.B) {
 	testIndexer := "testIndexer"
 

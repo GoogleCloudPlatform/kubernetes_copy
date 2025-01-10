@@ -52,6 +52,9 @@ type Indexer interface {
 
 	// AddIndexers adds more indexers to this store. This supports adding indexes after the store already has items.
 	AddIndexers(newIndexers Indexers) error
+
+	// Count returns a count of all the keys of the stored objects
+	Count() int64
 }
 
 // IndexFunc knows how to compute the set of indexed values for an object.

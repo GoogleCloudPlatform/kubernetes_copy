@@ -295,6 +295,7 @@ func TestTransformationFailure(t *testing.T) {
 func TestCount(t *testing.T) {
 	ctx, cacher, terminate := testSetup(t)
 	t.Cleanup(terminate)
+	cacher.ready.set(false)
 	storagetesting.RunTestCount(ctx, t, cacher)
 }
 
