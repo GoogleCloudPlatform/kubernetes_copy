@@ -17,6 +17,7 @@ limitations under the License.
 package cacher
 
 import (
+	"container/heap"
 	"fmt"
 	"math"
 	"strings"
@@ -42,6 +43,18 @@ type threadedStoreIndexer struct {
 	lock    sync.RWMutex
 	store   btreeStore
 	indexer indexer
+}
+
+func (si *threadedStoreIndexer) Count(prefix, continueKey string) (count int) {
+	si.lock.RLock()
+	defer si.lock.RUnlock()
+	return si.store.Count(prefix, continueKey)
+}
+
+func (si *threadedStoreIndexer) Clone() orderedLister {
+	si.lock.RLock()
+	defer si.lock.RUnlock()
+	return si.store.Clone()
 }
 
 func (si *threadedStoreIndexer) Add(obj interface{}) error {
@@ -275,6 +288,12 @@ func (s *btreeStore) Count(prefix, continueKey string) (count int) {
 	return count
 }
 
+func (s *btreeStore) Clone() orderedLister {
+	return &btreeStore{
+		tree: s.tree.Clone(),
+	}
+}
+
 // newIndexer returns a indexer similar to storeIndex from client-go/tools/cache.
 // TODO: Unify the indexer code with client-go/cache package.
 // Major differences is type of values stored and their mutability:
@@ -384,4 +403,71 @@ func (i *indexer) delete(key, value string, index map[string]map[string]*storeEl
 	if len(set) == 0 {
 		delete(index, value)
 	}
+}
+
+// storeSnapshotter caches snapshots of store created by cloning the store.
+type storeSnapshotter struct {
+	sync.RWMutex
+	snapshots map[uint64]orderedLister
+	// Using minHeap for fast Clean implementation.
+	revisions minIntHeap
+}
+
+func newStoreSnapshotter() *storeSnapshotter {
+	return &storeSnapshotter{
+		snapshots: make(map[uint64]orderedLister),
+	}
+}
+
+func (c *storeSnapshotter) Get(rv uint64) (orderedLister, bool) {
+	c.RLock()
+	defer c.RUnlock()
+	indexer, ok := c.snapshots[rv]
+	return indexer, ok
+}
+
+func (c *storeSnapshotter) Set(rv uint64, store orderedLister) {
+	c.Lock()
+	defer c.Unlock()
+	if _, ok := c.snapshots[rv]; !ok {
+		heap.Push(&c.revisions, rv)
+	}
+	c.snapshots[rv] = store.Clone()
+}
+
+func (c *storeSnapshotter) Clean(rv uint64) {
+	c.Lock()
+	defer c.Unlock()
+	for len(c.revisions) > 0 && rv >= c.revisions[0] {
+		delete(c.snapshots, c.revisions[0])
+		heap.Pop(&c.revisions)
+	}
+}
+
+type minIntHeap []uint64
+
+func (h minIntHeap) Len() int {
+	return len(h)
+}
+
+func (h minIntHeap) Less(i, j int) bool {
+	return h[i] < h[j]
+}
+
+func (h minIntHeap) Swap(i, j int) {
+	h[i], h[j] = h[j], h[i]
+}
+
+func (h *minIntHeap) Push(val interface{}) {
+	*h = append(*h, val.(uint64))
+}
+
+func (h *minIntHeap) Pop() interface{} {
+	old := *h
+
+	size := len(old)
+	val := old[size-1]
+	*h = old[:size-1]
+
+	return val
 }

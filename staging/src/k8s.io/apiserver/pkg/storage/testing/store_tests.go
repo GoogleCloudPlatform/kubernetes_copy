@@ -822,7 +822,7 @@ func RunTestList(ctx context.Context, t *testing.T, store storage.Interface, com
 			expectContinue:             true,
 			expectedRemainingItemCount: utilpointer.Int64(1),
 			rv:                         list.ResourceVersion,
-			expectRV:                   list.ResourceVersion,
+			expectRVFunc:               resourceVersionNotOlderThan(list.ResourceVersion),
 		},
 		{
 			name:   "test List with limit at current resource version and match=Exact",

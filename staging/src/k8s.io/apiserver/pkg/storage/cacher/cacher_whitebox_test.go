@@ -31,6 +31,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/metadata"
+	"k8s.io/apimachinery/pkg/apis/meta/internalversion"
+	"k8s.io/apimachinery/pkg/apis/meta/internalversion/validation"
 
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -203,66 +205,98 @@ func TestGetListCacheBypass(t *testing.T) {
 		ResourceVersionMatch metav1.ResourceVersionMatch
 		Limit                int64
 		Continue             string
+		CachedRev1           bool
+	}
+	continueOnRev1, err := storage.EncodeContinue("pods/a", "pods", 1)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
 	}
 	testCases := map[opts]bool{}
+	testCases[opts{}] = false
+	testCases[opts{Limit: 100}] = false
+	testCases[opts{Continue: continueOnRev1}] = true
+	testCases[opts{Limit: 100, Continue: continueOnRev1}] = true
+	testCases[opts{ResourceVersion: "0"}] = false
+	testCases[opts{ResourceVersion: "0", Limit: 100}] = false
+	testCases[opts{ResourceVersion: "0", Continue: continueOnRev1}] = true
+	testCases[opts{ResourceVersion: "0", Limit: 100, Continue: continueOnRev1}] = true
+	testCases[opts{ResourceVersion: "0", ResourceVersionMatch: metav1.ResourceVersionMatchNotOlderThan}] = false
+	testCases[opts{ResourceVersion: "0", ResourceVersionMatch: metav1.ResourceVersionMatchNotOlderThan, Limit: 100}] = false
+	testCases[opts{ResourceVersion: "1"}] = false
+	testCases[opts{ResourceVersion: "1", Limit: 100}] = true
+	testCases[opts{ResourceVersion: "1", Continue: continueOnRev1}] = true
+	testCases[opts{ResourceVersion: "1", Limit: 100, Continue: continueOnRev1}] = true
+	testCases[opts{ResourceVersion: "1", ResourceVersionMatch: metav1.ResourceVersionMatchExact}] = true
+	testCases[opts{ResourceVersion: "1", ResourceVersionMatch: metav1.ResourceVersionMatchExact, Limit: 100}] = true
+	testCases[opts{ResourceVersion: "1", ResourceVersionMatch: metav1.ResourceVersionMatchNotOlderThan}] = false
+	testCases[opts{ResourceVersion: "1", ResourceVersionMatch: metav1.ResourceVersionMatchNotOlderThan, Limit: 100}] = false
+
+	// Pagination from cached pages
+	testCases[opts{Continue: continueOnRev1, CachedRev1: true}] = false
+	testCases[opts{Limit: 100, Continue: continueOnRev1, CachedRev1: true}] = false
+	testCases[opts{ResourceVersion: "0", Continue: continueOnRev1, CachedRev1: true}] = false
+	testCases[opts{ResourceVersion: "0", Limit: 100, Continue: continueOnRev1, CachedRev1: true}] = false
+	testCases[opts{ResourceVersion: "1", Continue: continueOnRev1, CachedRev1: true}] = false
+
+	for opt, expectBypass := range testCases {
+		opt := opt
+		opt.CachedRev1 = true
+		if _, found := testCases[opt]; !found {
+			testCases[opt] = expectBypass
+		}
+	}
+
+
 	for _, rv := range []string{"", "0", "1"} {
-		for _, match := range []metav1.ResourceVersionMatch{"", "Invalid", metav1.ResourceVersionMatchExact, metav1.ResourceVersionMatchNotOlderThan} {
-			for _, c := range []string{"", "continue"} {
+		for _, match := range []metav1.ResourceVersionMatch{"", metav1.ResourceVersionMatchExact, metav1.ResourceVersionMatchNotOlderThan} {
+			for _, c := range []string{"", continueOnRev1} {
 				for _, limit := range []int64{0, 100} {
-					testCases[opts{
+					errs := validation.ValidateListOptions(&internalversion.ListOptions{
 						ResourceVersion:      rv,
 						ResourceVersionMatch: match,
-						Continue:             c,
 						Limit:                limit,
-					}] = false
+						Continue:             c,
+					}, false)
+					if len(errs) != 0 {
+						continue
+					}
+					for _, cached := range []bool{false, true} {
+						opt := opts{
+							ResourceVersion:      rv,
+							ResourceVersionMatch: match,
+							Limit:                limit,
+							Continue:             c,
+							CachedRev1:           cached,
+						}
+						_, found := testCases[opt]
+						if !found {
+							t.Errorf("Test case not covered, but passes validation: %+v", opt)
+						}
+					}
 				}
 			}
 		}
 	}
-	testCases[opts{ResourceVersion: "0", Continue: "continue"}] = true
-	testCases[opts{ResourceVersion: "0", Limit: 100, Continue: "continue"}] = true
-	testCases[opts{ResourceVersion: "0", ResourceVersionMatch: metav1.ResourceVersionMatchExact}] = true
-	testCases[opts{ResourceVersion: "0", ResourceVersionMatch: metav1.ResourceVersionMatchExact, Limit: 100}] = true
-	testCases[opts{ResourceVersion: "0", ResourceVersionMatch: metav1.ResourceVersionMatchExact, Continue: "continue"}] = true
-	testCases[opts{ResourceVersion: "0", ResourceVersionMatch: metav1.ResourceVersionMatchExact, Limit: 100, Continue: "continue"}] = true
-	testCases[opts{ResourceVersion: "0", ResourceVersionMatch: metav1.ResourceVersionMatchNotOlderThan, Continue: "continue"}] = true
-	testCases[opts{ResourceVersion: "0", ResourceVersionMatch: metav1.ResourceVersionMatchNotOlderThan, Limit: 100, Continue: "continue"}] = true
-	testCases[opts{ResourceVersion: "0", ResourceVersionMatch: "Invalid"}] = true
-	testCases[opts{ResourceVersion: "0", ResourceVersionMatch: "Invalid", Continue: "continue"}] = true
-	testCases[opts{ResourceVersion: "0", ResourceVersionMatch: "Invalid", Limit: 100}] = true
-	testCases[opts{ResourceVersion: "0", ResourceVersionMatch: "Invalid", Limit: 100, Continue: "continue"}] = true
-	testCases[opts{ResourceVersion: "1", Limit: 100}] = true
-	testCases[opts{ResourceVersion: "1", Continue: "continue"}] = true
-	testCases[opts{ResourceVersion: "1", Limit: 100, Continue: "continue"}] = true
-	testCases[opts{ResourceVersion: "1", ResourceVersionMatch: metav1.ResourceVersionMatchNotOlderThan, Continue: "continue"}] = true
-	testCases[opts{ResourceVersion: "1", ResourceVersionMatch: metav1.ResourceVersionMatchNotOlderThan, Limit: 100, Continue: "continue"}] = true
-	testCases[opts{ResourceVersion: "1", ResourceVersionMatch: metav1.ResourceVersionMatchExact}] = true
-	testCases[opts{ResourceVersion: "1", ResourceVersionMatch: metav1.ResourceVersionMatchExact, Limit: 100}] = true
-	testCases[opts{ResourceVersion: "1", ResourceVersionMatch: metav1.ResourceVersionMatchExact, Continue: "continue"}] = true
-	testCases[opts{ResourceVersion: "1", ResourceVersionMatch: metav1.ResourceVersionMatchExact, Limit: 100, Continue: "continue"}] = true
-	testCases[opts{ResourceVersion: "1", ResourceVersionMatch: "Invalid"}] = true
-	testCases[opts{ResourceVersion: "1", ResourceVersionMatch: "Invalid", Continue: "continue"}] = true
-	testCases[opts{ResourceVersion: "1", ResourceVersionMatch: "Invalid", Limit: 100}] = true
-	testCases[opts{ResourceVersion: "1", ResourceVersionMatch: "Invalid", Limit: 100, Continue: "continue"}] = true
-	testCases[opts{ResourceVersionMatch: metav1.ResourceVersionMatchNotOlderThan, Limit: 100}] = true
-	testCases[opts{ResourceVersionMatch: metav1.ResourceVersionMatchNotOlderThan, Continue: "continue"}] = true
-	testCases[opts{ResourceVersionMatch: metav1.ResourceVersionMatchNotOlderThan, Limit: 100, Continue: "continue"}] = true
-	testCases[opts{ResourceVersionMatch: metav1.ResourceVersionMatchExact}] = true
-	testCases[opts{ResourceVersionMatch: metav1.ResourceVersionMatchExact, Continue: "continue"}] = true
-	testCases[opts{ResourceVersionMatch: metav1.ResourceVersionMatchExact, Limit: 100, Continue: "continue"}] = true
-	testCases[opts{ResourceVersionMatch: "Invalid"}] = true
-	testCases[opts{ResourceVersionMatch: "Invalid", Continue: "continue"}] = true
-	testCases[opts{ResourceVersionMatch: "Invalid", Limit: 100}] = true
-	testCases[opts{ResourceVersionMatch: "Invalid", Limit: 100, Continue: "continue"}] = true
-	testCases[opts{Limit: 100, Continue: "continue"}] = true
-	testCases[opts{Continue: "continue"}] = true
+
+	for opt := range testCases {
+		errs := validation.ValidateListOptions(&internalversion.ListOptions{
+			ResourceVersion:      opt.ResourceVersion,
+			ResourceVersionMatch: opt.ResourceVersionMatch,
+			Limit:                opt.Limit,
+			Continue:             opt.Continue,
+		}, false)
+		if len(errs) != 0 {
+			t.Errorf("Invalid LIST request that should not be tested %+v", opt)
+			continue
+		}
+	}
 
 	t.Run("ConsistentListFromStorage", func(t *testing.T) {
 		featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.ConsistentListFromCache, false)
 		testCases[opts{}] = true
 		testCases[opts{Limit: 100}] = true
-		testCases[opts{ResourceVersionMatch: metav1.ResourceVersionMatchNotOlderThan}] = true
-		testCases[opts{ResourceVersionMatch: metav1.ResourceVersionMatchExact, Limit: 100}] = true
+		testCases[opts{CachedRev1: true}] = true
+		testCases[opts{Limit: 100, CachedRev1: true}] = true
 		for opt, expectBypass := range testCases {
 			testGetListCacheBypass(t, storage.ListOptions{
 				ResourceVersion:      opt.ResourceVersion,
@@ -271,7 +305,7 @@ func TestGetListCacheBypass(t *testing.T) {
 					Continue: opt.Continue,
 					Limit:    opt.Limit,
 				},
-			}, expectBypass)
+			}, opt.CachedRev1, expectBypass)
 		}
 
 	})
@@ -288,8 +322,8 @@ func TestGetListCacheBypass(t *testing.T) {
 
 		testCases[opts{}] = false
 		testCases[opts{Limit: 100}] = false
-		testCases[opts{ResourceVersionMatch: metav1.ResourceVersionMatchNotOlderThan}] = false
-		testCases[opts{ResourceVersionMatch: metav1.ResourceVersionMatchNotOlderThan, Limit: 100}] = false
+		testCases[opts{CachedRev1: true}] = false
+		testCases[opts{Limit: 100, CachedRev1: true}] = false
 		for opt, expectBypass := range testCases {
 			testGetListCacheBypass(t, storage.ListOptions{
 				ResourceVersion:      opt.ResourceVersion,
@@ -298,18 +332,21 @@ func TestGetListCacheBypass(t *testing.T) {
 					Continue: opt.Continue,
 					Limit:    opt.Limit,
 				},
-			}, expectBypass)
+			}, opt.CachedRev1, expectBypass)
 		}
 	})
 }
 
-func testGetListCacheBypass(t *testing.T, options storage.ListOptions, expectBypass bool) {
+func testGetListCacheBypass(t *testing.T, options storage.ListOptions, cacheRev1, expectBypass bool) {
 	backingStorage := &dummyStorage{}
 	cacher, _, err := newTestCacher(backingStorage)
 	if err != nil {
 		t.Fatalf("Couldn't create cacher: %v", err)
 	}
 	defer cacher.Stop()
+	if cacheRev1 {
+		cacher.watchCache.storeSnapshots.Set(1, fakeOrderedLister{})
+	}
 
 	result := &example.PodList{}
 
@@ -343,7 +380,7 @@ func testGetListCacheBypass(t *testing.T, options storage.ListOptions, expectByp
 	}
 	gotBypass := err == errDummy
 	if gotBypass != expectBypass {
-		t.Errorf("Unexpected bypass result for List request with options %+v, bypass expected: %v, got: %v", options, expectBypass, gotBypass)
+		t.Errorf("Unexpected bypass result for List request with options %+v, cachedRev1: %v. bypass expected: %v, got: %v", options, cacheRev1, expectBypass, gotBypass)
 	}
 }
 
@@ -3132,7 +3169,10 @@ func TestListIndexer(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			pred := storagetesting.CreatePodPredicate(tt.fieldSelector, true, tt.indexFields)
-			_, usedIndex, err := cacher.listItems(ctx, 0, "/pods/"+tt.requestedNamespace, pred, tt.recursive)
+			_, usedIndex, err := cacher.listItems(ctx, 0, "/pods/"+tt.requestedNamespace, storage.ListOptions{
+				Predicate: pred,
+				Recursive: tt.recursive,
+			})
 			if err != nil {
 				t.Errorf("Unexpected error: %v", err)
 			}

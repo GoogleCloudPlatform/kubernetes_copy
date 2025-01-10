@@ -331,8 +331,8 @@ func RunTestDelayedWatchDelivery(ctx context.Context, t *testing.T, store storag
 	// should be delivered to the watcher can be created before it will
 	// block the implementation and as a result force the watcher to be
 	// closed (as otherwise events would have to be dropped).
-	// For now, this number is smallest for Cacher and it equals 21 for it.
-	totalPods := 21
+	// For now, this number is smallest for Cacher and it equals 50 for it.
+	totalPods := 50
 	for i := 0; i < totalPods; i++ {
 		out := &example.Pod{}
 		pod := &example.Pod{

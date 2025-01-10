@@ -72,8 +72,11 @@ type storeIndexer interface {
 	ByIndex(indexName, indexedValue string) ([]interface{}, error)
 }
 
+// orderedLister is interface wrapping btree implementation of store, allowing for fast prefix listing and fast lazy cloning.
 type orderedLister interface {
+	Count(prefix, continueKey string) (count int)
 	ListPrefix(prefix, continueKey string, limit int) (items []interface{}, hasMore bool)
+	Clone() orderedLister
 }
 
 func newStoreIndexer(indexers *cache.Indexers) storeIndexer {
