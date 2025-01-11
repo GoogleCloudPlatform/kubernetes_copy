@@ -30,6 +30,7 @@ import (
 	"sync"
 	"time"
 
+	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	utilversion "k8s.io/apimachinery/pkg/util/version"
 	utilwait "k8s.io/apimachinery/pkg/util/wait"
@@ -251,6 +252,28 @@ func newInternal(exec utilexec.Interface, protocol Protocol, lockfilePath14x, lo
 // New returns a new Interface which will exec iptables.
 func New(protocol Protocol) Interface {
 	return newInternal(utilexec.New(), protocol, "", "")
+}
+
+func newDualStackInternal(exec utilexec.Interface) map[v1.IPFamily]Interface {
+	interfaces := map[v1.IPFamily]Interface{}
+
+	iptv4 := newInternal(exec, ProtocolIPv4, "", "")
+	if iptv4.Present() {
+		interfaces[v1.IPv4Protocol] = iptv4
+	}
+	iptv6 := newInternal(exec, ProtocolIPv6, "", "")
+	if iptv6.Present() {
+		interfaces[v1.IPv6Protocol] = iptv6
+	}
+
+	return interfaces
+}
+
+// NewDualStack returns a map containing an IPv4 Interface (if IPv4 iptables is supported)
+// and an IPv6 Interface (if IPv6 iptables is supported). If either family is not
+// supported, no Interface will be returned for that family.
+func NewDualStack() map[v1.IPFamily]Interface {
+	return newDualStackInternal(utilexec.New())
 }
 
 // EnsureChain is part of Interface.

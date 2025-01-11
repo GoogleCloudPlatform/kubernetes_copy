@@ -37,13 +37,14 @@ const (
 )
 
 func (kl *Kubelet) initNetworkUtil() {
-	iptClients := []utiliptables.Interface{
-		utiliptables.New(utiliptables.ProtocolIPv4),
-		utiliptables.New(utiliptables.ProtocolIPv6),
+	iptClients := utiliptables.NewDualStack()
+	if len(iptClients) == 0 {
+		klog.InfoS("No iptables support on this system; not creating the KUBE-IPTABLES-HINT chain")
+		return
 	}
 
-	for i := range iptClients {
-		iptClient := iptClients[i]
+	for family := range iptClients {
+		iptClient := iptClients[family]
 		if kl.syncIPTablesRules(iptClient) {
 			klog.InfoS("Initialized iptables rules.", "protocol", iptClient.Protocol())
 			go iptClient.Monitor(

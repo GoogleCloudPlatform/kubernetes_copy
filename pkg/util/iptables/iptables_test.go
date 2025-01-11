@@ -29,6 +29,7 @@ import (
 	"testing"
 	"time"
 
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	utilversion "k8s.io/apimachinery/pkg/util/version"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -208,6 +209,141 @@ func TestNew(t *testing.T) {
 	}
 }
 
+func TestNewDualStack(t *testing.T) {
+	testCases := []struct {
+		name     string
+		commands []testCommand
+		ipv4     bool
+		ipv6     bool
+	}{
+		{
+			name: "both available",
+			commands: []testCommand{
+				{
+					// ipv4 creation
+					command: "iptables --version",
+					action:  func() ([]byte, []byte, error) { return []byte("iptables v1.8.0"), nil, nil },
+				},
+				{
+					// ipv4 Present()
+					command: "iptables -w 5 -W 100000 -S POSTROUTING -t nat",
+					action:  func() ([]byte, []byte, error) { return nil, nil, nil },
+				},
+				{
+					// ipv6 creation
+					command: "ip6tables --version",
+					action:  func() ([]byte, []byte, error) { return []byte("iptables v1.8.0"), nil, nil },
+				},
+				{
+					// ipv6 Present()
+					command: "ip6tables -w 5 -W 100000 -S POSTROUTING -t nat",
+					action:  func() ([]byte, []byte, error) { return nil, nil, nil },
+				},
+			},
+			ipv4: true,
+			ipv6: true,
+		},
+		{
+			name: "ipv4 available, ipv6 not installed",
+			commands: []testCommand{
+				{
+					// ipv4 creation
+					command: "iptables --version",
+					action:  func() ([]byte, []byte, error) { return []byte("iptables v1.8.0"), nil, nil },
+				},
+				{
+					// ipv4 Present()
+					command: "iptables -w 5 -W 100000 -S POSTROUTING -t nat",
+					action:  func() ([]byte, []byte, error) { return nil, nil, nil },
+				},
+				{
+					// ipv6 creation
+					command: "ip6tables --version",
+					action:  func() ([]byte, []byte, error) { return nil, nil, fmt.Errorf("no such file or directory") },
+				},
+				{
+					// ipv6 Present()
+					command: "ip6tables -S POSTROUTING -t nat",
+					action:  func() ([]byte, []byte, error) { return nil, nil, fmt.Errorf("no such file or directory") },
+				},
+			},
+			ipv4: true,
+			ipv6: false,
+		},
+		{
+			name: "ipv4 available, ipv6 disabled",
+			commands: []testCommand{
+				{
+					// ipv4 creation
+					command: "iptables --version",
+					action:  func() ([]byte, []byte, error) { return []byte("iptables v1.8.0"), nil, nil },
+				},
+				{
+					// ipv4 Present()
+					command: "iptables -w 5 -W 100000 -S POSTROUTING -t nat",
+					action:  func() ([]byte, []byte, error) { return nil, nil, nil },
+				},
+				{
+					// ipv6 creation
+					command: "ip6tables --version",
+					action:  func() ([]byte, []byte, error) { return []byte("iptables v1.8.0"), nil, nil },
+				},
+				{
+					// ipv6 Present()
+					command: "ip6tables -w 5 -W 100000 -S POSTROUTING -t nat",
+					action:  func() ([]byte, []byte, error) { return nil, nil, fmt.Errorf("ipv6 is broken") },
+				},
+			},
+			ipv4: true,
+			ipv6: false,
+		},
+		{
+			name: "no iptables support",
+			commands: []testCommand{
+				{
+					// ipv4 creation
+					command: "iptables --version",
+					action:  func() ([]byte, []byte, error) { return nil, nil, fmt.Errorf("no such file or directory") },
+				},
+				{
+					// ipv4 Present()
+					command: "iptables -S POSTROUTING -t nat",
+					action:  func() ([]byte, []byte, error) { return nil, nil, fmt.Errorf("no such file or directory") },
+				},
+				{
+					// ipv6 creation
+					command: "ip6tables --version",
+					action:  func() ([]byte, []byte, error) { return nil, nil, fmt.Errorf("no such file or directory") },
+				},
+				{
+					// ipv6 Present()
+					command: "ip6tables -S POSTROUTING -t nat",
+					action:  func() ([]byte, []byte, error) { return nil, nil, fmt.Errorf("no such file or directory") },
+				},
+			},
+			ipv4: false,
+			ipv6: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			fexec := fakeExecForCommands(tc.commands)
+			runners := newDualStackInternal(fexec)
+
+			if tc.ipv4 && runners[v1.IPv4Protocol] == nil {
+				t.Errorf("Expected ipv4 runner, got nil")
+			} else if !tc.ipv4 && runners[v1.IPv4Protocol] != nil {
+				t.Errorf("Expected no ipv4 runner, got one")
+			}
+			if tc.ipv6 && runners[v1.IPv6Protocol] == nil {
+				t.Errorf("Expected ipv6 runner, got nil")
+			} else if !tc.ipv6 && runners[v1.IPv6Protocol] != nil {
+				t.Errorf("Expected no ipv6 runner, got one")
+			}
+		})
+	}
+}
 func testEnsureChain(t *testing.T, protocol Protocol) {
 	fcmd := fakeexec.FakeCmd{
 		CombinedOutputScript: []fakeexec.FakeAction{
