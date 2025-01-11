@@ -66,6 +66,7 @@ const (
 	lotsOfFiles       = 1000000000 // 1 billion
 	resourceInodes    = v1.ResourceName("inodes")
 	noStarvedResource = v1.ResourceName("none")
+	waitPodName       = "wait-pod"
 )
 
 // InodeEviction tests that the node responds to node disk pressure by evicting only responsible pods.
@@ -98,6 +99,53 @@ var _ = SIGDescribe("InodeEviction", framework.WithSlow(), framework.WithSerial(
 			{
 				evictionPriority: 0,
 				pod:              innocentPod(),
+			},
+		})
+	})
+})
+
+// TerminatedPodsEvictionOnDiskPressure tests that the node does not evict pods
+// when there are terminated pods and the image garbage collection can remove
+// their resources without evicting running pods
+var _ = SIGDescribe("TerminatedPodsEvictionOnDiskPressure", framework.WithSlow(), framework.WithSerial(), framework.WithDisruptive(), nodefeature.Eviction, func() {
+	f := framework.NewDefaultFramework("terminated-pods-eviction-on-disk-pressure-test")
+	f.NamespacePodSecurityLevel = admissionapi.LevelPrivileged
+	pressureTimeout := 10 * time.Minute
+	expectedNodeCondition := v1.NodeDiskPressure
+	expectedStarvedResource := v1.ResourceEphemeralStorage
+
+	ginkgo.Context(fmt.Sprintf(testContextFmt, expectedNodeCondition), func() {
+		tempSetCurrentKubeletConfig(f, func(ctx context.Context, initialConfig *kubeletconfig.KubeletConfiguration) {
+			// Calculate eviction thresholds based on available disk space
+			summary := eventuallyGetSummary(ctx)
+			availableBytesOnSystem := *(summary.Node.Fs.AvailableBytes)
+
+			diskConsumedByTest := resource.MustParse("4Gi")
+			evictionThreshold := strconv.FormatUint(availableBytesOnSystem-uint64(diskConsumedByTest.Value()), 10)
+
+			if availableBytesOnSystem <= uint64(diskConsumedByTest.Value()) {
+				e2eskipper.Skipf("Not enough disk space to run the test, available: %d", availableBytesOnSystem)
+			}
+
+			initialConfig.EvictionHard = map[string]string{string(evictionapi.SignalNodeFsAvailable): evictionThreshold}
+			initialConfig.EvictionMinimumReclaim = map[string]string{}
+		})
+
+		runEvictionTest(f, pressureTimeout, expectedNodeCondition, expectedStarvedResource, logDiskMetrics, []podEvictSpec{
+			{
+				evictionPriority: 0,
+				pod:              innocentPod(),
+			},
+			{
+				evictionPriority: 0,
+				pod:              diskConsumingPod("container-disk-hog", lotsOfDisk, &v1.VolumeSource{EmptyDir: &v1.EmptyDirVolumeSource{}}, v1.ResourceRequirements{}),
+			},
+			// This is the terminated pod, runEvictionTest will wait for it to finish
+			{
+				evictionPriority: 1,
+				// This is probably working because empty dir is being cleared when the
+				// pod finishes
+				pod: diskConsumingPod(fmt.Sprintf("disk-hog-%s", waitPodName), lotsOfDisk, &v1.VolumeSource{EmptyDir: &v1.EmptyDirVolumeSource{}}, v1.ResourceRequirements{}),
 			},
 		})
 	})
@@ -577,6 +625,28 @@ func runEvictionTest(f *framework.Framework, pressureTimeout time.Duration, expe
 				pods = append(pods, spec.pod)
 			}
 			e2epod.NewPodClient(f).CreateBatch(ctx, pods)
+
+			// Wait for the expected terminated pod to get to terminated state
+			for _, spec := range testSpecs {
+				if strings.Contains(spec.pod.Name, waitPodName) {
+					ginkgo.By(fmt.Sprintf("Waiting for the %s pod to complete", spec.pod.Name))
+					podClient := f.ClientSet.CoreV1().Pods(f.Namespace.Name)
+					gomega.Eventually(ctx, func() error {
+						pod, err := podClient.Get(ctx, spec.pod.Name, metav1.GetOptions{})
+						if err != nil {
+							return fmt.Errorf("failed to retrieve %s: %v", spec.pod.Name, err)
+						}
+
+						if pod.Status.Phase != v1.PodSucceeded && pod.Status.Phase != v1.PodFailed {
+							return fmt.Errorf("%s pod not yet completed or failed: %v", spec.pod.Name, pod.Status.Phase)
+						}
+						framework.Logf("%s in phase: %v", spec.pod.Name, pod.Status.Phase)
+						return nil
+					}, pressureTimeout, evictionPollInterval).Should(gomega.BeNil())
+
+					break
+				}
+			}
 		})
 
 		ginkgo.It("should eventually evict all of the correct pods", func(ctx context.Context) {
