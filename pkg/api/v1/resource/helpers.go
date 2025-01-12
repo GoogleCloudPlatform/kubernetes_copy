@@ -26,8 +26,14 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 )
 
-// GetResourceRequestQuantity finds and returns the request quantity for a specific resource.
-func GetResourceRequestQuantity(pod *v1.Pod, resourceName v1.ResourceName) resource.Quantity {
+type resourceType string
+
+const (
+	resourceTypeRequest resourceType = "request"
+	resourceTypeLimit   resourceType = "limit"
+)
+
+func getResourceQuantity(pod *v1.Pod, resourceName v1.ResourceName, resourceType resourceType) resource.Quantity {
 	requestQuantity := resource.Quantity{}
 
 	switch resourceName {
@@ -39,14 +45,25 @@ func GetResourceRequestQuantity(pod *v1.Pod, resourceName v1.ResourceName) resou
 		requestQuantity = resource.Quantity{Format: resource.DecimalSI}
 	}
 
+	getResource := func(resources v1.ResourceRequirements) v1.ResourceList {
+		switch resourceType {
+		case resourceTypeRequest:
+			return resources.Requests
+		case resourceTypeLimit:
+			return resources.Limits
+		default:
+			panic(fmt.Sprintf("unknown resource type: %v", resourceType))
+		}
+	}
+
 	for _, container := range pod.Spec.Containers {
-		if rQuantity, ok := container.Resources.Requests[resourceName]; ok {
+		if rQuantity, ok := getResource(container.Resources)[resourceName]; ok {
 			requestQuantity.Add(rQuantity)
 		}
 	}
 
 	for _, container := range pod.Spec.InitContainers {
-		if rQuantity, ok := container.Resources.Requests[resourceName]; ok {
+		if rQuantity, ok := getResource(container.Resources)[resourceName]; ok {
 			if requestQuantity.Cmp(rQuantity) < 0 {
 				requestQuantity = rQuantity.DeepCopy()
 			}
@@ -62,6 +79,15 @@ func GetResourceRequestQuantity(pod *v1.Pod, resourceName v1.ResourceName) resou
 	}
 
 	return requestQuantity
+}
+
+// GetResourceRequestQuantity finds and returns the request quantity for a specific resource.
+func GetResourceRequestQuantity(pod *v1.Pod, resourceName v1.ResourceName) resource.Quantity {
+	return getResourceQuantity(pod, resourceName, resourceTypeRequest)
+}
+
+func GetResourceLimitQuantity(pod *v1.Pod, resourceName v1.ResourceName) resource.Quantity {
+	return getResourceQuantity(pod, resourceName, resourceTypeLimit)
 }
 
 // GetResourceRequest finds and returns the request value for a specific resource.

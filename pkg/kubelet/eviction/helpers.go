@@ -682,6 +682,10 @@ func (ms *multiSorter) Less(i, j int) bool {
 func priority(p1, p2 *v1.Pod) int {
 	priority1 := corev1helpers.PodPriority(p1)
 	priority2 := corev1helpers.PodPriority(p2)
+
+	klog.V(5).InfoS("eviction ranking by priority", "pod", p1.Name, "namespace", p1.Namespace, "priority", priority1)
+	klog.V(5).InfoS("eviction ranking by priority", "pod", p2.Name, "namespace", p2.Namespace, "priority", priority2)
+
 	if priority1 == priority2 {
 		return 0
 	}
@@ -722,6 +726,55 @@ func exceedMemoryRequests(stats statsFunc) cmpFunc {
 	}
 }
 
+// exceedMemoryLimits compares whether or not pods' memory+swap usage exceeds their limits
+func exceedMemoryLimits(stats statsFunc) cmpFunc {
+	return func(p1, p2 *v1.Pod) int {
+		p1Stats, p1Found := stats(p1)
+		p2Stats, p2Found := stats(p2)
+		if !p1Found || !p2Found {
+			// prioritize evicting the pod for which no stats were found
+			return cmpBool(!p1Found, !p2Found)
+		}
+
+		p1Swap := swapUsage(p1Stats.Swap)
+		p2Swap := swapUsage(p2Stats.Swap)
+		p1Memory := memoryUsage(p1Stats.Memory)
+		p2Memory := memoryUsage(p2Stats.Memory)
+
+		p1MemAndSwap := p1Swap.DeepCopy()
+		p2MemAndSwap := p2Swap.DeepCopy()
+		p1MemAndSwap.Add(*p1Memory)
+		p2MemAndSwap.Add(*p2Memory)
+
+		p1MemLimits := v1resource.GetResourceLimitQuantity(p1, v1.ResourceMemory)
+		p2MemLimits := v1resource.GetResourceLimitQuantity(p2, v1.ResourceMemory)
+
+		infinite := resource.MustParse("999999999Ei")
+		if p1MemLimits.IsZero() {
+			klog.V(5).InfoS("eviction ranking by exceedMemoryLimits: pod has no limits", "pod", p1.Name, "namespace", p1.Namespace)
+			p1MemLimits = infinite
+		}
+		if p2MemLimits.IsZero() {
+			klog.V(5).InfoS("eviction ranking by exceedMemoryLimits: pod has no limits", "pod", p2.Name, "namespace", p2.Namespace)
+			p2MemLimits = infinite
+		}
+
+		p1MemRequests := v1resource.GetResourceRequestQuantity(p1, v1.ResourceMemory)
+		p2MemRequests := v1resource.GetResourceRequestQuantity(p2, v1.ResourceMemory)
+
+		p1ExceedsLimits := p1MemAndSwap.Cmp(p1MemLimits) == 1
+		p2ExceedsLimits := p2MemAndSwap.Cmp(p2MemLimits) == 1
+
+		klog.V(5).InfoS("eviction ranking by exceedMemoryLimits", "pod", p1.Name, "namespace", p1.Namespace, "memory usage", p1Memory.Value(),
+			"swap usage", p1Swap.Value(), "memory+swap usage", p1MemAndSwap.Value(), "memory requests", p1MemRequests.Value(), "memory limits", p1MemLimits.Value(), "exceeded limits?", p1ExceedsLimits)
+		klog.V(5).InfoS("eviction ranking by exceedMemoryLimits", "pod", p2.Name, "namespace", p2.Namespace, "memory usage", p2Memory.Value(),
+			"swap usage", p2Swap.Value(), "memory+swap usage", p2MemAndSwap.Value(), "memory requests", p2MemRequests.Value(), "memory limits", p2MemLimits.Value(), "exceeded limits?", p2ExceedsLimits)
+
+		// prioritize evicting the pod which exceeds its requests
+		return cmpBool(p1ExceedsLimits, p2ExceedsLimits)
+	}
+}
+
 // memory compares pods by largest consumer of memory relative to request.
 func memory(stats statsFunc) cmpFunc {
 	return func(p1, p2 *v1.Pod) int {
@@ -744,6 +797,9 @@ func memory(stats statsFunc) cmpFunc {
 		p2Request := v1resource.GetResourceRequestQuantity(p2, v1.ResourceMemory)
 		p2Memory.Sub(p2Request)
 		p2Memory.Add(*p2Swap)
+
+		klog.V(5).InfoS("eviction ranking by memory", "pod", p1.Name, "namespace", p1.Namespace, "mem-request", p1Memory.Value())
+		klog.V(5).InfoS("eviction ranking by memory", "pod", p2.Name, "namespace", p2.Namespace, "mem-request", p2Memory.Value())
 
 		// prioritize evicting the pod which has the larger consumption of memory
 		return p2Memory.Cmp(*p1Memory)
@@ -835,7 +891,11 @@ func cmpBool(a, b bool) int {
 // It ranks by whether or not the pod's usage exceeds its requests, then by priority, and
 // finally by memory usage above requests.
 func rankMemoryPressure(pods []*v1.Pod, stats statsFunc) {
-	orderedBy(exceedMemoryRequests(stats), priority, memory(stats)).Sort(pods)
+	cmpFuncs := []cmpFunc{exceedMemoryRequests(stats), priority, memory(stats)}
+	if utilfeature.DefaultFeatureGate.Enabled(features.NodeSwap) {
+		cmpFuncs = append([]cmpFunc{exceedMemoryLimits(stats)}, cmpFuncs...)
+	}
+	orderedBy(cmpFuncs...).Sort(pods)
 }
 
 // rankPIDPressure orders the input pods by priority in response to PID pressure.
