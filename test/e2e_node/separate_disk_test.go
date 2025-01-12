@@ -212,10 +212,10 @@ var _ = SIGDescribe("ImageStorageEviction", framework.WithSlow(), framework.With
 	})
 })
 
-// LocalStorageVolumeEviction tests that the node responds to node disk pressure by evicting pods.
+// ImageStorageVolumeEviction tests that the node responds to node disk pressure by evicting pods.
 // Volumes write to the node filesystem so we are testing eviction on nodefs even if it
 // exceeds imagefs limits.
-var _ = SIGDescribe("LocalStorageVolumeEviction", framework.WithSlow(), framework.WithSerial(), framework.WithDisruptive(), nodefeature.SeparateDisk, func() {
+var _ = SIGDescribe("ImageStorageVolumeEviction", framework.WithSlow(), framework.WithSerial(), framework.WithDisruptive(), nodefeature.SeparateDisk, func() {
 	f := framework.NewDefaultFramework("exceed-nodefs-test")
 	f.NamespacePodSecurityLevel = admissionapi.LevelPrivileged
 	expectedNodeCondition := v1.NodeDiskPressure
