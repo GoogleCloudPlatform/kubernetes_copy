@@ -919,6 +919,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"k8s.io/api/resource/v1alpha3.DeviceRequest":                                                            schema_k8sio_api_resource_v1alpha3_DeviceRequest(ref),
 		"k8s.io/api/resource/v1alpha3.DeviceRequestAllocationResult":                                            schema_k8sio_api_resource_v1alpha3_DeviceRequestAllocationResult(ref),
 		"k8s.io/api/resource/v1alpha3.DeviceSelector":                                                           schema_k8sio_api_resource_v1alpha3_DeviceSelector(ref),
+		"k8s.io/api/resource/v1alpha3.DeviceSubRequest":                                                         schema_k8sio_api_resource_v1alpha3_DeviceSubRequest(ref),
 		"k8s.io/api/resource/v1alpha3.NetworkDeviceData":                                                        schema_k8sio_api_resource_v1alpha3_NetworkDeviceData(ref),
 		"k8s.io/api/resource/v1alpha3.OpaqueDeviceConfiguration":                                                schema_k8sio_api_resource_v1alpha3_OpaqueDeviceConfiguration(ref),
 		"k8s.io/api/resource/v1alpha3.ResourceClaim":                                                            schema_k8sio_api_resource_v1alpha3_ResourceClaim(ref),
@@ -953,6 +954,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"k8s.io/api/resource/v1beta1.DeviceRequest":                                                             schema_k8sio_api_resource_v1beta1_DeviceRequest(ref),
 		"k8s.io/api/resource/v1beta1.DeviceRequestAllocationResult":                                             schema_k8sio_api_resource_v1beta1_DeviceRequestAllocationResult(ref),
 		"k8s.io/api/resource/v1beta1.DeviceSelector":                                                            schema_k8sio_api_resource_v1beta1_DeviceSelector(ref),
+		"k8s.io/api/resource/v1beta1.DeviceSubRequest":                                                          schema_k8sio_api_resource_v1beta1_DeviceSubRequest(ref),
 		"k8s.io/api/resource/v1beta1.NetworkDeviceData":                                                         schema_k8sio_api_resource_v1beta1_NetworkDeviceData(ref),
 		"k8s.io/api/resource/v1beta1.OpaqueDeviceConfiguration":                                                 schema_k8sio_api_resource_v1beta1_OpaqueDeviceConfiguration(ref),
 		"k8s.io/api/resource/v1beta1.ResourceClaim":                                                             schema_k8sio_api_resource_v1beta1_ResourceClaim(ref),
@@ -46523,7 +46525,7 @@ func schema_k8sio_api_resource_v1alpha3_DeviceAllocationConfiguration(ref common
 							},
 						},
 						SchemaProps: spec.SchemaProps{
-							Description: "Requests lists the names of requests where the configuration applies. If empty, its applies to all requests.",
+							Description: "Requests lists the names of requests where the configuration applies. If empty, its applies to all requests.\n\nReferences to subrequests must include the name of both the parent request and the subrequest using the format <parent request>/<subrequest>. If just the parent request is given, the configuration applies to all subrequests.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -46731,7 +46733,7 @@ func schema_k8sio_api_resource_v1alpha3_DeviceClaimConfiguration(ref common.Refe
 							},
 						},
 						SchemaProps: spec.SchemaProps{
-							Description: "Requests lists the names of requests where the configuration applies. If empty, it applies to all requests.",
+							Description: "Requests lists the names of requests where the configuration applies. If empty, it applies to all requests.\n\nReferences to subrequests must include the name of both the parent request and the subrequest using the format <parent request>/<subrequest>. If just the parent request is given, the configuration applies to all subrequests.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -46962,7 +46964,7 @@ func schema_k8sio_api_resource_v1alpha3_DeviceConstraint(ref common.ReferenceCal
 							},
 						},
 						SchemaProps: spec.SchemaProps{
-							Description: "Requests is a list of the one or more requests in this claim which must co-satisfy this constraint. If a request is fulfilled by multiple devices, then all of the devices must satisfy the constraint. If this is not specified, this constraint applies to all requests in this claim.",
+							Description: "Requests is a list of the one or more requests in this claim which must co-satisfy this constraint. If a request is fulfilled by multiple devices, then all of the devices must satisfy the constraint. If this is not specified, this constraint applies to all requests in this claim.\n\nReferences to subrequests must include the name of both the parent request and the subrequest using the format <parent request>/<subrequest>. If just the parent request is given, the constraint applies to all subrequests.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -46992,12 +46994,12 @@ func schema_k8sio_api_resource_v1alpha3_DeviceRequest(ref common.ReferenceCallba
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "DeviceRequest is a request for devices required for a claim. This is typically a request for a single resource like a device, but can also ask for several identical devices.\n\nA DeviceClassName is currently required. Clients must check that it is indeed set. It's absence indicates that something changed in a way that is not supported by the client yet, in which case it must refuse to handle the request.",
+				Description: "DeviceRequest is a request for devices required for a claim. This is typically a request for a single resource like a device, but can also ask for several identical devices. It can also provide a list of alternative subrequests using the firstAvailableOf list.\n\nA DeviceClassName is currently required if the firstAvailableOf list is empty. It's absence indicates that something changed in a way that is not supported by the client yet, in which case it must refuse to handle the request. If the firstAvailableOf list has one or more subrequests, then all other fields except the name must be unset.",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"name": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Name can be used to reference this request in a pod.spec.containers[].resources.claims entry and in a constraint of the claim.\n\nMust be a DNS label.",
+							Description: "Name can be used to reference this request in a pod.spec.containers[].resources.claims entry and in a constraint of the claim.\n\nMust be a DNS label and unique among all DeviceRequests in a ResourceClaim.",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -47005,7 +47007,7 @@ func schema_k8sio_api_resource_v1alpha3_DeviceRequest(ref common.ReferenceCallba
 					},
 					"deviceClassName": {
 						SchemaProps: spec.SchemaProps{
-							Description: "DeviceClassName references a specific DeviceClass, which can define additional configuration and selectors to be inherited by this request.\n\nA class is required. Which classes are available depends on the cluster.\n\nAdministrators may use this to restrict which devices may get requested by only installing classes with selectors for permitted devices. If users are free to request anything without restrictions, then administrators can create an empty DeviceClass for users to reference.",
+							Description: "DeviceClassName references a specific DeviceClass, which can define additional configuration and selectors to be inherited by this request.\n\nA class is required if no subrequests are specified in the firstAvailableOf slice. Which classes are available depends on the cluster.\n\nAdministrators may use this to restrict which devices may get requested by only installing classes with selectors for permitted devices. If users are free to request anything without restrictions, then administrators can create an empty DeviceClass for users to reference.",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -47051,12 +47053,31 @@ func schema_k8sio_api_resource_v1alpha3_DeviceRequest(ref common.ReferenceCallba
 							Format:      "",
 						},
 					},
+					"firstAvailableOf": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-type": "atomic",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Description: "FirstAvailableOf contains subrequests, exactly one of which must be satisfied in order to satisfy this request. This field may only be set in the entries of DeviceClaim.Requests.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("k8s.io/api/resource/v1alpha3.DeviceSubRequest"),
+									},
+								},
+							},
+						},
+					},
 				},
-				Required: []string{"name", "deviceClassName"},
+				Required: []string{"name"},
 			},
 		},
 		Dependencies: []string{
-			"k8s.io/api/resource/v1alpha3.DeviceSelector"},
+			"k8s.io/api/resource/v1alpha3.DeviceSelector", "k8s.io/api/resource/v1alpha3.DeviceSubRequest"},
 	}
 }
 
@@ -47069,7 +47090,7 @@ func schema_k8sio_api_resource_v1alpha3_DeviceRequestAllocationResult(ref common
 				Properties: map[string]spec.Schema{
 					"request": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Request is the name of the request in the claim which caused this device to be allocated. Multiple devices may have been allocated per request.",
+							Description: "Request is the name of the request in the claim which caused this device to be allocated. If it references a subrequest in the firstAvailableOf list on a DeviceRequest, this field must include both the name of the parent request and the subrequest using the format <parent request>/<subrequest>.\n\nMultiple devices may have been allocated per request.",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -47131,6 +47152,71 @@ func schema_k8sio_api_resource_v1alpha3_DeviceSelector(ref common.ReferenceCallb
 		},
 		Dependencies: []string{
 			"k8s.io/api/resource/v1alpha3.CELDeviceSelector"},
+	}
+}
+
+func schema_k8sio_api_resource_v1alpha3_DeviceSubRequest(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "DeviceSubRequest describes a request for device provided in the claim.spec.devices.requests[].firstAvailableOf array. Each is typically a request for a single resource like a device, but can also ask for several identical devices.\n\nDeviceSubRequest is similar to Request, but doesn't expose the AdminAccess (not supported) or FirstAvailableOf (recursion not supported) fields, as those can only be set on the top-level request.\n\nA DeviceClassName is currently required. Clients must check that it is indeed set. It's absence indicates that something changed in a way that is not supported by the client yet, in which case it must refuse to handle the request.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"name": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Name can be used to reference this subrequest in a pod.spec.containers[].resources.claims entry and in a constraint of the claim. References must use the format <parent request>/<subrequest>.\n\nMust be a DNS label.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"deviceClassName": {
+						SchemaProps: spec.SchemaProps{
+							Description: "DeviceClassName references a specific DeviceClass, which can define additional configuration and selectors to be inherited by this subrequest.\n\nA class is required. Which classes are available depends on the cluster.\n\nAdministrators may use this to restrict which devices may get requested by only installing classes with selectors for permitted devices. If users are free to request anything without restrictions, then administrators can create an empty DeviceClass for users to reference.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"selectors": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-type": "atomic",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Description: "Selectors define criteria which must be satisfied by a specific device in order for that device to be considered for this request. All selectors must be satisfied for a device to be considered.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("k8s.io/api/resource/v1alpha3.DeviceSelector"),
+									},
+								},
+							},
+						},
+					},
+					"allocationMode": {
+						SchemaProps: spec.SchemaProps{
+							Description: "AllocationMode and its related fields define how devices are allocated to satisfy this request. Supported values are:\n\n- ExactCount: This request is for a specific number of devices.\n  This is the default. The exact number is provided in the\n  count field.\n\n- All: This request is for all of the matching devices in a pool.\n  Allocation will fail if some devices are already allocated,\n  unless adminAccess is requested.\n\nIf AlloctionMode is not specified, the default mode is ExactCount. If the mode is ExactCount and count is not specified, the default count is one. Any other requests must specify this field.\n\nMore modes may get added in the future. Clients must refuse to handle requests with unknown modes.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"count": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Count is used only when the count mode is \"ExactCount\". Must be greater than zero. If AllocationMode is ExactCount and this field is not specified, the default is one.",
+							Type:        []string{"integer"},
+							Format:      "int64",
+						},
+					},
+				},
+				Required: []string{"name"},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/api/resource/v1alpha3.DeviceSelector"},
 	}
 }
 
@@ -47998,7 +48084,7 @@ func schema_k8sio_api_resource_v1beta1_DeviceAllocationConfiguration(ref common.
 							},
 						},
 						SchemaProps: spec.SchemaProps{
-							Description: "Requests lists the names of requests where the configuration applies. If empty, its applies to all requests.",
+							Description: "Requests lists the names of requests where the configuration applies. If empty, its applies to all requests.\n\nReferences to subrequests must include the name of both the parent request and the subrequest using the format <parent request>/<subrequest>. If just the parent request is given, the configuration applies to all subrequests.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -48228,7 +48314,7 @@ func schema_k8sio_api_resource_v1beta1_DeviceClaimConfiguration(ref common.Refer
 							},
 						},
 						SchemaProps: spec.SchemaProps{
-							Description: "Requests lists the names of requests where the configuration applies. If empty, it applies to all requests.",
+							Description: "Requests lists the names of requests where the configuration applies. If empty, it applies to all requests.\n\nReferences to subrequests must include the name of both the parent request and the subrequest using the format <parent request>/<subrequest>. if just the parent request is given, the configuration applies to all subrequests.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -48459,7 +48545,7 @@ func schema_k8sio_api_resource_v1beta1_DeviceConstraint(ref common.ReferenceCall
 							},
 						},
 						SchemaProps: spec.SchemaProps{
-							Description: "Requests is a list of the one or more requests in this claim which must co-satisfy this constraint. If a request is fulfilled by multiple devices, then all of the devices must satisfy the constraint. If this is not specified, this constraint applies to all requests in this claim.",
+							Description: "Requests is a list of the one or more requests in this claim which must co-satisfy this constraint. If a request is fulfilled by multiple devices, then all of the devices must satisfy the constraint. If this is not specified, this constraint applies to all requests in this claim.\n\nReferences to subrequests must include the name of both the parent request and the subrequest using the format <parent request>/<subrequest>. If just the parent request is given, the constraint applies to all subrequests.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -48489,12 +48575,12 @@ func schema_k8sio_api_resource_v1beta1_DeviceRequest(ref common.ReferenceCallbac
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "DeviceRequest is a request for devices required for a claim. This is typically a request for a single resource like a device, but can also ask for several identical devices.\n\nA DeviceClassName is currently required. Clients must check that it is indeed set. It's absence indicates that something changed in a way that is not supported by the client yet, in which case it must refuse to handle the request.",
+				Description: "DeviceRequest is a request for devices required for a claim. This is typically a request for a single resource like a device, but can also ask for several identical devices. It can also provide a list of alternative subrequests using the firstAvailableOf list.\n\nA DeviceClassName is currently required if the firstAvailableOf list is empty. It's absence indicates that something changed in a way that is not supported by the client yet, in which case it must refuse to handle the request. If the firstAvailableOf list has one or more subrequests, then all other fields except the name must be unset.",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"name": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Name can be used to reference this request in a pod.spec.containers[].resources.claims entry and in a constraint of the claim.\n\nMust be a DNS label.",
+							Description: "Name can be used to reference this request in a pod.spec.containers[].resources.claims entry and in a constraint of the claim.\n\nMust be a DNS label and unique among all DeviceRequests in a ResourceClaim.",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -48502,7 +48588,7 @@ func schema_k8sio_api_resource_v1beta1_DeviceRequest(ref common.ReferenceCallbac
 					},
 					"deviceClassName": {
 						SchemaProps: spec.SchemaProps{
-							Description: "DeviceClassName references a specific DeviceClass, which can define additional configuration and selectors to be inherited by this request.\n\nA class is required. Which classes are available depends on the cluster.\n\nAdministrators may use this to restrict which devices may get requested by only installing classes with selectors for permitted devices. If users are free to request anything without restrictions, then administrators can create an empty DeviceClass for users to reference.",
+							Description: "DeviceClassName references a specific DeviceClass, which can define additional configuration and selectors to be inherited by this request.\n\nA class is required if no subrequests are specified in the firstAvailableOf slice. Which classes are available depends on the cluster.\n\nAdministrators may use this to restrict which devices may get requested by only installing classes with selectors for permitted devices. If users are free to request anything without restrictions, then administrators can create an empty DeviceClass for users to reference.",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -48548,12 +48634,31 @@ func schema_k8sio_api_resource_v1beta1_DeviceRequest(ref common.ReferenceCallbac
 							Format:      "",
 						},
 					},
+					"firstAvailableOf": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-type": "atomic",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Description: "FirstAvailableOf contains subrequests, exactly one of which must be satisfied in order to satisfy this request. This field may only be set in the entries of DeviceClaim.Requests.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("k8s.io/api/resource/v1beta1.DeviceSubRequest"),
+									},
+								},
+							},
+						},
+					},
 				},
-				Required: []string{"name", "deviceClassName"},
+				Required: []string{"name"},
 			},
 		},
 		Dependencies: []string{
-			"k8s.io/api/resource/v1beta1.DeviceSelector"},
+			"k8s.io/api/resource/v1beta1.DeviceSelector", "k8s.io/api/resource/v1beta1.DeviceSubRequest"},
 	}
 }
 
@@ -48566,7 +48671,7 @@ func schema_k8sio_api_resource_v1beta1_DeviceRequestAllocationResult(ref common.
 				Properties: map[string]spec.Schema{
 					"request": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Request is the name of the request in the claim which caused this device to be allocated. Multiple devices may have been allocated per request.",
+							Description: "Request is the name of the request in the claim which caused this device to be allocated. If it references a subrequest in the firstAvailableOf list on a DeviceRequest, this field must include both the name of the parent request and the subrequest using the format <parent request>/<subrequest>.\n\nMultiple devices may have been allocated per request.",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -48628,6 +48733,71 @@ func schema_k8sio_api_resource_v1beta1_DeviceSelector(ref common.ReferenceCallba
 		},
 		Dependencies: []string{
 			"k8s.io/api/resource/v1beta1.CELDeviceSelector"},
+	}
+}
+
+func schema_k8sio_api_resource_v1beta1_DeviceSubRequest(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "DeviceSubRequest describes a request for device provided in the claim.spec.devices.requests[].firstAvailableOf array. Each is typically a request for a single resource like a device, but can also ask for several identical devices.\n\nDeviceSubRequest is similar to Request, but doesn't expose the AdminAccess (not supported) or FirstAvailableOf (recursion not supported) fields, as those can only be set on the top-level request.\n\nA DeviceClassName is currently required. Clients must check that it is indeed set. It's absence indicates that something changed in a way that is not supported by the client yet, in which case it must refuse to handle the request.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"name": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Name can be used to reference this subrequest in a pod.spec.containers[].resources.claims entry and in a constraint of the claim. References must use the format <parent request>/<subrequest>.\n\nMust be a DNS label.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"deviceClassName": {
+						SchemaProps: spec.SchemaProps{
+							Description: "DeviceClassName references a specific DeviceClass, which can define additional configuration and selectors to be inherited by this subrequest.\n\nA class is required. Which classes are available depends on the cluster.\n\nAdministrators may use this to restrict which devices may get requested by only installing classes with selectors for permitted devices. If users are free to request anything without restrictions, then administrators can create an empty DeviceClass for users to reference.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"selectors": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-type": "atomic",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Description: "Selectors define criteria which must be satisfied by a specific device in order for that device to be considered for this subrequest. All selectors must be satisfied for a device to be considered.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("k8s.io/api/resource/v1beta1.DeviceSelector"),
+									},
+								},
+							},
+						},
+					},
+					"allocationMode": {
+						SchemaProps: spec.SchemaProps{
+							Description: "AllocationMode and its related fields define how devices are allocated to satisfy this subrequest. Supported values are:\n\n- ExactCount: This request is for a specific number of devices.\n  This is the default. The exact number is provided in the\n  count field.\n\n- All: This subrequest is for all of the matching devices in a pool.\n  Allocation will fail if some devices are already allocated,\n  unless adminAccess is requested.\n\nIf AlloctionMode is not specified, the default mode is ExactCount. If the mode is ExactCount and count is not specified, the default count is one. Any other subrequests must specify this field.\n\nMore modes may get added in the future. Clients must refuse to handle requests with unknown modes.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"count": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Count is used only when the count mode is \"ExactCount\". Must be greater than zero. If AllocationMode is ExactCount and this field is not specified, the default is one.",
+							Type:        []string{"integer"},
+							Format:      "int64",
+						},
+					},
+				},
+				Required: []string{"name"},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/api/resource/v1beta1.DeviceSelector"},
 	}
 }
 
