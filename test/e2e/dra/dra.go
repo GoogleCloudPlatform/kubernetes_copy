@@ -1302,8 +1302,8 @@ var _ = framework.SIGDescribe("node")("DRA", feature.DynamicResourceAllocation, 
 				Slices: make([]resourceslice.Slice, numSlices),
 			}
 			for i := 0; i < numSlices; i++ {
-				devices := make([]resourceapi.Device, resourceapi.ResourceSliceMaxDevices)
-				for e := 0; e < resourceapi.ResourceSliceMaxDevices; e++ {
+				devices := make([]resourceapi.Device, resourceapi.ResourceSliceMaxDevicesAndMixins)
+				for e := 0; e < resourceapi.ResourceSliceMaxDevicesAndMixins; e++ {
 					device := resourceapi.Device{
 						Name: devicePrefix + strings.Repeat("x", validation.DNS1035LabelMaxLength-len(devicePrefix)-4) + fmt.Sprintf("%04d", e),
 						Basic: &resourceapi.BasicDevice{

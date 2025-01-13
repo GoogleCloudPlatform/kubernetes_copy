@@ -35,6 +35,7 @@ type ResourceSliceSpec struct {
 	NodeSelector *v1.NodeSelector
 	AllNodes     bool
 	Devices      []Device
+	DeviceMixins []DeviceMixin
 }
 
 type ResourcePool struct {
@@ -43,13 +44,35 @@ type ResourcePool struct {
 	ResourceSliceCount int64
 }
 type Device struct {
-	Name  UniqueString
-	Basic *BasicDevice
+	Name UniqueString
+
+	// Instead of distinguishing between basic and composite devices,
+	// both types of devices get mapped to a CompositeDevice. This
+	// works because they are mutually exclusive and BasicDevice
+	// is a subset of CompositeDevice.
+	//
+	// This can be nil for some future, currently unknown device type.
+	Composite *CompositeDevice
 }
 
 type BasicDevice struct {
 	Attributes map[QualifiedName]DeviceAttribute
 	Capacity   map[QualifiedName]DeviceCapacity
+}
+
+type CompositeDevice struct {
+	Includes             []DeviceMixinRef // Conversion already resolves this, can be ignored during allocation.
+	ConsumesCapacityFrom []DeviceRef
+	Attributes           map[QualifiedName]DeviceAttribute
+	Capacity             map[QualifiedName]DeviceCapacity
+}
+
+type DeviceMixinRef struct {
+	Name string
+}
+
+type DeviceRef struct {
+	Name string
 }
 
 type QualifiedName string
@@ -65,4 +88,14 @@ type DeviceAttribute struct {
 
 type DeviceCapacity struct {
 	Value resource.Quantity
+}
+
+type DeviceMixin struct {
+	Name      string
+	Composite *CompositeDeviceMixin
+}
+
+type CompositeDeviceMixin struct {
+	Attributes map[QualifiedName]DeviceAttribute
+	Capacity   map[QualifiedName]DeviceCapacity
 }

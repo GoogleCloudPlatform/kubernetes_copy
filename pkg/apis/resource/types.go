@@ -134,11 +134,29 @@ type ResourceSliceSpec struct {
 
 	// Devices lists some or all of the devices in this pool.
 	//
-	// Must not have more than 128 entries.
+	// The total number of mixins and devices must be less than 128.
 	//
 	// +optional
 	// +listType=atomic
 	Devices []Device
+
+	// DeviceMixins represents a list of device mixins, i.e. a collection of
+	// shared attributes and capacities that an actual device can "include"
+	// to extend the set of attributes and capacities it already defines.
+	//
+	// The main purposes of these mixins is to reduce the memory footprint
+	// of devices since they can reference the mixins provided here rather
+	// than duplicate them.
+	//
+	// The total number of mixins and devices must be less than 128.
+	//
+	// This is an alpha field and requires enabling the DRAPartitionableDevices
+	// feature gate.
+	//
+	// +optional
+	// +listType=atomic
+	// +featureGate=DRAPartitionableDevices
+	DeviceMixins []DeviceMixin
 }
 
 // ResourcePool describes the pool that ResourceSlices belong to.
@@ -179,8 +197,10 @@ type ResourcePool struct {
 }
 
 const ResourceSliceMaxSharedCapacity = 128
-const ResourceSliceMaxDevices = 128
+const ResourceSliceMaxDevicesAndMixins = 128
 const PoolNameMaxLength = validation.DNS1123SubdomainMaxLength // Same as for a single node name.
+const ResourceSliceMaxDeviceMixinRefs = 8
+const ResourceSliceMaxDeviceRefs = 8
 
 // Device represents one individual hardware instance that can be selected based
 // on its attributes. Besides the name, exactly one field must be set.
@@ -196,6 +216,16 @@ type Device struct {
 	// +optional
 	// +oneOf=deviceType
 	Basic *BasicDevice
+
+	// Composite defines one composite device instance.
+	//
+	// This is an alpha field and requires enabling the DRAPartitionableDevices
+	// feature gate.
+	//
+	// +optional
+	// +oneOf=deviceType
+	// +featureGate=DRAAdminAccess
+	Composite *CompositeDevice
 }
 
 // BasicDevice defines one device instance.
@@ -215,6 +245,83 @@ type BasicDevice struct {
 	//
 	// +optional
 	Capacity map[QualifiedName]DeviceCapacity
+}
+
+// CompositeDevice defines one device instance.
+type CompositeDevice struct {
+	// Includes defines the set of device mixins that this device includes.
+	//
+	// The propertes of each included mixin are applied to this device in
+	// order. Conflicting properties from multiple mixins are taken from the
+	// last mixin listed that contains them.
+	//
+	// The maximum number of mixins that can be included is 8.
+	//
+	// +optional
+	// +listType=atomic
+	// +featureGate=DRAPartitionableDevices
+	Includes []DeviceMixinRef
+
+	// ConsumesCapacityFrom defines the set of devices where any capacity
+	// consumed by this device should be pulled from. This applies recursively.
+	// In cases where the device names itself as its source, the recursion is
+	// halted.
+	//
+	// Conflicting capacities from multiple devices are taken from the
+	// last device listed that contains them.
+	//
+	// The maximum number of devices that can be referenced is 8.
+	//
+	// +optional
+	// +listType=atomic
+	// +featureGate=DRAPartitionableDevices
+	ConsumesCapacityFrom []DeviceRef
+
+	// Attributes defines the set of attributes for this device.
+	// The name of each attribute must be unique in that set.
+	//
+	// To ensure this uniqueness, attributes defined by the vendor
+	// must be listed without the driver name as domain prefix in
+	// their name. All others must be listed with their domain prefix.
+	//
+	// Conflicting attributes from those provided via mixins are
+	// overwritten by the ones provided here.
+	//
+	// The maximum number of attributes and capacities combined is 32.
+	//
+	// +optional
+	Attributes map[QualifiedName]DeviceAttribute
+
+	// Capacity defines the set of capacities for this device.
+	// The name of each capacity must be unique in that set.
+	//
+	// To ensure this uniqueness, capacities defined by the vendor
+	// must be listed without the driver name as domain prefix in
+	// their name. All others must be listed with their domain prefix.
+	//
+	// Conflicting capacities from those provided via mixins are
+	// overwritten by the ones provided here.
+	//
+	// The maximum number of attributes and capacities combined is 32.
+	//
+	// +optional
+	Capacity map[QualifiedName]DeviceCapacity
+}
+
+// DeviceMixinRef defines a reference to a device mixin.
+type DeviceMixinRef struct {
+	// Name refers to the name of a device mixin in the pool.
+	//
+	// +required
+	Name string
+}
+
+// DeviceRef defines a reference to a device.
+type DeviceRef struct {
+	// Name refers to the name of a device in the pool.
+	//
+	// +required
+	Name string
 }
 
 // DeviceCapacity describes a quantity associated with a device.
@@ -292,6 +399,55 @@ type DeviceAttribute struct {
 
 // DeviceAttributeMaxValueLength is the maximum length of a string or version attribute value.
 const DeviceAttributeMaxValueLength = 64
+
+// DeviceMixin defines a specific device mixin for each device type.
+// Besides the name, exactly one field must be set.
+type DeviceMixin struct {
+	// Name is a unique identifier among all mixins managed by the driver
+	// in the pool. It must be a DNS label.
+	//
+	// +required
+	Name string
+
+	// Composite defines a mixin usable by a composite device.
+	//
+	// +optional
+	// +oneOf=deviceMixinType
+	Composite *CompositeDeviceMixin
+}
+
+// CompositeDeviceMixin defines a mixin that a composite device can include.
+type CompositeDeviceMixin struct {
+	// Attributes defines the set of attributes for this mixin.
+	// The name of each attribute must be unique in that set.
+	//
+	// To ensure this uniqueness, attributes defined by the vendor
+	// must be listed without the driver name as domain prefix in
+	// their name. All others must be listed with their domain prefix.
+	//
+	// Conflicting attributes from those provided via other mixins are
+	// overwritten by the ones provided here.
+	//
+	// The maximum number of attributes and capacities combined is 32.
+	//
+	// +optional
+	Attributes map[QualifiedName]DeviceAttribute
+
+	// Capacity defines the set of capacities for this mixin.
+	// The name of each capacity must be unique in that set.
+	//
+	// To ensure this uniqueness, capacities defined by the vendor
+	// must be listed without the driver name as domain prefix in
+	// their name. All others must be listed with their domain prefix.
+	//
+	// Conflicting capacities from those provided via other mixins are
+	// overwritten by the ones provided here.
+	//
+	// The maximum number of attributes and capacities combined is 32.
+	//
+	// +optional
+	Capacity map[QualifiedName]DeviceCapacity
+}
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 

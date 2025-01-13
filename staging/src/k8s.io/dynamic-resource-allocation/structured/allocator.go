@@ -430,9 +430,9 @@ func (a *allocator) validateDeviceRequest(request requestAccessor, parentRequest
 					}
 					if selectable {
 						device := deviceWithID{
-							id:    DeviceID{Driver: slice.Spec.Driver, Pool: slice.Spec.Pool.Name, Device: slice.Spec.Devices[deviceIndex].Name},
-							basic: slice.Spec.Devices[deviceIndex].Basic,
-							slice: slice,
+							id:     DeviceID{Driver: slice.Spec.Driver, Pool: slice.Spec.Pool.Name, Device: slice.Spec.Devices[deviceIndex].Name},
+							device: slice.Spec.Devices[deviceIndex].Composite,
+							slice:  slice,
 						}
 						requestData.allDevices = append(requestData.allDevices, device)
 					}
@@ -516,9 +516,9 @@ type requestData struct {
 }
 
 type deviceWithID struct {
-	id    DeviceID
-	basic *draapi.BasicDevice
-	slice *draapi.ResourceSlice
+	id     DeviceID
+	device *draapi.CompositeDevice
+	slice  *draapi.ResourceSlice
 }
 
 type internalAllocationResult struct {
@@ -544,11 +544,11 @@ type constraint interface {
 	// add is called whenever a device is about to be allocated. It must
 	// check whether the device matches the constraint and if yes,
 	// track that it is allocated.
-	add(requestName, subRequestName string, device *draapi.BasicDevice, deviceID DeviceID) bool
+	add(requestName, subRequestName string, device *draapi.CompositeDevice, deviceID DeviceID) bool
 
 	// For every successful add there is exactly one matching removed call
 	// with the exact same parameters.
-	remove(requestName, subRequestName string, device *draapi.BasicDevice, deviceID DeviceID)
+	remove(requestName, subRequestName string, device *draapi.CompositeDevice, deviceID DeviceID)
 }
 
 // matchAttributeConstraint compares an attribute value across devices.
@@ -567,7 +567,7 @@ type matchAttributeConstraint struct {
 	numDevices int
 }
 
-func (m *matchAttributeConstraint) add(requestName, subRequestName string, device *draapi.BasicDevice, deviceID DeviceID) bool {
+func (m *matchAttributeConstraint) add(requestName, subRequestName string, device *draapi.CompositeDevice, deviceID DeviceID) bool {
 	if m.requestNames.Len() > 0 && !m.matches(requestName, subRequestName) {
 		// Device not affected by constraint.
 		m.logger.V(7).Info("Constraint does not apply to request", "request", requestName)
@@ -624,7 +624,7 @@ func (m *matchAttributeConstraint) add(requestName, subRequestName string, devic
 	return true
 }
 
-func (m *matchAttributeConstraint) remove(requestName, subRequestName string, device *draapi.BasicDevice, deviceID DeviceID) {
+func (m *matchAttributeConstraint) remove(requestName, subRequestName string, device *draapi.CompositeDevice, deviceID DeviceID) {
 	if m.requestNames.Len() > 0 && !m.matches(requestName, subRequestName) {
 		// Device not affected by constraint.
 		return
@@ -643,7 +643,7 @@ func (m *matchAttributeConstraint) matches(requestName, subRequestName string) b
 	}
 }
 
-func lookupAttribute(device *draapi.BasicDevice, deviceID DeviceID, attributeName draapi.FullyQualifiedName) *draapi.DeviceAttribute {
+func lookupAttribute(device *draapi.CompositeDevice, deviceID DeviceID, attributeName draapi.FullyQualifiedName) *draapi.DeviceAttribute {
 	// Fully-qualified match?
 	if attr, ok := device.Attributes[draapi.QualifiedName(attributeName)]; ok {
 		return &attr
@@ -843,9 +843,9 @@ func (alloc *allocator) allocateOne(r deviceIndices, allocateSubRequest bool) (b
 
 				// Finally treat as allocated and move on to the next device.
 				device := deviceWithID{
-					id:    deviceID,
-					basic: slice.Spec.Devices[deviceIndex].Basic,
-					slice: slice,
+					id:     deviceID,
+					device: slice.Spec.Devices[deviceIndex].Composite,
+					slice:  slice,
 				}
 				allocated, deallocate, err := alloc.allocateDevice(r, device, false)
 				if err != nil {
@@ -892,7 +892,7 @@ func (alloc *allocator) allocateOne(r deviceIndices, allocateSubRequest bool) (b
 // isSelectable checks whether a device satisfies the request and class selectors.
 func (alloc *allocator) isSelectable(r requestIndices, requestData requestData, slice *draapi.ResourceSlice, deviceIndex int) (bool, error) {
 	// This is the only supported device type at the moment.
-	device := slice.Spec.Devices[deviceIndex].Basic
+	device := slice.Spec.Devices[deviceIndex].Composite
 	if device == nil {
 		// Must be some future, unknown device type. We cannot select it.
 		return false, nil
@@ -931,7 +931,7 @@ func (alloc *allocator) isSelectable(r requestIndices, requestData requestData, 
 
 }
 
-func (alloc *allocator) selectorsMatch(r requestIndices, device *draapi.BasicDevice, deviceID DeviceID, class *resourceapi.DeviceClass, selectors []resourceapi.DeviceSelector) (bool, error) {
+func (alloc *allocator) selectorsMatch(r requestIndices, device *draapi.CompositeDevice, deviceID DeviceID, class *resourceapi.DeviceClass, selectors []resourceapi.DeviceSelector) (bool, error) {
 	for i, selector := range selectors {
 		expr := alloc.celCache.GetOrCompile(selector.CEL.Expression)
 		if expr.Error != nil {
@@ -948,9 +948,9 @@ func (alloc *allocator) selectorsMatch(r requestIndices, device *draapi.BasicDev
 
 		// If this conversion turns out to be expensive, the CEL package could be converted
 		// to use unique strings.
-		var d resourceapi.BasicDevice
-		if err := draapi.Convert_api_BasicDevice_To_v1beta1_BasicDevice(device, &d, nil); err != nil {
-			return false, fmt.Errorf("convert BasicDevice: %w", err)
+		var d resourceapi.CompositeDevice
+		if err := draapi.Convert_api_CompositeDevice_To_v1beta1_CompositeDevice(device, &d, nil); err != nil {
+			return false, fmt.Errorf("convert CompositeDevice: %w", err)
 		}
 		matches, details, err := expr.DeviceMatches(alloc.ctx, cel.Device{Driver: deviceID.Driver.String(), Attributes: d.Attributes, Capacity: d.Capacity})
 		if class != nil {
@@ -1005,7 +1005,7 @@ func (alloc *allocator) allocateDevice(r deviceIndices, device deviceWithID, mus
 
 	// It's available. Now check constraints.
 	for i, constraint := range alloc.constraints[r.claimIndex] {
-		added := constraint.add(baseRequestName, subRequestName, device.basic, device.id)
+		added := constraint.add(baseRequestName, subRequestName, device.device, device.id)
 		if !added {
 			if must {
 				// It does not make sense to declare a claim where a constraint prevents getting
@@ -1015,7 +1015,7 @@ func (alloc *allocator) allocateDevice(r deviceIndices, device deviceWithID, mus
 
 			// Roll back for all previous constraints before we return.
 			for e := 0; e < i; e++ {
-				alloc.constraints[r.claimIndex][e].remove(baseRequestName, subRequestName, device.basic, device.id)
+				alloc.constraints[r.claimIndex][e].remove(baseRequestName, subRequestName, device.device, device.id)
 			}
 			return false, nil, nil
 		}
@@ -1041,7 +1041,7 @@ func (alloc *allocator) allocateDevice(r deviceIndices, device deviceWithID, mus
 
 	return true, func() {
 		for _, constraint := range alloc.constraints[r.claimIndex] {
-			constraint.remove(baseRequestName, subRequestName, device.basic, device.id)
+			constraint.remove(baseRequestName, subRequestName, device.device, device.id)
 		}
 		if !request.adminAccess() {
 			alloc.allocatingDevices[device.id] = false
