@@ -383,17 +383,21 @@ const (
 
 // DeviceRequest is a request for devices required for a claim.
 // This is typically a request for a single resource like a device, but can
-// also ask for several identical devices.
+// also ask for several identical devices. It can also provide a list
+// of alternative subrequests using the firstAvailableOf list.
 //
-// A DeviceClassName is currently required. Clients must check that it is
-// indeed set. It's absence indicates that something changed in a way that
+// A DeviceClassName is currently required if the firstAvailableOf list is
+// empty. It's absence indicates that something changed in a way that
 // is not supported by the client yet, in which case it must refuse to
 // handle the request.
+// If the firstAvailableOf list has one or more subrequests, then
+// all other fields except the name must be unset.
 type DeviceRequest struct {
 	// Name can be used to reference this request in a pod.spec.containers[].resources.claims
 	// entry and in a constraint of the claim.
 	//
-	// Must be a DNS label.
+	// Must be a DNS label and unique among all DeviceRequests in a
+	// ResourceClaim.
 	//
 	// +required
 	Name string
@@ -402,7 +406,8 @@ type DeviceRequest struct {
 	// additional configuration and selectors to be inherited by this
 	// request.
 	//
-	// A class is required. Which classes are available depends on the cluster.
+	// A class is required if no subrequests are specified in the
+	// firstAvailableOf slice. Which classes are available depends on the cluster.
 	//
 	// Administrators may use this to restrict which devices may get
 	// requested by only installing classes with selectors for permitted
@@ -410,7 +415,8 @@ type DeviceRequest struct {
 	// then administrators can create an empty DeviceClass for users
 	// to reference.
 	//
-	// +required
+	// +optional
+	// +oneOf=deviceRequestType
 	DeviceClassName string
 
 	// Selectors define criteria which must be satisfied by a specific
@@ -463,10 +469,97 @@ type DeviceRequest struct {
 	// +optional
 	// +featureGate=DRAAdminAccess
 	AdminAccess *bool
+
+	// FirstAvailableOf contains subrequests, exactly one of which must be satisfied
+	// in order to satisfy this request. This field may only be set in the
+	// entries of DeviceClaim.Requests.
+	//
+	// +optional
+	// +oneOf=deviceRequestType
+	// +listType=atomic
+	// +featureGate=DRAPrioritizedList
+	FirstAvailableOf []DeviceSubRequest
+}
+
+// DeviceSubRequest describes a request for device provided in the
+// claim.spec.devices.requests[].firstAvailableOf array. Each
+// is typically a request for a single resource like a device, but can
+// also ask for several identical devices.
+//
+// DeviceSubRequest is similar to Request, but doesn't expose the AdminAccess (not
+// supported) or FirstAvailableOf (recursion not supported) fields, as those can
+// only be set on the top-level request.
+//
+// A DeviceClassName is currently required. Clients must check that it is
+// indeed set. It's absence indicates that something changed in a way that
+// is not supported by the client yet, in which case it must refuse to
+// handle the request.
+type DeviceSubRequest struct {
+	// Name can be used to reference this subrequest in a pod.spec.containers[].resources.claims
+	// entry and in a constraint of the claim. References must use the
+	// format <parent request>/<subrequest>.
+	//
+	// Must be a DNS label.
+	//
+	// +required
+	Name string
+
+	// DeviceClassName references a specific DeviceClass, which can define
+	// additional configuration and selectors to be inherited by this
+	// subrequest.
+	//
+	// A class is required. Which classes are available depends on the cluster.
+	//
+	// Administrators may use this to restrict which devices may get
+	// requested by only installing classes with selectors for permitted
+	// devices. If users are free to request anything without restrictions,
+	// then administrators can create an empty DeviceClass for users
+	// to reference.
+	//
+	// +optional
+	DeviceClassName string
+
+	// Selectors define criteria which must be satisfied by a specific
+	// device in order for that device to be considered for this
+	// subrequest. All selectors must be satisfied for a device to be
+	// considered.
+	//
+	// +optional
+	// +listType=atomic
+	Selectors []DeviceSelector
+
+	// AllocationMode and its related fields define how devices are allocated
+	// to satisfy this subrequest. Supported values are:
+	//
+	// - ExactCount: This request is for a specific number of devices.
+	//   This is the default. The exact number is provided in the
+	//   count field.
+	//
+	// - All: This subrequest is for all of the matching devices in a pool.
+	//   Allocation will fail if some devices are already allocated,
+	//   unless adminAccess is requested.
+	//
+	// If AlloctionMode is not specified, the default mode is ExactCount. If
+	// the mode is ExactCount and count is not specified, the default count is
+	// one. Any other subrequests must specify this field.
+	//
+	// More modes may get added in the future. Clients must refuse to handle
+	// requests with unknown modes.
+	//
+	// +optional
+	AllocationMode DeviceAllocationMode
+
+	// Count is used only when the count mode is "ExactCount". Must be greater than zero.
+	// If AllocationMode is ExactCount and this field is not specified, the default is one.
+	//
+	// +optional
+	// +oneOf=AllocationMode
+	Count int64
 }
 
 const (
-	DeviceSelectorsMaxSize = 32
+	DeviceSelectorsMaxSize               = 32
+	FirstAvailableOfDeviceRequestMaxSize = 8
 )
 
 type DeviceAllocationMode string
@@ -579,6 +672,10 @@ type DeviceConstraint struct {
 	// constraint. If this is not specified, this constraint applies to all
 	// requests in this claim.
 	//
+	// References to subrequests must include the name of both the parent request
+	// and the subrequest using the format <parent request>/<subrequest>. If just
+	// the parent request is given, the constraint applies to all subrequests.
+	//
 	// +optional
 	// +listType=atomic
 	Requests []string
@@ -615,6 +712,10 @@ type DeviceConstraint struct {
 type DeviceClaimConfiguration struct {
 	// Requests lists the names of requests where the configuration applies.
 	// If empty, it applies to all requests.
+	//
+	// References to subrequests must include the name of both the parent request
+	// and the subrequest using the format <parent request>/<subrequest>. If just
+	// the parent request is given, the configuration applies to all subrequests.
 	//
 	// +optional
 	// +listType=atomic
@@ -788,8 +889,12 @@ const AllocationResultsMaxSize = 32
 // DeviceRequestAllocationResult contains the allocation result for one request.
 type DeviceRequestAllocationResult struct {
 	// Request is the name of the request in the claim which caused this
-	// device to be allocated. Multiple devices may have been allocated
-	// per request.
+	// device to be allocated. If it references a subrequest in the
+	// firstAvailableOf list on a DeviceRequest, this field must
+	// include both the name of the parent request and the subrequest
+	// using the format <parent request>/<subrequest>.
+	//
+	// Multiple devices may have been allocated per request.
 	//
 	// +required
 	Request string
@@ -843,6 +948,10 @@ type DeviceAllocationConfiguration struct {
 
 	// Requests lists the names of requests where the configuration applies.
 	// If empty, its applies to all requests.
+	//
+	// References to subrequests must include the name of both the parent request
+	// and the subrequest using the format <parent request>/<subrequest>. If just
+	// the parent request is given, the configuration applies to all subrequests.
 	//
 	// +optional
 	// +listType=atomic
