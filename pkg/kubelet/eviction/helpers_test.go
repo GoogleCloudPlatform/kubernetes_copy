@@ -570,6 +570,234 @@ func TestParseThresholdConfig(t *testing.T) {
 	}
 }
 
+func TestParseThresholdStatements(t *testing.T) {
+	testCases := map[string]struct {
+		statements       map[string]string
+		expectErr        bool
+		expectThresholds []evictionapi.Threshold
+	}{
+		"no values": {
+			statements:       map[string]string{},
+			expectErr:        false,
+			expectThresholds: []evictionapi.Threshold{},
+		},
+		"all memory eviction values": {
+			statements: map[string]string{"memory.available": "150Mi"},
+			expectErr:  false,
+			expectThresholds: []evictionapi.Threshold{
+				{
+					Signal:   evictionapi.SignalMemoryAvailable,
+					Operator: evictionapi.OpLessThan,
+					Value: evictionapi.ThresholdValue{
+						Quantity: quantityMustParse("150Mi"),
+					},
+				},
+				{
+					Signal:   evictionapi.SignalNodeFsAvailable,
+					Operator: evictionapi.OpLessThan,
+					Value: evictionapi.ThresholdValue{
+						Percentage: 0.1,
+					},
+				},
+				{
+					Signal:   evictionapi.SignalImageFsAvailable,
+					Operator: evictionapi.OpLessThan,
+					Value: evictionapi.ThresholdValue{
+						Percentage: 0.15,
+					},
+				},
+				{
+					Signal:   evictionapi.SignalImageFsInodesFree,
+					Operator: evictionapi.OpLessThan,
+					Value: evictionapi.ThresholdValue{
+						Percentage: 0.05,
+					},
+				},
+				{
+					Signal:   evictionapi.SignalNodeFsInodesFree,
+					Operator: evictionapi.OpLessThan,
+					Value: evictionapi.ThresholdValue{
+						Percentage: 0.05,
+					},
+				},
+			},
+		},
+		"memory eviction values in percentages": {
+			statements: map[string]string{"memory.available": "10%"},
+			expectErr:  false,
+			expectThresholds: []evictionapi.Threshold{
+				{
+					Signal:   evictionapi.SignalMemoryAvailable,
+					Operator: evictionapi.OpLessThan,
+					Value: evictionapi.ThresholdValue{
+						Percentage: 0.1,
+					},
+				},
+				{
+					Signal:   evictionapi.SignalNodeFsAvailable,
+					Operator: evictionapi.OpLessThan,
+					Value: evictionapi.ThresholdValue{
+						Percentage: 0.1,
+					},
+				},
+				{
+					Signal:   evictionapi.SignalImageFsAvailable,
+					Operator: evictionapi.OpLessThan,
+					Value: evictionapi.ThresholdValue{
+						Percentage: 0.15,
+					},
+				},
+				{
+					Signal:   evictionapi.SignalImageFsInodesFree,
+					Operator: evictionapi.OpLessThan,
+					Value: evictionapi.ThresholdValue{
+						Percentage: 0.05,
+					},
+				},
+				{
+					Signal:   evictionapi.SignalNodeFsInodesFree,
+					Operator: evictionapi.OpLessThan,
+					Value: evictionapi.ThresholdValue{
+						Percentage: 0.05,
+					},
+				},
+			},
+		},
+		"disk eviction values": {
+			statements: map[string]string{"imagefs.available": "150Mi", "nodefs.available": "100Mi"},
+			expectErr:  false,
+			expectThresholds: []evictionapi.Threshold{
+				{
+					Signal:   evictionapi.SignalMemoryAvailable,
+					Operator: evictionapi.OpLessThan,
+					Value: evictionapi.ThresholdValue{
+						Quantity: quantityMustParse("100Mi"),
+					},
+				},
+				{
+					Signal:   evictionapi.SignalNodeFsAvailable,
+					Operator: evictionapi.OpLessThan,
+					Value: evictionapi.ThresholdValue{
+						Quantity: quantityMustParse("100Mi"),
+					},
+				},
+				{
+					Signal:   evictionapi.SignalImageFsAvailable,
+					Operator: evictionapi.OpLessThan,
+					Value: evictionapi.ThresholdValue{
+						Quantity: quantityMustParse("150Mi"),
+					},
+				},
+				{
+					Signal:   evictionapi.SignalImageFsInodesFree,
+					Operator: evictionapi.OpLessThan,
+					Value: evictionapi.ThresholdValue{
+						Percentage: 0.05,
+					},
+				},
+				{
+					Signal:   evictionapi.SignalNodeFsInodesFree,
+					Operator: evictionapi.OpLessThan,
+					Value: evictionapi.ThresholdValue{
+						Percentage: 0.05,
+					},
+				},
+			},
+		},
+		"disk eviction values in percentages": {
+			statements: map[string]string{"imagefs.available": "15%", "nodefs.available": "10.5%"},
+			expectErr:  false,
+			expectThresholds: []evictionapi.Threshold{
+				{
+					Signal:   evictionapi.SignalMemoryAvailable,
+					Operator: evictionapi.OpLessThan,
+					Value: evictionapi.ThresholdValue{
+						Quantity: quantityMustParse("150Mi"),
+					},
+				},
+				{
+					Signal:   evictionapi.SignalNodeFsAvailable,
+					Operator: evictionapi.OpLessThan,
+					Value: evictionapi.ThresholdValue{
+						Percentage: 0.105,
+					},
+				},
+				{
+					Signal:   evictionapi.SignalImageFsAvailable,
+					Operator: evictionapi.OpLessThan,
+					Value: evictionapi.ThresholdValue{
+						Percentage: 0.15,
+					},
+				},
+				{
+					Signal:   evictionapi.SignalImageFsInodesFree,
+					Operator: evictionapi.OpLessThan,
+					Value: evictionapi.ThresholdValue{
+						Percentage: 0.05,
+					},
+				},
+				{
+					Signal:   evictionapi.SignalNodeFsInodesFree,
+					Operator: evictionapi.OpLessThan,
+					Value: evictionapi.ThresholdValue{
+						Percentage: 0.05,
+					},
+				},
+			},
+		},
+		"inode eviction values": {
+			statements: map[string]string{"imagefs.inodesFree": "150Mi", "nodefs.inodesFree": "100Mi"},
+			expectErr:  false,
+			expectThresholds: []evictionapi.Threshold{
+				{
+					Signal:   evictionapi.SignalMemoryAvailable,
+					Operator: evictionapi.OpLessThan,
+					Value: evictionapi.ThresholdValue{
+						Quantity: quantityMustParse("150Mi"),
+					},
+				},
+				{
+					Signal:   evictionapi.SignalNodeFsAvailable,
+					Operator: evictionapi.OpLessThan,
+					Value: evictionapi.ThresholdValue{
+						Percentage: 0.1,
+					},
+				},
+				{
+					Signal:   evictionapi.SignalImageFsAvailable,
+					Operator: evictionapi.OpLessThan,
+					Value: evictionapi.ThresholdValue{
+						Percentage: 0.15,
+					},
+				},
+				{
+					Signal:   evictionapi.SignalImageFsInodesFree,
+					Operator: evictionapi.OpLessThan,
+					Value: evictionapi.ThresholdValue{
+						Quantity: quantityMustParse("150Mi"),
+					},
+				},
+				{
+					Signal:   evictionapi.SignalNodeFsInodesFree,
+					Operator: evictionapi.OpLessThan,
+					Value: evictionapi.ThresholdValue{
+						Quantity: quantityMustParse("100Mi"),
+					},
+				},
+			},
+		},
+	}
+	for testName, testCase := range testCases {
+		thresholds, err := parseThresholdStatements(testCase.statements)
+		if testCase.expectErr != (err != nil) {
+			t.Errorf("Err not as expected, test: %v, error expected: %v, actual: %v", testName, testCase.expectErr, err)
+		}
+		if !thresholdsEqual(testCase.expectThresholds, thresholds) {
+			t.Errorf("thresholds not as expected, test: %v, expected: %v, actual: %v", testName, testCase.expectThresholds, thresholds)
+		}
+	}
+}
+
 func TestAddAllocatableThresholds(t *testing.T) {
 	// About func addAllocatableThresholds, only someone threshold that "Signal" is "memory.available" and "GracePeriod" is 0,
 	// append this threshold(changed "Signal" to "allocatableMemory.available") to thresholds
