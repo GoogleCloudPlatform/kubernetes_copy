@@ -26,6 +26,8 @@ import (
 type Interface interface {
 	// CertificateSigningRequests returns a CertificateSigningRequestInformer.
 	CertificateSigningRequests() CertificateSigningRequestInformer
+	// ClusterTrustBundles returns a ClusterTrustBundleInformer.
+	ClusterTrustBundles() ClusterTrustBundleInformer
 }
 
 type version struct {
@@ -42,4 +44,9 @@ func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakList
 // CertificateSigningRequests returns a CertificateSigningRequestInformer.
 func (v *version) CertificateSigningRequests() CertificateSigningRequestInformer {
 	return &certificateSigningRequestInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
+}
+
+// ClusterTrustBundles returns a ClusterTrustBundleInformer.
+func (v *version) ClusterTrustBundles() ClusterTrustBundleInformer {
+	return &clusterTrustBundleInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }

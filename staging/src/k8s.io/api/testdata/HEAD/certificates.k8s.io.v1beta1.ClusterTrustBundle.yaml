@@ -1,0 +1,37 @@
+apiVersion: certificates.k8s.io/v1beta1
+kind: ClusterTrustBundle
+metadata:
+  annotations:
+    annotationsKey: annotationsValue
+  creationTimestamp: "2008-01-01T01:01:01Z"
+  deletionGracePeriodSeconds: 10
+  deletionTimestamp: "2009-01-01T01:01:01Z"
+  finalizers:
+  - finalizersValue
+  generateName: generateNameValue
+  generation: 7
+  labels:
+    labelsKey: labelsValue
+  managedFields:
+  - apiVersion: apiVersionValue
+    fieldsType: fieldsTypeValue
+    fieldsV1: {}
+    manager: managerValue
+    operation: operationValue
+    subresource: subresourceValue
+    time: "2004-01-01T01:01:01Z"
+  name: nameValue
+  namespace: namespaceValue
+  ownerReferences:
+  - apiVersion: apiVersionValue
+    blockOwnerDeletion: true
+    controller: true
+    kind: kindValue
+    name: nameValue
+    uid: uidValue
+  resourceVersion: resourceVersionValue
+  selfLink: selfLinkValue
+  uid: uidValue
+spec:
+  signerName: signerNameValue
+  trustBundle: trustBundleValue
