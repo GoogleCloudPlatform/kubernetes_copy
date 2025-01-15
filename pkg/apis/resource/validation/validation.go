@@ -47,6 +47,7 @@ var (
 	validateDeviceName      = corevalidation.ValidateDNS1123Label
 	validateDeviceClassName = corevalidation.ValidateDNS1123Subdomain
 	validateRequestName     = corevalidation.ValidateDNS1123Label
+	validateDeviceMixinName = corevalidation.ValidateDNS1123Label
 )
 
 func validatePoolName(name string, fldPath *field.Path) field.ErrorList {
@@ -599,12 +600,45 @@ func validateResourceSliceSpec(spec, oldSpec *resource.ResourceSliceSpec, fldPat
 		allErrs = append(allErrs, field.Invalid(fldPath, nil, "exactly one of `nodeName`, `nodeSelector`, or `allNodes` is required"))
 	}
 
-	allErrs = append(allErrs, validateSet(spec.Devices, resource.ResourceSliceMaxDevicesAndMixins, validateDevice,
+	allErrs = append(allErrs, validateSet(spec.DeviceMixins, -1, validateDeviceMixin,
+		func(deviceMixin resource.DeviceMixin) (string, string) {
+			return deviceMixin.Name, "name"
+		}, fldPath.Child("deviceMixins"))...)
+
+	deviceMixinNames := gatherDeviceMixinNames(spec.DeviceMixins)
+	deviceNames := gatherDeviceNames(spec.Devices)
+
+	// Warn about exceeding the maximum length only once. If any individual
+	// field is too large, then so is the combination.
+	allErrs = append(allErrs, validateSet(spec.Devices, -1,
+		func(device resource.Device, fldPath *field.Path) field.ErrorList {
+			return validateDevice(device, fldPath, deviceMixinNames, deviceNames)
+		},
 		func(device resource.Device) (string, string) {
 			return device.Name, "name"
 		}, fldPath.Child("devices"))...)
 
+	if combinedLen, max := len(spec.Devices)+len(spec.DeviceMixins), resource.ResourceSliceMaxDevicesAndMixins; combinedLen > max {
+		allErrs = append(allErrs, field.Invalid(fldPath, combinedLen, fmt.Sprintf("the total number of devices and mixins must not exceed %d", max)))
+	}
+
 	return allErrs
+}
+
+func gatherDeviceMixinNames(deviceMixins []resource.DeviceMixin) sets.Set[string] {
+	deviceMixinNames := sets.New[string]()
+	for _, mixin := range deviceMixins {
+		deviceMixinNames.Insert(mixin.Name)
+	}
+	return deviceMixinNames
+}
+
+func gatherDeviceNames(devices []resource.Device) sets.Set[string] {
+	deviceNames := sets.New[string]()
+	for _, device := range devices {
+		deviceNames.Insert((device.Name))
+	}
+	return deviceNames
 }
 
 func validateResourcePool(pool resource.ResourcePool, fldPath *field.Path) field.ErrorList {
@@ -619,13 +653,60 @@ func validateResourcePool(pool resource.ResourcePool, fldPath *field.Path) field
 	return allErrs
 }
 
-func validateDevice(device resource.Device, fldPath *field.Path) field.ErrorList {
+func validateDeviceMixin(deviceMixin resource.DeviceMixin, fldPath *field.Path) field.ErrorList {
+	var allErrs field.ErrorList
+	allErrs = append(allErrs, validateDeviceMixinName(deviceMixin.Name, fldPath.Child("name"))...)
+
+	numDeviceMixinTypeFields := 0
+	if deviceMixin.Composite != nil {
+		numDeviceMixinTypeFields++
+		allErrs = append(allErrs, validateCompositeDeviceMixin(*deviceMixin.Composite, fldPath.Child("composite"))...)
+	}
+	switch numDeviceMixinTypeFields {
+	case 0:
+		allErrs = append(allErrs, field.Required(fldPath, "`composite` is required"))
+	case 1:
+	default:
+		allErrs = append(allErrs, field.Invalid(fldPath, nil, "`composite` is required"))
+	}
+	return allErrs
+}
+
+func validateCompositeDeviceMixin(deviceMixinComposite resource.CompositeDeviceMixin, fldPath *field.Path) field.ErrorList {
+	var allErrs field.ErrorList
+	// Warn about exceeding the maximum length only once. If any individual
+	// field is too large, then so is the combination.
+	maxKeyLen := resource.DeviceMaxDomainLength + 1 + resource.DeviceMaxIDLength
+	allErrs = append(allErrs, validateMap(deviceMixinComposite.Attributes, -1, maxKeyLen, validateQualifiedName, validateDeviceAttribute, fldPath.Child("attributes"))...)
+	allErrs = append(allErrs, validateMap(deviceMixinComposite.Capacity, -1, maxKeyLen, validateQualifiedName, validateDeviceCapacity, fldPath.Child("capacity"))...)
+	if combinedLen, max := len(deviceMixinComposite.Attributes)+len(deviceMixinComposite.Capacity), resource.ResourceSliceMaxAttributesAndCapacitiesPerDevice; combinedLen > max {
+		allErrs = append(allErrs, field.Invalid(fldPath, combinedLen, fmt.Sprintf("the total number of attributes and capacities must not exceed %d", max)))
+	}
+	return allErrs
+}
+
+func validateDevice(device resource.Device, fldPath *field.Path, deviceMixinNames, deviceNames sets.Set[string]) field.ErrorList {
 	var allErrs field.ErrorList
 	allErrs = append(allErrs, validateDeviceName(device.Name, fldPath.Child("name"))...)
-	if device.Basic == nil {
-		allErrs = append(allErrs, field.Required(fldPath.Child("basic"), ""))
-	} else {
+
+	numTypeSelectionField := 0
+
+	if device.Basic != nil {
+		numTypeSelectionField++
 		allErrs = append(allErrs, validateBasicDevice(*device.Basic, fldPath.Child("basic"))...)
+	}
+
+	if device.Composite != nil {
+		numTypeSelectionField++
+		allErrs = append(allErrs, validateCompositeDevice(*device.Composite, fldPath.Child("composite"), deviceMixinNames, deviceNames)...)
+	}
+
+	switch numTypeSelectionField {
+	case 0:
+		allErrs = append(allErrs, field.Required(fldPath, "exactly one of `basic`, or `composite` is required"))
+	case 1:
+	default:
+		allErrs = append(allErrs, field.Invalid(fldPath, nil, "exactly one of `basic`, or `composite` is required"))
 	}
 	return allErrs
 }
@@ -639,6 +720,54 @@ func validateBasicDevice(device resource.BasicDevice, fldPath *field.Path) field
 	allErrs = append(allErrs, validateMap(device.Capacity, -1, maxKeyLen, validateQualifiedName, validateDeviceCapacity, fldPath.Child("capacity"))...)
 	if combinedLen, max := len(device.Attributes)+len(device.Capacity), resource.ResourceSliceMaxAttributesAndCapacitiesPerDevice; combinedLen > max {
 		allErrs = append(allErrs, field.Invalid(fldPath, combinedLen, fmt.Sprintf("the total number of attributes and capacities must not exceed %d", max)))
+	}
+	return allErrs
+}
+
+func validateCompositeDevice(device resource.CompositeDevice, fldPath *field.Path, deviceMixinNames, deviceNames sets.Set[string]) field.ErrorList {
+	var allErrs field.ErrorList
+	// Warn about exceeding the maximum length only once. If any individual
+	// field is too large, then so is the combination.
+	maxKeyLen := resource.DeviceMaxDomainLength + 1 + resource.DeviceMaxIDLength
+	allErrs = append(allErrs, validateMap(device.Attributes, -1, maxKeyLen, validateQualifiedName, validateDeviceAttribute, fldPath.Child("attributes"))...)
+	allErrs = append(allErrs, validateMap(device.Capacity, -1, maxKeyLen, validateQualifiedName, validateDeviceCapacity, fldPath.Child("capacity"))...)
+	if combinedLen, max := len(device.Attributes)+len(device.Capacity), resource.ResourceSliceMaxAttributesAndCapacitiesPerDevice; combinedLen > max {
+		allErrs = append(allErrs, field.Invalid(fldPath, combinedLen, fmt.Sprintf("the total number of attributes and capacities must not exceed %d", max)))
+	}
+
+	allErrs = append(allErrs, validateSet(device.Includes, resource.ResourceSliceMaxDeviceMixinRefs,
+		func(deviceMixinRef resource.DeviceMixinRef, fldPath *field.Path) field.ErrorList {
+			return validateDeviceMixinRef(deviceMixinRef, fldPath, deviceMixinNames)
+		},
+		func(deviceMixinRef resource.DeviceMixinRef) (string, string) {
+			return deviceMixinRef.Name, "name"
+		}, fldPath.Child("includes"))...)
+
+	allErrs = append(allErrs, validateSet(device.ConsumesCapacityFrom, resource.ResourceSliceMaxDeviceRefs,
+		func(deviceRef resource.DeviceRef, fldPath *field.Path) field.ErrorList {
+			return validateDeviceRef(deviceRef, fldPath, deviceNames)
+		},
+		func(deviceRef resource.DeviceRef) (string, string) {
+			return deviceRef.Name, "name"
+		}, fldPath.Child("consumesCapacityFrom"))...)
+
+	return allErrs
+}
+
+func validateDeviceMixinRef(deviceMixinRef resource.DeviceMixinRef, fldPath *field.Path, deviceMixinNames sets.Set[string]) field.ErrorList {
+	var allErrs field.ErrorList
+	allErrs = append(allErrs, validateDeviceMixinName(deviceMixinRef.Name, fldPath.Child("name"))...)
+	if !deviceMixinNames.Has(deviceMixinRef.Name) {
+		allErrs = append(allErrs, field.Invalid(fldPath, deviceMixinRef.Name, "must be the name of a mixin in the resource slice"))
+	}
+	return allErrs
+}
+
+func validateDeviceRef(deviceRef resource.DeviceRef, fldPath *field.Path, deviceNames sets.Set[string]) field.ErrorList {
+	var allErrs field.ErrorList
+	allErrs = append(allErrs, validateDeviceName(deviceRef.Name, fldPath.Child("name"))...)
+	if !deviceNames.Has(deviceRef.Name) {
+		allErrs = append(allErrs, field.Invalid(fldPath, deviceRef.Name, "must be the name of a device in the resource slice"))
 	}
 	return allErrs
 }
