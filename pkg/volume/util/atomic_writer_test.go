@@ -1,6 +1,3 @@
-//go:build linux
-// +build linux
-
 /*
 Copyright 2016 The Kubernetes Authors.
 
@@ -30,6 +27,8 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/sets"
 	utiltesting "k8s.io/client-go/util/testing"
+
+	filesystem "k8s.io/kubernetes/pkg/util/filesystem"
 )
 
 func TestNewAtomicWriter(t *testing.T) {
@@ -251,7 +250,13 @@ func TestPathsToRemove(t *testing.T) {
 			continue
 		}
 
-		if e, a := tc.expected, actual; !e.Equal(a) {
+		// Clean paths. For Windows, this will replace / with \.
+		expected := tc.expected.UnsortedList()
+		for i := 0; i < len(expected); i++ {
+			expected[i] = filepath.Clean(expected[i])
+		}
+		expectedSet := sets.New[string](expected...)
+		if e, a := expectedSet, actual; !e.Equal(a) {
 			t.Errorf("%v: unexpected paths to remove:\nexpected: %v\n     got: %v", tc.name, e, a)
 		}
 	}
@@ -760,7 +765,7 @@ func checkVolumeContents(targetDir, tcName string, payload map[string]FileProjec
 		}
 
 		relativePath := strings.TrimPrefix(path, dataDirPath)
-		relativePath = strings.TrimPrefix(relativePath, "/")
+		relativePath = strings.TrimPrefix(relativePath, string(os.PathSeparator))
 		if strings.HasPrefix(relativePath, "..") {
 			return nil
 		}
@@ -769,13 +774,12 @@ func checkVolumeContents(targetDir, tcName string, payload map[string]FileProjec
 		if err != nil {
 			return err
 		}
-		fileInfo, err := os.Stat(path)
+		mode, err := filesystem.GetFileMode(path)
 		if err != nil {
 			return err
 		}
-		mode := int32(fileInfo.Mode())
 
-		observedPayload[relativePath] = FileProjection{Data: content, Mode: mode}
+		observedPayload[relativePath] = FileProjection{Data: content, Mode: int32(mode)}
 
 		return nil
 	}
@@ -895,7 +899,14 @@ func TestValidatePayload(t *testing.T) {
 			}
 
 			realPaths := getPayloadPaths(real)
-			if !realPaths.Equal(tc.expected) {
+
+			// Clean paths. For Windows, this will replace / with \.
+			expected := tc.expected.List()
+			for i := 0; i < len(expected); i++ {
+				expected[i] = filepath.Clean(expected[i])
+			}
+			expectedSet := sets.NewString(expected...)
+			if !realPaths.Equal(expectedSet) {
 				t.Errorf("%v: unexpected payload paths: %v is not equal to %v", tc.name, realPaths, tc.expected)
 			}
 		}
@@ -978,6 +989,7 @@ func TestCreateUserVisibleFiles(t *testing.T) {
 				t.Fatalf("%v: unable to read symlink %v: %v", tc.name, dataDirPath, err)
 			}
 
+			expectedDest = strings.Replace(expectedDest, "/", string(os.PathSeparator), -1)
 			if expectedDest != destination {
 				t.Fatalf("%v: symlink destination %q not same with expected data dir %q", tc.name, destination, expectedDest)
 			}

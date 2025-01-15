@@ -53,15 +53,14 @@ var _ = SIGDescribe("Projected configMap", func() {
 	   Release: v1.9
 	   Testname: Projected Volume, ConfigMap, volume mode 0400
 	   Description: A Pod is created with projected volume source 'ConfigMap' to store a configMap with permission mode set to 0400. Pod MUST be able to read the content of the ConfigMap successfully and the mode on the volume MUST be -r--------.
-	   This test is marked LinuxOnly since Windows does not support setting specific file permissions.
 	*/
-	framework.ConformanceIt("should be consumable from pods in volume with defaultMode set [LinuxOnly]", f.WithNodeConformance(), func(ctx context.Context) {
+	framework.ConformanceIt("should be consumable from pods in volume with defaultMode set", f.WithNodeConformance(), func(ctx context.Context) {
 		defaultMode := int32(0400)
 		doProjectedConfigMapE2EWithoutMappings(ctx, f, false, 0, &defaultMode)
 	})
 
 	f.It("should be consumable from pods in volume as non-root with defaultMode and fsGroup set [LinuxOnly]", nodefeature.FSGroup, func(ctx context.Context) {
-		// Windows does not support RunAsUser / FSGroup SecurityContext options, and it does not support setting file permissions.
+		// Windows does not support RunAsUser / FSGroup SecurityContext options.
 		e2eskipper.SkipIfNodeOSDistroIs("windows")
 		defaultMode := int32(0440) /* setting fsGroup sets mode to at least 440 */
 		doProjectedConfigMapE2EWithoutMappings(ctx, f, true, 1001, &defaultMode)
@@ -95,9 +94,8 @@ var _ = SIGDescribe("Projected configMap", func() {
 	   Release: v1.9
 	   Testname: Projected Volume, ConfigMap, mapped, volume mode 0400
 	   Description: A Pod is created with projected volume source 'ConfigMap' to store a configMap with permission mode set to 0400. The ConfigMap is also mapped to a custom path. Pod MUST be able to read the content of the ConfigMap from the custom location successfully and the mode on the volume MUST be -r--r--r--.
-	   This test is marked LinuxOnly since Windows does not support setting specific file permissions.
 	*/
-	framework.ConformanceIt("should be consumable from pods in volume with mappings and Item mode set [LinuxOnly]", f.WithNodeConformance(), func(ctx context.Context) {
+	framework.ConformanceIt("should be consumable from pods in volume with mappings and Item mode set", f.WithNodeConformance(), func(ctx context.Context) {
 		mode := int32(0400)
 		doProjectedConfigMapE2EWithMappings(ctx, f, false, 0, &mode)
 	})

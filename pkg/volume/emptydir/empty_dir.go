@@ -35,6 +35,7 @@ import (
 	"k8s.io/kubernetes/pkg/features"
 	"k8s.io/kubernetes/pkg/kubelet/cm"
 	usernamespacefeature "k8s.io/kubernetes/pkg/kubelet/userns"
+	filesystem "k8s.io/kubernetes/pkg/util/filesystem"
 	"k8s.io/kubernetes/pkg/volume"
 	volumeutil "k8s.io/kubernetes/pkg/volume/util"
 	"k8s.io/kubernetes/pkg/volume/util/fsquota"
@@ -459,7 +460,7 @@ func (ed *emptyDir) setupDir(dir string) error {
 		// the thread, clearing the umask, creating the dir, restoring
 		// the umask, and unlocking the thread, we do a chmod to set
 		// the specific bits we need.
-		err := os.Chmod(dir, perm)
+		err := filesystem.Chmod(dir, perm)
 		if err != nil {
 			return err
 		}
@@ -533,6 +534,13 @@ func (ed *emptyDir) teardownDefault(dir string) error {
 	}
 	// Renaming the directory is not required anymore because the operation executor
 	// now handles duplicate operations on the same volume
+
+	// NOTE(claudiub): Apparently, if we don't have write permissions, we can't delete files
+	// with only read permissions set.
+	err := filesystem.Chmod(dir, 0777)
+	if err != nil {
+		return err
+	}
 	return os.RemoveAll(dir)
 }
 

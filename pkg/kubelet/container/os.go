@@ -20,6 +20,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	filesystem "k8s.io/kubernetes/pkg/util/filesystem"
 )
 
 // OSInterface collects system level operations that need to be mocked out
@@ -79,7 +81,7 @@ func (RealOS) Create(path string) (*os.File, error) {
 // Chmod will change the permissions on the specified path or return
 // an error.
 func (RealOS) Chmod(path string, perm os.FileMode) error {
-	return os.Chmod(path, perm)
+	return filesystem.Chmod(path, perm)
 }
 
 // Hostname will call os.Hostname to return the hostname.

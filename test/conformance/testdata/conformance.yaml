@@ -2895,14 +2895,12 @@
   file: test/e2e/common/storage/configmap_volume.go
 - testname: ConfigMap Volume, without mapping, volume mode set
   codename: '[sig-storage] ConfigMap should be consumable from pods in volume with
-    defaultMode set [LinuxOnly] [NodeConformance] [Conformance]'
+    defaultMode set [NodeConformance] [Conformance]'
   description: Create a ConfigMap, create a Pod that mounts a volume and populates
     the volume with data stored in the ConfigMap. File mode is changed to a custom
     value of '0x400'. The ConfigMap that is created MUST be accessible to read from
     the newly created Pod using the volume mount. The data content of the file MUST
     be readable and verified and file modes MUST be set to the custom value of '0x400'
-    This test is marked LinuxOnly since Windows does not support setting specific
-    file permissions.
   release: v1.9
   file: test/e2e/common/storage/configmap_volume.go
 - testname: ConfigMap Volume, with mapping
@@ -2917,14 +2915,13 @@
   file: test/e2e/common/storage/configmap_volume.go
 - testname: ConfigMap Volume, with mapping, volume mode set
   codename: '[sig-storage] ConfigMap should be consumable from pods in volume with
-    mappings and Item mode set [LinuxOnly] [NodeConformance] [Conformance]'
+    mappings and Item mode set [NodeConformance] [Conformance]'
   description: Create a ConfigMap, create a Pod that mounts a volume and populates
     the volume with data stored in the ConfigMap. Files are mapped to a path in the
     volume. File mode is changed to a custom value of '0x400'. The ConfigMap that
     is created MUST be accessible to read from the newly created Pod using the volume
     mount. The data content of the file MUST be readable and verified and file modes
-    MUST be set to the custom value of '0x400' This test is marked LinuxOnly since
-    Windows does not support setting specific file permissions.
+    MUST be set to the custom value of '0x400'
   release: v1.9
   file: test/e2e/common/storage/configmap_volume.go
 - testname: ConfigMap Volume, with mapping, non-root user
@@ -3023,23 +3020,21 @@
   release: v1.9
   file: test/e2e/common/storage/downwardapi_volume.go
 - testname: DownwardAPI volume, volume mode 0400
-  codename: '[sig-storage] Downward API volume should set DefaultMode on files [LinuxOnly]
-    [NodeConformance] [Conformance]'
+  codename: '[sig-storage] Downward API volume should set DefaultMode on files [NodeConformance]
+    [Conformance]'
   description: A Pod is configured with DownwardAPIVolumeSource with the volumesource
     mode set to -r-------- and DownwardAPIVolumeFiles contains a item for the Pod
     name. The container runtime MUST be able to access Pod name from the specified
-    path on the mounted volume. This test is marked LinuxOnly since Windows does not
-    support setting specific file permissions.
+    path on the mounted volume.
   release: v1.9
   file: test/e2e/common/storage/downwardapi_volume.go
 - testname: DownwardAPI volume, file mode 0400
-  codename: '[sig-storage] Downward API volume should set mode on item file [LinuxOnly]
-    [NodeConformance] [Conformance]'
+  codename: '[sig-storage] Downward API volume should set mode on item file [NodeConformance]
+    [Conformance]'
   description: A Pod is configured with DownwardAPIVolumeSource and DownwardAPIVolumeFiles
     contains a item for the Pod name with the file mode set to -r--------. The container
     runtime MUST be able to access Pod name from the specified path on the mounted
-    volume. This test is marked LinuxOnly since Windows does not support setting specific
-    file permissions.
+    volume.
   release: v1.9
   file: test/e2e/common/storage/downwardapi_volume.go
 - testname: DownwardAPI volume, update annotations
@@ -3078,7 +3073,7 @@
     Volume is mounted into the container where container is run as a non-root user.
     The volume MUST have mode -rw-r--r-- and mount type set to tmpfs and the contents
     MUST be readable. This test is marked LinuxOnly since Windows does not support
-    setting specific file permissions, or running as UID / GID.
+    running as UID / GID.
   release: v1.9
   file: test/e2e/common/storage/empty_dir.go
 - testname: EmptyDir, medium memory, volume mode 0644, non-root user
@@ -3088,8 +3083,7 @@
     volume mode set to 0644. Volume is mounted into the container where container
     is run as a non-root user. The volume MUST have mode -rw-r--r-- and mount type
     set to tmpfs and the contents MUST be readable. This test is marked LinuxOnly
-    since Windows does not support setting specific file permissions, or running as
-    UID / GID, or the medium = 'Memory'.
+    since Windows does not support running as UID / GID, or the medium = 'Memory'.
   release: v1.9
   file: test/e2e/common/storage/empty_dir.go
 - testname: EmptyDir, medium default, volume mode 0666
@@ -3099,7 +3093,7 @@
     Volume is mounted into the container where container is run as a non-root user.
     The volume MUST have mode -rw-rw-rw- and mount type set to tmpfs and the contents
     MUST be readable. This test is marked LinuxOnly since Windows does not support
-    setting specific file permissions, or running as UID / GID.
+    running as UID / GID.
   release: v1.9
   file: test/e2e/common/storage/empty_dir.go
 - testname: EmptyDir, medium memory, volume mode 0666,, non-root user
@@ -3109,8 +3103,7 @@
     volume mode set to 0666. Volume is mounted into the container where container
     is run as a non-root user. The volume MUST have mode -rw-rw-rw- and mount type
     set to tmpfs and the contents MUST be readable. This test is marked LinuxOnly
-    since Windows does not support setting specific file permissions, or running as
-    UID / GID, or the medium = 'Memory'.
+    since Windows does not support running as UID / GID, or the medium = 'Memory'.
   release: v1.9
   file: test/e2e/common/storage/empty_dir.go
 - testname: EmptyDir, medium default, volume mode 0777
@@ -3120,7 +3113,7 @@
     Volume is mounted into the container where container is run as a non-root user.
     The volume MUST have mode -rwxrwxrwx and mount type set to tmpfs and the contents
     MUST be readable. This test is marked LinuxOnly since Windows does not support
-    setting specific file permissions, or running as UID / GID.
+    running as UID / GID.
   release: v1.9
   file: test/e2e/common/storage/empty_dir.go
 - testname: EmptyDir, medium memory, volume mode 0777, non-root user
@@ -3130,8 +3123,7 @@
     volume mode set to 0777. Volume is mounted into the container where container
     is run as a non-root user. The volume MUST have mode -rwxrwxrwx and mount type
     set to tmpfs and the contents MUST be readable. This test is marked LinuxOnly
-    since Windows does not support setting specific file permissions, or running as
-    UID / GID, or the medium = 'Memory'.
+    since Windows does not support running as UID / GID, or the medium = 'Memory'.
   release: v1.9
   file: test/e2e/common/storage/empty_dir.go
 - testname: EmptyDir, medium default, volume mode 0644
@@ -3140,7 +3132,7 @@
   description: A Pod created with an 'emptyDir' Volume, the volume mode set to 0644.
     The volume MUST have mode -rw-r--r-- and mount type set to tmpfs and the contents
     MUST be readable. This test is marked LinuxOnly since Windows does not support
-    setting specific file permissions, or running as UID / GID.
+    running as UID / GID.
   release: v1.9
   file: test/e2e/common/storage/empty_dir.go
 - testname: EmptyDir, medium memory, volume mode 0644
@@ -3149,8 +3141,7 @@
   description: A Pod created with an 'emptyDir' Volume and 'medium' as 'Memory', the
     volume mode set to 0644. The volume MUST have mode -rw-r--r-- and mount type set
     to tmpfs and the contents MUST be readable. This test is marked LinuxOnly since
-    Windows does not support setting specific file permissions, or running as UID
-    / GID, or the medium = 'Memory'.
+    Windows does not support running as UID / GID, or the medium = 'Memory'.
   release: v1.9
   file: test/e2e/common/storage/empty_dir.go
 - testname: EmptyDir, medium default, volume mode 0666
@@ -3159,7 +3150,7 @@
   description: A Pod created with an 'emptyDir' Volume, the volume mode set to 0666.
     The volume MUST have mode -rw-rw-rw- and mount type set to tmpfs and the contents
     MUST be readable. This test is marked LinuxOnly since Windows does not support
-    setting specific file permissions, or running as UID / GID.
+    running as UID / GID.
   release: v1.9
   file: test/e2e/common/storage/empty_dir.go
 - testname: EmptyDir, medium memory, volume mode 0666
@@ -3168,8 +3159,7 @@
   description: A Pod created with an 'emptyDir' Volume and 'medium' as 'Memory', the
     volume mode set to 0666. The volume MUST have mode -rw-rw-rw- and mount type set
     to tmpfs and the contents MUST be readable. This test is marked LinuxOnly since
-    Windows does not support setting specific file permissions, or running as UID
-    / GID, or the medium = 'Memory'.
+    Windows does not support running as UID / GID, or the medium = 'Memory'.
   release: v1.9
   file: test/e2e/common/storage/empty_dir.go
 - testname: EmptyDir, medium default, volume mode 0777
@@ -3178,7 +3168,7 @@
   description: A Pod created with an 'emptyDir' Volume, the volume mode set to 0777.  The
     volume MUST have mode set as -rwxrwxrwx and mount type set to tmpfs and the contents
     MUST be readable. This test is marked LinuxOnly since Windows does not support
-    setting specific file permissions, or running as UID / GID.
+    running as UID / GID.
   release: v1.9
   file: test/e2e/common/storage/empty_dir.go
 - testname: EmptyDir, medium memory, volume mode 0777
@@ -3187,16 +3177,14 @@
   description: A Pod created with an 'emptyDir' Volume and 'medium' as 'Memory', the
     volume mode set to 0777.  The volume MUST have mode set as -rwxrwxrwx and mount
     type set to tmpfs and the contents MUST be readable. This test is marked LinuxOnly
-    since Windows does not support setting specific file permissions, or running as
-    UID / GID, or the medium = 'Memory'.
+    since Windows does not support running as UID / GID, or the medium = 'Memory'.
   release: v1.9
   file: test/e2e/common/storage/empty_dir.go
 - testname: EmptyDir, medium default, volume mode default
   codename: '[sig-storage] EmptyDir volumes volume on default medium should have the
     correct mode [LinuxOnly] [NodeConformance] [Conformance]'
   description: A Pod created with an 'emptyDir' Volume, the volume MUST have mode
-    set as -rwxrwxrwx and mount type set to tmpfs. This test is marked LinuxOnly since
-    Windows does not support setting specific file permissions.
+    set as -rwxrwxrwx and mount type set to tmpfs.
   release: v1.9
   file: test/e2e/common/storage/empty_dir.go
 - testname: EmptyDir, medium memory, volume mode default
@@ -3204,8 +3192,7 @@
     mode [LinuxOnly] [NodeConformance] [Conformance]'
   description: A Pod created with an 'emptyDir' Volume and 'medium' as 'Memory', the
     volume MUST have mode set as -rwxrwxrwx and mount type set to tmpfs. This test
-    is marked LinuxOnly since Windows does not support setting specific file permissions,
-    or the medium = 'Memory'.
+    is marked LinuxOnly since Windows does not support the medium = 'Memory'.
   release: v1.9
   file: test/e2e/common/storage/empty_dir.go
 - testname: EmptyDir Wrapper Volume, ConfigMap volumes, no race
@@ -3285,12 +3272,10 @@
   file: test/e2e/common/storage/projected_configmap.go
 - testname: Projected Volume, ConfigMap, volume mode 0400
   codename: '[sig-storage] Projected configMap should be consumable from pods in volume
-    with defaultMode set [LinuxOnly] [NodeConformance] [Conformance]'
+    with defaultMode set [NodeConformance] [Conformance]'
   description: A Pod is created with projected volume source 'ConfigMap' to store
     a configMap with permission mode set to 0400. Pod MUST be able to read the content
-    of the ConfigMap successfully and the mode on the volume MUST be -r--------. This
-    test is marked LinuxOnly since Windows does not support setting specific file
-    permissions.
+    of the ConfigMap successfully and the mode on the volume MUST be -r--------.
   release: v1.9
   file: test/e2e/common/storage/projected_configmap.go
 - testname: Projected Volume, ConfigMap, mapped
@@ -3304,13 +3289,11 @@
   file: test/e2e/common/storage/projected_configmap.go
 - testname: Projected Volume, ConfigMap, mapped, volume mode 0400
   codename: '[sig-storage] Projected configMap should be consumable from pods in volume
-    with mappings and Item mode set [LinuxOnly] [NodeConformance] [Conformance]'
+    with mappings and Item mode set [NodeConformance] [Conformance]'
   description: A Pod is created with projected volume source 'ConfigMap' to store
     a configMap with permission mode set to 0400. The ConfigMap is also mapped to
     a custom path. Pod MUST be able to read the content of the ConfigMap from the
-    custom location successfully and the mode on the volume MUST be -r--r--r--. This
-    test is marked LinuxOnly since Windows does not support setting specific file
-    permissions.
+    custom location successfully and the mode on the volume MUST be -r--r--r--.
   release: v1.9
   file: test/e2e/common/storage/projected_configmap.go
 - testname: Projected Volume, ConfigMap, mapped, non-root user
@@ -3399,25 +3382,21 @@
   release: v1.9
   file: test/e2e/common/storage/projected_downwardapi.go
 - testname: Projected Volume, DownwardAPI, volume mode 0400
-  codename: '[sig-storage] Projected downwardAPI should set DefaultMode on files [LinuxOnly]
-    [NodeConformance] [Conformance]'
+  codename: '[sig-storage] Projected downwardAPI should set DefaultMode on files [NodeConformance]
+    [Conformance]'
   description: A Pod is created with a projected volume source for downwardAPI with
     pod name, cpu and memory limits and cpu and memory requests. The default mode
     for the volume mount is set to 0400. Pod MUST be able to read the pod name from
-    the mounted DownwardAPIVolumeFiles and the volume mode must be -r--------. This
-    test is marked LinuxOnly since Windows does not support setting specific file
-    permissions.
+    the mounted DownwardAPIVolumeFiles and the volume mode must be -r--------.
   release: v1.9
   file: test/e2e/common/storage/projected_downwardapi.go
 - testname: Projected Volume, DownwardAPI, volume mode 0400
-  codename: '[sig-storage] Projected downwardAPI should set mode on item file [LinuxOnly]
-    [NodeConformance] [Conformance]'
+  codename: '[sig-storage] Projected downwardAPI should set mode on item file [NodeConformance]
+    [Conformance]'
   description: A Pod is created with a projected volume source for downwardAPI with
     pod name, cpu and memory limits and cpu and memory requests. The default mode
     for the volume mount is set to 0400. Pod MUST be able to read the pod name from
-    the mounted DownwardAPIVolumeFiles and the volume mode must be -r--------. This
-    test is marked LinuxOnly since Windows does not support setting specific file
-    permissions.
+    the mounted DownwardAPIVolumeFiles and the volume mode must be -r--------.
   release: v1.9
   file: test/e2e/common/storage/projected_downwardapi.go
 - testname: Projected Volume, DownwardAPI, update annotation
@@ -3466,18 +3445,16 @@
     secret with a specified key. The volume has permission mode set to 0440, fsgroup
     set to 1001 and user set to non-root uid of 1000. Pod MUST be able to read the
     content of the key successfully and the mode MUST be -r--r-----. This test is
-    marked LinuxOnly since Windows does not support setting specific file permissions,
-    or running as UID / GID.
+    marked LinuxOnly since Windows does not support running as UID / GID.
   release: v1.9
   file: test/e2e/common/storage/projected_secret.go
 - testname: Projected Volume, Secrets, volume mode 0400
   codename: '[sig-storage] Projected secret should be consumable from pods in volume
-    with defaultMode set [LinuxOnly] [NodeConformance] [Conformance]'
+    with defaultMode set [NodeConformance] [Conformance]'
   description: A Pod is created with a projected volume source 'secret' to store a
     secret with a specified key with permission mode set to 0x400 on the Pod. Pod
     MUST be able to read the content of the key successfully and the mode MUST be
-    -r--------. This test is marked LinuxOnly since Windows does not support setting
-    specific file permissions.
+    -r--------.
   release: v1.9
   file: test/e2e/common/storage/projected_secret.go
 - testname: Projected Volume, Secrets, mapped
@@ -3491,12 +3468,11 @@
   file: test/e2e/common/storage/projected_secret.go
 - testname: Projected Volume, Secrets, mapped, volume mode 0400
   codename: '[sig-storage] Projected secret should be consumable from pods in volume
-    with mappings and Item Mode set [LinuxOnly] [NodeConformance] [Conformance]'
+    with mappings and Item Mode set [NodeConformance] [Conformance]'
   description: A Pod is created with a projected volume source 'secret' to store a
     secret with a specified key with permission mode set to 0400. The secret is also
     mapped to a specific name. Pod MUST be able to read the content of the key successfully
-    and the mode MUST be -r-------- on the mapped volume. This test is marked LinuxOnly
-    since Windows does not support setting specific file permissions.
+    and the mode MUST be -r-------- on the mapped volume.
   release: v1.9
   file: test/e2e/common/storage/projected_secret.go
 - testname: Projected Volume, Secrets, mapped, multiple paths
@@ -3548,18 +3524,17 @@
     into the container with file mode set to 0x440 as a non-root user with uid 1000
     and fsGroup id 1001. Pod MUST be able to read the secret from the mounted volume
     from the container runtime and the file mode of the secret MUST be -r--r-----by
-    default. This test is marked LinuxOnly since Windows does not support setting
-    specific file permissions, or running as UID / GID.
+    default. This test is marked LinuxOnly since Windows does not support running
+    as UID / GID.
   release: v1.9
   file: test/e2e/common/storage/secrets_volume.go
 - testname: Secrets Volume, volume mode 0400
   codename: '[sig-storage] Secrets should be consumable from pods in volume with defaultMode
-    set [LinuxOnly] [NodeConformance] [Conformance]'
+    set [NodeConformance] [Conformance]'
   description: Create a secret. Create a Pod with secret volume source configured
     into the container with file mode set to 0x400. Pod MUST be able to read the secret
     from the mounted volume from the container runtime and the file mode of the secret
-    MUST be -r-------- by default. This test is marked LinuxOnly since Windows does
-    not support setting specific file permissions.
+    MUST be -r-------- by default.
   release: v1.9
   file: test/e2e/common/storage/secrets_volume.go
 - testname: Secrets Volume, mapping
@@ -3573,12 +3548,11 @@
   file: test/e2e/common/storage/secrets_volume.go
 - testname: Secrets Volume, mapping, volume mode 0400
   codename: '[sig-storage] Secrets should be consumable from pods in volume with mappings
-    and Item Mode set [LinuxOnly] [NodeConformance] [Conformance]'
+    and Item Mode set [NodeConformance] [Conformance]'
   description: Create a secret. Create a Pod with secret volume source configured
     into the container with a custom path and file mode set to 0x400. Pod MUST be
     able to read the secret from the mounted volume from the specified custom path.
-    The file mode of the secret MUST be -r--r--r--. This test is marked LinuxOnly
-    since Windows does not support setting specific file permissions.
+    The file mode of the secret MUST be -r--r--r--.
   release: v1.9
   file: test/e2e/common/storage/secrets_volume.go
 - testname: Secrets Volume, mapping multiple volume paths

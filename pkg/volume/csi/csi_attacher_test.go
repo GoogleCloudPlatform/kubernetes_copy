@@ -24,7 +24,6 @@ import (
 	"os/user"
 	"path/filepath"
 	"reflect"
-	goruntime "runtime"
 	"sync"
 	"testing"
 	"time"
@@ -39,6 +38,7 @@ import (
 	clientset "k8s.io/client-go/kubernetes"
 	fakeclient "k8s.io/client-go/kubernetes/fake"
 	core "k8s.io/client-go/testing"
+	filesystem "k8s.io/kubernetes/pkg/util/filesystem"
 	"k8s.io/kubernetes/pkg/volume"
 	fakecsi "k8s.io/kubernetes/pkg/volume/csi/fake"
 	volumetypes "k8s.io/kubernetes/pkg/volume/util/types"
@@ -991,7 +991,6 @@ func TestAttacherMountDevice(t *testing.T) {
 		expectedVolumeMountGroup       string
 		driverSupportsVolumeMountGroup bool
 		shouldFail                     bool
-		skipOnWindows                  bool
 		createAttachment               bool
 		populateDeviceMountPath        bool
 		exitError                      error
@@ -1096,12 +1095,7 @@ func TestAttacherMountDevice(t *testing.T) {
 			createAttachment:        true,
 			populateDeviceMountPath: true,
 			shouldFail:              true,
-			// NOTE: We're skipping this test on Windows because os.Chmod is not working as intended, which means that
-			// this test won't fail on Windows due to permission denied errors.
-			// TODO: Remove the skip once Windows file permissions support is added.
-			// https://github.com/kubernetes/kubernetes/pull/110921
-			skipOnWindows: true,
-			spec:          volume.NewSpecFromPersistentVolume(makeTestPV(pvName, 10, testDriver, "test-vol1"), true),
+			spec:                    volume.NewSpecFromPersistentVolume(makeTestPV(pvName, 10, testDriver, "test-vol1"), true),
 		},
 		{
 			testName:                       "fsgroup provided, driver supports volume mount group; expect fsgroup to be passed to NodeStageVolume",
@@ -1164,9 +1158,6 @@ func TestAttacherMountDevice(t *testing.T) {
 			}
 		}
 		t.Run(tc.testName, func(t *testing.T) {
-			if tc.skipOnWindows && goruntime.GOOS == "windows" {
-				t.Skipf("Skipping test case on Windows: %s", tc.testName)
-			}
 			t.Logf("Running test case: %s", tc.testName)
 
 			// Setup
@@ -1213,7 +1204,7 @@ func TestAttacherMountDevice(t *testing.T) {
 				if err != nil {
 					t.Errorf("error attempting to populate file on parent path: %v", err)
 				}
-				err = os.Chmod(parent, 0555)
+				err = filesystem.Chmod(parent, 0555)
 				if err != nil {
 					t.Errorf("error attempting to modify directory permissions: %v", err)
 				}
@@ -1242,7 +1233,7 @@ func TestAttacherMountDevice(t *testing.T) {
 					if os.IsNotExist(err) {
 						t.Errorf("expecting file to exist after err received: %v", err)
 					}
-					err = os.Chmod(parent, 0777)
+					err = filesystem.Chmod(parent, 0777)
 					if err != nil {
 						t.Errorf("failed to modify permissions after test: %v", err)
 					}

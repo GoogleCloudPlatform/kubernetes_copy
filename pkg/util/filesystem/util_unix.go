@@ -42,6 +42,15 @@ func Chmod(name string, mode os.FileMode) error {
 	return os.Chmod(name, mode)
 }
 
+// GetFileMode will return the given file's mode.
+func GetFileMode(path string) (os.FileMode, error) {
+	fileInfo, err := os.Stat(path)
+	if err != nil {
+		return 0, err
+	}
+	return fileInfo.Mode(), nil
+}
+
 // MkdirAll is same as os.MkdirAll on Unix.
 func MkdirAll(path string, perm os.FileMode) error {
 	return os.MkdirAll(path, perm)

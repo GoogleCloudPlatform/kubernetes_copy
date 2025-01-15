@@ -22,6 +22,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	filesystem "k8s.io/kubernetes/pkg/util/filesystem"
 )
 
 type storage interface {
@@ -70,7 +72,7 @@ func atomicWrite(filename string, data []byte, perm os.FileMode) error {
 	if err != nil {
 		return err
 	}
-	err = os.Chmod(f.Name(), perm)
+	err = filesystem.Chmod(f.Name(), perm)
 	if err != nil {
 		f.Close()
 		return err

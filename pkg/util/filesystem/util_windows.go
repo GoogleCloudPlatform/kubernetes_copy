@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"unsafe"
 
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/klog/v2"
@@ -242,6 +243,87 @@ func Chmod(path string, filemode os.FileMode) error {
 		nil, // group SID
 		newDACL,
 		nil) // SACL
+}
+
+// GetFileMode returns the mode of the given file.
+func GetFileMode(file string) (os.FileMode, error) {
+	descriptor, err := windows.GetNamedSecurityInfo(
+		file,
+		windows.SE_FILE_OBJECT,
+		windows.DACL_SECURITY_INFORMATION|windows.PROTECTED_DACL_SECURITY_INFORMATION|windows.OWNER_SECURITY_INFORMATION|windows.GROUP_SECURITY_INFORMATION,
+	)
+	if err != nil {
+		return 0, err
+	}
+
+	dacl, _, err := descriptor.DACL()
+	if err != nil {
+		return 0, err
+	}
+
+	owner, _, err := descriptor.Owner()
+	if err != nil {
+		return 0, err
+	}
+
+	group, _, err := descriptor.Group()
+	if err != nil {
+		return 0, err
+	}
+
+	entries, err := getEntriesFromACL(dacl)
+	if err != nil {
+		return 0, err
+	}
+
+	worldSid, err := windows.StringToSid("S-1-1-0")
+	if err != nil {
+		return 0, err
+	}
+
+	read := uint32(windows.FILE_READ_DATA | windows.FILE_READ_ATTRIBUTES)
+	write := uint32(windows.FILE_WRITE_DATA | windows.FILE_APPEND_DATA | windows.FILE_WRITE_ATTRIBUTES | windows.FILE_WRITE_EA)
+	execute := uint32(windows.FILE_READ_DATA | windows.FILE_EXECUTE)
+
+	mode := 0
+	for _, entry := range entries {
+		mask := uint32(entry.Mask)
+		perms := 0
+
+		if mask&read == read {
+			perms = 0x4
+		}
+		if mask&write == write {
+			perms |= 0x2
+		}
+		if mask&execute == execute {
+			perms |= 0x1
+		}
+
+		entrySid := (*windows.SID)(unsafe.Pointer(&entry.SidStart))
+		if owner.Equals(entrySid) {
+			mode |= perms << 6
+		} else if group.Equals(entrySid) {
+			mode |= perms << 3
+		} else if worldSid.Equals(entrySid) {
+			mode |= perms
+		}
+	}
+
+	return os.FileMode(mode), nil
+}
+
+func getEntriesFromACL(acl *windows.ACL) (aces []*windows.ACCESS_ALLOWED_ACE, err error) {
+	aces = make([]*windows.ACCESS_ALLOWED_ACE, acl.AceCount)
+
+	for i := uint16(0); i < acl.AceCount; i++ {
+		err = windows.GetAce(acl, uint32(i), &aces[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return aces, nil
 }
 
 // IsAbs returns whether the given path is absolute or not.
