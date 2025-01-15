@@ -12413,12 +12413,53 @@ var schemaYAML = typed.YAMLObject(`types:
       type:
         scalar: string
       default: ""
+- name: io.k8s.api.resource.v1alpha3.CompositeDevice
+  map:
+    fields:
+    - name: attributes
+      type:
+        map:
+          elementType:
+            namedType: io.k8s.api.resource.v1alpha3.DeviceAttribute
+    - name: capacity
+      type:
+        map:
+          elementType:
+            namedType: io.k8s.apimachinery.pkg.api.resource.Quantity
+    - name: consumesCapacityFrom
+      type:
+        list:
+          elementType:
+            namedType: io.k8s.api.resource.v1alpha3.DeviceRef
+          elementRelationship: atomic
+    - name: includes
+      type:
+        list:
+          elementType:
+            namedType: io.k8s.api.resource.v1alpha3.DeviceMixinRef
+          elementRelationship: atomic
+- name: io.k8s.api.resource.v1alpha3.CompositeDeviceMixin
+  map:
+    fields:
+    - name: attributes
+      type:
+        map:
+          elementType:
+            namedType: io.k8s.api.resource.v1alpha3.DeviceAttribute
+    - name: capacity
+      type:
+        map:
+          elementType:
+            namedType: io.k8s.apimachinery.pkg.api.resource.Quantity
 - name: io.k8s.api.resource.v1alpha3.Device
   map:
     fields:
     - name: basic
       type:
         namedType: io.k8s.api.resource.v1alpha3.BasicDevice
+    - name: composite
+      type:
+        namedType: io.k8s.api.resource.v1alpha3.CompositeDevice
     - name: name
       type:
         scalar: string
@@ -12552,6 +12593,30 @@ var schemaYAML = typed.YAMLObject(`types:
           elementType:
             scalar: string
           elementRelationship: atomic
+- name: io.k8s.api.resource.v1alpha3.DeviceMixin
+  map:
+    fields:
+    - name: composite
+      type:
+        namedType: io.k8s.api.resource.v1alpha3.CompositeDeviceMixin
+    - name: name
+      type:
+        scalar: string
+      default: ""
+- name: io.k8s.api.resource.v1alpha3.DeviceMixinRef
+  map:
+    fields:
+    - name: name
+      type:
+        scalar: string
+      default: ""
+- name: io.k8s.api.resource.v1alpha3.DeviceRef
+  map:
+    fields:
+    - name: name
+      type:
+        scalar: string
+      default: ""
 - name: io.k8s.api.resource.v1alpha3.DeviceRequest
   map:
     fields:
@@ -12796,6 +12861,12 @@ var schemaYAML = typed.YAMLObject(`types:
     - name: allNodes
       type:
         scalar: boolean
+    - name: deviceMixins
+      type:
+        list:
+          elementType:
+            namedType: io.k8s.api.resource.v1alpha3.DeviceMixin
+          elementRelationship: atomic
     - name: devices
       type:
         list:
@@ -12875,12 +12946,53 @@ var schemaYAML = typed.YAMLObject(`types:
       type:
         scalar: string
       default: ""
+- name: io.k8s.api.resource.v1beta1.CompositeDevice
+  map:
+    fields:
+    - name: attributes
+      type:
+        map:
+          elementType:
+            namedType: io.k8s.api.resource.v1beta1.DeviceAttribute
+    - name: capacity
+      type:
+        map:
+          elementType:
+            namedType: io.k8s.api.resource.v1beta1.DeviceCapacity
+    - name: consumesCapacityFrom
+      type:
+        list:
+          elementType:
+            namedType: io.k8s.api.resource.v1beta1.DeviceRef
+          elementRelationship: atomic
+    - name: includes
+      type:
+        list:
+          elementType:
+            namedType: io.k8s.api.resource.v1beta1.DeviceMixinRef
+          elementRelationship: atomic
+- name: io.k8s.api.resource.v1beta1.CompositeDeviceMixin
+  map:
+    fields:
+    - name: attributes
+      type:
+        map:
+          elementType:
+            namedType: io.k8s.api.resource.v1beta1.DeviceAttribute
+    - name: capacity
+      type:
+        map:
+          elementType:
+            namedType: io.k8s.api.resource.v1beta1.DeviceCapacity
 - name: io.k8s.api.resource.v1beta1.Device
   map:
     fields:
     - name: basic
       type:
         namedType: io.k8s.api.resource.v1beta1.BasicDevice
+    - name: composite
+      type:
+        namedType: io.k8s.api.resource.v1beta1.CompositeDevice
     - name: name
       type:
         scalar: string
@@ -13020,6 +13132,30 @@ var schemaYAML = typed.YAMLObject(`types:
           elementType:
             scalar: string
           elementRelationship: atomic
+- name: io.k8s.api.resource.v1beta1.DeviceMixin
+  map:
+    fields:
+    - name: composite
+      type:
+        namedType: io.k8s.api.resource.v1beta1.CompositeDeviceMixin
+    - name: name
+      type:
+        scalar: string
+      default: ""
+- name: io.k8s.api.resource.v1beta1.DeviceMixinRef
+  map:
+    fields:
+    - name: name
+      type:
+        scalar: string
+      default: ""
+- name: io.k8s.api.resource.v1beta1.DeviceRef
+  map:
+    fields:
+    - name: name
+      type:
+        scalar: string
+      default: ""
 - name: io.k8s.api.resource.v1beta1.DeviceRequest
   map:
     fields:
@@ -13264,6 +13400,12 @@ var schemaYAML = typed.YAMLObject(`types:
     - name: allNodes
       type:
         scalar: boolean
+    - name: deviceMixins
+      type:
+        list:
+          elementType:
+            namedType: io.k8s.api.resource.v1beta1.DeviceMixin
+          elementRelationship: atomic
     - name: devices
       type:
         list:

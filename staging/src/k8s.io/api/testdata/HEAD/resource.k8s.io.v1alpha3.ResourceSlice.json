@@ -91,6 +91,47 @@
           "capacity": {
             "capacityKey": "0"
           }
+        },
+        "composite": {
+          "includes": [
+            {
+              "name": "nameValue"
+            }
+          ],
+          "consumesCapacityFrom": [
+            {
+              "name": "nameValue"
+            }
+          ],
+          "attributes": {
+            "attributesKey": {
+              "int": 2,
+              "bool": true,
+              "string": "stringValue",
+              "version": "versionValue"
+            }
+          },
+          "capacity": {
+            "capacityKey": "0"
+          }
+        }
+      }
+    ],
+    "deviceMixins": [
+      {
+        "name": "nameValue",
+        "composite": {
+          "attributes": {
+            "attributesKey": {
+              "int": 2,
+              "bool": true,
+              "string": "stringValue",
+              "version": "versionValue"
+            }
+          },
+          "capacity": {
+            "capacityKey": "0"
+          }
         }
       }
     ]

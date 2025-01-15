@@ -47,13 +47,23 @@ func RegisterConversions(s *runtime.Scheme) error {
 	}); err != nil {
 		return err
 	}
-	if err := s.AddGeneratedConversionFunc((*Device)(nil), (*v1beta1.Device)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_api_Device_To_v1beta1_Device(a.(*Device), b.(*v1beta1.Device), scope)
+	if err := s.AddGeneratedConversionFunc((*CompositeDevice)(nil), (*v1beta1.CompositeDevice)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_api_CompositeDevice_To_v1beta1_CompositeDevice(a.(*CompositeDevice), b.(*v1beta1.CompositeDevice), scope)
 	}); err != nil {
 		return err
 	}
-	if err := s.AddGeneratedConversionFunc((*v1beta1.Device)(nil), (*Device)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_v1beta1_Device_To_api_Device(a.(*v1beta1.Device), b.(*Device), scope)
+	if err := s.AddGeneratedConversionFunc((*v1beta1.CompositeDevice)(nil), (*CompositeDevice)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1beta1_CompositeDevice_To_api_CompositeDevice(a.(*v1beta1.CompositeDevice), b.(*CompositeDevice), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*CompositeDeviceMixin)(nil), (*v1beta1.CompositeDeviceMixin)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_api_CompositeDeviceMixin_To_v1beta1_CompositeDeviceMixin(a.(*CompositeDeviceMixin), b.(*v1beta1.CompositeDeviceMixin), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*v1beta1.CompositeDeviceMixin)(nil), (*CompositeDeviceMixin)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1beta1_CompositeDeviceMixin_To_api_CompositeDeviceMixin(a.(*v1beta1.CompositeDeviceMixin), b.(*CompositeDeviceMixin), scope)
 	}); err != nil {
 		return err
 	}
@@ -77,6 +87,36 @@ func RegisterConversions(s *runtime.Scheme) error {
 	}); err != nil {
 		return err
 	}
+	if err := s.AddGeneratedConversionFunc((*DeviceMixin)(nil), (*v1beta1.DeviceMixin)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_api_DeviceMixin_To_v1beta1_DeviceMixin(a.(*DeviceMixin), b.(*v1beta1.DeviceMixin), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*v1beta1.DeviceMixin)(nil), (*DeviceMixin)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1beta1_DeviceMixin_To_api_DeviceMixin(a.(*v1beta1.DeviceMixin), b.(*DeviceMixin), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*DeviceMixinRef)(nil), (*v1beta1.DeviceMixinRef)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_api_DeviceMixinRef_To_v1beta1_DeviceMixinRef(a.(*DeviceMixinRef), b.(*v1beta1.DeviceMixinRef), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*v1beta1.DeviceMixinRef)(nil), (*DeviceMixinRef)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1beta1_DeviceMixinRef_To_api_DeviceMixinRef(a.(*v1beta1.DeviceMixinRef), b.(*DeviceMixinRef), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*DeviceRef)(nil), (*v1beta1.DeviceRef)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_api_DeviceRef_To_v1beta1_DeviceRef(a.(*DeviceRef), b.(*v1beta1.DeviceRef), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*v1beta1.DeviceRef)(nil), (*DeviceRef)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1beta1_DeviceRef_To_api_DeviceRef(a.(*v1beta1.DeviceRef), b.(*DeviceRef), scope)
+	}); err != nil {
+		return err
+	}
 	if err := s.AddGeneratedConversionFunc((*ResourcePool)(nil), (*v1beta1.ResourcePool)(nil), func(a, b interface{}, scope conversion.Scope) error {
 		return Convert_api_ResourcePool_To_v1beta1_ResourcePool(a.(*ResourcePool), b.(*v1beta1.ResourcePool), scope)
 	}); err != nil {
@@ -92,11 +132,6 @@ func RegisterConversions(s *runtime.Scheme) error {
 	}); err != nil {
 		return err
 	}
-	if err := s.AddGeneratedConversionFunc((*v1beta1.ResourceSlice)(nil), (*ResourceSlice)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_v1beta1_ResourceSlice_To_api_ResourceSlice(a.(*v1beta1.ResourceSlice), b.(*ResourceSlice), scope)
-	}); err != nil {
-		return err
-	}
 	if err := s.AddGeneratedConversionFunc((*ResourceSliceSpec)(nil), (*v1beta1.ResourceSliceSpec)(nil), func(a, b interface{}, scope conversion.Scope) error {
 		return Convert_api_ResourceSliceSpec_To_v1beta1_ResourceSliceSpec(a.(*ResourceSliceSpec), b.(*v1beta1.ResourceSliceSpec), scope)
 	}); err != nil {
@@ -107,6 +142,11 @@ func RegisterConversions(s *runtime.Scheme) error {
 	}); err != nil {
 		return err
 	}
+	if err := s.AddConversionFunc((*Device)(nil), (*v1beta1.Device)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_api_Device_To_v1beta1_Device(a.(*Device), b.(*v1beta1.Device), scope)
+	}); err != nil {
+		return err
+	}
 	if err := s.AddConversionFunc((*UniqueString)(nil), (*string)(nil), func(a, b interface{}, scope conversion.Scope) error {
 		return Convert_api_UniqueString_To_string(a.(*UniqueString), b.(*string), scope)
 	}); err != nil {
@@ -114,6 +154,16 @@ func RegisterConversions(s *runtime.Scheme) error {
 	}
 	if err := s.AddConversionFunc((*string)(nil), (*UniqueString)(nil), func(a, b interface{}, scope conversion.Scope) error {
 		return Convert_string_To_api_UniqueString(a.(*string), b.(*UniqueString), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddConversionFunc((*v1beta1.Device)(nil), (*Device)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1beta1_Device_To_api_Device(a.(*v1beta1.Device), b.(*Device), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddConversionFunc((*v1beta1.ResourceSlice)(nil), (*ResourceSlice)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1beta1_ResourceSlice_To_api_ResourceSlice(a.(*v1beta1.ResourceSlice), b.(*ResourceSlice), scope)
 	}); err != nil {
 		return err
 	}
@@ -142,30 +192,69 @@ func Convert_v1beta1_BasicDevice_To_api_BasicDevice(in *v1beta1.BasicDevice, out
 	return autoConvert_v1beta1_BasicDevice_To_api_BasicDevice(in, out, s)
 }
 
+func autoConvert_api_CompositeDevice_To_v1beta1_CompositeDevice(in *CompositeDevice, out *v1beta1.CompositeDevice, s conversion.Scope) error {
+	out.Includes = *(*[]v1beta1.DeviceMixinRef)(unsafe.Pointer(&in.Includes))
+	out.ConsumesCapacityFrom = *(*[]v1beta1.DeviceRef)(unsafe.Pointer(&in.ConsumesCapacityFrom))
+	out.Attributes = *(*map[v1beta1.QualifiedName]v1beta1.DeviceAttribute)(unsafe.Pointer(&in.Attributes))
+	out.Capacity = *(*map[v1beta1.QualifiedName]v1beta1.DeviceCapacity)(unsafe.Pointer(&in.Capacity))
+	return nil
+}
+
+// Convert_api_CompositeDevice_To_v1beta1_CompositeDevice is an autogenerated conversion function.
+func Convert_api_CompositeDevice_To_v1beta1_CompositeDevice(in *CompositeDevice, out *v1beta1.CompositeDevice, s conversion.Scope) error {
+	return autoConvert_api_CompositeDevice_To_v1beta1_CompositeDevice(in, out, s)
+}
+
+func autoConvert_v1beta1_CompositeDevice_To_api_CompositeDevice(in *v1beta1.CompositeDevice, out *CompositeDevice, s conversion.Scope) error {
+	out.Includes = *(*[]DeviceMixinRef)(unsafe.Pointer(&in.Includes))
+	out.ConsumesCapacityFrom = *(*[]DeviceRef)(unsafe.Pointer(&in.ConsumesCapacityFrom))
+	out.Attributes = *(*map[QualifiedName]DeviceAttribute)(unsafe.Pointer(&in.Attributes))
+	out.Capacity = *(*map[QualifiedName]DeviceCapacity)(unsafe.Pointer(&in.Capacity))
+	return nil
+}
+
+// Convert_v1beta1_CompositeDevice_To_api_CompositeDevice is an autogenerated conversion function.
+func Convert_v1beta1_CompositeDevice_To_api_CompositeDevice(in *v1beta1.CompositeDevice, out *CompositeDevice, s conversion.Scope) error {
+	return autoConvert_v1beta1_CompositeDevice_To_api_CompositeDevice(in, out, s)
+}
+
+func autoConvert_api_CompositeDeviceMixin_To_v1beta1_CompositeDeviceMixin(in *CompositeDeviceMixin, out *v1beta1.CompositeDeviceMixin, s conversion.Scope) error {
+	out.Attributes = *(*map[v1beta1.QualifiedName]v1beta1.DeviceAttribute)(unsafe.Pointer(&in.Attributes))
+	out.Capacity = *(*map[v1beta1.QualifiedName]v1beta1.DeviceCapacity)(unsafe.Pointer(&in.Capacity))
+	return nil
+}
+
+// Convert_api_CompositeDeviceMixin_To_v1beta1_CompositeDeviceMixin is an autogenerated conversion function.
+func Convert_api_CompositeDeviceMixin_To_v1beta1_CompositeDeviceMixin(in *CompositeDeviceMixin, out *v1beta1.CompositeDeviceMixin, s conversion.Scope) error {
+	return autoConvert_api_CompositeDeviceMixin_To_v1beta1_CompositeDeviceMixin(in, out, s)
+}
+
+func autoConvert_v1beta1_CompositeDeviceMixin_To_api_CompositeDeviceMixin(in *v1beta1.CompositeDeviceMixin, out *CompositeDeviceMixin, s conversion.Scope) error {
+	out.Attributes = *(*map[QualifiedName]DeviceAttribute)(unsafe.Pointer(&in.Attributes))
+	out.Capacity = *(*map[QualifiedName]DeviceCapacity)(unsafe.Pointer(&in.Capacity))
+	return nil
+}
+
+// Convert_v1beta1_CompositeDeviceMixin_To_api_CompositeDeviceMixin is an autogenerated conversion function.
+func Convert_v1beta1_CompositeDeviceMixin_To_api_CompositeDeviceMixin(in *v1beta1.CompositeDeviceMixin, out *CompositeDeviceMixin, s conversion.Scope) error {
+	return autoConvert_v1beta1_CompositeDeviceMixin_To_api_CompositeDeviceMixin(in, out, s)
+}
+
 func autoConvert_api_Device_To_v1beta1_Device(in *Device, out *v1beta1.Device, s conversion.Scope) error {
 	if err := Convert_api_UniqueString_To_string(&in.Name, &out.Name, s); err != nil {
 		return err
 	}
-	out.Basic = (*v1beta1.BasicDevice)(unsafe.Pointer(in.Basic))
+	out.Composite = (*v1beta1.CompositeDevice)(unsafe.Pointer(in.Composite))
 	return nil
-}
-
-// Convert_api_Device_To_v1beta1_Device is an autogenerated conversion function.
-func Convert_api_Device_To_v1beta1_Device(in *Device, out *v1beta1.Device, s conversion.Scope) error {
-	return autoConvert_api_Device_To_v1beta1_Device(in, out, s)
 }
 
 func autoConvert_v1beta1_Device_To_api_Device(in *v1beta1.Device, out *Device, s conversion.Scope) error {
 	if err := Convert_string_To_api_UniqueString(&in.Name, &out.Name, s); err != nil {
 		return err
 	}
-	out.Basic = (*BasicDevice)(unsafe.Pointer(in.Basic))
+	// WARNING: in.Basic requires manual conversion: does not exist in peer-type
+	out.Composite = (*CompositeDevice)(unsafe.Pointer(in.Composite))
 	return nil
-}
-
-// Convert_v1beta1_Device_To_api_Device is an autogenerated conversion function.
-func Convert_v1beta1_Device_To_api_Device(in *v1beta1.Device, out *Device, s conversion.Scope) error {
-	return autoConvert_v1beta1_Device_To_api_Device(in, out, s)
 }
 
 func autoConvert_api_DeviceAttribute_To_v1beta1_DeviceAttribute(in *DeviceAttribute, out *v1beta1.DeviceAttribute, s conversion.Scope) error {
@@ -212,6 +301,68 @@ func autoConvert_v1beta1_DeviceCapacity_To_api_DeviceCapacity(in *v1beta1.Device
 // Convert_v1beta1_DeviceCapacity_To_api_DeviceCapacity is an autogenerated conversion function.
 func Convert_v1beta1_DeviceCapacity_To_api_DeviceCapacity(in *v1beta1.DeviceCapacity, out *DeviceCapacity, s conversion.Scope) error {
 	return autoConvert_v1beta1_DeviceCapacity_To_api_DeviceCapacity(in, out, s)
+}
+
+func autoConvert_api_DeviceMixin_To_v1beta1_DeviceMixin(in *DeviceMixin, out *v1beta1.DeviceMixin, s conversion.Scope) error {
+	out.Name = in.Name
+	out.Composite = (*v1beta1.CompositeDeviceMixin)(unsafe.Pointer(in.Composite))
+	return nil
+}
+
+// Convert_api_DeviceMixin_To_v1beta1_DeviceMixin is an autogenerated conversion function.
+func Convert_api_DeviceMixin_To_v1beta1_DeviceMixin(in *DeviceMixin, out *v1beta1.DeviceMixin, s conversion.Scope) error {
+	return autoConvert_api_DeviceMixin_To_v1beta1_DeviceMixin(in, out, s)
+}
+
+func autoConvert_v1beta1_DeviceMixin_To_api_DeviceMixin(in *v1beta1.DeviceMixin, out *DeviceMixin, s conversion.Scope) error {
+	out.Name = in.Name
+	out.Composite = (*CompositeDeviceMixin)(unsafe.Pointer(in.Composite))
+	return nil
+}
+
+// Convert_v1beta1_DeviceMixin_To_api_DeviceMixin is an autogenerated conversion function.
+func Convert_v1beta1_DeviceMixin_To_api_DeviceMixin(in *v1beta1.DeviceMixin, out *DeviceMixin, s conversion.Scope) error {
+	return autoConvert_v1beta1_DeviceMixin_To_api_DeviceMixin(in, out, s)
+}
+
+func autoConvert_api_DeviceMixinRef_To_v1beta1_DeviceMixinRef(in *DeviceMixinRef, out *v1beta1.DeviceMixinRef, s conversion.Scope) error {
+	out.Name = in.Name
+	return nil
+}
+
+// Convert_api_DeviceMixinRef_To_v1beta1_DeviceMixinRef is an autogenerated conversion function.
+func Convert_api_DeviceMixinRef_To_v1beta1_DeviceMixinRef(in *DeviceMixinRef, out *v1beta1.DeviceMixinRef, s conversion.Scope) error {
+	return autoConvert_api_DeviceMixinRef_To_v1beta1_DeviceMixinRef(in, out, s)
+}
+
+func autoConvert_v1beta1_DeviceMixinRef_To_api_DeviceMixinRef(in *v1beta1.DeviceMixinRef, out *DeviceMixinRef, s conversion.Scope) error {
+	out.Name = in.Name
+	return nil
+}
+
+// Convert_v1beta1_DeviceMixinRef_To_api_DeviceMixinRef is an autogenerated conversion function.
+func Convert_v1beta1_DeviceMixinRef_To_api_DeviceMixinRef(in *v1beta1.DeviceMixinRef, out *DeviceMixinRef, s conversion.Scope) error {
+	return autoConvert_v1beta1_DeviceMixinRef_To_api_DeviceMixinRef(in, out, s)
+}
+
+func autoConvert_api_DeviceRef_To_v1beta1_DeviceRef(in *DeviceRef, out *v1beta1.DeviceRef, s conversion.Scope) error {
+	out.Name = in.Name
+	return nil
+}
+
+// Convert_api_DeviceRef_To_v1beta1_DeviceRef is an autogenerated conversion function.
+func Convert_api_DeviceRef_To_v1beta1_DeviceRef(in *DeviceRef, out *v1beta1.DeviceRef, s conversion.Scope) error {
+	return autoConvert_api_DeviceRef_To_v1beta1_DeviceRef(in, out, s)
+}
+
+func autoConvert_v1beta1_DeviceRef_To_api_DeviceRef(in *v1beta1.DeviceRef, out *DeviceRef, s conversion.Scope) error {
+	out.Name = in.Name
+	return nil
+}
+
+// Convert_v1beta1_DeviceRef_To_api_DeviceRef is an autogenerated conversion function.
+func Convert_v1beta1_DeviceRef_To_api_DeviceRef(in *v1beta1.DeviceRef, out *DeviceRef, s conversion.Scope) error {
+	return autoConvert_v1beta1_DeviceRef_To_api_DeviceRef(in, out, s)
 }
 
 func autoConvert_api_ResourcePool_To_v1beta1_ResourcePool(in *ResourcePool, out *v1beta1.ResourcePool, s conversion.Scope) error {
@@ -263,11 +414,6 @@ func autoConvert_v1beta1_ResourceSlice_To_api_ResourceSlice(in *v1beta1.Resource
 	return nil
 }
 
-// Convert_v1beta1_ResourceSlice_To_api_ResourceSlice is an autogenerated conversion function.
-func Convert_v1beta1_ResourceSlice_To_api_ResourceSlice(in *v1beta1.ResourceSlice, out *ResourceSlice, s conversion.Scope) error {
-	return autoConvert_v1beta1_ResourceSlice_To_api_ResourceSlice(in, out, s)
-}
-
 func autoConvert_api_ResourceSliceSpec_To_v1beta1_ResourceSliceSpec(in *ResourceSliceSpec, out *v1beta1.ResourceSliceSpec, s conversion.Scope) error {
 	if err := Convert_api_UniqueString_To_string(&in.Driver, &out.Driver, s); err != nil {
 		return err
@@ -291,6 +437,7 @@ func autoConvert_api_ResourceSliceSpec_To_v1beta1_ResourceSliceSpec(in *Resource
 	} else {
 		out.Devices = nil
 	}
+	out.DeviceMixins = *(*[]v1beta1.DeviceMixin)(unsafe.Pointer(&in.DeviceMixins))
 	return nil
 }
 
@@ -322,6 +469,7 @@ func autoConvert_v1beta1_ResourceSliceSpec_To_api_ResourceSliceSpec(in *v1beta1.
 	} else {
 		out.Devices = nil
 	}
+	out.DeviceMixins = *(*[]DeviceMixin)(unsafe.Pointer(&in.DeviceMixins))
 	return nil
 }
 

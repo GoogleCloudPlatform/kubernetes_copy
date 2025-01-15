@@ -904,6 +904,8 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"k8s.io/api/resource/v1alpha3.AllocationResult":                                                         schema_k8sio_api_resource_v1alpha3_AllocationResult(ref),
 		"k8s.io/api/resource/v1alpha3.BasicDevice":                                                              schema_k8sio_api_resource_v1alpha3_BasicDevice(ref),
 		"k8s.io/api/resource/v1alpha3.CELDeviceSelector":                                                        schema_k8sio_api_resource_v1alpha3_CELDeviceSelector(ref),
+		"k8s.io/api/resource/v1alpha3.CompositeDevice":                                                          schema_k8sio_api_resource_v1alpha3_CompositeDevice(ref),
+		"k8s.io/api/resource/v1alpha3.CompositeDeviceMixin":                                                     schema_k8sio_api_resource_v1alpha3_CompositeDeviceMixin(ref),
 		"k8s.io/api/resource/v1alpha3.Device":                                                                   schema_k8sio_api_resource_v1alpha3_Device(ref),
 		"k8s.io/api/resource/v1alpha3.DeviceAllocationConfiguration":                                            schema_k8sio_api_resource_v1alpha3_DeviceAllocationConfiguration(ref),
 		"k8s.io/api/resource/v1alpha3.DeviceAllocationResult":                                                   schema_k8sio_api_resource_v1alpha3_DeviceAllocationResult(ref),
@@ -916,6 +918,9 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"k8s.io/api/resource/v1alpha3.DeviceClassSpec":                                                          schema_k8sio_api_resource_v1alpha3_DeviceClassSpec(ref),
 		"k8s.io/api/resource/v1alpha3.DeviceConfiguration":                                                      schema_k8sio_api_resource_v1alpha3_DeviceConfiguration(ref),
 		"k8s.io/api/resource/v1alpha3.DeviceConstraint":                                                         schema_k8sio_api_resource_v1alpha3_DeviceConstraint(ref),
+		"k8s.io/api/resource/v1alpha3.DeviceMixin":                                                              schema_k8sio_api_resource_v1alpha3_DeviceMixin(ref),
+		"k8s.io/api/resource/v1alpha3.DeviceMixinRef":                                                           schema_k8sio_api_resource_v1alpha3_DeviceMixinRef(ref),
+		"k8s.io/api/resource/v1alpha3.DeviceRef":                                                                schema_k8sio_api_resource_v1alpha3_DeviceRef(ref),
 		"k8s.io/api/resource/v1alpha3.DeviceRequest":                                                            schema_k8sio_api_resource_v1alpha3_DeviceRequest(ref),
 		"k8s.io/api/resource/v1alpha3.DeviceRequestAllocationResult":                                            schema_k8sio_api_resource_v1alpha3_DeviceRequestAllocationResult(ref),
 		"k8s.io/api/resource/v1alpha3.DeviceSelector":                                                           schema_k8sio_api_resource_v1alpha3_DeviceSelector(ref),
@@ -938,6 +943,8 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"k8s.io/api/resource/v1beta1.AllocationResult":                                                          schema_k8sio_api_resource_v1beta1_AllocationResult(ref),
 		"k8s.io/api/resource/v1beta1.BasicDevice":                                                               schema_k8sio_api_resource_v1beta1_BasicDevice(ref),
 		"k8s.io/api/resource/v1beta1.CELDeviceSelector":                                                         schema_k8sio_api_resource_v1beta1_CELDeviceSelector(ref),
+		"k8s.io/api/resource/v1beta1.CompositeDevice":                                                           schema_k8sio_api_resource_v1beta1_CompositeDevice(ref),
+		"k8s.io/api/resource/v1beta1.CompositeDeviceMixin":                                                      schema_k8sio_api_resource_v1beta1_CompositeDeviceMixin(ref),
 		"k8s.io/api/resource/v1beta1.Device":                                                                    schema_k8sio_api_resource_v1beta1_Device(ref),
 		"k8s.io/api/resource/v1beta1.DeviceAllocationConfiguration":                                             schema_k8sio_api_resource_v1beta1_DeviceAllocationConfiguration(ref),
 		"k8s.io/api/resource/v1beta1.DeviceAllocationResult":                                                    schema_k8sio_api_resource_v1beta1_DeviceAllocationResult(ref),
@@ -951,6 +958,9 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"k8s.io/api/resource/v1beta1.DeviceClassSpec":                                                           schema_k8sio_api_resource_v1beta1_DeviceClassSpec(ref),
 		"k8s.io/api/resource/v1beta1.DeviceConfiguration":                                                       schema_k8sio_api_resource_v1beta1_DeviceConfiguration(ref),
 		"k8s.io/api/resource/v1beta1.DeviceConstraint":                                                          schema_k8sio_api_resource_v1beta1_DeviceConstraint(ref),
+		"k8s.io/api/resource/v1beta1.DeviceMixin":                                                               schema_k8sio_api_resource_v1beta1_DeviceMixin(ref),
+		"k8s.io/api/resource/v1beta1.DeviceMixinRef":                                                            schema_k8sio_api_resource_v1beta1_DeviceMixinRef(ref),
+		"k8s.io/api/resource/v1beta1.DeviceRef":                                                                 schema_k8sio_api_resource_v1beta1_DeviceRef(ref),
 		"k8s.io/api/resource/v1beta1.DeviceRequest":                                                             schema_k8sio_api_resource_v1beta1_DeviceRequest(ref),
 		"k8s.io/api/resource/v1beta1.DeviceRequestAllocationResult":                                             schema_k8sio_api_resource_v1beta1_DeviceRequestAllocationResult(ref),
 		"k8s.io/api/resource/v1beta1.DeviceSelector":                                                            schema_k8sio_api_resource_v1beta1_DeviceSelector(ref),
@@ -46473,6 +46483,132 @@ func schema_k8sio_api_resource_v1alpha3_CELDeviceSelector(ref common.ReferenceCa
 	}
 }
 
+func schema_k8sio_api_resource_v1alpha3_CompositeDevice(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "CompositeDevice defines one device instance.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"includes": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-type": "atomic",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Description: "Includes defines the set of device mixins that this device includes.\n\nThe propertes of each included mixin are applied to this device in order. Conflicting properties from multiple mixins are taken from the last mixin listed that contains them.\n\nThe maximum number of mixins that can be included is 8.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("k8s.io/api/resource/v1alpha3.DeviceMixinRef"),
+									},
+								},
+							},
+						},
+					},
+					"consumesCapacityFrom": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-type": "atomic",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Description: "ConsumesCapacityFrom defines the set of devices where any capacity consumed by this device should be pulled from. This applies recursively. In cases where the device names itself as its source, the recursion is halted.\n\nConflicting capacities from multiple devices are taken from the last device listed that contains them.\n\nThe maximum number of devices that can be referenced is 8.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("k8s.io/api/resource/v1alpha3.DeviceRef"),
+									},
+								},
+							},
+						},
+					},
+					"attributes": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Attributes defines the set of attributes for this device. The name of each attribute must be unique in that set.\n\nTo ensure this uniqueness, attributes defined by the vendor must be listed without the driver name as domain prefix in their name. All others must be listed with their domain prefix.\n\nConflicting attributes from those provided via mixins are overwritten by the ones provided here.\n\nThe maximum number of attributes and capacities combined is 32.",
+							Type:        []string{"object"},
+							AdditionalProperties: &spec.SchemaOrBool{
+								Allows: true,
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("k8s.io/api/resource/v1alpha3.DeviceAttribute"),
+									},
+								},
+							},
+						},
+					},
+					"capacity": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Capacity defines the set of capacities for this device. The name of each capacity must be unique in that set.\n\nTo ensure this uniqueness, capacities defined by the vendor must be listed without the driver name as domain prefix in their name. All others must be listed with their domain prefix.\n\nConflicting capacities from those provided via mixins are overwritten by the ones provided here.\n\nThe maximum number of attributes and capacities combined is 32.",
+							Type:        []string{"object"},
+							AdditionalProperties: &spec.SchemaOrBool{
+								Allows: true,
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref("k8s.io/apimachinery/pkg/api/resource.Quantity"),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/api/resource/v1alpha3.DeviceAttribute", "k8s.io/api/resource/v1alpha3.DeviceMixinRef", "k8s.io/api/resource/v1alpha3.DeviceRef", "k8s.io/apimachinery/pkg/api/resource.Quantity"},
+	}
+}
+
+func schema_k8sio_api_resource_v1alpha3_CompositeDeviceMixin(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "CompositeDeviceMixin defines a mixin that a composite device can include.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"attributes": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Attributes defines the set of attributes for this mixin. The name of each attribute must be unique in that set.\n\nTo ensure this uniqueness, attributes defined by the vendor must be listed without the driver name as domain prefix in their name. All others must be listed with their domain prefix.\n\nConflicting attributes from those provided via other mixins are overwritten by the ones provided here.\n\nThe maximum number of attributes and capacities combined is 32.",
+							Type:        []string{"object"},
+							AdditionalProperties: &spec.SchemaOrBool{
+								Allows: true,
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("k8s.io/api/resource/v1alpha3.DeviceAttribute"),
+									},
+								},
+							},
+						},
+					},
+					"capacity": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Capacity defines the set of capacities for this mixin. The name of each capacity must be unique in that set.\n\nTo ensure this uniqueness, capacities defined by the vendor must be listed without the driver name as domain prefix in their name. All others must be listed with their domain prefix.\n\nConflicting capacities from those provided via other mixins are overwritten by the ones provided here.\n\nThe maximum number of attributes and capacities combined is 32.",
+							Type:        []string{"object"},
+							AdditionalProperties: &spec.SchemaOrBool{
+								Allows: true,
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref("k8s.io/apimachinery/pkg/api/resource.Quantity"),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/api/resource/v1alpha3.DeviceAttribute", "k8s.io/apimachinery/pkg/api/resource.Quantity"},
+	}
+}
+
 func schema_k8sio_api_resource_v1alpha3_Device(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -46494,12 +46630,18 @@ func schema_k8sio_api_resource_v1alpha3_Device(ref common.ReferenceCallback) com
 							Ref:         ref("k8s.io/api/resource/v1alpha3.BasicDevice"),
 						},
 					},
+					"composite": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Composite defines one composite device instance.\n\nThis is an alpha field and requires enabling the DRAPartitionableDevices feature gate.",
+							Ref:         ref("k8s.io/api/resource/v1alpha3.CompositeDevice"),
+						},
+					},
 				},
 				Required: []string{"name"},
 			},
 		},
 		Dependencies: []string{
-			"k8s.io/api/resource/v1alpha3.BasicDevice"},
+			"k8s.io/api/resource/v1alpha3.BasicDevice", "k8s.io/api/resource/v1alpha3.CompositeDevice"},
 	}
 }
 
@@ -46985,6 +47127,80 @@ func schema_k8sio_api_resource_v1alpha3_DeviceConstraint(ref common.ReferenceCal
 						},
 					},
 				},
+			},
+		},
+	}
+}
+
+func schema_k8sio_api_resource_v1alpha3_DeviceMixin(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "DeviceMixin defines a specific device mixin for each device type. Besides the name, exactly one field must be set.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"name": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Name is a unique identifier among all mixins managed by the driver in the pool. It must be a DNS label.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"composite": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Composite defines a mixin usable by a composite device.",
+							Ref:         ref("k8s.io/api/resource/v1alpha3.CompositeDeviceMixin"),
+						},
+					},
+				},
+				Required: []string{"name"},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/api/resource/v1alpha3.CompositeDeviceMixin"},
+	}
+}
+
+func schema_k8sio_api_resource_v1alpha3_DeviceMixinRef(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "DeviceMixinRef defines a reference to a device mixin.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"name": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Name refers to the name of a device mixin in the pool.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
+				Required: []string{"name"},
+			},
+		},
+	}
+}
+
+func schema_k8sio_api_resource_v1alpha3_DeviceRef(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "DeviceRef defines a reference to a device.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"name": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Name refers to the name of a device in the pool.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
+				Required: []string{"name"},
 			},
 		},
 	}
@@ -47842,7 +48058,7 @@ func schema_k8sio_api_resource_v1alpha3_ResourceSliceSpec(ref common.ReferenceCa
 							},
 						},
 						SchemaProps: spec.SchemaProps{
-							Description: "Devices lists some or all of the devices in this pool.\n\nMust not have more than 128 entries.",
+							Description: "Devices lists some or all of the devices in this pool.\n\nThe total number of mixins and devices must be less than 128.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -47854,12 +48070,31 @@ func schema_k8sio_api_resource_v1alpha3_ResourceSliceSpec(ref common.ReferenceCa
 							},
 						},
 					},
+					"deviceMixins": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-type": "atomic",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Description: "DeviceMixins represents a list of device mixins, i.e. a collection of shared attributes and capacities that an actual device can \"include\" to extend the set of attributes and capacities it already defines.\n\nThe main purposes of these mixins is to reduce the memory footprint of devices since they can reference the mixins provided here rather than duplicate them.\n\nThe total number of mixins and devices must be less than 128.\n\nThis is an alpha field and requires enabling the DRAPartitionableDevices feature gate.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("k8s.io/api/resource/v1alpha3.DeviceMixin"),
+									},
+								},
+							},
+						},
+					},
 				},
 				Required: []string{"driver", "pool"},
 			},
 		},
 		Dependencies: []string{
-			"k8s.io/api/core/v1.NodeSelector", "k8s.io/api/resource/v1alpha3.Device", "k8s.io/api/resource/v1alpha3.ResourcePool"},
+			"k8s.io/api/core/v1.NodeSelector", "k8s.io/api/resource/v1alpha3.Device", "k8s.io/api/resource/v1alpha3.DeviceMixin", "k8s.io/api/resource/v1alpha3.ResourcePool"},
 	}
 }
 
@@ -48032,6 +48267,134 @@ func schema_k8sio_api_resource_v1beta1_CELDeviceSelector(ref common.ReferenceCal
 	}
 }
 
+func schema_k8sio_api_resource_v1beta1_CompositeDevice(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "CompositeDevice defines one device instance.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"includes": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-type": "atomic",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Description: "Includes defines the set of device mixins that this device includes.\n\nThe propertes of each included mixin are applied to this device in order. Conflicting properties from multiple mixins are taken from the last mixin listed that contains them.\n\nThe maximum number of mixins that can be included is 8.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("k8s.io/api/resource/v1beta1.DeviceMixinRef"),
+									},
+								},
+							},
+						},
+					},
+					"consumesCapacityFrom": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-type": "atomic",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Description: "ConsumesCapacityFrom defines the set of devices where any capacity consumed by this device should be pulled from. This applies recursively. In cases where the device names itself as its source, the recursion is halted.\n\nConflicting capacities from multiple devices are taken from the last device listed that contains them.\n\nThe maximum number of devices that can be referenced is 8.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("k8s.io/api/resource/v1beta1.DeviceRef"),
+									},
+								},
+							},
+						},
+					},
+					"attributes": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Attributes defines the set of attributes for this device. The name of each attribute must be unique in that set.\n\nTo ensure this uniqueness, attributes defined by the vendor must be listed without the driver name as domain prefix in their name. All others must be listed with their domain prefix.\n\nConflicting attributes from those provided via mixins are overwritten by the ones provided here.\n\nThe maximum number of attributes and capacities combined is 32.",
+							Type:        []string{"object"},
+							AdditionalProperties: &spec.SchemaOrBool{
+								Allows: true,
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("k8s.io/api/resource/v1beta1.DeviceAttribute"),
+									},
+								},
+							},
+						},
+					},
+					"capacity": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Capacity defines the set of capacities for this device. The name of each capacity must be unique in that set.\n\nTo ensure this uniqueness, capacities defined by the vendor must be listed without the driver name as domain prefix in their name. All others must be listed with their domain prefix.\n\nConflicting capacities from those provided via mixins are overwritten by the ones provided here.\n\nThe maximum number of attributes and capacities combined is 32.",
+							Type:        []string{"object"},
+							AdditionalProperties: &spec.SchemaOrBool{
+								Allows: true,
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("k8s.io/api/resource/v1beta1.DeviceCapacity"),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/api/resource/v1beta1.DeviceAttribute", "k8s.io/api/resource/v1beta1.DeviceCapacity", "k8s.io/api/resource/v1beta1.DeviceMixinRef", "k8s.io/api/resource/v1beta1.DeviceRef"},
+	}
+}
+
+func schema_k8sio_api_resource_v1beta1_CompositeDeviceMixin(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "CompositeDeviceMixin defines a mixin that a composite device can include.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"attributes": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Attributes defines the set of attributes for this mixin. The name of each attribute must be unique in that set.\n\nTo ensure this uniqueness, attributes defined by the vendor must be listed without the driver name as domain prefix in their name. All others must be listed with their domain prefix.\n\nConflicting attributes from those provided via other mixins are overwritten by the ones provided here.\n\nThe maximum number of attributes and capacities combined is 32.",
+							Type:        []string{"object"},
+							AdditionalProperties: &spec.SchemaOrBool{
+								Allows: true,
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("k8s.io/api/resource/v1beta1.DeviceAttribute"),
+									},
+								},
+							},
+						},
+					},
+					"capacity": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Capacity defines the set of capacities for this mixin. The name of each capacity must be unique in that set.\n\nTo ensure this uniqueness, capacities defined by the vendor must be listed without the driver name as domain prefix in their name. All others must be listed with their domain prefix.\n\nConflicting capacities from those provided via other mixins are overwritten by the ones provided here.\n\nThe maximum number of attributes and capacities combined is 32.",
+							Type:        []string{"object"},
+							AdditionalProperties: &spec.SchemaOrBool{
+								Allows: true,
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("k8s.io/api/resource/v1beta1.DeviceCapacity"),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/api/resource/v1beta1.DeviceAttribute", "k8s.io/api/resource/v1beta1.DeviceCapacity"},
+	}
+}
+
 func schema_k8sio_api_resource_v1beta1_Device(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -48053,12 +48416,18 @@ func schema_k8sio_api_resource_v1beta1_Device(ref common.ReferenceCallback) comm
 							Ref:         ref("k8s.io/api/resource/v1beta1.BasicDevice"),
 						},
 					},
+					"composite": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Composite defines one composite device instance.\n\nThis is an alpha field and requires enabling the DRAPartitionableDevices feature gate.",
+							Ref:         ref("k8s.io/api/resource/v1beta1.CompositeDevice"),
+						},
+					},
 				},
 				Required: []string{"name"},
 			},
 		},
 		Dependencies: []string{
-			"k8s.io/api/resource/v1beta1.BasicDevice"},
+			"k8s.io/api/resource/v1beta1.BasicDevice", "k8s.io/api/resource/v1beta1.CompositeDevice"},
 	}
 }
 
@@ -48566,6 +48935,80 @@ func schema_k8sio_api_resource_v1beta1_DeviceConstraint(ref common.ReferenceCall
 						},
 					},
 				},
+			},
+		},
+	}
+}
+
+func schema_k8sio_api_resource_v1beta1_DeviceMixin(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "DeviceMixin defines a specific device mixin for each device type. Besides the name, exactly one field must be set.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"name": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Name is a unique identifier among all mixins managed by the driver in the pool. It must be a DNS label.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"composite": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Composite defines a mixin usable by a composite device.",
+							Ref:         ref("k8s.io/api/resource/v1beta1.CompositeDeviceMixin"),
+						},
+					},
+				},
+				Required: []string{"name"},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/api/resource/v1beta1.CompositeDeviceMixin"},
+	}
+}
+
+func schema_k8sio_api_resource_v1beta1_DeviceMixinRef(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "DeviceMixinRef defines a reference to a device mixin.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"name": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Name refers to the name of a device mixin in the pool.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
+				Required: []string{"name"},
+			},
+		},
+	}
+}
+
+func schema_k8sio_api_resource_v1beta1_DeviceRef(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "DeviceRef defines a reference to a device.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"name": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Name refers to the name of a device in the pool.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
+				Required: []string{"name"},
 			},
 		},
 	}
@@ -49423,7 +49866,7 @@ func schema_k8sio_api_resource_v1beta1_ResourceSliceSpec(ref common.ReferenceCal
 							},
 						},
 						SchemaProps: spec.SchemaProps{
-							Description: "Devices lists some or all of the devices in this pool.\n\nMust not have more than 128 entries.",
+							Description: "Devices lists some or all of the devices in this pool.\n\nThe total number of mixins and devices must be less than 128.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -49435,12 +49878,31 @@ func schema_k8sio_api_resource_v1beta1_ResourceSliceSpec(ref common.ReferenceCal
 							},
 						},
 					},
+					"deviceMixins": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-type": "atomic",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Description: "DeviceMixins represents a list of device mixins, i.e. a collection of shared attributes and capacities that an actual device can \"include\" to extend the set of attributes and capacities it already defines.\n\nThe main purposes of these mixins is to reduce the memory footprint of devices since they can reference the mixins provided here rather than duplicate them.\n\nThe total number of mixins and devices must be less than 128.\n\nThis is an alpha field and requires enabling the DRAPartitionableDevices feature gate.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("k8s.io/api/resource/v1beta1.DeviceMixin"),
+									},
+								},
+							},
+						},
+					},
 				},
 				Required: []string{"driver", "pool"},
 			},
 		},
 		Dependencies: []string{
-			"k8s.io/api/core/v1.NodeSelector", "k8s.io/api/resource/v1beta1.Device", "k8s.io/api/resource/v1beta1.ResourcePool"},
+			"k8s.io/api/core/v1.NodeSelector", "k8s.io/api/resource/v1beta1.Device", "k8s.io/api/resource/v1beta1.DeviceMixin", "k8s.io/api/resource/v1beta1.ResourcePool"},
 	}
 }
 

@@ -70,10 +70,33 @@ func (CELDeviceSelector) SwaggerDoc() map[string]string {
 	return map_CELDeviceSelector
 }
 
+var map_CompositeDevice = map[string]string{
+	"":                     "CompositeDevice defines one device instance.",
+	"includes":             "Includes defines the set of device mixins that this device includes.\n\nThe propertes of each included mixin are applied to this device in order. Conflicting properties from multiple mixins are taken from the last mixin listed that contains them.\n\nThe maximum number of mixins that can be included is 8.",
+	"consumesCapacityFrom": "ConsumesCapacityFrom defines the set of devices where any capacity consumed by this device should be pulled from. This applies recursively. In cases where the device names itself as its source, the recursion is halted.\n\nConflicting capacities from multiple devices are taken from the last device listed that contains them.\n\nThe maximum number of devices that can be referenced is 8.",
+	"attributes":           "Attributes defines the set of attributes for this device. The name of each attribute must be unique in that set.\n\nTo ensure this uniqueness, attributes defined by the vendor must be listed without the driver name as domain prefix in their name. All others must be listed with their domain prefix.\n\nConflicting attributes from those provided via mixins are overwritten by the ones provided here.\n\nThe maximum number of attributes and capacities combined is 32.",
+	"capacity":             "Capacity defines the set of capacities for this device. The name of each capacity must be unique in that set.\n\nTo ensure this uniqueness, capacities defined by the vendor must be listed without the driver name as domain prefix in their name. All others must be listed with their domain prefix.\n\nConflicting capacities from those provided via mixins are overwritten by the ones provided here.\n\nThe maximum number of attributes and capacities combined is 32.",
+}
+
+func (CompositeDevice) SwaggerDoc() map[string]string {
+	return map_CompositeDevice
+}
+
+var map_CompositeDeviceMixin = map[string]string{
+	"":           "CompositeDeviceMixin defines a mixin that a composite device can include.",
+	"attributes": "Attributes defines the set of attributes for this mixin. The name of each attribute must be unique in that set.\n\nTo ensure this uniqueness, attributes defined by the vendor must be listed without the driver name as domain prefix in their name. All others must be listed with their domain prefix.\n\nConflicting attributes from those provided via other mixins are overwritten by the ones provided here.\n\nThe maximum number of attributes and capacities combined is 32.",
+	"capacity":   "Capacity defines the set of capacities for this mixin. The name of each capacity must be unique in that set.\n\nTo ensure this uniqueness, capacities defined by the vendor must be listed without the driver name as domain prefix in their name. All others must be listed with their domain prefix.\n\nConflicting capacities from those provided via other mixins are overwritten by the ones provided here.\n\nThe maximum number of attributes and capacities combined is 32.",
+}
+
+func (CompositeDeviceMixin) SwaggerDoc() map[string]string {
+	return map_CompositeDeviceMixin
+}
+
 var map_Device = map[string]string{
-	"":      "Device represents one individual hardware instance that can be selected based on its attributes. Besides the name, exactly one field must be set.",
-	"name":  "Name is unique identifier among all devices managed by the driver in the pool. It must be a DNS label.",
-	"basic": "Basic defines one device instance.",
+	"":          "Device represents one individual hardware instance that can be selected based on its attributes. Besides the name, exactly one field must be set.",
+	"name":      "Name is unique identifier among all devices managed by the driver in the pool. It must be a DNS label.",
+	"basic":     "Basic defines one device instance.",
+	"composite": "Composite defines one composite device instance.\n\nThis is an alpha field and requires enabling the DRAPartitionableDevices feature gate.",
 }
 
 func (Device) SwaggerDoc() map[string]string {
@@ -196,6 +219,34 @@ var map_DeviceConstraint = map[string]string{
 
 func (DeviceConstraint) SwaggerDoc() map[string]string {
 	return map_DeviceConstraint
+}
+
+var map_DeviceMixin = map[string]string{
+	"":          "DeviceMixin defines a specific device mixin for each device type. Besides the name, exactly one field must be set.",
+	"name":      "Name is a unique identifier among all mixins managed by the driver in the pool. It must be a DNS label.",
+	"composite": "Composite defines a mixin usable by a composite device.",
+}
+
+func (DeviceMixin) SwaggerDoc() map[string]string {
+	return map_DeviceMixin
+}
+
+var map_DeviceMixinRef = map[string]string{
+	"":     "DeviceMixinRef defines a reference to a device mixin.",
+	"name": "Name refers to the name of a device mixin in the pool.",
+}
+
+func (DeviceMixinRef) SwaggerDoc() map[string]string {
+	return map_DeviceMixinRef
+}
+
+var map_DeviceRef = map[string]string{
+	"":     "DeviceRef defines a reference to a device.",
+	"name": "Name refers to the name of a device in the pool.",
+}
+
+func (DeviceRef) SwaggerDoc() map[string]string {
+	return map_DeviceRef
 }
 
 var map_DeviceRequest = map[string]string{
@@ -390,7 +441,8 @@ var map_ResourceSliceSpec = map[string]string{
 	"nodeName":     "NodeName identifies the node which provides the resources in this pool. A field selector can be used to list only ResourceSlice objects belonging to a certain node.\n\nThis field can be used to limit access from nodes to ResourceSlices with the same node name. It also indicates to autoscalers that adding new nodes of the same type as some old node might also make new resources available.\n\nExactly one of NodeName, NodeSelector and AllNodes must be set. This field is immutable.",
 	"nodeSelector": "NodeSelector defines which nodes have access to the resources in the pool, when that pool is not limited to a single node.\n\nMust use exactly one term.\n\nExactly one of NodeName, NodeSelector and AllNodes must be set.",
 	"allNodes":     "AllNodes indicates that all nodes have access to the resources in the pool.\n\nExactly one of NodeName, NodeSelector and AllNodes must be set.",
-	"devices":      "Devices lists some or all of the devices in this pool.\n\nMust not have more than 128 entries.",
+	"devices":      "Devices lists some or all of the devices in this pool.\n\nThe total number of mixins and devices must be less than 128.",
+	"deviceMixins": "DeviceMixins represents a list of device mixins, i.e. a collection of shared attributes and capacities that an actual device can \"include\" to extend the set of attributes and capacities it already defines.\n\nThe main purposes of these mixins is to reduce the memory footprint of devices since they can reference the mixins provided here rather than duplicate them.\n\nThe total number of mixins and devices must be less than 128.\n\nThis is an alpha field and requires enabling the DRAPartitionableDevices feature gate.",
 }
 
 func (ResourceSliceSpec) SwaggerDoc() map[string]string {

@@ -1590,6 +1590,10 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &resourcev1alpha3.BasicDeviceApplyConfiguration{}
 	case v1alpha3.SchemeGroupVersion.WithKind("CELDeviceSelector"):
 		return &resourcev1alpha3.CELDeviceSelectorApplyConfiguration{}
+	case v1alpha3.SchemeGroupVersion.WithKind("CompositeDevice"):
+		return &resourcev1alpha3.CompositeDeviceApplyConfiguration{}
+	case v1alpha3.SchemeGroupVersion.WithKind("CompositeDeviceMixin"):
+		return &resourcev1alpha3.CompositeDeviceMixinApplyConfiguration{}
 	case v1alpha3.SchemeGroupVersion.WithKind("Device"):
 		return &resourcev1alpha3.DeviceApplyConfiguration{}
 	case v1alpha3.SchemeGroupVersion.WithKind("DeviceAllocationConfiguration"):
@@ -1612,6 +1616,12 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &resourcev1alpha3.DeviceConfigurationApplyConfiguration{}
 	case v1alpha3.SchemeGroupVersion.WithKind("DeviceConstraint"):
 		return &resourcev1alpha3.DeviceConstraintApplyConfiguration{}
+	case v1alpha3.SchemeGroupVersion.WithKind("DeviceMixin"):
+		return &resourcev1alpha3.DeviceMixinApplyConfiguration{}
+	case v1alpha3.SchemeGroupVersion.WithKind("DeviceMixinRef"):
+		return &resourcev1alpha3.DeviceMixinRefApplyConfiguration{}
+	case v1alpha3.SchemeGroupVersion.WithKind("DeviceRef"):
+		return &resourcev1alpha3.DeviceRefApplyConfiguration{}
 	case v1alpha3.SchemeGroupVersion.WithKind("DeviceRequest"):
 		return &resourcev1alpha3.DeviceRequestApplyConfiguration{}
 	case v1alpha3.SchemeGroupVersion.WithKind("DeviceRequestAllocationResult"):
@@ -1652,6 +1662,10 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &applyconfigurationsresourcev1beta1.BasicDeviceApplyConfiguration{}
 	case resourcev1beta1.SchemeGroupVersion.WithKind("CELDeviceSelector"):
 		return &applyconfigurationsresourcev1beta1.CELDeviceSelectorApplyConfiguration{}
+	case resourcev1beta1.SchemeGroupVersion.WithKind("CompositeDevice"):
+		return &applyconfigurationsresourcev1beta1.CompositeDeviceApplyConfiguration{}
+	case resourcev1beta1.SchemeGroupVersion.WithKind("CompositeDeviceMixin"):
+		return &applyconfigurationsresourcev1beta1.CompositeDeviceMixinApplyConfiguration{}
 	case resourcev1beta1.SchemeGroupVersion.WithKind("Device"):
 		return &applyconfigurationsresourcev1beta1.DeviceApplyConfiguration{}
 	case resourcev1beta1.SchemeGroupVersion.WithKind("DeviceAllocationConfiguration"):
@@ -1676,6 +1690,12 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &applyconfigurationsresourcev1beta1.DeviceConfigurationApplyConfiguration{}
 	case resourcev1beta1.SchemeGroupVersion.WithKind("DeviceConstraint"):
 		return &applyconfigurationsresourcev1beta1.DeviceConstraintApplyConfiguration{}
+	case resourcev1beta1.SchemeGroupVersion.WithKind("DeviceMixin"):
+		return &applyconfigurationsresourcev1beta1.DeviceMixinApplyConfiguration{}
+	case resourcev1beta1.SchemeGroupVersion.WithKind("DeviceMixinRef"):
+		return &applyconfigurationsresourcev1beta1.DeviceMixinRefApplyConfiguration{}
+	case resourcev1beta1.SchemeGroupVersion.WithKind("DeviceRef"):
+		return &applyconfigurationsresourcev1beta1.DeviceRefApplyConfiguration{}
 	case resourcev1beta1.SchemeGroupVersion.WithKind("DeviceRequest"):
 		return &applyconfigurationsresourcev1beta1.DeviceRequestApplyConfiguration{}
 	case resourcev1beta1.SchemeGroupVersion.WithKind("DeviceRequestAllocationResult"):
