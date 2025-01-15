@@ -579,7 +579,7 @@
   - default: false
     lockToDefault: false
     preRelease: Alpha
-    version: "1.33"
+    version: "1.32"
 - name: InTreePluginPortworxUnregister
   versionedSpecs:
   - default: false
