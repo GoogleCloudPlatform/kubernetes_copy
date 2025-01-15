@@ -152,20 +152,6 @@ var (
 	// TODO: document the feature (owning SIG, when to use this feature for a test)
 	HPA = framework.WithFeature(framework.ValidFeatures.Add("HPA"))
 
-	// owning-sig: sig-storage
-	// kep: https://kep.k8s.io/2680
-	// test-infra jobs:
-	// - pull-kubernetes-e2e-storage-kind-alpha-features (need manual trigger)
-	// - ci-kubernetes-e2e-storage-kind-alpha-features
-	//
-	// When this label is added to a test, it means that the cluster must be created
-	// with the feature-gate "HonorPVReclaimPolicy=true".
-	//
-	// Once the feature are stable, this label should be removed and these tests will
-	// be run by default on any cluster. The test-infra job also should be updated to
-	// not focus on this feature anymore.
-	HonorPVReclaimPolicy = framework.WithFeature(framework.ValidFeatures.Add("HonorPVReclaimPolicy"))
-
 	// TODO: document the feature (owning SIG, when to use this feature for a test)
 	HugePages = framework.WithFeature(framework.ValidFeatures.Add("HugePages"))
 
@@ -421,13 +407,6 @@ var (
 
 	// TODO: document the feature (owning SIG, when to use this feature for a test)
 	ValidatingAdmissionPolicy = framework.WithFeature(framework.ValidFeatures.Add("ValidatingAdmissionPolicy"))
-
-	// Owner: sig-storage
-	// Tests related to VolumeAttributesClass (https://kep.k8s.io/3751)
-	//
-	// TODO: This label only requires the API storage.k8s.io/v1alpha1 and the VolumeAttributesClass feature-gate enabled.
-	// It should be removed after k/k #124350 is merged.
-	VolumeAttributesClass = framework.WithFeature(framework.ValidFeatures.Add("VolumeAttributesClass"))
 
 	// TODO: document the feature (owning SIG, when to use this feature for a test)
 	Volumes = framework.WithFeature(framework.ValidFeatures.Add("Volumes"))

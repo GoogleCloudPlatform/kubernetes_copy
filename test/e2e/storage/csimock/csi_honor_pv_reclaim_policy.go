@@ -27,7 +27,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	storagehelpers "k8s.io/component-helpers/storage/volume"
 	"k8s.io/kubernetes/pkg/features"
-	"k8s.io/kubernetes/test/e2e/feature"
 	"k8s.io/kubernetes/test/e2e/framework"
 	e2epv "k8s.io/kubernetes/test/e2e/framework/pv"
 	"k8s.io/kubernetes/test/e2e/storage/utils"
@@ -35,7 +34,7 @@ import (
 	"k8s.io/utils/ptr"
 )
 
-var _ = utils.SIGDescribe("CSI Mock honor pv reclaim policy", feature.HonorPVReclaimPolicy, framework.WithFeatureGate(features.HonorPVReclaimPolicy), func() {
+var _ = utils.SIGDescribe("CSI Mock honor pv reclaim policy", framework.WithFeatureGate(features.HonorPVReclaimPolicy), func() {
 	f := framework.NewDefaultFramework("csi-mock-honor-pv-reclaim-policy")
 	f.NamespacePodSecurityLevel = admissionapi.LevelPrivileged
 	m := newMockDriverSetup(f)

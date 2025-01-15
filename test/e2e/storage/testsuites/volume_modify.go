@@ -30,7 +30,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/errors"
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/kubernetes/pkg/features"
-	e2efeature "k8s.io/kubernetes/test/e2e/feature"
 	"k8s.io/kubernetes/test/e2e/framework"
 	e2epod "k8s.io/kubernetes/test/e2e/framework/pod"
 	e2epv "k8s.io/kubernetes/test/e2e/framework/pv"
@@ -62,7 +61,7 @@ func InitCustomVolumeModifyTestSuite(patterns []storageframework.TestPattern) st
 			SupportedSizeRange: e2evolume.SizeRange{
 				Min: "1Gi",
 			},
-			TestTags: []interface{}{e2efeature.VolumeAttributesClass, framework.WithFeatureGate(features.VolumeAttributesClass)},
+			TestTags: []interface{}{framework.WithFeatureGate(features.VolumeAttributesClass)},
 		},
 	}
 }
