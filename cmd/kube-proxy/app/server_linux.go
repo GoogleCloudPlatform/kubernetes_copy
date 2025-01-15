@@ -527,11 +527,9 @@ func platformCleanup(ctx context.Context, mode proxyconfigapi.ProxyMode, cleanup
 		}
 	}
 
-	if utilfeature.DefaultFeatureGate.Enabled(features.NFTablesProxyMode) {
-		// Clean up nftables rules when switching to iptables or ipvs, or if cleanupAndExit
-		if isIPTablesBased(mode) || cleanupAndExit {
-			encounteredError = nftables.CleanupLeftovers(ctx) || encounteredError
-		}
+	// Clean up nftables rules when switching to iptables or ipvs, or if cleanupAndExit
+	if isIPTablesBased(mode) || cleanupAndExit {
+		encounteredError = nftables.CleanupLeftovers(ctx) || encounteredError
 	}
 
 	if encounteredError {
