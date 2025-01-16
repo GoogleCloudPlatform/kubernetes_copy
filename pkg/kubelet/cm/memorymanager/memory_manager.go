@@ -280,7 +280,7 @@ func (m *manager) RemoveContainer(containerID string) error {
 	// if error appears it means container entry already does not exist under the container map
 	podUID, containerName, err := m.containerMap.GetContainerRef(containerID)
 	if err != nil {
-		klog.InfoS("Failed to get container from container map", "containerID", containerID, "err", err)
+		klog.ErrorS(err, "Failed to get container from container map", "containerID", containerID)
 		return nil
 	}
 
