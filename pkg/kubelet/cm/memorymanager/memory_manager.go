@@ -248,11 +248,11 @@ func (m *manager) GetMemoryNUMANodes(pod *v1.Pod, container *v1.Container) sets.
 	}
 
 	if numaNodes.Len() == 0 {
-		klog.V(5).InfoS("No allocation is available", "pod", klog.KObj(pod), "containerName", container.Name)
+		klog.V(5).InfoS("No allocation is available", "pod", klog.KObj(pod), "podUID", pod.UID, "containerName", container.Name)
 		return nil
 	}
 
-	klog.InfoS("Memory affinity", "pod", klog.KObj(pod), "containerName", container.Name, "numaNodes", numaNodes)
+	klog.InfoS("Memory affinity", "pod", klog.KObj(pod), "podUID", pod.UID, "containerName", container.Name, "numaNodes", numaNodes)
 	return numaNodes
 }
 
@@ -266,7 +266,7 @@ func (m *manager) Allocate(pod *v1.Pod, container *v1.Container) error {
 
 	// Call down into the policy to assign this container memory if required.
 	if err := m.policy.Allocate(m.state, pod, container); err != nil {
-		klog.ErrorS(err, "Allocate error")
+		klog.ErrorS(err, "Allocate error", "pod", klog.KObj(pod), "podUID", pod.UID, "containerName", container.Name)
 		return err
 	}
 	return nil

@@ -101,7 +101,7 @@ func (p *staticPolicy) Allocate(s state.State, pod *v1.Pod, container *v1.Contai
 	}
 
 	podUID := string(pod.UID)
-	klog.InfoS("Allocate", "pod", klog.KObj(pod), "containerName", container.Name)
+	klog.InfoS("Allocate", "pod", klog.KObj(pod), "podUID", pod.UID, "containerName", container.Name)
 	// container belongs in an exclusively allocated pool
 	metrics.MemoryManagerPinningRequestTotal.Inc()
 	defer func() {
@@ -112,7 +112,7 @@ func (p *staticPolicy) Allocate(s state.State, pod *v1.Pod, container *v1.Contai
 	if blocks := s.GetMemoryBlocks(podUID, container.Name); blocks != nil {
 		p.updatePodReusableMemory(pod, container, blocks)
 
-		klog.InfoS("Container already present in state, skipping", "pod", klog.KObj(pod), "containerName", container.Name)
+		klog.InfoS("Container already present in state, skipping", "pod", klog.KObj(pod), "podUID", pod.UID, "containerName", container.Name)
 		return nil
 	}
 
@@ -304,24 +304,24 @@ func regenerateHints(pod *v1.Pod, ctn *v1.Container, ctnBlocks []state.Block, re
 	}
 
 	if len(ctnBlocks) != len(reqRsrc) {
-		klog.InfoS("The number of requested resources by the container differs from the number of memory blocks", "containerName", ctn.Name)
+		klog.InfoS("The number of requested resources by the container differs from the number of memory blocks", "pod", klog.KObj(pod), "podUID", pod.UID, "containerName", ctn.Name)
 		return nil
 	}
 
 	for _, b := range ctnBlocks {
 		if _, ok := reqRsrc[b.Type]; !ok {
-			klog.InfoS("Container requested resources do not have resource of this type", "containerName", ctn.Name, "type", b.Type)
+			klog.InfoS("Container requested resources do not have resource of this type", "pod", klog.KObj(pod), "podUID", pod.UID, "containerName", ctn.Name, "type", b.Type)
 			return nil
 		}
 
 		if b.Size != reqRsrc[b.Type] {
-			klog.InfoS("Memory already allocated with different numbers than requested", "podUID", pod.UID, "type", b.Type, "containerName", ctn.Name, "requestedResource", reqRsrc[b.Type], "allocatedSize", b.Size)
+			klog.InfoS("Memory already allocated with different numbers than requested", "pod", klog.KObj(pod), "podUID", pod.UID, "type", b.Type, "containerName", ctn.Name, "requestedResource", reqRsrc[b.Type], "allocatedSize", b.Size)
 			return nil
 		}
 
 		containerNUMAAffinity, err := bitmask.NewBitMask(b.NUMAAffinity...)
 		if err != nil {
-			klog.ErrorS(err, "Failed to generate NUMA bitmask")
+			klog.ErrorS(err, "Failed to generate NUMA bitmask", "pod", klog.KObj(pod), "podUID", pod.UID, "type", b.Type, "containerName", ctn.Name)
 			return nil
 		}
 
