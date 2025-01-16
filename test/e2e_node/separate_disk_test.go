@@ -142,7 +142,8 @@ var _ = SIGDescribe("LocalStorageSoftEviction", framework.WithSlow(), framework.
 })
 
 // LocalStorageCapacityIsolationEviction tests that container and volume local storage limits are enforced through evictions
-var _ = SIGDescribe("LocalStorageCapacityIsolationEviction", framework.WithSlow(), framework.WithSerial(), framework.WithDisruptive(), feature.LocalStorageCapacityIsolation, nodefeature.SeparateDisk, func() {
+// removed localstoragecapacityisolation feature gate here as its not a feature gate anymore
+var _ = SIGDescribe("LocalStorageCapacityIsolationEviction", framework.WithSlow(), framework.WithSerial(), framework.WithDisruptive(), nodefeature.SeparateDisk, func() {
 	f := framework.NewDefaultFramework("localstorage-eviction-test")
 	f.NamespacePodSecurityLevel = admissionapi.LevelPrivileged
 	evictionTestTimeout := 10 * time.Minute
@@ -212,7 +213,7 @@ var _ = SIGDescribe("ImageStorageEviction", framework.WithSlow(), framework.With
 	})
 })
 
-// ImageStorageVolumeEviction tests that the node responds to node disk pressure by evicting pods.
+// LocalStorageVolumeEviction tests that the node responds to node disk pressure by evicting pods.
 // Volumes write to the node filesystem so we are testing eviction on nodefs even if it
 // exceeds imagefs limits.
 var _ = SIGDescribe("ImageStorageVolumeEviction", framework.WithSlow(), framework.WithSerial(), framework.WithDisruptive(), nodefeature.SeparateDisk, func() {
