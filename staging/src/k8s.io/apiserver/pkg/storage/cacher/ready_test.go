@@ -199,7 +199,7 @@ func Test_newReadyCancelPending(t *testing.T) {
 func Test_newReadyStateChangeTimestamp(t *testing.T) {
 	fakeClock := testingclock.NewFakeClock(time.Now())
 	fakeClock.SetTime(time.Now())
-	assertLastStateChangeTsFunc := func(target *ready, expectedLastStateChangeDuration time.Duration) {
+	assertLastStateChangeTSFunc := func(target *ready, expectedLastStateChangeDuration time.Duration) {
 		if lastStateChangeDuration, _ := target.check(); lastStateChangeDuration != expectedLastStateChangeDuration {
 			t.Errorf("unexpected last state change duration: %v, expected: %v", lastStateChangeDuration, expectedLastStateChangeDuration)
 		}
@@ -207,27 +207,27 @@ func Test_newReadyStateChangeTimestamp(t *testing.T) {
 
 	ready := newReady(fakeClock)
 	fakeClock.Step(time.Minute)
-	assertLastStateChangeTsFunc(ready, time.Minute)
+	assertLastStateChangeTSFunc(ready, time.Minute)
 
 	ready.set(true)
 	fakeClock.Step(time.Minute)
-	assertLastStateChangeTsFunc(ready, time.Minute)
+	assertLastStateChangeTSFunc(ready, time.Minute)
 	fakeClock.Step(time.Minute)
-	assertLastStateChangeTsFunc(ready, 2*time.Minute)
+	assertLastStateChangeTSFunc(ready, 2*time.Minute)
 
 	ready.set(false)
 	fakeClock.Step(time.Minute)
-	assertLastStateChangeTsFunc(ready, time.Minute)
+	assertLastStateChangeTSFunc(ready, time.Minute)
 	fakeClock.Step(time.Minute)
-	assertLastStateChangeTsFunc(ready, 2*time.Minute)
+	assertLastStateChangeTSFunc(ready, 2*time.Minute)
 
 	ready.set(true)
 	fakeClock.Step(time.Minute)
-	assertLastStateChangeTsFunc(ready, time.Minute)
+	assertLastStateChangeTSFunc(ready, time.Minute)
 
 	ready.stop()
 	fakeClock.Step(time.Minute)
-	assertLastStateChangeTsFunc(ready, time.Minute)
+	assertLastStateChangeTSFunc(ready, time.Minute)
 	fakeClock.Step(time.Minute)
-	assertLastStateChangeTsFunc(ready, 2*time.Minute)
+	assertLastStateChangeTSFunc(ready, 2*time.Minute)
 }

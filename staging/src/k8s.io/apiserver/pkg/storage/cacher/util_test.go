@@ -18,6 +18,7 @@ package cacher
 
 import (
 	"testing"
+	"time"
 )
 
 func TestHasPathPrefix(t *testing.T) {
@@ -65,5 +66,33 @@ func TestHasPathPrefix(t *testing.T) {
 		if hasPathPrefix(tc.s, tc.prefix) {
 			t.Errorf(`%d: Expected hasPathPrefix("%s","%s") to be false`, i, tc.s, tc.prefix)
 		}
+	}
+}
+
+func TestCalculateRetryAfterForUnreadyCache(t *testing.T) {
+	tests := []struct {
+		downtime time.Duration
+		expected int
+	}{
+		{downtime: 0 * time.Second, expected: 1},
+		{downtime: 1 * time.Second, expected: 1},
+		{downtime: 3 * time.Second, expected: 1},
+		{downtime: 5 * time.Second, expected: 2},
+		{downtime: 7 * time.Second, expected: 4},
+		{downtime: 10 * time.Second, expected: 10},
+		{downtime: 14 * time.Second, expected: 19},
+		{downtime: 20 * time.Second, expected: 30},
+		{downtime: 30 * time.Second, expected: 30},
+		{downtime: 40 * time.Second, expected: 30},
+		{downtime: 540 * time.Second, expected: 30},
+	}
+
+	for _, test := range tests {
+		t.Run(test.downtime.String(), func(t *testing.T) {
+			result := calculateRetryAfterForUnreadyCache(test.downtime)
+			if result != test.expected {
+				t.Errorf("for downtime %s, expected %d, but got %d", test.downtime, test.expected, result)
+			}
+		})
 	}
 }
