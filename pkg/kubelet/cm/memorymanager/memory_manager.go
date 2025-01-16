@@ -344,7 +344,7 @@ func (m *manager) removeStaleState() {
 	for podUID := range assignments {
 		for containerName := range assignments[podUID] {
 			if _, ok := activeContainers[podUID][containerName]; !ok {
-				klog.InfoS("RemoveStaleState removing state", "podUID", podUID, "containerName", containerName)
+				klog.V(2).InfoS("RemoveStaleState removing state", "podUID", podUID, "containerName", containerName)
 				m.policyRemoveContainerByRef(podUID, containerName)
 			}
 		}
@@ -352,7 +352,7 @@ func (m *manager) removeStaleState() {
 
 	m.containerMap.Visit(func(podUID, containerName, containerID string) {
 		if _, ok := activeContainers[podUID][containerName]; !ok {
-			klog.InfoS("RemoveStaleState removing state", "podUID", podUID, "containerName", containerName)
+			klog.V(2).InfoS("RemoveStaleState removing state", "podUID", podUID, "containerName", containerName)
 			m.policyRemoveContainerByRef(podUID, containerName)
 		}
 	})
