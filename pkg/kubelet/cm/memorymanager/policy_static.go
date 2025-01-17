@@ -196,6 +196,7 @@ func (p *staticPolicy) Allocate(s state.State, pod *v1.Pod, container *v1.Contai
 	// TODO: we should refactor our state structs to reflect the amount of the re-used memory
 	p.updateInitContainersMemoryBlocks(s, pod, container, containerBlocks)
 
+	klog.V(4).InfoS("Allocated exclusive memory", "pod", klog.KObj(pod), "podUID", pod.UID, "containerName", container.Name)
 	return nil
 }
 

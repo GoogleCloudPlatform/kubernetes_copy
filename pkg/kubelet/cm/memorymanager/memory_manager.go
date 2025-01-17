@@ -205,6 +205,7 @@ func (m *manager) Start(activePods ActivePodsFunc, sourcesReady config.SourcesRe
 
 	m.allocatableMemory = m.policy.GetAllocatableMemory(m.state)
 
+	klog.V(4).InfoS("memorymanager started", "policy", m.policy.Name())
 	return nil
 }
 
