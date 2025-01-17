@@ -96,7 +96,9 @@ func (p *staticPolicy) Start(s state.State) error {
 // Allocate call is idempotent
 func (p *staticPolicy) Allocate(s state.State, pod *v1.Pod, container *v1.Container) (rerr error) {
 	// allocate the memory only for guaranteed pods
-	if v1qos.GetPodQOS(pod) != v1.PodQOSGuaranteed {
+	qos := v1qos.GetPodQOS(pod)
+	if qos != v1.PodQOSGuaranteed {
+		klog.V(5).InfoS("Exclusive memory allocation skipped, pod QoS is not guaranteed", "pod", klog.KObj(pod), "podUID", pod.UID, "containerName", container.Name, "qos", qos)
 		return nil
 	}
 
