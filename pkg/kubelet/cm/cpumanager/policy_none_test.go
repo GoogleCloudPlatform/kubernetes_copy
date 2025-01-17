@@ -17,14 +17,21 @@ limitations under the License.
 package cpumanager
 
 import (
+	"context"
 	"testing"
+
+	"k8s.io/klog/v2/ktesting"
+	_ "k8s.io/klog/v2/ktesting/init"
 
 	"k8s.io/kubernetes/pkg/kubelet/cm/cpumanager/state"
 	"k8s.io/utils/cpuset"
 )
 
 func TestNonePolicyName(t *testing.T) {
-	policy := &nonePolicy{}
+	logger, _ := ktesting.NewTestContext(t)
+	policy := &nonePolicy{
+		logger: logger,
+	}
 
 	policyName := policy.Name()
 	if policyName != "none" {
@@ -33,7 +40,10 @@ func TestNonePolicyName(t *testing.T) {
 }
 
 func TestNonePolicyAllocate(t *testing.T) {
-	policy := &nonePolicy{}
+	logger, ctx := ktesting.NewTestContext(t)
+	policy := &nonePolicy{
+		logger: logger,
+	}
 
 	st := &mockState{
 		assignments:   state.ContainerCPUAssignments{},
@@ -43,14 +53,17 @@ func TestNonePolicyAllocate(t *testing.T) {
 	testPod := makePod("fakePod", "fakeContainer", "1000m", "1000m")
 
 	container := &testPod.Spec.Containers[0]
-	err := policy.Allocate(st, testPod, container)
+	err := policy.Allocate(ctx, st, testPod, container)
 	if err != nil {
 		t.Errorf("NonePolicy Allocate() error. expected no error but got: %v", err)
 	}
 }
 
 func TestNonePolicyRemove(t *testing.T) {
-	policy := &nonePolicy{}
+	logger, _ := ktesting.NewTestContext(t)
+	policy := &nonePolicy{
+		logger: logger,
+	}
 
 	st := &mockState{
 		assignments:   state.ContainerCPUAssignments{},
@@ -60,7 +73,7 @@ func TestNonePolicyRemove(t *testing.T) {
 	testPod := makePod("fakePod", "fakeContainer", "1000m", "1000m")
 
 	container := &testPod.Spec.Containers[0]
-	err := policy.RemoveContainer(st, string(testPod.UID), container.Name)
+	err := policy.RemoveContainer(context.Background(), st, string(testPod.UID), container.Name)
 	if err != nil {
 		t.Errorf("NonePolicy RemoveContainer() error. expected no error but got %v", err)
 	}
@@ -74,14 +87,17 @@ func TestNonePolicyGetAllocatableCPUs(t *testing.T) {
 		cpuIDs = append(cpuIDs, cpuID)
 	}
 
-	policy := &nonePolicy{}
+	logger, _ := ktesting.NewTestContext(t)
+	policy := &nonePolicy{
+		logger: logger,
+	}
 
 	st := &mockState{
 		assignments:   state.ContainerCPUAssignments{},
 		defaultCPUSet: cpuset.New(cpuIDs...),
 	}
 
-	cpus := policy.GetAllocatableCPUs(st)
+	cpus := policy.GetAllocatableCPUs(context.Background(), st)
 	if cpus.Size() != 0 {
 		t.Errorf("NonePolicy GetAllocatableCPUs() error. expected empty set, returned: %v", cpus)
 	}
@@ -90,7 +106,8 @@ func TestNonePolicyGetAllocatableCPUs(t *testing.T) {
 func TestNonePolicyOptions(t *testing.T) {
 	var err error
 
-	_, err = NewNonePolicy(nil)
+	_, ctx := ktesting.NewTestContext(t)
+	_, err = NewNonePolicy(ctx, nil)
 	if err != nil {
 		t.Errorf("NewNonePolicy with nil options failure. expected no error but got: %v", err)
 	}
@@ -98,7 +115,7 @@ func TestNonePolicyOptions(t *testing.T) {
 	opts := map[string]string{
 		FullPCPUsOnlyOption: "true",
 	}
-	_, err = NewNonePolicy(opts)
+	_, err = NewNonePolicy(ctx, opts)
 	if err == nil {
 		t.Errorf("NewNonePolicy with (any) options failure. expected error but got none")
 	}

@@ -26,6 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	featuregatetesting "k8s.io/component-base/featuregate/testing"
+	"k8s.io/klog/v2/ktesting"
 	pkgfeatures "k8s.io/kubernetes/pkg/features"
 	"k8s.io/kubernetes/pkg/kubelet/cm/cpumanager/state"
 	"k8s.io/kubernetes/pkg/kubelet/cm/cpumanager/topology"
@@ -209,11 +210,12 @@ func TestPodGuaranteedCPUs(t *testing.T) {
 }
 
 func TestGetTopologyHints(t *testing.T) {
+	_, ctx := ktesting.NewTestContext(t)
 	machineInfo := returnMachineInfo()
 	tcases := returnTestCases()
 
 	for _, tc := range tcases {
-		topology, _ := topology.Discover(&machineInfo)
+		topology, _ := topology.Discover(ctx, &machineInfo)
 
 		var activePods []*v1.Pod
 		for p := range tc.assignments {
@@ -259,9 +261,10 @@ func TestGetTopologyHints(t *testing.T) {
 
 func TestGetPodTopologyHints(t *testing.T) {
 	machineInfo := returnMachineInfo()
+	_, ctx := ktesting.NewTestContext(t)
 
 	for _, tc := range returnTestCases() {
-		topology, _ := topology.Discover(&machineInfo)
+		topology, _ := topology.Discover(ctx, &machineInfo)
 
 		var activePods []*v1.Pod
 		for p := range tc.assignments {

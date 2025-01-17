@@ -21,6 +21,7 @@ import (
 	"path/filepath"
 	"sync"
 
+	"github.com/go-logr/logr"
 	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/kubelet/checkpointmanager"
 	"k8s.io/kubernetes/pkg/kubelet/checkpointmanager/errors"
@@ -32,6 +33,7 @@ var _ State = &stateCheckpoint{}
 
 type stateCheckpoint struct {
 	mux               sync.RWMutex
+	logger            logr.Logger
 	policyName        string
 	cache             State
 	checkpointManager checkpointmanager.CheckpointManager
@@ -40,13 +42,15 @@ type stateCheckpoint struct {
 }
 
 // NewCheckpointState creates new State for keeping track of cpu/pod assignment with checkpoint backend
-func NewCheckpointState(stateDir, checkpointName, policyName string, initialContainers containermap.ContainerMap) (State, error) {
+func NewCheckpointState(logger logr.Logger, stateDir, checkpointName, policyName string, initialContainers containermap.ContainerMap) (State, error) {
+	logger = klog.LoggerWithName(logger, "checkpoint")
 	checkpointManager, err := checkpointmanager.NewCheckpointManager(stateDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize checkpoint manager: %v", err)
 	}
 	stateCheckpoint := &stateCheckpoint{
-		cache:             NewMemoryState(),
+		logger:            logger,
+		cache:             NewMemoryState(logger),
 		policyName:        policyName,
 		checkpointManager: checkpointManager,
 		checkpointName:    checkpointName,
@@ -133,8 +137,8 @@ func (sc *stateCheckpoint) restoreState() error {
 	sc.cache.SetDefaultCPUSet(tmpDefaultCPUSet)
 	sc.cache.SetCPUAssignments(tmpAssignments)
 
-	klog.V(2).InfoS("State checkpoint: restored state from checkpoint")
-	klog.V(2).InfoS("State checkpoint: defaultCPUSet", "defaultCpuSet", tmpDefaultCPUSet.String())
+	sc.logger.V(2).Info("restored state from checkpoint")
+	sc.logger.V(2).Info("defaultCPUSet", "defaultCpuSet", tmpDefaultCPUSet.String())
 
 	return nil
 }
@@ -155,7 +159,7 @@ func (sc *stateCheckpoint) storeState() error {
 
 	err := sc.checkpointManager.CreateCheckpoint(sc.checkpointName, checkpoint)
 	if err != nil {
-		klog.ErrorS(err, "Failed to save checkpoint")
+		sc.logger.Error(err, "Failed to save checkpoint")
 		return err
 	}
 	return nil
@@ -201,7 +205,7 @@ func (sc *stateCheckpoint) SetCPUSet(podUID string, containerName string, cset c
 	sc.cache.SetCPUSet(podUID, containerName, cset)
 	err := sc.storeState()
 	if err != nil {
-		klog.InfoS("Store state to checkpoint error", "err", err)
+		sc.logger.Error(err, "Failed to store to checkpoint", "flow", "cpuSet")
 	}
 }
 
@@ -212,7 +216,7 @@ func (sc *stateCheckpoint) SetDefaultCPUSet(cset cpuset.CPUSet) {
 	sc.cache.SetDefaultCPUSet(cset)
 	err := sc.storeState()
 	if err != nil {
-		klog.InfoS("Store state to checkpoint error", "err", err)
+		sc.logger.Error(err, "Failed to store to checkpoint", "flow", "defaultCpuSet")
 	}
 }
 
@@ -223,7 +227,7 @@ func (sc *stateCheckpoint) SetCPUAssignments(a ContainerCPUAssignments) {
 	sc.cache.SetCPUAssignments(a)
 	err := sc.storeState()
 	if err != nil {
-		klog.InfoS("Store state to checkpoint error", "err", err)
+		sc.logger.Error(err, "Failed to store to checkpoint", "flow", "cpuAssignments")
 	}
 }
 
@@ -234,7 +238,7 @@ func (sc *stateCheckpoint) Delete(podUID string, containerName string) {
 	sc.cache.Delete(podUID, containerName)
 	err := sc.storeState()
 	if err != nil {
-		klog.InfoS("Store state to checkpoint error", "err", err)
+		sc.logger.Error(err, "Failed to store to checkpoint", "flow", "deletePod")
 	}
 }
 
@@ -245,6 +249,6 @@ func (sc *stateCheckpoint) ClearState() {
 	sc.cache.ClearState()
 	err := sc.storeState()
 	if err != nil {
-		klog.InfoS("Store state to checkpoint error", "err", err)
+		sc.logger.Error(err, "Failed to store to checkpoint", "flow", "clearState")
 	}
 }
