@@ -116,12 +116,13 @@ dependencies:
 
   # Golang
   - name: "golang: upstream version"
-    version: 1.23.4
+    version: 1.24rc1
     refPaths:
     - path: .go-version
     - path: build/build-image/cross/VERSION
-    - path: staging/publishing/rules.yaml
-      match: 'default-go-version\: \d+.\d+(alpha|beta|rc)?\.?(\d+)?'
+    # TODO: remove this when whe have the go1.24 released and not the rc.
+    # - path: staging/publishing/rules.yaml
+    #   match: 'default-go-version\: \d+.\d+(alpha|beta|rc)?\.?(\d+)?'
     - path: test/images/Makefile
       match: GOLANG_VERSION=\d+.\d+(alpha|beta|rc)?\.?\d+
 
@@ -130,17 +131,19 @@ dependencies:
   #
   # This entry is a stub of the major version to allow dependency checks to
   # pass when building Kubernetes using a pre-release of Golang.
-  - name: "golang: 1.<major>"
-    version: 1.23
-    refPaths:
-    - path: build/build-image/cross/VERSION
-    - path: hack/lib/golang.sh
-      match: minimum_go_version=go([0-9]+\.[0-9]+)
-    - path: staging/src/k8s.io/kms/internal/plugins/_mock/Dockerfile
-      match: golang:([0-9]+\.[0-9]+).0-bullseye
+
+  # TODO: remove this when whe have the go1.24 released and not the rc.
+  # - name: "golang: 1.<major>"
+  #   version: 1.23
+  #   refPaths:
+  #   - path: build/build-image/cross/VERSION
+  #   - path: hack/lib/golang.sh
+  #     match: minimum_go_version=go([0-9]+\.[0-9]+)
+  #   - path: staging/src/k8s.io/kms/internal/plugins/_mock/Dockerfile
+  #     match: golang:([0-9]+\.[0-9]+).0-bullseye
 
   - name: "registry.k8s.io/kube-cross: dependents"
-    version: v1.33.0-go1.23.4-bullseye.0
+    version: v1.33.0-go1.24rc1-bullseye.0
     refPaths:
     - path: build/build-image/cross/VERSION
 
@@ -178,7 +181,7 @@ dependencies:
       match: registry\.k8s\.io\/build-image\/debian-base:[a-zA-Z]+\-v((([0-9]+)\.([0-9]+)\.([0-9]+)(?:-([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?)(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?)
 
   - name: "registry.k8s.io/distroless-iptables: dependents"
-    version: v0.6.6
+    version: v0.7.0
     refPaths:
     - path: build/common.sh
       match: __default_distroless_iptables_version=
@@ -186,7 +189,7 @@ dependencies:
       match: configs\[DistrolessIptables\] = Config{list\.BuildImageRegistry, "distroless-iptables", "v([0-9]+)\.([0-9]+)\.([0-9]+)"}
 
   - name: "registry.k8s.io/go-runner: dependents"
-    version: v2.4.0-go1.23.4-bookworm.0
+    version: v2.4.0-go1.24rc1-bookworm.0
     refPaths:
     - path: build/common.sh
       match: __default_go_runner_version=
