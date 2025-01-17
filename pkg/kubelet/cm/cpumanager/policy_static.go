@@ -388,6 +388,7 @@ func (p *staticPolicy) Allocate(s state.State, pod *v1.Pod, container *v1.Contai
 	p.updateCPUsToReuse(pod, container, cpuset)
 	p.updateMetricsOnAllocate(cpuset)
 
+	klog.V(4).InfoS("Allocated exclusive CPUs", "pod", klog.KObj(pod), "podUID", pod.UID, "containerName", container.Name, "cpuset", "cpuset")
 	return nil
 }
 
