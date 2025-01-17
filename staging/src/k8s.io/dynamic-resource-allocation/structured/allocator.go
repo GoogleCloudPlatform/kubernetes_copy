@@ -47,13 +47,14 @@ type deviceClassLister interface {
 // available and the current state of the cluster (claims, classes, resource
 // slices).
 type Allocator struct {
-	adminAccessEnabled     bool
-	prioritizedListEnabled bool
-	claimsToAllocate       []*resourceapi.ResourceClaim
-	allocatedDevices       sets.Set[DeviceID]
-	classLister            deviceClassLister
-	slices                 []*resourceapi.ResourceSlice
-	celCache               *cel.Cache
+	adminAccessEnabled          bool
+	prioritizedListEnabled      bool
+	partitionableDevicesEnabled bool
+	claimsToAllocate            []*resourceapi.ResourceClaim
+	allocatedDevices            sets.Set[DeviceID]
+	classLister                 deviceClassLister
+	slices                      []*resourceapi.ResourceSlice
+	celCache                    *cel.Cache
 }
 
 // NewAllocator returns an allocator for a certain set of claims or an error if
@@ -63,6 +64,7 @@ type Allocator struct {
 func NewAllocator(ctx context.Context,
 	adminAccessEnabled bool,
 	prioritizedListEnabled bool,
+	partitionableDevicesEnabled bool,
 	claimsToAllocate []*resourceapi.ResourceClaim,
 	allocatedDevices sets.Set[DeviceID],
 	classLister deviceClassLister,
@@ -70,13 +72,14 @@ func NewAllocator(ctx context.Context,
 	celCache *cel.Cache,
 ) (*Allocator, error) {
 	return &Allocator{
-		adminAccessEnabled:     adminAccessEnabled,
-		prioritizedListEnabled: prioritizedListEnabled,
-		claimsToAllocate:       claimsToAllocate,
-		allocatedDevices:       allocatedDevices,
-		classLister:            classLister,
-		slices:                 slices,
-		celCache:               celCache,
+		adminAccessEnabled:          adminAccessEnabled,
+		prioritizedListEnabled:      prioritizedListEnabled,
+		partitionableDevicesEnabled: partitionableDevicesEnabled,
+		claimsToAllocate:            claimsToAllocate,
+		allocatedDevices:            allocatedDevices,
+		classLister:                 classLister,
+		slices:                      slices,
+		celCache:                    celCache,
 	}, nil
 }
 
@@ -131,6 +134,10 @@ func (a *Allocator) Allocate(ctx context.Context, node *v1.Node) (finalResult []
 		loggerV.Info("Gathered pool information", "numPools", len(pools), "pools", pools)
 	} else {
 		alloc.logger.V(5).Info("Gathered pool information", "numPools", len(pools))
+	}
+
+	if containsCompositeDevices(alloc.slices) && !a.partitionableDevicesEnabled {
+		return nil, fmt.Errorf("found resourceslices with composite devices, but the partitionable devices feature is disabled")
 	}
 
 	// We allocate one claim after the other and for each claim, all of
@@ -987,7 +994,7 @@ func (alloc *allocator) allocateDevice(r deviceIndices, device deviceWithID, mus
 	requestKey := requestIndices{claimIndex: r.claimIndex, requestIndex: r.requestIndex, subRequestIndex: r.subRequestIndex}
 	requestData := alloc.requestData[requestKey]
 	request := requestData.request
-	if !request.adminAccess() && (alloc.allocatedDevices.Has(device.id) || alloc.allocatingDevices[device.id]) {
+	if !request.adminAccess() && !alloc.deviceAvailable(device) {
 		alloc.logger.V(7).Info("Device in use", "device", device.id)
 		return false, nil, nil
 	}
@@ -1050,6 +1057,107 @@ func (alloc *allocator) allocateDevice(r deviceIndices, device deviceWithID, mus
 		alloc.result[r.claimIndex].devices = alloc.result[r.claimIndex].devices[:previousNumResults]
 		alloc.logger.V(7).Info("Device deallocated", "device", device.id)
 	}, nil
+}
+
+func (alloc *allocator) deviceAvailable(device deviceWithID) bool {
+	// If the device is allocated directly or in the process of being allocated, it is not available.
+	if alloc.deviceDirectlyAllocated(device.id) {
+		return false
+	}
+
+	var pool *Pool
+	for i := range alloc.pools {
+		p := alloc.pools[i]
+		if p.PoolID.Pool == device.id.Pool {
+			pool = p
+		}
+	}
+
+	// For a device to be allocatable, it can't have any sink devices
+	// using this device as a source that is allocated.
+	if alloc.hasSinkDevicesConsumingCapacity(device.id, pool) {
+		return false
+	}
+	// The device also need to make sure its chain of source devices
+	// are also not allocated.
+	return !alloc.hasAllocatedSourceDevices(device.id, pool)
+}
+
+func (alloc *allocator) hasAllocatedSourceDevices(deviceID DeviceID, pool *Pool) bool {
+	currentDeviceID := deviceID
+	for {
+		if alloc.deviceDirectlyAllocated(currentDeviceID) {
+			return true
+		}
+		device, found := lookupDevice(currentDeviceID, pool)
+		if !found {
+			return false // should be error?
+		}
+		// This should never happen since basic devices are turned into
+		// composite devices during conversion. But doing the check just in
+		// case.
+		if device.Composite == nil {
+			return false
+		}
+		// Device can't have an allocated source device if there are none.
+		if len(device.Composite.ConsumesCapacityFrom) == 0 {
+			return false
+		}
+		sourceDevice := draapi.MakeUniqueString(device.Composite.ConsumesCapacityFrom[0].Name)
+		// If it is a self-reference, the device has no source device.
+		if sourceDevice == device.Name {
+			return false
+		}
+		currentDeviceID = DeviceID{
+			Driver: pool.Driver,
+			Pool:   pool.Pool,
+			Device: sourceDevice,
+		}
+	}
+}
+
+func lookupDevice(deviceID DeviceID, pool *Pool) (draapi.Device, bool) {
+	for _, slice := range pool.Slices {
+		for _, dev := range slice.Spec.Devices {
+			if dev.Name == deviceID.Device {
+				return dev, true
+			}
+		}
+	}
+	return draapi.Device{}, false
+}
+
+func (alloc *allocator) hasSinkDevicesConsumingCapacity(deviceID DeviceID, pool *Pool) bool {
+	for _, slice := range pool.Slices {
+		for _, dev := range slice.Spec.Devices {
+			// We don't need to check itself. Self-references are allowed,
+			// but just means it is not a partition of another device.
+			if dev.Name == deviceID.Device {
+				continue
+			}
+			for _, entry := range dev.Composite.ConsumesCapacityFrom {
+				if entry.Name != deviceID.Device.String() {
+					continue
+				}
+				consumingDevice := DeviceID{
+					Driver: pool.Driver,
+					Pool:   pool.Pool,
+					Device: dev.Name,
+				}
+				if alloc.deviceDirectlyAllocated(consumingDevice) {
+					return true
+				}
+				if alloc.hasSinkDevicesConsumingCapacity(consumingDevice, pool) {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+func (alloc *allocator) deviceDirectlyAllocated(deviceID DeviceID) bool {
+	return alloc.allocatedDevices.Has(deviceID) || alloc.allocatingDevices[deviceID]
 }
 
 // createNodeSelector constructs a node selector for the allocation, if needed,
@@ -1203,6 +1311,17 @@ func containsNodeSelectorRequirement(requirements []v1.NodeSelectorRequirement, 
 			continue
 		}
 		return true
+	}
+	return false
+}
+
+func containsCompositeDevices(slices []*resourceapi.ResourceSlice) bool {
+	for _, slice := range slices {
+		for _, device := range slice.Spec.Devices {
+			if device.Composite != nil {
+				return true
+			}
+		}
 	}
 	return false
 }

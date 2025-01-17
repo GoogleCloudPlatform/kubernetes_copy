@@ -322,7 +322,7 @@ claims:
 		}
 
 		allocator, err := structured.NewAllocator(tCtx, utilfeature.DefaultFeatureGate.Enabled(features.DRAAdminAccess), utilfeature.DefaultFeatureGate.Enabled(features.DRAPrioritizedList),
-			[]*resourceapi.ResourceClaim{claim}, allocatedDevices, draManager.DeviceClasses(), slices, celCache)
+			utilfeature.DefaultFeatureGate.Enabled(features.DRAPartitionableDevices), []*resourceapi.ResourceClaim{claim}, allocatedDevices, draManager.DeviceClasses(), slices, celCache)
 		tCtx.ExpectNoError(err, "create allocator")
 
 		rand.Shuffle(len(nodes), func(i, j int) {

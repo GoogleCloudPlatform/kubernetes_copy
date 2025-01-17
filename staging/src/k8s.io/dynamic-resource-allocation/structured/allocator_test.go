@@ -59,10 +59,12 @@ const (
 	req3        = "req-3"
 	subReq0     = "subReq-0"
 	subReq1     = "subReq-1"
+	subReq2     = "subReq-2"
 	req0SubReq0 = "req-0/subReq-0"
 	req0SubReq1 = "req-0/subReq-1"
 	req1SubReq0 = "req-1/subReq-0"
 	req1SubReq1 = "req-1/subReq-1"
+	req1SubReq2 = "req-1/subReq-2"
 	claim0      = "claim-0"
 	claim1      = "claim-1"
 	slice1      = "slice-1"
@@ -71,6 +73,7 @@ const (
 	device2     = "device-2"
 	device3     = "device-3"
 	device4     = "device-4"
+	device5     = "device-5"
 )
 
 func init() {
@@ -236,11 +239,54 @@ func device(name string, capacity map[resourceapi.QualifiedName]resource.Quantit
 	return device
 }
 
+// generate a CompositeDevice object with the given name, deviceMixins, devices, attributes and capacity
+func compositeDevice(name string, deviceMixinNames, deviceNames []string, capacity map[resourceapi.QualifiedName]resource.Quantity, attributes map[resourceapi.QualifiedName]resourceapi.DeviceAttribute) resourceapi.Device {
+	var deviceMixinRefs []resourceapi.DeviceMixinRef
+	for _, deviceMixinName := range deviceMixinNames {
+		deviceMixinRefs = append(deviceMixinRefs, resourceapi.DeviceMixinRef{
+			Name: deviceMixinName,
+		})
+	}
+	var deviceRefs []resourceapi.DeviceRef
+	for _, deviceName := range deviceNames {
+		deviceRefs = append(deviceRefs, resourceapi.DeviceRef{
+			Name: deviceName,
+		})
+	}
+	device := resourceapi.Device{
+		Name: name,
+		Composite: &resourceapi.CompositeDevice{
+			Includes:             deviceMixinRefs,
+			ConsumesCapacityFrom: deviceRefs,
+			Attributes:           attributes,
+		},
+	}
+	device.Composite.Capacity = make(map[resourceapi.QualifiedName]resourceapi.DeviceCapacity, len(capacity))
+	for name, quantity := range capacity {
+		device.Composite.Capacity[name] = resourceapi.DeviceCapacity{Value: quantity}
+	}
+	return device
+}
+
+func deviceMixin(name string, capacity map[resourceapi.QualifiedName]resource.Quantity, attributes map[resourceapi.QualifiedName]resourceapi.DeviceAttribute) resourceapi.DeviceMixin {
+	mixin := resourceapi.DeviceMixin{
+		Name: name,
+		Composite: &resourceapi.CompositeDeviceMixin{
+			Attributes: attributes,
+		},
+	}
+	mixin.Composite.Capacity = make(map[resourceapi.QualifiedName]resourceapi.DeviceCapacity, len(capacity))
+	for name, quantity := range capacity {
+		mixin.Composite.Capacity[name] = resourceapi.DeviceCapacity{Value: quantity}
+	}
+	return mixin
+}
+
 // generate a ResourceSlice object with the given name, node,
-// driver and pool names, generation and a list of devices.
+// driver and pool names, generation and a list of devices or mixins
 // The nodeSelection parameter may be a string (= node name),
 // true (= all nodes), or a node selector (= specific nodes).
-func slice(name string, nodeSelection any, pool, driver string, devices ...resourceapi.Device) *resourceapi.ResourceSlice {
+func slice(name string, nodeSelection any, pool, driver string, devicesOrMixins ...any) *resourceapi.ResourceSlice {
 	slice := &resourceapi.ResourceSlice{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
@@ -252,8 +298,18 @@ func slice(name string, nodeSelection any, pool, driver string, devices ...resou
 				ResourceSliceCount: 1,
 				Generation:         1,
 			},
-			Devices: devices,
 		},
+	}
+
+	for _, item := range devicesOrMixins {
+		switch item := item.(type) {
+		case resourceapi.Device:
+			slice.Spec.Devices = append(slice.Spec.Devices, item)
+		case resourceapi.DeviceMixin:
+			slice.Spec.DeviceMixins = append(slice.Spec.DeviceMixins, item)
+		default:
+			panic(fmt.Sprintf("unexpected item: want resourceapi.Device or resourceapi.DeviceMixin, got %T", item))
+		}
 	}
 
 	switch nodeSelection := nodeSelection.(type) {
@@ -397,6 +453,14 @@ func objects[T any](objs ...T) []T {
 	return objs
 }
 
+func toAnySlice[T any](objs []T) []any {
+	var slice []any
+	for _, obj := range objs {
+		slice = append(slice, obj)
+	}
+	return slice
+}
+
 // generate a ResourceSlice object with the given parameters and one device "device-1"
 func sliceWithOneDevice(name string, nodeSelection any, pool, driver string) *resourceapi.ResourceSlice {
 	return slice(name, nodeSelection, pool, driver, device(device1, nil, nil))
@@ -408,7 +472,7 @@ func sliceWithMultipleDevices(name string, nodeSelection any, pool, driver strin
 	for i := 0; i < count; i++ {
 		devices = append(devices, device(fmt.Sprintf("device-%d", i), nil, nil))
 	}
-	return slice(name, nodeSelection, pool, driver, devices...)
+	return slice(name, nodeSelection, pool, driver, toAnySlice(devices)...)
 }
 
 func TestAllocator(t *testing.T) {
@@ -419,13 +483,14 @@ func TestAllocator(t *testing.T) {
 	intAttribute := resourceapi.FullyQualifiedName(driverA + "/" + "numa")
 
 	testcases := map[string]struct {
-		adminAccess      bool
-		prioritizedList  bool
-		claimsToAllocate []*resourceapi.ResourceClaim
-		allocatedDevices []DeviceID
-		classes          []*resourceapi.DeviceClass
-		slices           []*resourceapi.ResourceSlice
-		node             *v1.Node
+		adminAccess          bool
+		prioritizedList      bool
+		partitionableDevices bool
+		claimsToAllocate     []*resourceapi.ResourceClaim
+		allocatedDevices     []DeviceID
+		classes              []*resourceapi.DeviceClass
+		slices               []*resourceapi.ResourceSlice
+		node                 *v1.Node
 
 		expectResults []any
 		expectError   types.GomegaMatcher // can be used to check for no error or match specific error types
@@ -1927,6 +1992,448 @@ func TestAllocator(t *testing.T) {
 				)...,
 			)},
 		},
+		"partitionable-devices-disabled": {
+			partitionableDevices: false,
+			claimsToAllocate:     objects(claim(claim0, req0, classA)),
+			classes:              objects(class(classA, driverA)),
+			slices: objects(slice(slice1, node1, pool1, driverA,
+				compositeDevice(device1, nil, nil, nil, nil),
+			)),
+			node: node(node1, region1),
+
+			expectResults: nil,
+			expectError:   gomega.MatchError(gomega.ContainSubstring("found resourceslices with composite devices, but the partitionable devices feature is disabled")),
+		},
+		"composite-device": {
+			partitionableDevices: true,
+			claimsToAllocate:     objects(claim(claim0, req0, classA)),
+			classes:              objects(class(classA, driverA)),
+			slices: objects(slice(slice1, node1, pool1, driverA,
+				compositeDevice(device1, nil, nil, map[resourceapi.QualifiedName]resource.Quantity{
+					"memory": resource.MustParse("1Gi"),
+				}, nil),
+			)),
+			node: node(node1, region1),
+			expectResults: []any{allocationResult(
+				localNodeSelector(node1),
+				deviceAllocationResult(req0, driverA, pool1, device1, false),
+			)},
+		},
+		"mixin": {
+			partitionableDevices: true,
+			claimsToAllocate: objects(claimWithRequests(
+				claim0,
+				nil,
+				request(req0, classA, 1, resourceapi.DeviceSelector{
+					CEL: &resourceapi.CELDeviceSelector{
+						Expression: fmt.Sprintf(`device.capacity["%s"].memory.compareTo(quantity("1Gi")) >= 0`, driverA),
+					}}),
+			)),
+			classes: objects(class(classA, driverA)),
+			slices: objects(slice(slice1, node1, pool1, driverA,
+				compositeDevice(device1, []string{"1Gi-mixin"}, nil, nil, nil),
+				deviceMixin("1Gi-mixin", map[resourceapi.QualifiedName]resource.Quantity{
+					"memory": resource.MustParse("1Gi"),
+				}, nil),
+			)),
+			node: node(node1, region1),
+
+			expectResults: []any{allocationResult(
+				localNodeSelector(node1),
+				deviceAllocationResult(req0, driverA, pool1, device1, false),
+			)},
+		},
+		"multiple-mixins-capacity-override": {
+			partitionableDevices: true,
+			claimsToAllocate: objects(claimWithRequests(
+				claim0,
+				nil,
+				request(req0, classA, 1, resourceapi.DeviceSelector{
+					CEL: &resourceapi.CELDeviceSelector{
+						Expression: fmt.Sprintf(`device.capacity["%s"].memory.compareTo(quantity("2Gi")) >= 0`, driverA),
+					}}),
+			)),
+			classes: objects(class(classA, driverA)),
+			slices: objects(slice(slice1, node1, pool1, driverA,
+				compositeDevice(device1, []string{"no-match-mixin", "match-mixin"}, nil, nil, nil),
+				deviceMixin("no-match-mixin",
+					map[resourceapi.QualifiedName]resource.Quantity{
+						"memory": resource.MustParse("1Gi"),
+					},
+					nil,
+				),
+				deviceMixin("match-mixin",
+					map[resourceapi.QualifiedName]resource.Quantity{
+						"memory": resource.MustParse("2Gi"),
+					},
+					nil,
+				),
+			)),
+			node: node(node1, region1),
+
+			expectResults: []any{allocationResult(
+				localNodeSelector(node1),
+				deviceAllocationResult(req0, driverA, pool1, device1, false),
+			)},
+		},
+		// So currently mixin overrides properties on the device. I would
+		// expect the device itself to override the mixin...
+		"mixins-device-capacity-override": {
+			partitionableDevices: true,
+			claimsToAllocate: objects(claimWithRequests(
+				claim0,
+				nil,
+				request(req0, classA, 1, resourceapi.DeviceSelector{
+					CEL: &resourceapi.CELDeviceSelector{
+						Expression: fmt.Sprintf(`device.capacity["%s"].memory.compareTo(quantity("2Gi")) >= 0`, driverA),
+					}}),
+			)),
+			classes: objects(class(classA, driverA)),
+			slices: objects(slice(slice1, node1, pool1, driverA,
+				compositeDevice(device1, []string{"mixin"}, nil,
+					map[resourceapi.QualifiedName]resource.Quantity{
+						"memory": resource.MustParse("1Gi"),
+					}, nil),
+				deviceMixin("mixin",
+					map[resourceapi.QualifiedName]resource.Quantity{
+						"memory": resource.MustParse("2Gi"),
+					},
+					nil,
+				),
+			)),
+			node: node(node1, region1),
+
+			expectResults: []any{allocationResult(
+				localNodeSelector(node1),
+				deviceAllocationResult(req0, driverA, pool1, device1, false),
+			)},
+		},
+		"multiple-mixins-attribute-override": {
+			partitionableDevices: true,
+			claimsToAllocate: objects(claimWithRequests(
+				claim0,
+				[]resourceapi.DeviceConstraint{
+					{MatchAttribute: &intAttribute},
+					{MatchAttribute: &versionAttribute},
+					{MatchAttribute: &stringAttribute},
+					{MatchAttribute: &boolAttribute},
+				},
+				request(req0, classA, 2),
+			)),
+			classes: objects(class(classA, driverA)),
+			slices: objects(slice(slice1, node1, pool1, driverA,
+				device(device1, nil,
+					map[resourceapi.QualifiedName]resourceapi.DeviceAttribute{
+						"driverVersion":   {VersionValue: ptr.To("1.0.0")},
+						"numa":            {IntValue: ptr.To(int64(1))},
+						"stringAttribute": {StringValue: ptr.To("stringAttributeValue")},
+						"boolAttribute":   {BoolValue: ptr.To(true)},
+					},
+				),
+				compositeDevice(device3, []string{"no-match-mixin", "match-mixin"}, nil, nil, nil),
+				deviceMixin("no-match-mixin", nil,
+					map[resourceapi.QualifiedName]resourceapi.DeviceAttribute{
+						"driverVersion":   {VersionValue: ptr.To("2.0.0")},
+						"numa":            {IntValue: ptr.To(int64(2))},
+						"stringAttribute": {StringValue: ptr.To("anotherStringAttributeValue")},
+						"boolAttribute":   {BoolValue: ptr.To(false)},
+					},
+				),
+				deviceMixin("match-mixin", nil,
+					map[resourceapi.QualifiedName]resourceapi.DeviceAttribute{
+						"driverVersion":   {VersionValue: ptr.To("1.0.0")},
+						"numa":            {IntValue: ptr.To(int64(1))},
+						"stringAttribute": {StringValue: ptr.To("stringAttributeValue")},
+						"boolAttribute":   {BoolValue: ptr.To(true)},
+					},
+				),
+			)),
+			node: node(node1, region1),
+
+			expectResults: []any{allocationResult(
+				localNodeSelector(node1),
+				deviceAllocationResult(req0, driverA, pool1, device1, false),
+				deviceAllocationResult(req0, driverA, pool1, device3, false),
+			)},
+		},
+		// So currently mixin overrides properties on the device. I would
+		// expect the device itself to override the mixin...
+		"mixins-device-attribute-override": {
+			partitionableDevices: true,
+			claimsToAllocate: objects(claimWithRequests(
+				claim0,
+				[]resourceapi.DeviceConstraint{
+					{MatchAttribute: &intAttribute},
+					{MatchAttribute: &versionAttribute},
+					{MatchAttribute: &stringAttribute},
+					{MatchAttribute: &boolAttribute},
+				},
+				request(req0, classA, 2),
+			)),
+			classes: objects(class(classA, driverA)),
+			slices: objects(slice(slice1, node1, pool1, driverA,
+				device(device1, nil,
+					map[resourceapi.QualifiedName]resourceapi.DeviceAttribute{
+						"driverVersion":   {VersionValue: ptr.To("1.0.0")},
+						"numa":            {IntValue: ptr.To(int64(1))},
+						"stringAttribute": {StringValue: ptr.To("stringAttributeValue")},
+						"boolAttribute":   {BoolValue: ptr.To(true)},
+					},
+				),
+				compositeDevice(device2, []string{"mixin"}, nil, nil,
+					map[resourceapi.QualifiedName]resourceapi.DeviceAttribute{
+						"driverVersion":   {VersionValue: ptr.To("2.0.0")},
+						"numa":            {IntValue: ptr.To(int64(2))},
+						"stringAttribute": {StringValue: ptr.To("anotherStringAttributeValue")},
+						"boolAttribute":   {BoolValue: ptr.To(false)},
+					},
+				),
+				deviceMixin("mixin", nil,
+					map[resourceapi.QualifiedName]resourceapi.DeviceAttribute{
+						"driverVersion":   {VersionValue: ptr.To("1.0.0")},
+						"numa":            {IntValue: ptr.To(int64(1))},
+						"stringAttribute": {StringValue: ptr.To("stringAttributeValue")},
+						"boolAttribute":   {BoolValue: ptr.To(true)},
+					},
+				),
+			)),
+			node: node(node1, region1),
+
+			expectResults: []any{allocationResult(
+				localNodeSelector(node1),
+				deviceAllocationResult(req0, driverA, pool1, device1, false),
+				deviceAllocationResult(req0, driverA, pool1, device2, false),
+			)},
+		},
+		"device-with-single-partition": {
+			partitionableDevices: true,
+			prioritizedList:      true,
+			claimsToAllocate: objects(claimWithRequests(
+				claim0,
+				nil,
+				request(req0, classA, 1, resourceapi.DeviceSelector{
+					CEL: &resourceapi.CELDeviceSelector{
+						Expression: fmt.Sprintf(`device.capacity["%s"].memory.compareTo(quantity("2Gi")) == 0`, driverA),
+					}},
+				),
+				requestWithPrioritizedList(req1,
+					subRequest(subReq0, classA, 1, resourceapi.DeviceSelector{
+						CEL: &resourceapi.CELDeviceSelector{
+							Expression: fmt.Sprintf(`device.capacity["%s"].memory.compareTo(quantity("8Gi")) >= 0`, driverA),
+						}}),
+					subRequest(subReq1, classA, 1, resourceapi.DeviceSelector{
+						CEL: &resourceapi.CELDeviceSelector{
+							Expression: fmt.Sprintf(`device.capacity["%s"].memory.compareTo(quantity("4Gi")) >= 0`, driverA),
+						}}),
+				),
+			)),
+			classes: objects(class(classA, driverA)),
+			slices: objects(slice(slice1, node1, pool1, driverA,
+				compositeDevice(device1, nil, nil,
+					map[resourceapi.QualifiedName]resource.Quantity{
+						"memory": resource.MustParse("8Gi"),
+					}, nil,
+				),
+				compositeDevice(device2, nil, []string{device1},
+					map[resourceapi.QualifiedName]resource.Quantity{
+						"memory": resource.MustParse("2Gi"),
+					}, nil,
+				),
+				compositeDevice(device3, nil, nil,
+					map[resourceapi.QualifiedName]resource.Quantity{
+						"memory": resource.MustParse("4Gi"),
+					}, nil,
+				),
+			)),
+			node: node(node1, region1),
+
+			expectResults: []any{allocationResult(
+				localNodeSelector(node1),
+				deviceAllocationResult(req0, driverA, pool1, device2, false),
+				deviceAllocationResult(req1SubReq1, driverA, pool1, device3, false),
+			)},
+		},
+		"device-with-multiple-partitions": {
+			partitionableDevices: true,
+			prioritizedList:      true,
+			claimsToAllocate: objects(claimWithRequests(
+				claim0,
+				nil,
+				request(req0, classA, 1, resourceapi.DeviceSelector{
+					CEL: &resourceapi.CELDeviceSelector{
+						Expression: fmt.Sprintf(`device.capacity["%s"].memory.compareTo(quantity("1Gi")) == 0`, driverA),
+					}},
+				),
+				requestWithPrioritizedList(req1,
+					subRequest(subReq0, classA, 1, resourceapi.DeviceSelector{
+						CEL: &resourceapi.CELDeviceSelector{
+							Expression: fmt.Sprintf(`device.capacity["%s"].memory.compareTo(quantity("8Gi")) >= 0`, driverA),
+						}}),
+					subRequest(subReq1, classA, 1, resourceapi.DeviceSelector{
+						CEL: &resourceapi.CELDeviceSelector{
+							Expression: fmt.Sprintf(`device.capacity["%s"].memory.compareTo(quantity("3Gi")) >= 0`, driverA),
+						}}),
+				),
+			)),
+			classes: objects(class(classA, driverA)),
+			slices: objects(slice(slice1, node1, pool1, driverA,
+				compositeDevice(device1, nil, nil,
+					map[resourceapi.QualifiedName]resource.Quantity{
+						"memory": resource.MustParse("8Gi"),
+					}, nil,
+				),
+				compositeDevice(device2, nil, []string{device1},
+					map[resourceapi.QualifiedName]resource.Quantity{
+						"memory": resource.MustParse("2Gi"),
+					}, nil,
+				),
+				compositeDevice(device3, nil, []string{device1},
+					map[resourceapi.QualifiedName]resource.Quantity{
+						"memory": resource.MustParse("3Gi"),
+					}, nil,
+				),
+				compositeDevice(device4, nil, []string{device1},
+					map[resourceapi.QualifiedName]resource.Quantity{
+						"memory": resource.MustParse("3Gi"),
+					}, nil,
+				),
+				compositeDevice(device5, nil, []string{device3},
+					map[resourceapi.QualifiedName]resource.Quantity{
+						"memory": resource.MustParse("1Gi"),
+					}, nil,
+				),
+			)),
+			node: node(node1, region1),
+
+			expectResults: []any{allocationResult(
+				localNodeSelector(node1),
+				deviceAllocationResult(req0, driverA, pool1, device5, false),
+				deviceAllocationResult(req1SubReq1, driverA, pool1, device4, false),
+			)},
+		},
+		"device-with-consumes-capacity-self-ref": {
+			partitionableDevices: true,
+			claimsToAllocate: objects(claimWithRequests(
+				claim0,
+				nil,
+				request(req0, classA, 1, resourceapi.DeviceSelector{
+					CEL: &resourceapi.CELDeviceSelector{
+						Expression: fmt.Sprintf(`device.capacity["%s"].memory.compareTo(quantity("2Gi")) == 0`, driverA),
+					}},
+				),
+			)),
+			classes: objects(class(classA, driverA)),
+			slices: objects(slice(slice1, node1, pool1, driverA,
+				compositeDevice(device1, nil, []string{device1},
+					map[resourceapi.QualifiedName]resource.Quantity{
+						"memory": resource.MustParse("2Gi"),
+					}, nil,
+				),
+				compositeDevice(device2, nil, []string{device1},
+					map[resourceapi.QualifiedName]resource.Quantity{
+						"memory": resource.MustParse("1Gi"),
+					}, nil,
+				),
+			)),
+			node: node(node1, region1),
+
+			expectResults: []any{allocationResult(
+				localNodeSelector(node1),
+				deviceAllocationResult(req0, driverA, pool1, device1, false),
+			)},
+		},
+		"device-with-allocated-referenced-device": {
+			partitionableDevices: true,
+			prioritizedList:      true,
+			claimsToAllocate: objects(claimWithRequests(
+				claim0,
+				nil,
+				request(req0, classA, 1, resourceapi.DeviceSelector{
+					CEL: &resourceapi.CELDeviceSelector{
+						Expression: fmt.Sprintf(`device.capacity["%s"].memory.compareTo(quantity("4Gi")) == 0`, driverA),
+					}},
+				),
+				requestWithPrioritizedList(req1,
+					subRequest(subReq0, classA, 1, resourceapi.DeviceSelector{
+						CEL: &resourceapi.CELDeviceSelector{
+							Expression: fmt.Sprintf(`device.capacity["%s"].memory.compareTo(quantity("8Gi")) >= 0`, driverA),
+						}}),
+					subRequest(subReq1, classA, 1, resourceapi.DeviceSelector{
+						CEL: &resourceapi.CELDeviceSelector{
+							Expression: fmt.Sprintf(`device.capacity["%s"].memory.compareTo(quantity("2Gi")) >= 0`, driverA),
+						}}),
+					subRequest(subReq2, classA, 1, resourceapi.DeviceSelector{
+						CEL: &resourceapi.CELDeviceSelector{
+							Expression: fmt.Sprintf(`device.capacity["%s"].memory.compareTo(quantity("1Gi")) >= 0`, driverA),
+						}}),
+				),
+			)),
+			classes: objects(class(classA, driverA)),
+			slices: objects(slice(slice1, node1, pool1, driverA,
+				compositeDevice(device1, nil, nil,
+					map[resourceapi.QualifiedName]resource.Quantity{
+						"memory": resource.MustParse("8Gi"),
+					}, nil,
+				),
+				compositeDevice(device2, nil, []string{device1},
+					map[resourceapi.QualifiedName]resource.Quantity{
+						"memory": resource.MustParse("4Gi"),
+					}, nil,
+				),
+				compositeDevice(device3, nil, []string{device2},
+					map[resourceapi.QualifiedName]resource.Quantity{
+						"memory": resource.MustParse("2Gi"),
+					}, nil,
+				),
+				compositeDevice(device4, nil, []string{device2},
+					map[resourceapi.QualifiedName]resource.Quantity{
+						"memory": resource.MustParse("2Gi"),
+					}, nil,
+				),
+				compositeDevice(device5, nil, nil,
+					map[resourceapi.QualifiedName]resource.Quantity{
+						"memory": resource.MustParse("1Gi"),
+					}, nil,
+				),
+			)),
+			node: node(node1, region1),
+
+			expectResults: []any{allocationResult(
+				localNodeSelector(node1),
+				deviceAllocationResult(req0, driverA, pool1, device2, false),
+				deviceAllocationResult(req1SubReq2, driverA, pool1, device5, false),
+			)},
+		},
+		"composite-device-referencing-basic-device": {
+			partitionableDevices: true,
+			prioritizedList:      true,
+			claimsToAllocate: objects(claimWithRequests(
+				claim0,
+				nil,
+				request(req0, classA, 1, resourceapi.DeviceSelector{
+					CEL: &resourceapi.CELDeviceSelector{
+						Expression: fmt.Sprintf(`device.capacity["%s"].memory.compareTo(quantity("4Gi")) == 0`, driverA),
+					}},
+				),
+			)),
+			classes: objects(class(classA, driverA)),
+			slices: objects(slice(slice1, node1, pool1, driverA,
+				device(device1, map[resourceapi.QualifiedName]resource.Quantity{
+					"memory": resource.MustParse("2Gi"),
+				}, nil),
+				compositeDevice(device2, nil, []string{device1},
+					map[resourceapi.QualifiedName]resource.Quantity{
+						"memory": resource.MustParse("4Gi"),
+					}, nil,
+				),
+			)),
+			node: node(node1, region1),
+
+			expectResults: []any{allocationResult(
+				localNodeSelector(node1),
+				deviceAllocationResult(req0, driverA, pool1, device2, false),
+			)},
+		},
 	}
 
 	for name, tc := range testcases {
@@ -1945,7 +2452,7 @@ func TestAllocator(t *testing.T) {
 			allocatedDevices := slices.Clone(tc.allocatedDevices)
 			slices := slices.Clone(tc.slices)
 
-			allocator, err := NewAllocator(ctx, tc.adminAccess, tc.prioritizedList, claimsToAllocate, sets.New(allocatedDevices...), classLister, slices, cel.NewCache(1))
+			allocator, err := NewAllocator(ctx, tc.adminAccess, tc.prioritizedList, tc.partitionableDevices, claimsToAllocate, sets.New(allocatedDevices...), classLister, slices, cel.NewCache(1))
 			g.Expect(err).ToNot(gomega.HaveOccurred())
 
 			results, err := allocator.Allocate(ctx, tc.node)

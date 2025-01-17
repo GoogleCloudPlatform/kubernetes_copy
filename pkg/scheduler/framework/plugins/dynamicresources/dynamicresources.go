@@ -102,10 +102,11 @@ type informationForClaim struct {
 
 // DynamicResources is a plugin that ensures that ResourceClaims are allocated.
 type DynamicResources struct {
-	enabled                   bool
-	enableAdminAccess         bool
-	enablePrioritizedList     bool
-	enableSchedulingQueueHint bool
+	enabled                    bool
+	enableAdminAccess          bool
+	enablePrioritizedList      bool
+	enableSchedulingQueueHint  bool
+	enablePartitionableDevices bool
 
 	fh         framework.Handle
 	clientset  kubernetes.Interface
@@ -121,10 +122,11 @@ func New(ctx context.Context, plArgs runtime.Object, fh framework.Handle, fts fe
 	}
 
 	pl := &DynamicResources{
-		enabled:                   true,
-		enableAdminAccess:         fts.EnableDRAAdminAccess,
-		enablePrioritizedList:     fts.EnableDRAPrioritizedList,
-		enableSchedulingQueueHint: fts.EnableSchedulingQueueHint,
+		enabled:                    true,
+		enableAdminAccess:          fts.EnableDRAAdminAccess,
+		enablePrioritizedList:      fts.EnableDRAPrioritizedList,
+		enableSchedulingQueueHint:  fts.EnableSchedulingQueueHint,
+		enablePartitionableDevices: fts.EnableDRAPartitionableDevices,
 
 		fh:        fh,
 		clientset: fh.ClientSet(),
@@ -450,7 +452,7 @@ func (pl *DynamicResources) PreFilter(ctx context.Context, state *framework.Cycl
 		if err != nil {
 			return nil, statusError(logger, err)
 		}
-		allocator, err := structured.NewAllocator(ctx, pl.enableAdminAccess, pl.enablePrioritizedList, allocateClaims, allAllocatedDevices, pl.draManager.DeviceClasses(), slices, pl.celCache)
+		allocator, err := structured.NewAllocator(ctx, pl.enableAdminAccess, pl.enablePrioritizedList, pl.enablePartitionableDevices, allocateClaims, allAllocatedDevices, pl.draManager.DeviceClasses(), slices, pl.celCache)
 		if err != nil {
 			return nil, statusError(logger, err)
 		}

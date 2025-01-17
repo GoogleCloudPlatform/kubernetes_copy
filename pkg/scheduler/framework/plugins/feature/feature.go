@@ -22,6 +22,7 @@ package feature
 type Features struct {
 	EnableDRAPrioritizedList                     bool
 	EnableDRAAdminAccess                         bool
+	EnableDRAPartitionableDevices                bool
 	EnableDynamicResourceAllocation              bool
 	EnableVolumeCapacityPriority                 bool
 	EnableNodeInclusionPolicyInPodTopologySpread bool
