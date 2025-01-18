@@ -1717,17 +1717,22 @@ var _ = framework.SIGDescribe("node")("DRA", feature.DynamicResourceAllocation, 
 								"Generation":         gstruct.Ignore(),
 								"ResourceSliceCount": gomega.Equal(int64(1)),
 							}),
-							"Devices": gomega.Equal([]resourceapi.Device{{Name: "device-00", Basic: &resourceapi.BasicDevice{}}}),
+							"Devices":      gomega.Equal([]resourceapi.Device{{Name: "device-00", Basic: &resourceapi.BasicDevice{}, Composite: nil}}),
+							"DeviceMixins": gomega.BeEmpty(),
 						}),
 					}),
 				)
 			}
 			matchSlices := gomega.ContainElements(expectedObjects...)
 			getSlices := func(ctx context.Context) ([]resourceapi.ResourceSlice, error) {
+				framework.Logf("Listing resource slices")
 				slices, err := resourceClient.List(ctx, metav1.ListOptions{FieldSelector: resourceapi.ResourceSliceSelectorDriver + "=" + driverName})
+				framework.Logf("Listing resource slices completed: %v", err)
 				if err != nil {
+					framework.Logf("Listing resource slices returned an error: %v", err)
 					return nil, err
 				}
+				framework.Logf("Listing resource slices succeeded \n%v\n", slices)
 				return slices.Items, nil
 			}
 			gomega.Eventually(ctx, getSlices).WithTimeout(20 * time.Second).Should(matchSlices)
