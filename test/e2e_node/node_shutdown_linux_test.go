@@ -96,6 +96,7 @@ var _ = SIGDescribe("GracefulNodeShutdown", framework.WithSerial(), nodefeature.
 		tempSetCurrentKubeletConfig(f, func(ctx context.Context, initialConfig *kubeletconfig.KubeletConfiguration) {
 			initialConfig.FeatureGates = map[string]bool{
 				string(features.GracefulNodeShutdown):                   true,
+				string(features.LinuxGracefulNodeShutdown):              true,
 				string(features.GracefulNodeShutdownBasedOnPodPriority): false,
 			}
 			initialConfig.ShutdownGracePeriod = metav1.Duration{Duration: nodeShutdownGracePeriod}
@@ -198,6 +199,7 @@ var _ = SIGDescribe("GracefulNodeShutdown", framework.WithSerial(), nodefeature.
 		tempSetCurrentKubeletConfig(f, func(ctx context.Context, initialConfig *kubeletconfig.KubeletConfiguration) {
 			initialConfig.FeatureGates = map[string]bool{
 				string(features.GracefulNodeShutdown):                   true,
+				string(features.LinuxGracefulNodeShutdown):              true,
 				string(features.GracefulNodeShutdownBasedOnPodPriority): false,
 				string(features.PodReadyToStartContainersCondition):     true,
 			}
@@ -393,6 +395,7 @@ var _ = SIGDescribe("GracefulNodeShutdown", framework.WithSerial(), nodefeature.
 		tempSetCurrentKubeletConfig(f, func(ctx context.Context, initialConfig *kubeletconfig.KubeletConfiguration) {
 			initialConfig.FeatureGates = map[string]bool{
 				string(features.GracefulNodeShutdown):                   true,
+				string(features.LinuxGracefulNodeShutdown):              true,
 				string(features.GracefulNodeShutdownBasedOnPodPriority): true,
 			}
 			initialConfig.ShutdownGracePeriodByPodPriority = []kubeletconfig.ShutdownGracePeriodByPodPriority{

@@ -71,9 +71,9 @@ type managerImpl struct {
 
 // NewManager returns a new node shutdown manager.
 func NewManager(conf *Config) Manager {
-	if !utilfeature.DefaultFeatureGate.Enabled(features.WindowsGracefulNodeShutdown) {
+	if !utilfeature.DefaultFeatureGate.Enabled(features.GracefulNodeShutdown) || !utilfeature.DefaultFeatureGate.Enabled(features.WindowsGracefulNodeShutdown) {
 		m := managerStub{}
-		conf.Logger.Info("Node shutdown manager is disabled as the feature gate is not enabled")
+		conf.Logger.Info("Node shutdown manager is disabled as the feature gate is not enabled", "featureGates", []string{"GracefulNodeShutdown", "WindowsGracefulNodeShutdown"})
 		return m
 	}
 

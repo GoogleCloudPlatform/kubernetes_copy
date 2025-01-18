@@ -722,6 +722,12 @@
     lockToDefault: true
     preRelease: GA
     version: "1.31"
+- name: LinuxGracefulNodeShutdown
+  versionedSpecs:
+  - default: true
+    lockToDefault: false
+    preRelease: Beta
+    version: "1.33"
 - name: LoadBalancerIPMode
   versionedSpecs:
   - default: false

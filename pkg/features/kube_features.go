@@ -256,6 +256,8 @@ const (
 	ExecProbeTimeout featuregate.Feature = "ExecProbeTimeout"
 
 	// owner: @bobbypage
+	// kep: https://kep.k8s.io/2000
+	//
 	// Adds support for kubelet to detect node shutdown and gracefully terminate pods prior to the node being shutdown.
 	GracefulNodeShutdown featuregate.Feature = "GracefulNodeShutdown"
 
@@ -390,6 +392,12 @@ const (
 	// Implement connection draining for terminating nodes for
 	// `externalTrafficPolicy: Cluster` services.
 	KubeProxyDrainingTerminatingNodes featuregate.Feature = "KubeProxyDrainingTerminatingNodes"
+
+	// owner: @bobbypage
+	// kep: https://kep.k8s.io/2000
+	//
+	// Enables support for graceful shutdown linux node.
+	LinuxGracefulNodeShutdown featuregate.Feature = "LinuxGracefulNodeShutdown"
 
 	// owner: @RobertKrawitz
 	//
