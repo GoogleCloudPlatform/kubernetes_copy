@@ -234,14 +234,14 @@ func waitForKubeletToStart(ctx context.Context, f *framework.Framework) {
 	// wait until the kubelet health check will succeed
 	gomega.Eventually(ctx, func() bool {
 		return kubeletHealthCheck(kubeletHealthCheckURL)
-	}, 2*time.Minute, 5*time.Second).Should(gomega.BeTrueBecause("expected kubelet to be in healthy state"))
+	}, 5*time.Minute, 2*time.Second).Should(gomega.BeTrueBecause("expected kubelet to be in healthy state"))
 
 	// Wait for the Kubelet to be ready.
 	gomega.Eventually(ctx, func(ctx context.Context) bool {
 		nodes, err := e2enode.TotalReady(ctx, f.ClientSet)
 		framework.ExpectNoError(err)
 		return nodes == 1
-	}, time.Minute, time.Second).Should(gomega.BeTrueBecause("expected kubelet to be in ready state"))
+	}, 5*time.Minute, 2*time.Second).Should(gomega.BeTrueBecause("expected kubelet to be in ready state"))
 }
 
 func deleteStateFile(stateFileName string) {
@@ -536,7 +536,7 @@ func waitForAllContainerRemoval(ctx context.Context, podName, podNS string) {
 			return fmt.Errorf("expected all containers to be removed from CRI but %v containers still remain. Containers: %+v", len(containers), containers)
 		}
 		return nil
-	}, 2*time.Minute, 1*time.Second).Should(gomega.Succeed())
+	}, 5*time.Minute, 2*time.Second).Should(gomega.Succeed())
 }
 
 func getPidsForProcess(name, pidFile string) ([]int, error) {

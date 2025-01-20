@@ -24,6 +24,9 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/onsi/ginkgo/v2"
+	"github.com/onsi/gomega"
+
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -31,22 +34,19 @@ import (
 	kubecm "k8s.io/kubernetes/pkg/kubelet/cm"
 	"k8s.io/kubernetes/test/e2e/framework"
 	imageutils "k8s.io/kubernetes/test/utils/image"
-
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
+	"k8s.io/utils/cpuset"
 )
 
 const (
-	CgroupCPUPeriod            string = "/sys/fs/cgroup/cpu/cpu.cfs_period_us"
-	CgroupCPUShares            string = "/sys/fs/cgroup/cpu/cpu.shares"
-	CgroupCPUQuota             string = "/sys/fs/cgroup/cpu/cpu.cfs_quota_us"
-	CgroupMemLimit             string = "/sys/fs/cgroup/memory/memory.limit_in_bytes"
-	Cgroupv2MemLimit           string = "/sys/fs/cgroup/memory.max"
-	Cgroupv2MemRequest         string = "/sys/fs/cgroup/memory.min"
-	Cgroupv2CPULimit           string = "/sys/fs/cgroup/cpu.max"
-	Cgroupv2CPURequest         string = "/sys/fs/cgroup/cpu.weight"
-	CPUPeriod                  string = "100000"
-	MinContainerRuntimeVersion string = "1.6.9"
+	CgroupCPUPeriod    string = "/sys/fs/cgroup/cpu/cpu.cfs_period_us"
+	CgroupCPUShares    string = "/sys/fs/cgroup/cpu/cpu.shares"
+	CgroupCPUQuota     string = "/sys/fs/cgroup/cpu/cpu.cfs_quota_us"
+	CgroupMemLimit     string = "/sys/fs/cgroup/memory/memory.limit_in_bytes"
+	Cgroupv2MemLimit   string = "/sys/fs/cgroup/memory.max"
+	Cgroupv2MemRequest string = "/sys/fs/cgroup/memory.min"
+	Cgroupv2CPULimit   string = "/sys/fs/cgroup/cpu.max"
+	Cgroupv2CPURequest string = "/sys/fs/cgroup/cpu.weight"
+	CPUPeriod          string = "100000"
 )
 
 var (
@@ -98,11 +98,12 @@ func (cr *ContainerResources) ResourceRequirements() *v1.ResourceRequirements {
 }
 
 type ResizableContainerInfo struct {
-	Name         string
-	Resources    *ContainerResources
-	CPUPolicy    *v1.ResourceResizeRestartPolicy
-	MemPolicy    *v1.ResourceResizeRestartPolicy
-	RestartCount int32
+	Name                 string
+	Resources            *ContainerResources
+	CPUPolicy            *v1.ResourceResizeRestartPolicy
+	MemPolicy            *v1.ResourceResizeRestartPolicy
+	RestartCount         int32
+	CPUsAllowedListValue string
 }
 
 type containerPatch struct {
@@ -379,4 +380,34 @@ func ResizeContainerPatch(containers []ResizableContainerInfo) (string, error) {
 	}
 
 	return string(patchBytes), nil
+}
+
+func VerifyPodContainersCPUsAllowedListValue(f *framework.Framework, pod *v1.Pod, wantCtrs []ResizableContainerInfo) error {
+	ginkgo.GinkgoHelper()
+	verifyCPUsAllowedListValue := func(cName, expectedCPUsAllowedListValue string) error {
+		mycmd := "grep Cpus_allowed_list /proc/self/status | cut -f2"
+		calValue, _, err := ExecCommandInContainerWithFullOutput(f, pod.Name, cName, "/bin/sh", "-c", mycmd)
+		framework.Logf("Namespace %s Pod %s Container %s - looking for Cpus allowed list value %s in /proc/self/status",
+			pod.Namespace, pod.Name, cName, expectedCPUsAllowedListValue)
+		if err != nil {
+			return fmt.Errorf("failed to find expected value '%s' in container '%s' Cpus allowed list '/proc/self/status'", cName, expectedCPUsAllowedListValue)
+		}
+		c, err := cpuset.Parse(calValue)
+		framework.ExpectNoError(err, "failed parsing Cpus allowed list for container %s in pod %s", cName, pod.Name)
+		cpuTotalValue := strconv.Itoa(c.Size())
+		if cpuTotalValue != expectedCPUsAllowedListValue {
+			return fmt.Errorf("container '%s' cgroup value '%s' results to total CPUs '%s' not equal to expected '%s'", cName, calValue, cpuTotalValue, expectedCPUsAllowedListValue)
+		}
+		return nil
+	}
+	for _, ci := range wantCtrs {
+		if ci.CPUsAllowedListValue == "" {
+			continue
+		}
+		err := verifyCPUsAllowedListValue(ci.Name, ci.CPUsAllowedListValue)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }

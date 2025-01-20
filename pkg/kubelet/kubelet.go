@@ -2888,9 +2888,14 @@ func (kl *Kubelet) canResizePod(pod *v1.Pod) (bool, v1.PodResizeStatus, string) 
 	allocatedPods = slices.DeleteFunc(allocatedPods, func(p *v1.Pod) bool { return p.UID == pod.UID })
 
 	if ok, failReason, failMessage := kl.canAdmitPod(allocatedPods, pod); !ok {
-		// Log reason and return. Let the next sync iteration retry the resize
-		klog.V(3).InfoS("Resize cannot be accommodated", "pod", klog.KObj(pod), "reason", failReason, "message", failMessage)
-		return false, v1.PodResizeStatusDeferred, failMessage
+		// Log reason and return. Let the next sync iteration retry the resize.
+		// If cpu manager policy is static, set resize status to infeasible?
+		msg := "Resize cannot be accommodated: "
+		klog.V(3).InfoS(msg, "pod", klog.KObj(pod), "reason", failReason, "message", failMessage)
+		if failReason == kubetypes.ErrorInconsistentCPUAllocation {
+			return false, v1.PodResizeStatusDeferred, msg
+		}
+		return false, v1.PodResizeStatusDeferred, msg
 	}
 
 	return true, v1.PodResizeStatusInProgress, ""
