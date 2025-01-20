@@ -23,10 +23,8 @@ import (
 	"os"
 	"os/exec"
 	"path"
-	"reflect"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 
 	"k8s.io/klog/v2"
@@ -138,23 +136,8 @@ func (s *server) start() error {
 		s.startCommand.Stdout = outfile
 		s.startCommand.Stderr = outfile
 
-		// If monitorParent is set, set Pdeathsig when starting the server.
-		if s.monitorParent {
-			// Death of this test process should kill the server as well.
-			attrs := &syscall.SysProcAttr{}
-			// Hack to set linux-only field without build tags.
-			deathSigField := reflect.ValueOf(attrs).Elem().FieldByName("Pdeathsig")
-			if deathSigField.IsValid() {
-				deathSigField.Set(reflect.ValueOf(syscall.SIGTERM))
-			} else {
-				errCh <- fmt.Errorf("failed to set Pdeathsig field (non-linux build)")
-				return
-			}
-			s.startCommand.SysProcAttr = attrs
-		}
-
-		// Start the command
-		err = s.startCommand.Start()
+		// Start the server
+		err = startProcess(s.startCommand, s.monitorParent)
 		if err != nil {
 			errCh <- fmt.Errorf("failed to run %s: %w", s, err)
 			return

@@ -33,7 +33,7 @@ label_filter=${LABEL_FILTER:-""}
 if [ -n "${label_filter}" ]; then
   skip=${SKIP:-""} # No default skip when LABEL_FILTER is set.
 else
-  skip=${SKIP-"\[Flaky\]|\[Slow\]|\[Serial\]"}
+  skip=${SKIP-"\[Flaky\]|\[Slow\]|\[Serial\]|\[sig-windows\]"}
 fi
 # The number of tests that can run in parallel depends on what tests
 # are running and on the size of the node. Too many, and tests will
