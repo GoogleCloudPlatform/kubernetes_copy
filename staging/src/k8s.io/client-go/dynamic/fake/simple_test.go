@@ -23,11 +23,14 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"k8s.io/apimachinery/pkg/api/equality"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	clientgotesting "k8s.io/client-go/testing"
+	"k8s.io/utils/ptr"
 )
 
 const (
@@ -51,6 +54,12 @@ func newUnstructured(apiVersion, kind, namespace, name string) *unstructured.Uns
 			},
 		},
 	}
+}
+
+func newUnstructuredWithNoNamespace(apiVersion, kind, name string) *unstructured.Unstructured {
+	u := newUnstructured(apiVersion, kind, "", name)
+	delete(u.Object["metadata"].(map[string]interface{}), "namespace")
+	return u
 }
 
 func newUnstructuredWithSpec(spec map[string]interface{}) *unstructured.Unstructured {
@@ -443,6 +452,396 @@ func TestListWithTypedFixtures(t *testing.T) {
 
 	if diff := cmp.Diff(expectedList, list); diff != "" {
 		t.Fatal("unexpected diff (-want, +got): ", diff)
+	}
+}
+
+func TestDelete(t *testing.T) {
+	deleteTests := map[string]struct {
+		ns            string
+		name          string
+		deleteOptions metav1.DeleteOptions
+		subresources  []string
+		wantActions   []clientgotesting.Action
+	}{
+		"resource deletion with namespace": {
+			name: "name-foo",
+			ns:   "ns-foo",
+			deleteOptions: metav1.DeleteOptions{
+				DryRun: []string{metav1.DryRunAll},
+			},
+			wantActions: []clientgotesting.Action{
+				clientgotesting.DeleteActionImpl{
+					Name: "name-foo",
+					ActionImpl: clientgotesting.ActionImpl{
+						Namespace: "ns-foo",
+						Verb:      "delete",
+						Resource: schema.GroupVersionResource{
+							Group: "group", Version: "version", Resource: "thekinds"},
+					},
+					DeleteOptions: metav1.DeleteOptions{
+						DryRun: []string{metav1.DryRunAll},
+					},
+				},
+			},
+		},
+		"resource deletion with no namespace": {
+			name: "name-foo",
+			deleteOptions: metav1.DeleteOptions{
+				DryRun: []string{metav1.DryRunAll},
+			},
+			wantActions: []clientgotesting.Action{
+				clientgotesting.DeleteActionImpl{
+					Name: "name-foo",
+					ActionImpl: clientgotesting.ActionImpl{
+						Verb: "delete",
+						Resource: schema.GroupVersionResource{
+							Group: "group", Version: "version", Resource: "thekinds"},
+					},
+					DeleteOptions: metav1.DeleteOptions{
+						DryRun: []string{metav1.DryRunAll},
+					},
+				},
+			},
+		},
+		"subresource deletion with namespace": {
+			ns:           "ns-foo",
+			name:         "test",
+			subresources: []string{"status"},
+			deleteOptions: metav1.DeleteOptions{
+				OrphanDependents: ptr.To[bool](true),
+			},
+			wantActions: []clientgotesting.Action{
+				clientgotesting.DeleteActionImpl{
+					Name: "test",
+
+					ActionImpl: clientgotesting.ActionImpl{
+						Namespace:   "ns-foo",
+						Subresource: "status",
+						Verb:        "delete",
+						Resource: schema.GroupVersionResource{
+							Group: "group", Version: "version", Resource: "thekinds"},
+					},
+					DeleteOptions: metav1.DeleteOptions{
+						OrphanDependents: ptr.To[bool](true),
+					},
+				},
+			},
+		},
+		"subresource deletion with no namespace": {
+			name:         "test",
+			subresources: []string{"status"},
+			deleteOptions: metav1.DeleteOptions{
+				OrphanDependents: ptr.To[bool](true),
+			},
+			wantActions: []clientgotesting.Action{
+				clientgotesting.DeleteActionImpl{
+					Name: "test",
+					ActionImpl: clientgotesting.ActionImpl{
+						Subresource: "status",
+						Verb:        "delete",
+						Resource: schema.GroupVersionResource{
+							Group: "group", Version: "version", Resource: "thekinds"},
+					},
+					DeleteOptions: metav1.DeleteOptions{
+						OrphanDependents: ptr.To[bool](true),
+					},
+				},
+			},
+		},
+	}
+
+	for name, tt := range deleteTests {
+		t.Run(name, func(t *testing.T) {
+			scheme := runtime.NewScheme()
+
+			client := NewSimpleDynamicClient(scheme)
+			_ = client.Resource(schema.GroupVersionResource{Group: "group", Version: "version", Resource: "thekinds"}).
+				Namespace(tt.ns).Delete(context.TODO(), tt.name, tt.deleteOptions, tt.subresources...)
+
+			actions := client.Fake.Actions()
+			if diff := cmp.Diff(tt.wantActions, actions); diff != "" {
+				t.Fatal("unexpected diff (-want, +got): ", diff)
+			}
+			_, err := client.Resource(schema.GroupVersionResource{Group: "group", Version: "version", Resource: "thekinds"}).
+				Namespace(tt.ns).Get(context.TODO(), "name-foo", metav1.GetOptions{})
+			if !apierrors.IsNotFound(err) {
+				t.Fatal("resource was not deleted")
+			}
+		})
+	}
+}
+
+func TestCreate(t *testing.T) {
+	createTests := map[string]struct {
+		ns            string
+		resource      *unstructured.Unstructured
+		createOptions metav1.CreateOptions
+		subresources  []string
+		wantActions   []clientgotesting.Action
+	}{
+		"resource creation with namespace": {
+			resource: newUnstructured("group/version", "TheKind", "ns-foo", "name-foo"),
+			ns:       "ns-foo",
+			createOptions: metav1.CreateOptions{
+				DryRun: []string{metav1.DryRunAll},
+			},
+			wantActions: []clientgotesting.Action{
+				clientgotesting.CreateActionImpl{
+					ActionImpl: clientgotesting.ActionImpl{
+						Namespace: "ns-foo",
+						Verb:      "create",
+						Resource: schema.GroupVersionResource{
+							Group:    "group",
+							Version:  "version",
+							Resource: "thekinds",
+						},
+					},
+					CreateOptions: metav1.CreateOptions{
+						DryRun: []string{metav1.DryRunAll},
+					},
+					Object: newUnstructured("group/version", "TheKind", "ns-foo", "name-foo"),
+				},
+			},
+		},
+		"resource creation with no namespace": {
+			resource: newUnstructuredWithNoNamespace("group/version", "TheKind", "name-foo"),
+			createOptions: metav1.CreateOptions{
+				DryRun: []string{metav1.DryRunAll},
+			},
+			wantActions: []clientgotesting.Action{
+				clientgotesting.CreateActionImpl{
+					ActionImpl: clientgotesting.ActionImpl{
+						Verb: "create",
+						Resource: schema.GroupVersionResource{
+							Group:    "group",
+							Version:  "version",
+							Resource: "thekinds",
+						},
+					},
+					CreateOptions: metav1.CreateOptions{
+						DryRun: []string{metav1.DryRunAll},
+					},
+					Object: newUnstructuredWithNoNamespace("group/version", "TheKind", "name-foo"),
+				},
+			},
+		},
+		"subresource creation with namespace": {
+			ns:           "ns-foo",
+			subresources: []string{"status"},
+			createOptions: metav1.CreateOptions{
+				FieldManager: "test",
+			},
+			resource: newUnstructured("group/version", "TheKind", "ns-foo", "name-foo"),
+			wantActions: []clientgotesting.Action{
+				clientgotesting.CreateActionImpl{
+					Name: "name-foo",
+					ActionImpl: clientgotesting.ActionImpl{
+						Namespace:   "ns-foo",
+						Verb:        "create",
+						Subresource: "status",
+						Resource: schema.GroupVersionResource{
+							Group:    "group",
+							Version:  "version",
+							Resource: "thekinds",
+						},
+					},
+					CreateOptions: metav1.CreateOptions{
+						FieldManager: "test",
+					},
+					Object: newUnstructured("group/version", "TheKind", "ns-foo", "name-foo"),
+				},
+			},
+		},
+		"subresource creation with no namespace": {
+			subresources: []string{"status"},
+			createOptions: metav1.CreateOptions{
+				FieldManager: "test",
+			},
+			resource: newUnstructuredWithNoNamespace("group/version", "TheKind", "name-foo"),
+			wantActions: []clientgotesting.Action{
+				clientgotesting.CreateActionImpl{
+					Name: "name-foo",
+					ActionImpl: clientgotesting.ActionImpl{
+						Verb:        "create",
+						Subresource: "status",
+						Resource: schema.GroupVersionResource{
+							Group:    "group",
+							Version:  "version",
+							Resource: "thekinds",
+						},
+					},
+					CreateOptions: metav1.CreateOptions{
+						FieldManager: "test",
+					},
+					Object: newUnstructuredWithNoNamespace("group/version", "TheKind", "name-foo"),
+				},
+			},
+		},
+	}
+
+	for name, tt := range createTests {
+		t.Run(name, func(t *testing.T) {
+			scheme := runtime.NewScheme()
+			var client *FakeDynamicClient
+			if len(tt.subresources) > 0 {
+				// Resource must exist before creating a subresource
+				client = NewSimpleDynamicClient(scheme, tt.resource)
+			} else {
+				client = NewSimpleDynamicClient(scheme)
+			}
+
+			_, err := client.Resource(schema.GroupVersionResource{Group: "group", Version: "version", Resource: "thekinds"}).
+				Namespace(tt.ns).Create(context.TODO(), tt.resource, tt.createOptions, tt.subresources...)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			actions := client.Fake.Actions()
+			if diff := cmp.Diff(tt.wantActions, actions); diff != "" {
+				t.Error("unexpected diff (-want, +got): ", diff)
+			}
+			get, err := client.Resource(schema.GroupVersionResource{Group: "group", Version: "version", Resource: "thekinds"}).
+				Namespace(tt.ns).Get(context.TODO(), "name-foo", metav1.GetOptions{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if diff := cmp.Diff(tt.resource, get); diff != "" {
+				t.Error("unexpected diff (-want, +got): ", diff)
+			}
+		})
+	}
+}
+
+func TestUpdate(t *testing.T) {
+	updateTests := map[string]struct {
+		ns            string
+		resource      *unstructured.Unstructured
+		updateOptions metav1.UpdateOptions
+		subresources  []string
+		wantActions   []clientgotesting.Action
+	}{
+		"resource update with namespace": {
+			resource: newUnstructured("group/version", "TheKind", "ns-foo", "name-foo"),
+			ns:       "ns-foo",
+			updateOptions: metav1.UpdateOptions{
+				DryRun: []string{metav1.DryRunAll},
+			},
+			wantActions: []clientgotesting.Action{
+				clientgotesting.UpdateActionImpl{
+					ActionImpl: clientgotesting.ActionImpl{
+						Namespace: "ns-foo",
+						Verb:      "update",
+						Resource: schema.GroupVersionResource{
+							Group:    "group",
+							Version:  "version",
+							Resource: "thekinds",
+						},
+					},
+					UpdateOptions: metav1.UpdateOptions{
+						DryRun: []string{metav1.DryRunAll},
+					},
+					Object: newUnstructured("group/version", "TheKind", "ns-foo", "name-foo"),
+				},
+			},
+		},
+		"resource creation with no namespace": {
+			resource: newUnstructuredWithNoNamespace("group/version", "TheKind", "name-foo"),
+			updateOptions: metav1.UpdateOptions{
+				DryRun: []string{metav1.DryRunAll},
+			},
+			wantActions: []clientgotesting.Action{
+				clientgotesting.UpdateActionImpl{
+					ActionImpl: clientgotesting.ActionImpl{
+						Verb: "update",
+						Resource: schema.GroupVersionResource{
+							Group:    "group",
+							Version:  "version",
+							Resource: "thekinds",
+						},
+					},
+					UpdateOptions: metav1.UpdateOptions{
+						DryRun: []string{metav1.DryRunAll},
+					},
+					Object: newUnstructuredWithNoNamespace("group/version", "TheKind", "name-foo"),
+				},
+			},
+		},
+		"subresource update with namespace": {
+			ns:           "ns-foo",
+			subresources: []string{"status"},
+			updateOptions: metav1.UpdateOptions{
+				FieldManager: "test",
+			},
+			resource: newUnstructured("group/version", "TheKind", "ns-foo", "name-foo"),
+			wantActions: []clientgotesting.Action{
+				clientgotesting.UpdateActionImpl{
+					ActionImpl: clientgotesting.ActionImpl{
+						Namespace:   "ns-foo",
+						Verb:        "update",
+						Subresource: "status",
+						Resource: schema.GroupVersionResource{
+							Group:    "group",
+							Version:  "version",
+							Resource: "thekinds",
+						},
+					},
+					UpdateOptions: metav1.UpdateOptions{
+						FieldManager: "test",
+					},
+					Object: newUnstructured("group/version", "TheKind", "ns-foo", "name-foo"),
+				},
+			},
+		},
+		"subresource creation with no namespace": {
+			subresources: []string{"status"},
+			updateOptions: metav1.UpdateOptions{
+				FieldManager: "test",
+			},
+			resource: newUnstructuredWithNoNamespace("group/version", "TheKind", "name-foo"),
+			wantActions: []clientgotesting.Action{
+				clientgotesting.UpdateActionImpl{
+					ActionImpl: clientgotesting.ActionImpl{
+						Verb:        "update",
+						Subresource: "status",
+						Resource: schema.GroupVersionResource{
+							Group:    "group",
+							Version:  "version",
+							Resource: "thekinds",
+						},
+					},
+					UpdateOptions: metav1.UpdateOptions{
+						FieldManager: "test",
+					},
+					Object: newUnstructuredWithNoNamespace("group/version", "TheKind", "name-foo"),
+				},
+			},
+		},
+	}
+
+	for name, tt := range updateTests {
+		t.Run(name, func(t *testing.T) {
+			scheme := runtime.NewScheme()
+			client := NewSimpleDynamicClient(scheme, tt.resource)
+
+			_, err := client.Resource(schema.GroupVersionResource{Group: "group", Version: "version", Resource: "thekinds"}).
+				Namespace(tt.ns).Update(context.TODO(), tt.resource, tt.updateOptions, tt.subresources...)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			actions := client.Fake.Actions()
+			if diff := cmp.Diff(tt.wantActions, actions); diff != "" {
+				t.Error("unexpected diff (-want, +got): ", diff)
+			}
+			get, err := client.Resource(schema.GroupVersionResource{Group: "group", Version: "version", Resource: "thekinds"}).
+				Namespace(tt.ns).Get(context.TODO(), "name-foo", metav1.GetOptions{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if diff := cmp.Diff(tt.resource, get); diff != "" {
+				t.Error("unexpected diff (-want, +got): ", diff)
+			}
+		})
 	}
 }
 
