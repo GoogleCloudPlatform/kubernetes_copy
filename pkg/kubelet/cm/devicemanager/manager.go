@@ -882,7 +882,7 @@ func (m *ManagerImpl) allocateContainerResources(pod *v1.Pod, container *v1.Cont
 		devs := allocDevices.UnsortedList()
 		// TODO: refactor this part of code to just append a ContainerAllocationRequest
 		// in a passed in AllocateRequest pointer, and issues a single Allocate call per pod.
-		klog.V(3).InfoS("Making allocation request for device plugin", "devices", devs, "resourceName", resource, "pod", klog.KObj(pod), "podUID", pod.UID, "containerName", container.Name)
+		klog.V(4).InfoS("Making allocation request for device plugin", "devices", devs, "resourceName", resource, "pod", klog.KObj(pod), "podUID", pod.UID, "containerName", container.Name)
 		resp, err := eI.e.allocate(devs)
 		metrics.DevicePluginAllocationDuration.WithLabelValues(resource).Observe(metrics.SinceInSeconds(startRPCTime))
 		if err != nil {
