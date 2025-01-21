@@ -27,6 +27,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/types"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
@@ -724,6 +725,9 @@ type NodeInfo struct {
 	// The subset of pods with required anti-affinity.
 	PodsWithRequiredAntiAffinity []*PodInfo
 
+	// The subset of pods with owner references
+	PodsWithOwnerRef map[types.UID][]*PodInfo
+
 	// Ports allocated on the node.
 	UsedPorts HostPortInfo
 
@@ -930,6 +934,14 @@ func (n *NodeInfo) Snapshot() *NodeInfo {
 	if len(n.PodsWithRequiredAntiAffinity) > 0 {
 		clone.PodsWithRequiredAntiAffinity = append([]*PodInfo(nil), n.PodsWithRequiredAntiAffinity...)
 	}
+	if len(n.PodsWithOwnerRef) > 0 {
+		if clone.PodsWithOwnerRef == nil {
+			clone.PodsWithOwnerRef = make(map[types.UID][]*PodInfo)
+		}
+		for ownerUID, pods := range n.PodsWithOwnerRef {
+			clone.PodsWithOwnerRef[ownerUID] = append([]*PodInfo(nil), pods...)
+		}
+	}
 	if len(n.ImageStates) > 0 {
 		state := make(map[string]*ImageStateSummary, len(n.ImageStates))
 		for imageName, imageState := range n.ImageStates {
@@ -963,6 +975,17 @@ func (n *NodeInfo) AddPodInfo(podInfo *PodInfo) {
 	if podWithRequiredAntiAffinity(podInfo.Pod) {
 		n.PodsWithRequiredAntiAffinity = append(n.PodsWithRequiredAntiAffinity, podInfo)
 	}
+	if podWithOwnerRef(podInfo.Pod) {
+		if n.PodsWithOwnerRef == nil {
+			n.PodsWithOwnerRef = map[types.UID][]*PodInfo{}
+		}
+		ownerUID := podInfo.Pod.OwnerReferences[0].UID
+		if v, ok := n.PodsWithOwnerRef[ownerUID]; !ok {
+			n.PodsWithOwnerRef[ownerUID] = []*PodInfo{podInfo}
+		} else {
+			n.PodsWithOwnerRef[ownerUID] = append(v, podInfo)
+		}
+	}
 	n.update(podInfo.Pod, 1)
 }
 
@@ -983,6 +1006,10 @@ func podWithRequiredAntiAffinity(p *v1.Pod) bool {
 	affinity := p.Spec.Affinity
 	return affinity != nil && affinity.PodAntiAffinity != nil &&
 		len(affinity.PodAntiAffinity.RequiredDuringSchedulingIgnoredDuringExecution) != 0
+}
+
+func podWithOwnerRef(p *v1.Pod) bool {
+	return len(p.OwnerReferences) > 0
 }
 
 func removeFromSlice(logger klog.Logger, s []*PodInfo, k string) ([]*PodInfo, bool) {
@@ -1019,6 +1046,15 @@ func (n *NodeInfo) RemovePod(logger klog.Logger, pod *v1.Pod) error {
 	}
 	if podWithRequiredAntiAffinity(pod) {
 		n.PodsWithRequiredAntiAffinity, _ = removeFromSlice(logger, n.PodsWithRequiredAntiAffinity, k)
+	}
+	if podWithOwnerRef(pod) {
+		ownerUID := pod.OwnerReferences[0].UID
+		if v, ok := n.PodsWithOwnerRef[ownerUID]; ok {
+			n.PodsWithOwnerRef[ownerUID], _ = removeFromSlice(logger, v, k)
+			if len(n.PodsWithOwnerRef[ownerUID]) == 0 {
+				delete(n.PodsWithOwnerRef, ownerUID)
+			}
+		}
 	}
 
 	var removed bool
