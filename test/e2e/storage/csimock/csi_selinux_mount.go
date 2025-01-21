@@ -46,6 +46,12 @@ import (
 )
 
 // Tests for SELinuxMount feature.
+// The tests have explicit [Feature:SELinux] and are skipped unless explicitly requested.
+// All tests in this file exptect the SELinux is enabled on all worker nodes.
+// Supported node operating systems passed as --node-os-distro are "debian", "ubuntu" and "custom".
+// "custom" expects a Fedora Linux derivative (RHEL, CentOS, Rocky, Alma, ...)
+// (Patches for more distros are welcome, the author cannot test SELinux on "gci" - is it even supported?)
+//
 // KEP: https://github.com/kubernetes/enhancements/tree/master/keps/sig-storage/1710-selinux-relabeling
 // There are three feature gates: SELinuxMountReadWriteOncePod, SELinuxChangePolicy and SELinuxMount.
 // These tags are used in the tests:
@@ -69,23 +75,23 @@ var _ = utils.SIGDescribe("CSI Mock selinux on mount", func() {
 	m := newMockDriverSetup(f)
 	recursive := v1.SELinuxChangePolicyRecursive
 	mount := v1.SELinuxChangePolicyMountOption
-
 	f.Context("SELinuxMount [LinuxOnly]", feature.SELinux, func() {
+		processLabel, fileLabel := getDefaultContainerTypeLabels()
 		// Make sure all options are set so system specific defaults are not used.
 		seLinuxOpts1 := v1.SELinuxOptions{
 			User:  "system_u",
 			Role:  "system_r",
-			Type:  "container_t",
+			Type:  processLabel,
 			Level: "s0:c0,c1",
 		}
-		seLinuxMountOption1 := "context=\"system_u:object_r:container_file_t:s0:c0,c1\""
+		seLinuxMountOption1 := fmt.Sprintf("context=\"system_u:object_r:%s:s0:c0,c1\"", fileLabel)
 		seLinuxOpts2 := v1.SELinuxOptions{
 			User:  "system_u",
 			Role:  "system_r",
-			Type:  "container_t",
+			Type:  processLabel,
 			Level: "s0:c98,c99",
 		}
-		seLinuxMountOption2 := "context=\"system_u:object_r:container_file_t:s0:c98,c99\""
+		seLinuxMountOption2 := fmt.Sprintf("context=\"system_u:object_r:%s:s0:c98,c99\"", fileLabel)
 
 		tests := []struct {
 			name                       string
@@ -406,17 +412,18 @@ var _ = utils.SIGDescribe("CSI Mock selinux on mount metrics", func() {
 
 	// [Serial]: the tests read global node metrics, so no other test changes them in parallel.
 	f.Context("SELinuxMount metrics [LinuxOnly]", feature.SELinux, f.WithSerial(), func() {
+		processLabel, _ := getDefaultContainerTypeLabels()
 		// Make sure all options are set so system specific defaults are not used.
 		seLinuxOpts1 := v1.SELinuxOptions{
 			User:  "system_u",
 			Role:  "system_r",
-			Type:  "container_t",
+			Type:  processLabel,
 			Level: "s0:c0,c1",
 		}
 		seLinuxOpts2 := v1.SELinuxOptions{
 			User:  "system_u",
 			Role:  "system_r",
-			Type:  "container_t",
+			Type:  processLabel,
 			Level: "s0:c98,c99",
 		}
 		recursive := v1.SELinuxChangePolicyRecursive
@@ -783,4 +790,15 @@ func addLabels(metricNames sets.Set[string], volumePluginLabel string, accessMod
 	}
 
 	return ret
+}
+
+func getDefaultContainerTypeLabels() (processLabel string, fileLabel string) {
+	// Assume Fedora & derivatives until proven otherwise, who else would turn on SELinux and *explicitly* enable Feature:SELinux tests?
+	processLabel, fileLabel = "container_t", "container_file_t"
+
+	if framework.NodeOSDistroIs("ubuntu", "debian") {
+		// Tested on Debian Bullseye
+		processLabel, fileLabel = "svirt_lxc_net_t", "svirt_lxc_file_t"
+	}
+	return processLabel, fileLabel
 }

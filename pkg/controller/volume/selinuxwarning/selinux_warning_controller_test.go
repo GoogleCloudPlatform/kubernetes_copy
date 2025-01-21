@@ -35,7 +35,6 @@ import (
 	volumecache "k8s.io/kubernetes/pkg/controller/volume/selinuxwarning/cache"
 	"k8s.io/kubernetes/pkg/volume"
 	volumetesting "k8s.io/kubernetes/pkg/volume/testing"
-	"k8s.io/kubernetes/pkg/volume/util"
 	"k8s.io/utils/ptr"
 )
 
@@ -95,7 +94,7 @@ func TestSELinuxWarningController_Sync(t *testing.T) {
 				{
 					volumeName:   "fake-plugin/pv1",
 					podKey:       cache.ObjectName{Namespace: namespace, Name: "pod1"},
-					label:        "system_u:object_r:container_file_t:label1",
+					label:        "label1",
 					changePolicy: v1.SELinuxChangePolicyMountOption,
 					csiDriver:    "ebs.csi.aws.com", // The PV is a fake EBS volume
 				},
@@ -118,7 +117,7 @@ func TestSELinuxWarningController_Sync(t *testing.T) {
 				{
 					volumeName:   "fake-plugin/pv1",
 					podKey:       cache.ObjectName{Namespace: namespace, Name: "pod1"},
-					label:        "system_u:object_r:container_file_t:label1",
+					label:        "label1",
 					changePolicy: v1.SELinuxChangePolicyRecursive,
 					csiDriver:    "ebs.csi.aws.com", // The PV is a fake EBS volume
 				},
@@ -141,7 +140,7 @@ func TestSELinuxWarningController_Sync(t *testing.T) {
 				{
 					volumeName:   "fake-plugin/ebs.csi.aws.com-inlinevol1",
 					podKey:       cache.ObjectName{Namespace: namespace, Name: "pod1"},
-					label:        "system_u:object_r:container_file_t:label1",
+					label:        "label1",
 					changePolicy: v1.SELinuxChangePolicyMountOption,
 					csiDriver:    "ebs.csi.aws.com", // The inline volume is AWS EBS
 				},
@@ -164,14 +163,14 @@ func TestSELinuxWarningController_Sync(t *testing.T) {
 				{
 					volumeName:   "fake-plugin/pv1",
 					podKey:       cache.ObjectName{Namespace: namespace, Name: "pod1"},
-					label:        "system_u:object_r:container_file_t:label1",
+					label:        "label1",
 					changePolicy: v1.SELinuxChangePolicyMountOption,
 					csiDriver:    "ebs.csi.aws.com", // The PV is a fake EBS volume
 				},
 				{
 					volumeName:   "fake-plugin/ebs.csi.aws.com-inlinevol1",
 					podKey:       cache.ObjectName{Namespace: namespace, Name: "pod1"},
-					label:        "system_u:object_r:container_file_t:label1",
+					label:        "label1",
 					changePolicy: v1.SELinuxChangePolicyMountOption,
 					csiDriver:    "ebs.csi.aws.com", // The inline volume is AWS EBS
 				},
@@ -212,7 +211,7 @@ func TestSELinuxWarningController_Sync(t *testing.T) {
 				{
 					volumeName:   "fake-plugin/pv1",
 					podKey:       cache.ObjectName{Namespace: namespace, Name: "pod1"},
-					label:        "system_u:object_r:container_file_t:label1",
+					label:        "label1",
 					changePolicy: v1.SELinuxChangePolicyMountOption,
 					csiDriver:    "ebs.csi.aws.com", // The PV is a fake EBS volume
 				},
@@ -257,7 +256,7 @@ func TestSELinuxWarningController_Sync(t *testing.T) {
 				{
 					volumeName:   "fake-plugin/pv1",
 					podKey:       cache.ObjectName{Namespace: namespace, Name: "pod1"},
-					label:        "system_u:object_r:container_file_t:label1",
+					label:        "label1",
 					changePolicy: v1.SELinuxChangePolicyMountOption,
 					csiDriver:    "ebs.csi.aws.com", // The PV is a fake EBS volume
 				},
@@ -283,7 +282,6 @@ func TestSELinuxWarningController_Sync(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			_, ctx := ktesting.NewTestContext(t)
-			seLinuxTranslator := util.NewFakeSELinuxLabelTranslator()
 			_, plugin := volumetesting.GetTestKubeletVolumePluginMgr(t)
 			plugin.SupportsSELinux = true
 
@@ -307,8 +305,6 @@ func TestSELinuxWarningController_Sync(t *testing.T) {
 			if err != nil {
 				t.Fatalf("failed to create controller: %v", err)
 			}
-			// Use the fake translator, it pretends to support SELinux on non-selinux systems
-			c.seLinuxTranslator = seLinuxTranslator
 			// Use a fake volume cache
 			labelCache := &fakeVolumeCache{
 				conflictsToSend: map[cache.ObjectName][]volumecache.Conflict{

@@ -95,6 +95,8 @@ func NewController(
 
 	eventBroadcaster := record.NewBroadcaster(record.WithContext(ctx))
 	recorder := eventBroadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: "selinux_warning"})
+	seLinuxTranslator := &controllerSELinuxTranslator{}
+
 	c := &Controller{
 		kubeClient:        kubeClient,
 		podLister:         podInformer.Lister(),
@@ -107,7 +109,7 @@ func NewController(
 		csiDriverLister:   csiDriverInformer.Lister(),
 		csiDriversSynced:  csiDriverInformer.Informer().HasSynced,
 		vpm:               &volume.VolumePluginMgr{},
-		seLinuxTranslator: volumeutil.NewSELinuxLabelTranslator(),
+		seLinuxTranslator: seLinuxTranslator,
 
 		eventBroadcaster: eventBroadcaster,
 		eventRecorder:    recorder,
