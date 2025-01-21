@@ -952,7 +952,7 @@ func (m *ManagerImpl) GetDeviceRunContainerOptions(pod *v1.Pod, container *v1.Co
 		}
 
 		if !m.checkPodActive(pod) {
-			klog.InfoS("pod deleted from activePods, skip to reAllocate", "pod", klog.KObj(pod), "podUID", podUID, "containerName", container.Name)
+			klog.V(5).InfoS("pod deleted from activePods, skip to reAllocate", "pod", klog.KObj(pod), "podUID", podUID, "containerName", container.Name)
 			continue
 		}
 
@@ -984,7 +984,7 @@ func (m *ManagerImpl) callPreStartContainerIfNeeded(podUID, contName, resource s
 
 	if eI.opts == nil || !eI.opts.PreStartRequired {
 		m.mutex.Unlock()
-		klog.V(4).InfoS("Plugin options indicate to skip PreStartContainer for resource", "podUID", podUID, "resourceName", resource, "containerName", contName)
+		klog.V(5).InfoS("Plugin options indicate to skip PreStartContainer for resource", "podUID", podUID, "resourceName", resource, "containerName", contName)
 		return nil
 	}
 
@@ -1014,7 +1014,7 @@ func (m *ManagerImpl) callGetPreferredAllocationIfAvailable(podUID, contName, re
 	}
 
 	if eI.opts == nil || !eI.opts.GetPreferredAllocationAvailable {
-		klog.V(4).InfoS("Plugin options indicate to skip GetPreferredAllocation for resource", "resourceName", resource, "podUID", podUID, "containerName", contName)
+		klog.V(5).InfoS("Plugin options indicate to skip GetPreferredAllocation for resource", "resourceName", resource, "podUID", podUID, "containerName", contName)
 		return nil, nil
 	}
 
