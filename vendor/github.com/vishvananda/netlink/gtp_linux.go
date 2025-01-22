@@ -1,6 +1,7 @@
 package netlink
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"strings"
@@ -74,6 +75,8 @@ func parsePDP(msgs [][]byte) ([]*PDP, error) {
 	return pdps, nil
 }
 
+// If the returned error is [ErrDumpInterrupted], results may be inconsistent
+// or incomplete.
 func (h *Handle) GTPPDPList() ([]*PDP, error) {
 	f, err := h.GenlFamilyGet(nl.GENL_GTP_NAME)
 	if err != nil {
@@ -85,13 +88,19 @@ func (h *Handle) GTPPDPList() ([]*PDP, error) {
 	}
 	req := h.newNetlinkRequest(int(f.ID), unix.NLM_F_DUMP)
 	req.AddData(msg)
-	msgs, err := req.Execute(unix.NETLINK_GENERIC, 0)
+	msgs, executeErr := req.Execute(unix.NETLINK_GENERIC, 0)
+	if executeErr != nil && !errors.Is(err, ErrDumpInterrupted) {
+		return nil, executeErr
+	}
+	pdps, err := parsePDP(msgs)
 	if err != nil {
 		return nil, err
 	}
-	return parsePDP(msgs)
+	return pdps, executeErr
 }
 
+// If the returned error is [ErrDumpInterrupted], results may be inconsistent
+// or incomplete.
 func GTPPDPList() ([]*PDP, error) {
 	return pkgHandle.GTPPDPList()
 }

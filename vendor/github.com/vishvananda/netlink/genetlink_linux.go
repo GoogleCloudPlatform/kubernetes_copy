@@ -1,6 +1,7 @@
 package netlink
 
 import (
+	"errors"
 	"fmt"
 	"syscall"
 
@@ -126,6 +127,8 @@ func parseFamilies(msgs [][]byte) ([]*GenlFamily, error) {
 	return families, nil
 }
 
+// If the returned error is [ErrDumpInterrupted], results may be inconsistent
+// or incomplete.
 func (h *Handle) GenlFamilyList() ([]*GenlFamily, error) {
 	msg := &nl.Genlmsg{
 		Command: nl.GENL_CTRL_CMD_GETFAMILY,
@@ -133,13 +136,19 @@ func (h *Handle) GenlFamilyList() ([]*GenlFamily, error) {
 	}
 	req := h.newNetlinkRequest(nl.GENL_ID_CTRL, unix.NLM_F_DUMP)
 	req.AddData(msg)
-	msgs, err := req.Execute(unix.NETLINK_GENERIC, 0)
+	msgs, executeErr := req.Execute(unix.NETLINK_GENERIC, 0)
+	if executeErr != nil && !errors.Is(executeErr, ErrDumpInterrupted) {
+		return nil, executeErr
+	}
+	families, err := parseFamilies(msgs)
 	if err != nil {
 		return nil, err
 	}
-	return parseFamilies(msgs)
+	return families, executeErr
 }
 
+// If the returned error is [ErrDumpInterrupted], results may be inconsistent
+// or incomplete.
 func GenlFamilyList() ([]*GenlFamily, error) {
 	return pkgHandle.GenlFamilyList()
 }

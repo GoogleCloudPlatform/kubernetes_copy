@@ -52,8 +52,10 @@ func (s *XDPSocket) deserialize(b []byte) error {
 	return nil
 }
 
-// XDPSocketGet returns the XDP socket identified by its inode number and/or
+// SocketXDPGetInfo returns the XDP socket identified by its inode number and/or
 // socket cookie. Specify the cookie as SOCK_ANY_COOKIE if
+//
+// If the returned error is [ErrDumpInterrupted], the caller should retry.
 func SocketXDPGetInfo(ino uint32, cookie uint64) (*XDPDiagInfoResp, error) {
 	// We have a problem here: dumping AF_XDP sockets currently does not support
 	// filtering. We thus need to dump all XSKs and then only filter afterwards
@@ -85,6 +87,9 @@ func SocketXDPGetInfo(ino uint32, cookie uint64) (*XDPDiagInfoResp, error) {
 }
 
 // SocketDiagXDP requests XDP_DIAG_INFO for XDP family sockets.
+//
+// If the returned error is [ErrDumpInterrupted], results may be inconsistent
+// or incomplete.
 func SocketDiagXDP() ([]*XDPDiagInfoResp, error) {
 	var result []*XDPDiagInfoResp
 	err := socketDiagXDPExecutor(func(m syscall.NetlinkMessage) error {
@@ -105,10 +110,10 @@ func SocketDiagXDP() ([]*XDPDiagInfoResp, error) {
 		result = append(result, res)
 		return nil
 	})
-	if err != nil {
+	if err != nil && !errors.Is(err, ErrDumpInterrupted) {
 		return nil, err
 	}
-	return result, nil
+	return result, err
 }
 
 // socketDiagXDPExecutor requests XDP_DIAG_INFO for XDP family sockets.
@@ -128,6 +133,7 @@ func socketDiagXDPExecutor(receiver func(syscall.NetlinkMessage) error) error {
 		return err
 	}
 
+	dumpIntr := false
 loop:
 	for {
 		msgs, from, err := s.Receive()
@@ -142,6 +148,9 @@ loop:
 		}
 
 		for _, m := range msgs {
+			if m.Header.Flags&unix.NLM_F_DUMP_INTR != 0 {
+				dumpIntr = true
+			}
 			switch m.Header.Type {
 			case unix.NLMSG_DONE:
 				break loop
@@ -153,6 +162,9 @@ loop:
 				return err
 			}
 		}
+	}
+	if dumpIntr {
+		return ErrDumpInterrupted
 	}
 	return nil
 }

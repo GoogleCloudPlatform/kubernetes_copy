@@ -115,6 +115,7 @@ const (
 	SizeofTcConnmark     = SizeofTcGen + 0x04
 	SizeofTcCsum         = SizeofTcGen + 0x04
 	SizeofTcMirred       = SizeofTcGen + 0x08
+	SizeofTcVlan         = SizeofTcGen + 0x04
 	SizeofTcTunnelKey    = SizeofTcGen + 0x04
 	SizeofTcSkbEdit      = SizeofTcGen
 	SizeofTcPolice       = 2*SizeofTcRateSpec + 0x20
@@ -817,6 +818,41 @@ func (x *TcMirred) Serialize() []byte {
 }
 
 const (
+	TCA_VLAN_UNSPEC = iota
+	TCA_VLAN_TM
+	TCA_VLAN_PARMS
+	TCA_VLAN_PUSH_VLAN_ID
+	TCA_VLAN_PUSH_VLAN_PROTOCOL
+	TCA_VLAN_PAD
+	TCA_VLAN_PUSH_VLAN_PRIORITY
+	TCA_VLAN_PUSH_ETH_DST
+	TCA_VLAN_PUSH_ETH_SRC
+	TCA_VLAN_MAX
+)
+
+//struct tc_vlan {
+//	tc_gen;
+//	int v_action;
+//};
+
+type TcVlan struct {
+	TcGen
+	Action int32
+}
+
+func (msg *TcVlan) Len() int {
+	return SizeofTcVlan
+}
+
+func DeserializeTcVlan(b []byte) *TcVlan {
+	return (*TcVlan)(unsafe.Pointer(&b[0:SizeofTcVlan][0]))
+}
+
+func (x *TcVlan) Serialize() []byte {
+	return (*(*[SizeofTcVlan]byte)(unsafe.Pointer(x)))[:]
+}
+
+const (
 	TCA_TUNNEL_KEY_UNSPEC = iota
 	TCA_TUNNEL_KEY_TM
 	TCA_TUNNEL_KEY_PARMS
@@ -1239,8 +1275,8 @@ const (
 )
 
 // /* TCA_PEDIT_KEY_EX_HDR_TYPE_NETWROK is a special case for legacy users. It
-//  * means no specific header type - offset is relative to the network layer
-//  */
+//   - means no specific header type - offset is relative to the network layer
+//     */
 type PeditHeaderType uint16
 
 const (

@@ -1,6 +1,7 @@
 package netlink
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"strconv"
@@ -338,6 +339,9 @@ func qdiscPayload(req *nl.NetlinkRequest, qdisc Qdisc) error {
 // QdiscList gets a list of qdiscs in the system.
 // Equivalent to: `tc qdisc show`.
 // The list can be filtered by link.
+//
+// If the returned error is [ErrDumpInterrupted], results may be inconsistent
+// or incomplete.
 func QdiscList(link Link) ([]Qdisc, error) {
 	return pkgHandle.QdiscList(link)
 }
@@ -345,6 +349,9 @@ func QdiscList(link Link) ([]Qdisc, error) {
 // QdiscList gets a list of qdiscs in the system.
 // Equivalent to: `tc qdisc show`.
 // The list can be filtered by link.
+//
+// If the returned error is [ErrDumpInterrupted], results may be inconsistent
+// or incomplete.
 func (h *Handle) QdiscList(link Link) ([]Qdisc, error) {
 	req := h.newNetlinkRequest(unix.RTM_GETQDISC, unix.NLM_F_DUMP)
 	index := int32(0)
@@ -359,9 +366,9 @@ func (h *Handle) QdiscList(link Link) ([]Qdisc, error) {
 	}
 	req.AddData(msg)
 
-	msgs, err := req.Execute(unix.NETLINK_ROUTE, unix.RTM_NEWQDISC)
-	if err != nil {
-		return nil, err
+	msgs, executeErr := req.Execute(unix.NETLINK_ROUTE, unix.RTM_NEWQDISC)
+	if executeErr != nil && !errors.Is(executeErr, ErrDumpInterrupted) {
+		return nil, executeErr
 	}
 
 	var res []Qdisc
@@ -497,7 +504,7 @@ func (h *Handle) QdiscList(link Link) ([]Qdisc, error) {
 		res = append(res, qdisc)
 	}
 
-	return res, nil
+	return res, executeErr
 }
 
 func parsePfifoFastData(qdisc Qdisc, value []byte) error {

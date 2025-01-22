@@ -547,7 +547,7 @@ github.com/stretchr/testify/require
 # github.com/tmc/grpc-websocket-proxy v0.0.0-20220101234140-673ab2c3ae75
 ## explicit; go 1.15
 github.com/tmc/grpc-websocket-proxy/wsproxy
-# github.com/vishvananda/netlink v1.3.1-0.20240905180732-b1ce50cfa9be
+# github.com/vishvananda/netlink v1.3.1-0.20250121061148-364253875734
 ## explicit; go 1.12
 github.com/vishvananda/netlink
 github.com/vishvananda/netlink/nl

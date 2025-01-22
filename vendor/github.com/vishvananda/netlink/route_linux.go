@@ -3,6 +3,7 @@ package netlink
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"net"
 	"strconv"
@@ -1163,6 +1164,9 @@ func (h *Handle) prepareRouteReq(route *Route, req *nl.NetlinkRequest, msg *nl.R
 // RouteList gets a list of routes in the system.
 // Equivalent to: `ip route show`.
 // The list can be filtered by link and ip family.
+//
+// If the returned error is [ErrDumpInterrupted], results may be inconsistent
+// or incomplete.
 func RouteList(link Link, family int) ([]Route, error) {
 	return pkgHandle.RouteList(link, family)
 }
@@ -1170,6 +1174,9 @@ func RouteList(link Link, family int) ([]Route, error) {
 // RouteList gets a list of routes in the system.
 // Equivalent to: `ip route show`.
 // The list can be filtered by link and ip family.
+//
+// If the returned error is [ErrDumpInterrupted], results may be inconsistent
+// or incomplete.
 func (h *Handle) RouteList(link Link, family int) ([]Route, error) {
 	routeFilter := &Route{}
 	if link != nil {
@@ -1188,6 +1195,9 @@ func RouteListFiltered(family int, filter *Route, filterMask uint64) ([]Route, e
 
 // RouteListFiltered gets a list of routes in the system filtered with specified rules.
 // All rules must be defined in RouteFilter struct
+//
+// If the returned error is [ErrDumpInterrupted], results may be inconsistent
+// or incomplete.
 func (h *Handle) RouteListFiltered(family int, filter *Route, filterMask uint64) ([]Route, error) {
 	var res []Route
 	err := h.RouteListFilteredIter(family, filter, filterMask, func(route Route) (cont bool) {
@@ -1202,17 +1212,22 @@ func (h *Handle) RouteListFiltered(family int, filter *Route, filterMask uint64)
 
 // RouteListFilteredIter passes each route that matches the filter to the given iterator func.  Iteration continues
 // until all routes are loaded or the func returns false.
+//
+// If the returned error is [ErrDumpInterrupted], results may be inconsistent
+// or incomplete.
 func RouteListFilteredIter(family int, filter *Route, filterMask uint64, f func(Route) (cont bool)) error {
 	return pkgHandle.RouteListFilteredIter(family, filter, filterMask, f)
 }
 
+// If the returned error is [ErrDumpInterrupted], results may be inconsistent
+// or incomplete.
 func (h *Handle) RouteListFilteredIter(family int, filter *Route, filterMask uint64, f func(Route) (cont bool)) error {
 	req := h.newNetlinkRequest(unix.RTM_GETROUTE, unix.NLM_F_DUMP)
 	rtmsg := &nl.RtMsg{}
 	rtmsg.Family = uint8(family)
 
 	var parseErr error
-	err := h.routeHandleIter(filter, req, rtmsg, func(m []byte) bool {
+	executeErr := h.routeHandleIter(filter, req, rtmsg, func(m []byte) bool {
 		msg := nl.DeserializeRtMsg(m)
 		if family != FAMILY_ALL && msg.Family != uint8(family) {
 			// Ignore routes not matching requested family
@@ -1270,13 +1285,13 @@ func (h *Handle) RouteListFilteredIter(family int, filter *Route, filterMask uin
 		}
 		return f(route)
 	})
-	if err != nil {
-		return err
+	if executeErr != nil && !errors.Is(executeErr, ErrDumpInterrupted) {
+		return executeErr
 	}
 	if parseErr != nil {
 		return parseErr
 	}
-	return nil
+	return executeErr
 }
 
 // deserializeRoute decodes a binary netlink message into a Route struct
@@ -1684,6 +1699,10 @@ type RouteSubscribeOptions struct {
 // RouteSubscribeWithOptions work like RouteSubscribe but enable to
 // provide additional options to modify the behavior. Currently, the
 // namespace can be provided as well as an error callback.
+//
+// When options.ListExisting is true, options.ErrorCallback may be
+// called with [ErrDumpInterrupted] to indicate that results from
+// the initial dump of links may be inconsistent or incomplete.
 func RouteSubscribeWithOptions(ch chan<- RouteUpdate, done <-chan struct{}, options RouteSubscribeOptions) error {
 	if options.Namespace == nil {
 		none := netns.None()
@@ -1743,6 +1762,9 @@ func routeSubscribeAt(newNs, curNs netns.NsHandle, ch chan<- RouteUpdate, done <
 				continue
 			}
 			for _, m := range msgs {
+				if m.Header.Flags&unix.NLM_F_DUMP_INTR != 0 && cberr != nil {
+					cberr(ErrDumpInterrupted)
+				}
 				if m.Header.Type == unix.NLMSG_DONE {
 					continue
 				}
