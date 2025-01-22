@@ -506,6 +506,7 @@ func (m *ManagerImpl) writeCheckpoint() error {
 		klog.ErrorS(err, "Failed to write checkpoint file")
 		return err2
 	}
+	klog.V(4).InfoS("checkpoint file written", "checkpoint", kubeletDeviceManagerCheckpoint)
 	return nil
 }
 
@@ -534,6 +535,8 @@ func (m *ManagerImpl) readCheckpoint() error {
 		m.unhealthyDevices[resource] = sets.New[string]()
 		m.endpoints[resource] = endpointInfo{e: newStoppedEndpointImpl(resource), opts: nil}
 	}
+
+	klog.V(4).InfoS("read data from checkpoint file", "checkpoint", kubeletDeviceManagerCheckpoint)
 	return nil
 }
 

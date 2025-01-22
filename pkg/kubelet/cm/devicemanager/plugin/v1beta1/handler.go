@@ -62,6 +62,7 @@ func (s *server) ValidatePlugin(pluginName string, endpoint string, versions []s
 		return fmt.Errorf("invalid name of device plugin socket: %s", fmt.Sprintf(errInvalidResourceName, pluginName))
 	}
 
+	klog.V(2).InfoS("plugin validated", "plugin", pluginName, "endpoint", endpoint, "versions", versions)
 	return nil
 }
 
@@ -75,6 +76,7 @@ func (s *server) connectClient(name string, socketPath string) error {
 		return err
 	}
 
+	klog.V(2).InfoS("Connected to new client", "resource", name)
 	go func() {
 		s.runClient(name, c)
 	}()

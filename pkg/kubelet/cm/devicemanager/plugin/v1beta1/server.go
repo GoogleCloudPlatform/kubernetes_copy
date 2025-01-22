@@ -145,6 +145,7 @@ func (s *server) Stop() error {
 	// During kubelet termination, we do not need the registration server,
 	// and we consider the kubelet to be healthy even when it is down.
 	s.setHealthy()
+	klog.V(2).InfoS("Stopping device plugin registration server")
 
 	return nil
 }
