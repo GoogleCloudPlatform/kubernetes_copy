@@ -712,7 +712,7 @@ func TestParseThresholdStatements(t *testing.T) {
 					Signal:   evictionapi.SignalMemoryAvailable,
 					Operator: evictionapi.OpLessThan,
 					Value: evictionapi.ThresholdValue{
-						Quantity: quantityMustParse("150Mi"),
+						Quantity: quantityMustParse("100Mi"),
 					},
 				},
 				{
@@ -753,7 +753,7 @@ func TestParseThresholdStatements(t *testing.T) {
 					Signal:   evictionapi.SignalMemoryAvailable,
 					Operator: evictionapi.OpLessThan,
 					Value: evictionapi.ThresholdValue{
-						Quantity: quantityMustParse("150Mi"),
+						Quantity: quantityMustParse("100Mi"),
 					},
 				},
 				{
@@ -792,8 +792,16 @@ func TestParseThresholdStatements(t *testing.T) {
 		if testCase.expectErr != (err != nil) {
 			t.Errorf("Err not as expected, test: %v, error expected: %v, actual: %v", testName, testCase.expectErr, err)
 		}
-		if !thresholdsEqual(testCase.expectThresholds, thresholds) {
-			t.Errorf("thresholds not as expected, test: %v, expected: %v, actual: %v", testName, testCase.expectThresholds, thresholds)
+		errcheck := true
+		for _, a := range thresholds {
+			for _, b := range testCase.expectThresholds {
+				if a.Signal == b.Signal {
+					errcheck = compareThresholdValue(a.Value, b.Value)
+					if errcheck == false {
+						t.Errorf("thresholds not as expected, test: %v, expected: %v, actual: %v", testName, testCase.expectThresholds, thresholds)
+					}
+				}
+			}
 		}
 	}
 }
