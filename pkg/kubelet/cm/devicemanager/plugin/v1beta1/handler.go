@@ -114,7 +114,7 @@ func (s *server) runClient(name string, c Client) {
 	}
 
 	if err := s.disconnectClient(name, c); err != nil {
-		klog.V(2).InfoS("Unable to disconnect client", "resource", name, "client", c, "err", err)
+		klog.ErrorS(err, "Unable to disconnect client", "resource", name, "client", c)
 	}
 }
 

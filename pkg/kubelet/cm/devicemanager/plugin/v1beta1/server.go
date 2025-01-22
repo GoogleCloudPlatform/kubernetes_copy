@@ -91,7 +91,7 @@ func (s *server) Start() error {
 
 	if selinux.GetEnabled() {
 		if err := selinux.SetFileLabel(s.socketDir, config.KubeletPluginsDirSELinuxLabel); err != nil {
-			klog.InfoS("Unprivileged containerized plugins might not work. Could not set selinux context on socket dir", "path", s.socketDir, "err", err)
+			klog.ErrorS(err, "Unprivileged containerized plugins might not work. Could not set selinux context on socket dir", "path", s.socketDir)
 		}
 	}
 
@@ -128,7 +128,7 @@ func (s *server) Start() error {
 func (s *server) Stop() error {
 	s.visitClients(func(r string, c Client) {
 		if err := s.disconnectClient(r, c); err != nil {
-			klog.InfoS("Error disconnecting device plugin client", "resourceName", r, "err", err)
+			klog.ErrorS(err, "Error disconnecting device plugin client", "resourceName", r)
 		}
 	})
 
@@ -160,18 +160,18 @@ func (s *server) Register(ctx context.Context, r *api.RegisterRequest) (*api.Emp
 
 	if !s.isVersionCompatibleWithPlugin(r.Version) {
 		err := fmt.Errorf(errUnsupportedVersion, r.Version, api.SupportedVersions)
-		klog.InfoS("Bad registration request from device plugin with resource", "resourceName", r.ResourceName, "err", err)
+		klog.ErrorS(err, "Bad registration request from device plugin with resource", "resourceName", r.ResourceName)
 		return &api.Empty{}, err
 	}
 
 	if !v1helper.IsExtendedResourceName(core.ResourceName(r.ResourceName)) {
 		err := fmt.Errorf(errInvalidResourceName, r.ResourceName)
-		klog.InfoS("Bad registration request from device plugin", "err", err)
+		klog.ErrorS(err, "Bad registration request from device plugin")
 		return &api.Empty{}, err
 	}
 
 	if err := s.connectClient(r.ResourceName, filepath.Join(s.socketDir, r.Endpoint)); err != nil {
-		klog.InfoS("Error connecting to device plugin client", "err", err)
+		klog.ErrorS(err, "Error connecting to device plugin client")
 		return &api.Empty{}, err
 	}
 
