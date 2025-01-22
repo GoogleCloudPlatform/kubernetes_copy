@@ -98,6 +98,42 @@ func NewInvalidObjError(key, msg string) *StorageError {
 	}
 }
 
+func NewPreconditionError(key, field, preconditionValue, objectValue string) *StorageError {
+	return &StorageError{
+		Code: ErrCodeInvalidObj,
+		Key:  key,
+		err:  &preconditionError{field: field, preconditionValue: preconditionValue, objectValue: objectValue},
+	}
+}
+
+type preconditionError struct {
+	field             string
+	preconditionValue string
+	objectValue       string
+}
+
+func (p *preconditionError) Error() string {
+	return fmt.Sprintf(
+		"Precondition failed: %s in precondition: %v, %s in object meta: %v",
+		p.field, p.preconditionValue,
+		p.field, p.objectValue)
+}
+
+func IsPreconditionError(err error, field string) bool {
+	if err == nil {
+		return false
+	}
+	e, ok := err.(*StorageError)
+	if !ok {
+		return false
+	}
+	p, ok := e.err.(*preconditionError)
+	if !ok {
+		return false
+	}
+	return p != nil && p.field == field
+}
+
 // NewCorruptObjError returns a new StorageError, it represents a corrupt object:
 // a) object data retrieved from the storage failed to transform with the given err.
 // b) the given object failed to decode with the given err

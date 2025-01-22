@@ -54,6 +54,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"k8s.io/klog/v2"
+	"k8s.io/utils/ptr"
 )
 
 // FinishFunc is a function returned by Begin hooks to complete an operation.
@@ -1126,94 +1127,111 @@ func (e *Store) updateForGracefulDeletionAndFinalizers(ctx context.Context, name
 // Delete removes the item from storage.
 // options can be mutated by rest.BeforeDelete due to a graceful deletion strategy.
 func (e *Store) Delete(ctx context.Context, name string, deleteValidation rest.ValidateObjectFunc, options *metav1.DeleteOptions) (runtime.Object, bool, error) {
-	key, err := e.KeyFunc(ctx, name)
-	if err != nil {
-		return nil, false, err
-	}
-	obj := e.NewFunc()
-	qualifiedResource := e.qualifiedResourceFromContext(ctx)
-	if err = e.Storage.Get(ctx, key, storage.GetOptions{}, obj); err != nil {
-		return nil, false, storeerr.InterpretDeleteError(err, qualifiedResource, name)
-	}
+	for {
+		key, err := e.KeyFunc(ctx, name)
+		if err != nil {
+			return nil, false, err
+		}
 
-	// support older consumers of delete by treating "nil" as delete immediately
-	if options == nil {
-		options = metav1.NewDeleteOptions(0)
-	}
-	var preconditions storage.Preconditions
-	if options.Preconditions != nil {
-		preconditions.UID = options.Preconditions.UID
-		preconditions.ResourceVersion = options.Preconditions.ResourceVersion
-	}
-	graceful, pendingGraceful, err := rest.BeforeDelete(e.DeleteStrategy, ctx, obj, options)
-	if err != nil {
-		return nil, false, err
-	}
-	// this means finalizers cannot be updated via DeleteOptions if a deletion is already pending
-	if pendingGraceful {
-		out, err := e.finalizeDelete(ctx, obj, false, options)
-		return out, false, err
-	}
-	// check if obj has pending finalizers
-	accessor, err := meta.Accessor(obj)
-	if err != nil {
-		return nil, false, apierrors.NewInternalError(err)
-	}
-	pendingFinalizers := len(accessor.GetFinalizers()) != 0
-	var ignoreNotFound bool
-	var deleteImmediately bool = true
-	var lastExisting, out runtime.Object
+		obj := e.NewFunc()
+		qualifiedResource := e.qualifiedResourceFromContext(ctx)
+		if err = e.Storage.Get(ctx, key, storage.GetOptions{}, obj); err != nil {
+			return nil, false, storeerr.InterpretDeleteError(err, qualifiedResource, name)
+		}
 
-	// Handle combinations of graceful deletion and finalization by issuing
-	// the correct updates.
-	shouldUpdateFinalizers, _ := deletionFinalizersForGarbageCollection(ctx, e, accessor, options)
-	// TODO: remove the check, because we support no-op updates now.
-	if graceful || pendingFinalizers || shouldUpdateFinalizers {
-		err, ignoreNotFound, deleteImmediately, out, lastExisting = e.updateForGracefulDeletionAndFinalizers(ctx, name, key, options, preconditions, deleteValidation, obj)
-		// Update the preconditions.ResourceVersion if set since we updated the object.
-		if err == nil && deleteImmediately && preconditions.ResourceVersion != nil {
-			accessor, err = meta.Accessor(out)
-			if err != nil {
-				return out, false, apierrors.NewInternalError(err)
+		// support older consumers of delete by treating "nil" as delete immediately
+		if options == nil {
+			options = metav1.NewDeleteOptions(0)
+		}
+		var preconditions storage.Preconditions
+		if options.Preconditions != nil {
+			preconditions.UID = options.Preconditions.UID
+			preconditions.ResourceVersion = options.Preconditions.ResourceVersion
+		}
+		graceful, pendingGraceful, err := rest.BeforeDelete(e.DeleteStrategy, ctx, obj, options)
+		if err != nil {
+			return nil, false, err
+		}
+		// this means finalizers cannot be updated via DeleteOptions if a deletion is already pending
+		if pendingGraceful {
+			out, err := e.finalizeDelete(ctx, obj, false, options)
+			return out, false, err
+		}
+		// check if obj has pending finalizers
+		accessor, err := meta.Accessor(obj)
+		if err != nil {
+			return nil, false, apierrors.NewInternalError(err)
+		}
+		pendingFinalizers := len(accessor.GetFinalizers()) != 0
+		var ignoreNotFound bool
+		var deleteImmediately bool = true
+		var lastExisting, out runtime.Object
+
+		// Handle combinations of graceful deletion and finalization by issuing
+		// the correct updates.
+		shouldUpdateFinalizers, _ := deletionFinalizersForGarbageCollection(ctx, e, accessor, options)
+		// TODO: remove the check, because we support no-op updates now.
+		if graceful || pendingFinalizers || shouldUpdateFinalizers {
+			err, ignoreNotFound, deleteImmediately, out, lastExisting = e.updateForGracefulDeletionAndFinalizers(ctx, name, key, options, preconditions, deleteValidation, obj)
+			// Update the preconditions.ResourceVersion if set since we updated the object.
+			if err == nil && deleteImmediately && preconditions.ResourceVersion != nil {
+				accessor, err = meta.Accessor(out)
+				if err != nil {
+					return out, false, apierrors.NewInternalError(err)
+				}
+				resourceVersion := accessor.GetResourceVersion()
+				preconditions.ResourceVersion = &resourceVersion
 			}
-			resourceVersion := accessor.GetResourceVersion()
-			preconditions.ResourceVersion = &resourceVersion
 		}
-	}
 
-	// !deleteImmediately covers all cases where err != nil. We keep both to be future-proof.
-	if !deleteImmediately || err != nil {
-		return out, false, err
-	}
-
-	// Going further in this function is not useful when we are
-	// performing a dry-run request. Worse, it will actually
-	// override "out" with the version of the object in database
-	// that doesn't have the finalizer and deletiontimestamp set
-	// (because the update above was dry-run too). If we already
-	// have that version available, let's just return it now,
-	// otherwise, we can call dry-run delete that will get us the
-	// latest version of the object.
-	if dryrun.IsDryRun(options.DryRun) && out != nil {
-		return out, true, nil
-	}
-
-	// delete immediately, or no graceful deletion supported
-	klog.V(6).InfoS("Going to delete object from registry", "object", klog.KRef(genericapirequest.NamespaceValue(ctx), name))
-	out = e.NewFunc()
-	if err := e.Storage.Delete(ctx, key, out, &preconditions, storage.ValidateObjectFunc(deleteValidation), dryrun.IsDryRun(options.DryRun), nil, storage.DeleteOptions{}); err != nil {
-		// Please refer to the place where we set ignoreNotFound for the reason
-		// why we ignore the NotFound error .
-		if storage.IsNotFound(err) && ignoreNotFound && lastExisting != nil {
-			// The lastExisting object may not be the last state of the object
-			// before its deletion, but it's the best approximation.
-			out, err := e.finalizeDelete(ctx, lastExisting, true, options)
-			return out, true, err
+		// !deleteImmediately covers all cases where err != nil. We keep both to be future-proof.
+		if !deleteImmediately || err != nil {
+			return out, false, err
 		}
-		return nil, false, storeerr.InterpretDeleteError(err, qualifiedResource, name)
+
+		// Going further in this function is not useful when we are
+		// performing a dry-run request. Worse, it will actually
+		// override "out" with the version of the object in database
+		// that doesn't have the finalizer and deletiontimestamp set
+		// (because the update above was dry-run too). If we already
+		// have that version available, let's just return it now,
+		// otherwise, we can call dry-run delete that will get us the
+		// latest version of the object.
+		if dryrun.IsDryRun(options.DryRun) && out != nil {
+			return out, true, nil
+		}
+
+		retryOnRVConflict := false
+		if preconditions.ResourceVersion == nil {
+			// we could be racing with addition or deletion of finalizers, and have no RV precondition.
+			// add an internal RV precondition based on the internal object we looked up
+			retryOnRVConflict = true
+			preconditions.ResourceVersion = ptr.To(accessor.GetResourceVersion())
+		}
+
+		// delete immediately, or no graceful deletion supported
+		klog.V(6).InfoS("Going to delete object from registry", "object", klog.KRef(genericapirequest.NamespaceValue(ctx), name))
+		out = e.NewFunc()
+		if err := e.Storage.Delete(ctx, key, out, &preconditions, storage.ValidateObjectFunc(deleteValidation), dryrun.IsDryRun(options.DryRun), nil, storage.DeleteOptions{}); err != nil {
+			// Please refer to the place where we set ignoreNotFound for the reason
+			// why we ignore the NotFound error .
+			if storage.IsNotFound(err) && ignoreNotFound && lastExisting != nil {
+				// The lastExisting object may not be the last state of the object
+				// before its deletion, but it's the best approximation.
+				out, err := e.finalizeDelete(ctx, lastExisting, true, options)
+				return out, true, err
+			}
+
+			if retryOnRVConflict && storage.IsPreconditionError(err, storage.PreconditionResourceVersion) {
+				// retry from the top if the delete failed due to a resource version precondition
+				continue
+			}
+
+			return nil, false, storeerr.InterpretDeleteError(err, qualifiedResource, name)
+		}
+		out, err = e.finalizeDelete(ctx, out, true, options)
+		return out, true, err
 	}
-	out, err = e.finalizeDelete(ctx, out, true, options)
-	return out, true, err
 }
 
 // DeleteReturnsDeletedObject implements the rest.MayReturnFullObjectDeleter interface
