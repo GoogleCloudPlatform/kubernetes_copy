@@ -792,7 +792,7 @@ func TestParseThresholdStatements(t *testing.T) {
 		if testCase.expectErr != (err != nil) {
 			t.Errorf("Err not as expected, test: %v, error expected: %v, actual: %v", testName, testCase.expectErr, err)
 		}
-		errcheck := true
+		var errcheck bool
 		for _, a := range thresholds {
 			for _, b := range testCase.expectThresholds {
 				if a.Signal == b.Signal {
