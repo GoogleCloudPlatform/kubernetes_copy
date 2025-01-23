@@ -137,7 +137,7 @@ func autoConvert_v1alpha1_KubeProxyConfiguration_To_config_KubeProxyConfiguratio
 	}
 	out.Logging = in.Logging
 	out.HostnameOverride = in.HostnameOverride
-	out.BindAddress = in.BindAddress
+	// WARNING: in.BindAddress requires manual conversion: does not exist in peer-type
 	out.HealthzBindAddress = in.HealthzBindAddress
 	out.MetricsBindAddress = in.MetricsBindAddress
 	out.BindAddressHardFail = in.BindAddressHardFail
@@ -179,7 +179,8 @@ func autoConvert_config_KubeProxyConfiguration_To_v1alpha1_KubeProxyConfiguratio
 	}
 	out.Logging = in.Logging
 	out.HostnameOverride = in.HostnameOverride
-	out.BindAddress = in.BindAddress
+	// WARNING: in.NodeIPOverride requires manual conversion: does not exist in peer-type
+	// WARNING: in.IPFamilyPolicy requires manual conversion: does not exist in peer-type
 	out.HealthzBindAddress = in.HealthzBindAddress
 	out.MetricsBindAddress = in.MetricsBindAddress
 	out.BindAddressHardFail = in.BindAddressHardFail

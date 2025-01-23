@@ -92,6 +92,7 @@ type Options struct {
 	ipvsSyncPeriod        time.Duration
 	ipvsMinSyncPeriod     time.Duration
 	clusterCIDRs          string
+	bindAddress           string
 }
 
 // AddFlags adds flags to fs and binds them to options.
@@ -114,7 +115,7 @@ func (o *Options) AddFlags(fs *pflag.FlagSet) {
 	fs.Float32Var(&o.config.ClientConnection.QPS, "kube-api-qps", o.config.ClientConnection.QPS, "QPS to use while talking with kubernetes apiserver")
 
 	fs.StringVar(&o.hostnameOverride, "hostname-override", o.hostnameOverride, "If non-empty, will be used as the name of the Node that kube-proxy is running on. If unset, the node name is assumed to be the same as the node's hostname.")
-	fs.Var(&utilflag.IPVar{Val: &o.config.BindAddress}, "bind-address", "Overrides kube-proxy's idea of what its node's primary IP is. Note that the name is a historical artifact, and kube-proxy does not actually bind any sockets to this IP. This parameter is ignored if a config file is specified by --config.")
+	fs.Var(&utilflag.IPVar{Val: &o.bindAddress}, "bind-address", "Overrides kube-proxy's idea of what its node's primary IP is. Note that the name is a historical artifact, and kube-proxy does not actually bind any sockets to this IP. This parameter is ignored if a config file is specified by --config.")
 	fs.Var(&utilflag.IPPortVar{Val: &o.config.HealthzBindAddress}, "healthz-bind-address", "The IP address and port for the health check server to serve on, defaulting to \"0.0.0.0:10256\". This parameter is ignored if a config file is specified by --config.")
 	fs.Var(&utilflag.IPPortVar{Val: &o.config.MetricsBindAddress}, "metrics-bind-address", "The IP address and port for the metrics server to serve on, defaulting to \"127.0.0.1:10249\". (Set to \"0.0.0.0:10249\" / \"[::]:10249\" to bind on all interfaces.) Set empty to disable. This parameter is ignored if a config file is specified by --config.")
 	fs.BoolVar(&o.config.BindAddressHardFail, "bind-address-hard-fail", o.config.BindAddressHardFail, "If true kube-proxy will treat failure to bind to a port as fatal and exit")
@@ -345,6 +346,9 @@ func (o *Options) processV1Alpha1Flags(fs *pflag.FlagSet) {
 	}
 	if fs.Changed("cluster-cidr") {
 		o.config.DetectLocal.ClusterCIDRs = strings.Split(o.clusterCIDRs, ",")
+	}
+	if fs.Changed("bind-address") {
+		o.config.NodeIPOverride = []string{o.bindAddress}
 	}
 }
 

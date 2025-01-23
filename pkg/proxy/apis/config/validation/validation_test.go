@@ -33,7 +33,7 @@ import (
 
 func TestValidateKubeProxyConfiguration(t *testing.T) {
 	baseConfig := &kubeproxyconfig.KubeProxyConfiguration{
-		BindAddress:        "192.168.59.103",
+		NodeIPOverride:     []string{"192.168.59.103"},
 		HealthzBindAddress: "0.0.0.0:10256",
 		MetricsBindAddress: "127.0.0.1:10249",
 		DetectLocalMode:    kubeproxyconfig.LocalModeClusterCIDR,
@@ -80,9 +80,14 @@ func TestValidateKubeProxyConfiguration(t *testing.T) {
 				config.HealthzBindAddress = ""
 			},
 		},
+		"empty NodeIPOverride": {
+			mutateConfigFunc: func(config *kubeproxyconfig.KubeProxyConfiguration) {
+				config.NodeIPOverride = []string{}
+			},
+		},
 		"IPv6": {
 			mutateConfigFunc: func(config *kubeproxyconfig.KubeProxyConfiguration) {
-				config.BindAddress = "fd00:192:168:59::103"
+				config.NodeIPOverride = []string{"fd00:192:168:59::103"}
 				config.HealthzBindAddress = ""
 				config.MetricsBindAddress = "[::1]:10249"
 				config.DetectLocal.ClusterCIDRs = []string{"fd00:192:168:59::/64"}
@@ -119,11 +124,11 @@ func TestValidateKubeProxyConfiguration(t *testing.T) {
 				}
 			},
 		},
-		"invalid BindAddress": {
+		"invalid NodeIPOverride": {
 			mutateConfigFunc: func(config *kubeproxyconfig.KubeProxyConfiguration) {
-				config.BindAddress = "10.10.12.11:2000"
+				config.NodeIPOverride = []string{"10.10.12.11:2000"}
 			},
-			expectedErrs: field.ErrorList{field.Invalid(newPath.Child("BindAddress"), "10.10.12.11:2000", "not a valid textual representation of an IP address")},
+			expectedErrs: field.ErrorList{field.Invalid(newPath.Child("NodeIPOverride").Index(0), "10.10.12.11:2000", "must be a valid IP (e.g. 10.100.0.0 or fde4:8dba:82e1::)")},
 		},
 		"invalid HealthzBindAddress": {
 			mutateConfigFunc: func(config *kubeproxyconfig.KubeProxyConfiguration) {
@@ -879,6 +884,69 @@ func TestValidateDualStackCIDRStrings(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			errs := validateDualStackCIDRStrings(tc.cidrStrings, newPath.Child("DualStackCIDRList"))
+			assert.Equalf(t, len(tc.expectedErrs), len(errs),
+				"expected %d errors, got %d errors: %v", len(tc.expectedErrs), len(errs), errs,
+			)
+			for i, err := range errs {
+				assert.Equal(t, tc.expectedErrs[i].Error(), err.Error())
+			}
+		})
+	}
+}
+
+func TestValidateDualStackIPStrings(t *testing.T) {
+	newPath := field.NewPath("KubeProxyConfiguration")
+
+	testCases := []struct {
+		name         string
+		ipStrings    []string
+		expectedErrs field.ErrorList
+	}{
+		{
+			name:         "empty cidr string",
+			ipStrings:    []string{},
+			expectedErrs: field.ErrorList{field.Invalid(newPath.Child("DualStackIPList"), []string{}, "must contain at least one IP")},
+		},
+		{
+			name:         "single ipv4",
+			ipStrings:    []string{"192.168.0.0"},
+			expectedErrs: field.ErrorList{},
+		},
+		{
+			name:         "single ipv6",
+			ipStrings:    []string{"fd00:10:96::"},
+			expectedErrs: field.ErrorList{},
+		},
+		{
+			name:         "dual stack ip pair",
+			ipStrings:    []string{"172.16.200.0", "fde4:8dba:82e1::"},
+			expectedErrs: field.ErrorList{},
+		},
+		{
+			name:         "multiple ipv4",
+			ipStrings:    []string{"10.100.0.0", "192.168.0.0", "fde4:8dba:82e1::"},
+			expectedErrs: field.ErrorList{field.Invalid(newPath.Child("DualStackIPList"), []string{"10.100.0.0", "192.168.0.0", "fde4:8dba:82e1::"}, "must be a either a single IP or dual-stack pair of IPs (e.g. [10.100.0.0, fde4:8dba:82e1::])")},
+		},
+		{
+			name:         "multiple ipv6",
+			ipStrings:    []string{"fd00:10:96::", "fde4:8dba:82e1::"},
+			expectedErrs: field.ErrorList{field.Invalid(newPath.Child("DualStackIPList"), []string{"fd00:10:96::", "fde4:8dba:82e1::"}, "must be a either a single IP or dual-stack pair of IPs (e.g. [10.100.0.0, fde4:8dba:82e1::])")},
+		},
+		{
+			name:         "ipv6 host-port",
+			ipStrings:    []string{"[fd00:10:96::]:54321", "192.168.0.0"},
+			expectedErrs: field.ErrorList{field.Invalid(newPath.Child("DualStackIPList").Index(0), "[fd00:10:96::]:54321", "must be a valid IP (e.g. 10.100.0.0 or fde4:8dba:82e1::)")},
+		},
+		{
+			name:         "ipv4 host-port",
+			ipStrings:    []string{"fde4:8dba:82e1::", "172.16.200.0:3306"},
+			expectedErrs: field.ErrorList{field.Invalid(newPath.Child("DualStackIPList").Index(1), "172.16.200.0:3306", "must be a valid IP (e.g. 10.100.0.0 or fde4:8dba:82e1::)")},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			errs := validateDualStackIPStrings(tc.ipStrings, newPath.Child("DualStackIPList"))
 			assert.Equalf(t, len(tc.expectedErrs), len(errs),
 				"expected %d errors, got %d errors: %v", len(tc.expectedErrs), len(errs), errs,
 			)
