@@ -489,7 +489,7 @@ func (recorder *recorderImpl) makeEvent(ref *v1.ObjectReference, annotations map
 	}
 	return &v1.Event{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        fmt.Sprintf("%v.%x", ref.Name, t.UnixNano()),
+			Name:        util.GenerateEventName(ref.Name, t.UnixNano()),
 			Namespace:   namespace,
 			Annotations: annotations,
 		},

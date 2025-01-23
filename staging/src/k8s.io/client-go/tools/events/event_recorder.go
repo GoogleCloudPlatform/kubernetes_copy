@@ -96,7 +96,7 @@ func (recorder *recorderImpl) makeEvent(refRegarding *v1.ObjectReference, refRel
 	}
 	return &eventsv1.Event{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("%v.%x", refRegarding.Name, t.UnixNano()),
+			Name:      util.GenerateEventName(refRegarding.Name, t.UnixNano()),
 			Namespace: namespace,
 		},
 		EventTime:           timestamp,

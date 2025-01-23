@@ -31,6 +31,7 @@ import (
 	"go.uber.org/goleak"
 
 	v1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
@@ -746,6 +747,105 @@ func TestEventfNoNamespace(t *testing.T) {
 			validateEvent(strconv.Itoa(index), actualEvent, item.expect, t)
 		}
 
+		logWatcher.Stop()
+	}
+	sinkWatcher.Stop()
+}
+
+func TestEventfInvalidName(t *testing.T) {
+	testIPAddress := &networkingv1.IPAddress{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "2001:db8::123",
+			UID:  "bar",
+		},
+	}
+	testRef, err := ref.GetPartialReference(scheme.Scheme, testIPAddress, "spec.parentRef")
+	if err != nil {
+		t.Fatal(err)
+	}
+	table := []struct {
+		obj          k8sruntime.Object
+		eventtype    string
+		reason       string
+		messageFmt   string
+		elements     []interface{}
+		expect       *v1.Event
+		expectLog    string
+		expectUpdate bool
+	}{
+		{
+			obj:        testRef,
+			eventtype:  v1.EventTypeNormal,
+			reason:     "IPAddressNotAllocated",
+			messageFmt: "some verbose message: %v",
+			elements:   []interface{}{1},
+			expect: &v1.Event{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "2001-db8--123",
+					Namespace: "default",
+				},
+				InvolvedObject: v1.ObjectReference{
+					Kind:       "IPAddress",
+					Name:       "2001:db8::123",
+					Namespace:  "",
+					UID:        "bar",
+					APIVersion: "networking.k8s.io/v1",
+					FieldPath:  "spec.parentRef",
+				},
+				Reason:  "IPAddressNotAllocated",
+				Message: "some verbose message: 1",
+				Source:  v1.EventSource{Component: "eventTest"},
+				Count:   1,
+				Type:    v1.EventTypeNormal,
+			},
+			expectLog:    `Event(v1.ObjectReference{Kind:"IPAddress", Namespace:"", Name:"2001:db8::123", UID:"bar", APIVersion:"networking.k8s.io/v1", ResourceVersion:"", FieldPath:"spec.parentRef"}): type: 'Normal' reason: 'IPAddressNotAllocated' some verbose message: 1`,
+			expectUpdate: false,
+		},
+	}
+
+	testCache := map[string]*v1.Event{}
+	logCalled := make(chan struct{})
+	createEvent := make(chan *v1.Event)
+	updateEvent := make(chan *v1.Event)
+	patchEvent := make(chan *v1.Event)
+	testEvents := testEventSink{
+		OnCreate: OnCreateFactory(testCache, createEvent),
+		OnUpdate: func(event *v1.Event) (*v1.Event, error) {
+			updateEvent <- event
+			return event, nil
+		},
+		OnPatch: OnPatchFactory(testCache, patchEvent),
+	}
+	eventBroadcaster := newBroadcasterForTests(t)
+	sinkWatcher := eventBroadcaster.StartRecordingToSink(&testEvents)
+
+	clock := testclocks.NewFakeClock(time.Now())
+	recorder := recorderWithFakeClock(t, v1.EventSource{Component: "eventTest"}, eventBroadcaster, clock)
+
+	for index, item := range table {
+		clock.Step(1 * time.Second)
+		logWatcher := eventBroadcaster.StartLogging(func(formatter string, args ...interface{}) {
+			if e, a := item.expectLog, fmt.Sprintf(formatter, args...); e != a {
+				t.Errorf("Expected '%v', got '%v'", e, a)
+			}
+			logCalled <- struct{}{}
+		})
+		recorder.Eventf(item.obj, item.eventtype, item.reason, item.messageFmt, item.elements...)
+
+		<-logCalled
+
+		// validate event
+		var err error
+		if item.expectUpdate {
+			actualEvent := <-patchEvent
+			_, err = validateEvent(strconv.Itoa(index), actualEvent, item.expect, t)
+		} else {
+			actualEvent := <-createEvent
+			_, err = validateEvent(strconv.Itoa(index), actualEvent, item.expect, t)
+		}
+		if err != nil {
+			t.Errorf("unexpected error validating event: %v", err)
+		}
 		logWatcher.Stop()
 	}
 	sinkWatcher.Stop()
