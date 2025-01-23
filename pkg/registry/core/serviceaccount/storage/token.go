@@ -97,9 +97,13 @@ func (r *TokenREST) Create(ctx context.Context, name string, obj runtime.Object,
 	}
 
 	// Lookup service account
-	svcacctObj, err := r.svcaccts.Get(ctx, name, &metav1.GetOptions{})
+	// set ResourceVersion=0 to allow this to be read/served from the apiservers watch cache
+	svcacctObj, err := r.svcaccts.Get(ctx, name, &metav1.GetOptions{ResourceVersion: "0"})
 	if err != nil {
-		return nil, err
+		svcacctObj, err = r.svcaccts.Get(ctx, name, &metav1.GetOptions{})
+		if err != nil {
+			return nil, err
+		}
 	}
 	svcacct := svcacctObj.(*api.ServiceAccount)
 
