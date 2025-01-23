@@ -86,7 +86,7 @@ func getEndpointPorts(logger klog.Logger, service *v1.Service, pod *v1.Pod) []di
 
 		portName := servicePort.Name
 		portProto := servicePort.Protocol
-		portNum, err := findPort(pod, servicePort)
+		portNum, err := FindPort(pod, servicePort)
 		if err != nil {
 			logger.V(4).Info("Failed to find port for service", "service", klog.KObj(service), "err", err)
 			continue
@@ -375,12 +375,11 @@ func isServiceIPSet(service *v1.Service) bool {
 	return service.Spec.ClusterIP != v1.ClusterIPNone && service.Spec.ClusterIP != ""
 }
 
-// findPort locates the container port for the given pod and portName.  If the
+// FindPort locates the container port for the given pod and portName.  If the
 // targetPort is a number, use that.  If the targetPort is a string, look that
 // string up in all named ports in all containers in the target pod.  If no
 // match is found, fail.
-// copied from k8s.io/kubernetes/pkg/api/v1/pod
-func findPort(pod *v1.Pod, svcPort *v1.ServicePort) (int, error) {
+func FindPort(pod *v1.Pod, svcPort *v1.ServicePort) (int, error) {
 	portName := svcPort.TargetPort
 	switch portName.Type {
 	case intstr.String:
