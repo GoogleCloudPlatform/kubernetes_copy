@@ -22,9 +22,7 @@ import (
 	"k8s.io/klog/v2"
 
 	"k8s.io/apimachinery/pkg/util/sets"
-	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	pluginapi "k8s.io/kubelet/pkg/apis/deviceplugin/v1beta1"
-	kubefeatures "k8s.io/kubernetes/pkg/features"
 	"k8s.io/kubernetes/pkg/kubelet/cm/devicemanager/checkpoint"
 	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
 )
@@ -343,11 +341,9 @@ func (pdev *podDevices) deviceRunContainerOptions(podUID, contName string) *Devi
 			opts.Annotations = append(opts.Annotations, kubecontainer.Annotation{Name: k, Value: v})
 		}
 
-		if utilfeature.DefaultFeatureGate.Enabled(kubefeatures.DevicePluginCDIDevices) {
-			// Updates for CDI devices.
-			cdiDevices := getCDIDeviceInfo(resp, allCDIDevices)
-			opts.CDIDevices = append(opts.CDIDevices, cdiDevices...)
-		}
+		// Updates for CDI devices.
+		cdiDevices := getCDIDeviceInfo(resp, allCDIDevices)
+		opts.CDIDevices = append(opts.CDIDevices, cdiDevices...)
 	}
 
 	return opts
