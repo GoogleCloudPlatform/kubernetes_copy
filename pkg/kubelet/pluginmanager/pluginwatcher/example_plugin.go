@@ -43,6 +43,7 @@ type examplePlugin struct {
 	pluginName         string
 	pluginType         string
 	versions           []string
+	unlinkSocket       bool
 }
 
 type pluginServiceV1Beta1 struct {
@@ -84,6 +85,7 @@ func NewTestExamplePlugin(pluginName string, pluginType string, endpoint string,
 		endpoint:           endpoint,
 		versions:           advertisedVersions,
 		registrationStatus: make(chan registerapi.RegistrationStatus),
+		unlinkSocket:       true, // delete unix socket file on close
 	}
 }
 
@@ -121,6 +123,8 @@ func (e *examplePlugin) Serve(services ...string) error {
 	if err != nil {
 		return err
 	}
+
+	lis.(*net.UnixListener).SetUnlinkOnClose(e.unlinkSocket)
 
 	klog.InfoS("Example server started", "endpoint", e.endpoint)
 	e.grpcServer = grpc.NewServer()
@@ -171,9 +175,20 @@ func (e *examplePlugin) Stop() error {
 		return errors.New("timed out on waiting for stop completion")
 	}
 
-	if err := os.Remove(e.endpoint); err != nil && !os.IsNotExist(err) {
-		return err
+	if e.unlinkSocket {
+		// NOTE: Unix socket gets unlinked by the net.UnixListener.close()
+		// so this is not necessary, but we do it anyway to be explicit.
+		if err := os.Remove(e.endpoint); err != nil && !os.IsNotExist(err) {
+			klog.ErrorS(err, "Failed to remove endpoint", "endpoint", e.endpoint)
+			return err
+		}
 	}
 
+	klog.InfoS("Example server stopped", "endpoint", e.endpoint)
+
 	return nil
+}
+
+func (e *examplePlugin) SetUnlinkSocket(unlinkSocket bool) {
+	e.unlinkSocket = unlinkSocket
 }
