@@ -61,7 +61,7 @@ func testIPTablesVersionCmds(t *testing.T, protocol Protocol) {
 			func(cmd string, args ...string) exec.Cmd { return fakeexec.InitFakeCmd(&fcmd, cmd, args...) },
 		},
 	}
-	_ = New(fexec, protocol)
+	_ = newInternal(fexec, protocol, "", "")
 
 	// Check that proper iptables version command was used during runner instantiation
 	if !sets.New(fcmd.CombinedOutputLog[0]...).HasAll(iptablesCmd, "--version") {
@@ -103,7 +103,7 @@ func testEnsureChain(t *testing.T, protocol Protocol) {
 			func(cmd string, args ...string) exec.Cmd { return fakeexec.InitFakeCmd(&fcmd, cmd, args...) },
 		},
 	}
-	runner := New(fexec, protocol)
+	runner := newInternal(fexec, protocol, "", "")
 	// Success.
 	exists, err := runner.EnsureChain(TableNAT, Chain("FOOBAR"))
 	if err != nil {
@@ -160,7 +160,7 @@ func TestFlushChain(t *testing.T) {
 			func(cmd string, args ...string) exec.Cmd { return fakeexec.InitFakeCmd(&fcmd, cmd, args...) },
 		},
 	}
-	runner := New(fexec, ProtocolIPv4)
+	runner := newInternal(fexec, ProtocolIPv4, "", "")
 	// Success.
 	err := runner.FlushChain(TableNAT, Chain("FOOBAR"))
 	if err != nil {
@@ -197,7 +197,7 @@ func TestDeleteChain(t *testing.T) {
 			func(cmd string, args ...string) exec.Cmd { return fakeexec.InitFakeCmd(&fcmd, cmd, args...) },
 		},
 	}
-	runner := New(fexec, ProtocolIPv4)
+	runner := newInternal(fexec, ProtocolIPv4, "", "")
 	// Success.
 	err := runner.DeleteChain(TableNAT, Chain("FOOBAR"))
 	if err != nil {
@@ -233,7 +233,7 @@ func TestEnsureRuleAlreadyExists(t *testing.T) {
 			func(cmd string, args ...string) exec.Cmd { return fakeexec.InitFakeCmd(&fcmd, cmd, args...) },
 		},
 	}
-	runner := New(fexec, ProtocolIPv4)
+	runner := newInternal(fexec, ProtocolIPv4, "", "")
 	exists, err := runner.EnsureRule(Append, TableNAT, ChainOutput, "abc", "123")
 	if err != nil {
 		t.Errorf("expected success, got %v", err)
@@ -269,7 +269,7 @@ func TestEnsureRuleNew(t *testing.T) {
 			func(cmd string, args ...string) exec.Cmd { return fakeexec.InitFakeCmd(&fcmd, cmd, args...) },
 		},
 	}
-	runner := New(fexec, ProtocolIPv4)
+	runner := newInternal(fexec, ProtocolIPv4, "", "")
 	exists, err := runner.EnsureRule(Append, TableNAT, ChainOutput, "abc", "123")
 	if err != nil {
 		t.Errorf("expected success, got %v", err)
@@ -302,7 +302,7 @@ func TestEnsureRuleErrorChecking(t *testing.T) {
 			func(cmd string, args ...string) exec.Cmd { return fakeexec.InitFakeCmd(&fcmd, cmd, args...) },
 		},
 	}
-	runner := New(fexec, ProtocolIPv4)
+	runner := newInternal(fexec, ProtocolIPv4, "", "")
 	_, err := runner.EnsureRule(Append, TableNAT, ChainOutput, "abc", "123")
 	if err == nil {
 		t.Errorf("expected failure")
@@ -332,7 +332,7 @@ func TestEnsureRuleErrorCreating(t *testing.T) {
 			func(cmd string, args ...string) exec.Cmd { return fakeexec.InitFakeCmd(&fcmd, cmd, args...) },
 		},
 	}
-	runner := New(fexec, ProtocolIPv4)
+	runner := newInternal(fexec, ProtocolIPv4, "", "")
 	_, err := runner.EnsureRule(Append, TableNAT, ChainOutput, "abc", "123")
 	if err == nil {
 		t.Errorf("expected failure")
@@ -359,7 +359,7 @@ func TestDeleteRuleDoesNotExist(t *testing.T) {
 			func(cmd string, args ...string) exec.Cmd { return fakeexec.InitFakeCmd(&fcmd, cmd, args...) },
 		},
 	}
-	runner := New(fexec, ProtocolIPv4)
+	runner := newInternal(fexec, ProtocolIPv4, "", "")
 	err := runner.DeleteRule(TableNAT, ChainOutput, "abc", "123")
 	if err != nil {
 		t.Errorf("expected success, got %v", err)
@@ -392,7 +392,7 @@ func TestDeleteRuleExists(t *testing.T) {
 			func(cmd string, args ...string) exec.Cmd { return fakeexec.InitFakeCmd(&fcmd, cmd, args...) },
 		},
 	}
-	runner := New(fexec, ProtocolIPv4)
+	runner := newInternal(fexec, ProtocolIPv4, "", "")
 	err := runner.DeleteRule(TableNAT, ChainOutput, "abc", "123")
 	if err != nil {
 		t.Errorf("expected success, got %v", err)
@@ -422,7 +422,7 @@ func TestDeleteRuleErrorChecking(t *testing.T) {
 			func(cmd string, args ...string) exec.Cmd { return fakeexec.InitFakeCmd(&fcmd, cmd, args...) },
 		},
 	}
-	runner := New(fexec, ProtocolIPv4)
+	runner := newInternal(fexec, ProtocolIPv4, "", "")
 	err := runner.DeleteRule(TableNAT, ChainOutput, "abc", "123")
 	if err == nil {
 		t.Errorf("expected failure")
@@ -452,7 +452,7 @@ func TestDeleteRuleErrorDeleting(t *testing.T) {
 			func(cmd string, args ...string) exec.Cmd { return fakeexec.InitFakeCmd(&fcmd, cmd, args...) },
 		},
 	}
-	runner := New(fexec, ProtocolIPv4)
+	runner := newInternal(fexec, ProtocolIPv4, "", "")
 	err := runner.DeleteRule(TableNAT, ChainOutput, "abc", "123")
 	if err == nil {
 		t.Errorf("expected failure")
@@ -487,7 +487,7 @@ func TestGetIPTablesHasCheckCommand(t *testing.T) {
 				func(cmd string, args ...string) exec.Cmd { return fakeexec.InitFakeCmd(&fcmd, cmd, args...) },
 			},
 		}
-		ipt := New(fexec, ProtocolIPv4)
+		ipt := newInternal(fexec, ProtocolIPv4, "", "")
 		runner := ipt.(*runner)
 		if testCase.Expected != runner.hasCheck {
 			t.Errorf("Expected result: %v, Got result: %v", testCase.Expected, runner.hasCheck)
@@ -648,7 +648,7 @@ func TestWaitFlagUnavailable(t *testing.T) {
 			func(cmd string, args ...string) exec.Cmd { return fakeexec.InitFakeCmd(&fcmd, cmd, args...) },
 		},
 	}
-	runner := New(fexec, ProtocolIPv4)
+	runner := newInternal(fexec, ProtocolIPv4, "", "")
 	err := runner.DeleteChain(TableNAT, Chain("FOOBAR"))
 	if err != nil {
 		t.Errorf("expected success, got %v", err)
@@ -679,7 +679,7 @@ func TestWaitFlagOld(t *testing.T) {
 			func(cmd string, args ...string) exec.Cmd { return fakeexec.InitFakeCmd(&fcmd, cmd, args...) },
 		},
 	}
-	runner := New(fexec, ProtocolIPv4)
+	runner := newInternal(fexec, ProtocolIPv4, "", "")
 	err := runner.DeleteChain(TableNAT, Chain("FOOBAR"))
 	if err != nil {
 		t.Errorf("expected success, got %v", err)
@@ -713,7 +713,7 @@ func TestWaitFlagNew(t *testing.T) {
 			func(cmd string, args ...string) exec.Cmd { return fakeexec.InitFakeCmd(&fcmd, cmd, args...) },
 		},
 	}
-	runner := New(fexec, ProtocolIPv4)
+	runner := newInternal(fexec, ProtocolIPv4, "", "")
 	err := runner.DeleteChain(TableNAT, Chain("FOOBAR"))
 	if err != nil {
 		t.Errorf("expected success, got %v", err)
@@ -744,7 +744,7 @@ func TestWaitIntervalFlagNew(t *testing.T) {
 			func(cmd string, args ...string) exec.Cmd { return fakeexec.InitFakeCmd(&fcmd, cmd, args...) },
 		},
 	}
-	runner := New(fexec, ProtocolIPv4)
+	runner := newInternal(fexec, ProtocolIPv4, "", "")
 	err := runner.DeleteChain(TableNAT, Chain("FOOBAR"))
 	if err != nil {
 		t.Errorf("expected success, got %v", err)
@@ -789,7 +789,7 @@ COMMIT
 			func(cmd string, args ...string) exec.Cmd { return fakeexec.InitFakeCmd(&fcmd, cmd, args...) },
 		},
 	}
-	runner := New(fexec, protocol)
+	runner := newInternal(fexec, protocol, "", "")
 	buffer := bytes.NewBuffer(nil)
 
 	// Success.
@@ -857,7 +857,7 @@ func testRestore(t *testing.T, protocol Protocol) {
 			func(cmd string, args ...string) exec.Cmd { return fakeexec.InitFakeCmd(&fcmd, cmd, args...) },
 		},
 	}
-	runner := New(fexec, protocol)
+	runner := newInternal(fexec, protocol, "", "")
 
 	// both flags true
 	err := runner.Restore(TableNAT, []byte{}, FlushTables, RestoreCounters)

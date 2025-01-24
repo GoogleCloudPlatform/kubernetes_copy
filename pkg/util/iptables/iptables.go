@@ -246,8 +246,8 @@ func newInternal(exec utilexec.Interface, protocol Protocol, lockfilePath14x, lo
 }
 
 // New returns a new Interface which will exec iptables.
-func New(exec utilexec.Interface, protocol Protocol) Interface {
-	return newInternal(exec, protocol, "", "")
+func New(protocol Protocol) Interface {
+	return newInternal(utilexec.New(), protocol, "", "")
 }
 
 // EnsureChain is part of Interface.

@@ -111,12 +111,10 @@ func isIPTablesBased(mode proxyconfigapi.ProxyMode) bool {
 // is not v1.IPFamilyUnknown then it will also separately return the interface for just
 // that family.
 func getIPTables(primaryFamily v1.IPFamily) ([2]utiliptables.Interface, utiliptables.Interface) {
-	execer := exec.New()
-
 	// Create iptables handlers for both families. Always ordered as IPv4, IPv6
 	ipt := [2]utiliptables.Interface{
-		utiliptables.New(execer, utiliptables.ProtocolIPv4),
-		utiliptables.New(execer, utiliptables.ProtocolIPv6),
+		utiliptables.New(utiliptables.ProtocolIPv4),
+		utiliptables.New(utiliptables.ProtocolIPv6),
 	}
 
 	var iptInterface utiliptables.Interface

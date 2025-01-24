@@ -25,7 +25,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/klog/v2"
 	utiliptables "k8s.io/kubernetes/pkg/util/iptables"
-	utilexec "k8s.io/utils/exec"
 )
 
 const (
@@ -38,10 +37,9 @@ const (
 )
 
 func (kl *Kubelet) initNetworkUtil() {
-	exec := utilexec.New()
 	iptClients := []utiliptables.Interface{
-		utiliptables.New(exec, utiliptables.ProtocolIPv4),
-		utiliptables.New(exec, utiliptables.ProtocolIPv6),
+		utiliptables.New(utiliptables.ProtocolIPv4),
+		utiliptables.New(utiliptables.ProtocolIPv6),
 	}
 
 	for i := range iptClients {
