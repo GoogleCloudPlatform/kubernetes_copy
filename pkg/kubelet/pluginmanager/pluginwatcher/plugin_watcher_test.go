@@ -79,7 +79,7 @@ func waitForUnregistration(
 	socketPath string,
 	dsw cache.DesiredStateOfWorld) {
 	err := retryWithExponentialBackOff(
-		time.Duration(500*time.Millisecond),
+		time.Duration(1000*time.Millisecond),
 		func() (bool, error) {
 			if !dsw.PluginExists(socketPath) {
 				return true, nil
@@ -255,6 +255,62 @@ func TestPluginRegistrationAtKubeletStart(t *testing.T) {
 		return
 	case <-time.After(wait.ForeverTestTimeout):
 		t.Fatalf("Timeout while waiting for the plugin registration status")
+	}
+}
+
+// TestPluginDisconnect tests the following scenarios of plugin disconnects:
+//  1. Plugin stops and removes the socket file.
+//     The Watcher reacts on the REMOVE fsnotify event and unregisters the plugin.
+//  2. Plugin stops but keeps the socket file around. This emulates plugin crash with
+//     a stale socket left on the file system.
+//     The PluginConnectionMonitor detects the disconnect and unregisters the plugin.
+func TestPluginDisconnect(t *testing.T) {
+	for name, test := range map[string]struct {
+		unlinkSocket bool
+	}{
+		"plugin-stops-and-unlinks-socket": {
+			unlinkSocket: true,
+		},
+		"plugin-stops-and-keeps-socket": {
+			unlinkSocket: false,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			// Create new watcher
+			socketDir := t.TempDir()
+			dsw := cache.NewDesiredStateOfWorld()
+			asw := cache.NewActualStateOfWorld()
+			newWatcher(t, socketDir, dsw, asw, wait.NeverStop)
+
+			// Create a plugin
+			pluginName := "test-plugin-disconnect"
+			socketPath := filepath.Join(socketDir, fmt.Sprintf("%s.sock", pluginName))
+			plugin := NewTestExamplePlugin(pluginName, registerapi.DevicePlugin, socketPath, supportedVersions...)
+			defer func() {
+				require.NoError(t, plugin.Stop())
+			}()
+			plugin.SetUnlinkSocket(test.unlinkSocket)
+
+			// Run and register it
+			require.NoError(t, plugin.Serve(supportedVersions...))
+			pluginInfo := GetPluginInfo(plugin)
+			require.Equal(t, socketPath, pluginInfo.SocketPath)
+			waitForRegistration(t, socketPath, dsw)
+
+			// Add plugin to asw to simulate a registered plugin
+			require.NoError(t, asw.AddPlugin(pluginInfo))
+
+			// Stop the plugin
+			require.NoError(t, plugin.Stop())
+
+			if !test.unlinkSocket {
+				// Ensure that the stalled socket exists after stopping the plugin
+				require.FileExists(t, socketPath)
+			}
+
+			// Wait for the plugin to be deregistered due to disconnect
+			waitForUnregistration(t, socketPath, dsw)
+		})
 	}
 }
 
