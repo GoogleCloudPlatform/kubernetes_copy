@@ -108,7 +108,8 @@ func TestPluginRegistration(t *testing.T) {
 	defer os.RemoveAll(socketDir)
 
 	dsw := cache.NewDesiredStateOfWorld()
-	newWatcher(t, socketDir, dsw, wait.NeverStop)
+	asw := cache.NewActualStateOfWorld()
+	newWatcher(t, socketDir, dsw, asw, wait.NeverStop)
 
 	for i := 0; i < 10; i++ {
 		socketPath := filepath.Join(socketDir, fmt.Sprintf("plugin-%d.sock", i))
@@ -142,7 +143,8 @@ func TestPluginRegistrationSameName(t *testing.T) {
 	defer os.RemoveAll(socketDir)
 
 	dsw := cache.NewDesiredStateOfWorld()
-	newWatcher(t, socketDir, dsw, wait.NeverStop)
+	asw := cache.NewActualStateOfWorld()
+	newWatcher(t, socketDir, dsw, asw, wait.NeverStop)
 
 	// Make 10 plugins with the same name and same type but different socket path;
 	// all 10 should be in desired state of world cache
@@ -168,7 +170,8 @@ func TestPluginReRegistration(t *testing.T) {
 	defer os.RemoveAll(socketDir)
 
 	dsw := cache.NewDesiredStateOfWorld()
-	newWatcher(t, socketDir, dsw, wait.NeverStop)
+	asw := cache.NewActualStateOfWorld()
+	newWatcher(t, socketDir, dsw, asw, wait.NeverStop)
 
 	// Create a plugin first, we are then going to remove the plugin, update the plugin with a different name
 	// and recreate it.
@@ -226,7 +229,8 @@ func TestPluginRegistrationAtKubeletStart(t *testing.T) {
 	}
 
 	dsw := cache.NewDesiredStateOfWorld()
-	newWatcher(t, socketDir, dsw, wait.NeverStop)
+	asw := cache.NewActualStateOfWorld()
+	newWatcher(t, socketDir, dsw, asw, wait.NeverStop)
 
 	var wg sync.WaitGroup
 	for i := 0; i < len(plugins); i++ {
@@ -254,8 +258,8 @@ func TestPluginRegistrationAtKubeletStart(t *testing.T) {
 	}
 }
 
-func newWatcher(t *testing.T, socketDir string, desiredStateOfWorldCache cache.DesiredStateOfWorld, stopCh <-chan struct{}) *Watcher {
-	w := NewWatcher(socketDir, desiredStateOfWorldCache)
+func newWatcher(t *testing.T, socketDir string, desiredStateOfWorldCache cache.DesiredStateOfWorld, actualStateOfWorldCache cache.ActualStateOfWorld, stopCh <-chan struct{}) *Watcher {
+	w := NewWatcher(socketDir, desiredStateOfWorldCache, actualStateOfWorldCache)
 	require.NoError(t, w.Start(stopCh))
 
 	return w

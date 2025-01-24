@@ -35,14 +35,16 @@ type Watcher struct {
 	fs                  utilfs.Filesystem
 	fsWatcher           *fsnotify.Watcher
 	desiredStateOfWorld cache.DesiredStateOfWorld
+	actualStateOfWorld  cache.ActualStateOfWorld
 }
 
 // NewWatcher provides a new watcher for socket registration
-func NewWatcher(sockDir string, desiredStateOfWorld cache.DesiredStateOfWorld) *Watcher {
+func NewWatcher(sockDir string, desiredStateOfWorld cache.DesiredStateOfWorld, actualStateOfWorld cache.ActualStateOfWorld) *Watcher {
 	return &Watcher{
 		path:                sockDir,
 		fs:                  &utilfs.DefaultFs{},
 		desiredStateOfWorld: desiredStateOfWorld,
+		actualStateOfWorld:  actualStateOfWorld,
 	}
 }
 
