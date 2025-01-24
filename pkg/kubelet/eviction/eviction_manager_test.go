@@ -76,7 +76,7 @@ type mockPodsKiller struct {
 
 // killPodsNow records the pods that were killed
 func (m *mockPodsKiller) killPodsNow(pod *v1.Pod, evict bool, gracePeriodOverride *int64, statusFn func(*v1.PodStatus)) error {
-  m.pods = append(m.pods, pod)
+	m.pods = append(m.pods, pod)
 	m.statusFn = statusFn
 	m.evict = evict
 	m.gracePeriodOverride = gracePeriodOverride
@@ -84,14 +84,14 @@ func (m *mockPodsKiller) killPodsNow(pod *v1.Pod, evict bool, gracePeriodOverrid
 }
 
 func setDiskStatsBasedOnFs(whichFs string, diskPressure string, diskStat diskStats) diskStats {
-  if whichFs == "nodefs" {
-    diskStat.rootFsAvailableBytes = diskPressure
-  } else if whichFs == "imagefs" {
-    diskStat.imageFsAvailableBytes = diskPressure
-  } else if whichFs == "containerfs" {
-    diskStat.containerFsAvailableBytes = diskPressure
-  }
-  return diskStat
+	if whichFs == "nodefs" {
+		diskStat.rootFsAvailableBytes = diskPressure
+	} else if whichFs == "imagefs" {
+		diskStat.imageFsAvailableBytes = diskPressure
+	} else if whichFs == "containerfs" {
+		diskStat.containerFsAvailableBytes = diskPressure
+	}
+	return diskStat
 }
 
 // mockDiskInfoProvider is used to simulate testing.
@@ -418,8 +418,8 @@ func TestPIDPressure_VerifyPodStatus(t *testing.T) {
 		}
 
 		terminatedPodsFunc := func() []*v1.Pod {
-		return []*v1.Pod{}
-	}
+			return []*v1.Pod{}
+		}
 
 		fakeClock := testingclock.NewFakeClock(time.Now())
 		podKiller := &mockPodKiller{}
@@ -1623,7 +1623,7 @@ func TestTerminatedPodsEvictionOnDiskPressure(t *testing.T) {
 
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
-      featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.KubeletSeparateDiskGC, tc.kubeletSeparateDiskFeature)
+			featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.KubeletSeparateDiskGC, tc.kubeletSeparateDiskFeature)
 
 			podMaker := makePodWithDiskStats
 			summaryStatsMaker := makeDiskStats
@@ -1639,12 +1639,12 @@ func TestTerminatedPodsEvictionOnDiskPressure(t *testing.T) {
 				return pods
 			}
 
-      terminatedPodsToMake := tc.terminatedPodToMakes
-      terminatedPods := []*v1.Pod{}
-      for _, terminatedPodToMake := range terminatedPodsToMake {
-        terminatedPod, _ := podMaker(terminatedPodToMake.name, terminatedPodToMake.priority, terminatedPodToMake.requests, terminatedPodToMake.limits, terminatedPodToMake.rootFsUsed, terminatedPodToMake.logsFsUsed, terminatedPodToMake.perLocalVolumeUsed, nil)
-        terminatedPods = append(terminatedPods, terminatedPod)
-      }
+			terminatedPodsToMake := tc.terminatedPodToMakes
+			terminatedPods := []*v1.Pod{}
+			for _, terminatedPodToMake := range terminatedPodsToMake {
+				terminatedPod, _ := podMaker(terminatedPodToMake.name, terminatedPodToMake.priority, terminatedPodToMake.requests, terminatedPodToMake.limits, terminatedPodToMake.rootFsUsed, terminatedPodToMake.logsFsUsed, terminatedPodToMake.perLocalVolumeUsed, nil)
+				terminatedPods = append(terminatedPods, terminatedPod)
+			}
 			terminatedPodsFunc := func() []*v1.Pod {
 				return terminatedPods
 			}
@@ -1689,7 +1689,7 @@ func TestTerminatedPodsEvictionOnDiskPressure(t *testing.T) {
 				t.Fatalf("Manager should not have an error %v", err)
 			}
 
-      // we should not have disk pressure
+			// we should not have disk pressure
 			if manager.IsUnderDiskPressure() {
 				t.Errorf("Manager should not report disk pressure")
 			}
@@ -1716,39 +1716,39 @@ func TestTerminatedPodsEvictionOnDiskPressure(t *testing.T) {
 			// split filesystem can have container gc called without image.
 			// same filesystem should have both.
 			if diskGC.imageGCInvoked != tc.expectImageGcCall && diskGC.containerGCInvoked != tc.expectContainerGcCall {
-        t.Fatalf("Manager should have invoked image gc")
+				t.Fatalf("Manager should have invoked image gc")
 			}
 
-      // compare expected killed pods with actual killed pods
+			// compare expected killed pods with actual killed pods
 			checkIfSamePods := func(expectedPods, actualPods []*v1.Pod) bool {
-        expected := make(map[*v1.Pod]bool)
-        for _, pod := range expectedPods {
-          expected[pod] = true
-        }
+				expected := make(map[*v1.Pod]bool)
+				for _, pod := range expectedPods {
+					expected[pod] = true
+				}
 
-        for _, pod := range actualPods {
-          if !expected[pod] {
-            return false
-          }
-        }
+				for _, pod := range actualPods {
+					if !expected[pod] {
+						return false
+					}
+				}
 
-        return true
-      }
+				return true
+			}
 
-      // verify terminated pods were killed
-      if podKiller.pods == nil {
-        t.Fatalf("Manager should have killed terminated pods")
-      }
+			// verify terminated pods were killed
+			if podKiller.pods == nil {
+				t.Fatalf("Manager should have killed terminated pods")
+			}
 
-      // verify only terminated pods were killed because image gc was sufficient
-      if !checkIfSamePods(terminatedPods, podKiller.pods) {
-        t.Fatalf("Manager killed running pods")
-      }
+			// verify only terminated pods were killed because image gc was sufficient
+			if !checkIfSamePods(terminatedPods, podKiller.pods) {
+				t.Fatalf("Manager killed running pods")
+			}
 
-      // reset state
+			// reset state
 			diskGC.imageGCInvoked = false
 			diskGC.containerGCInvoked = false
-      podKiller.pods = nil
+			podKiller.pods = nil
 
 			// remove disk pressure
 			fakeClock.Step(20 * time.Minute)
@@ -1764,7 +1764,7 @@ func TestTerminatedPodsEvictionOnDiskPressure(t *testing.T) {
 				t.Fatalf("Manager should not report disk pressure")
 			}
 
-      // induce disk pressure!
+			// induce disk pressure!
 			fakeClock.Step(1 * time.Minute)
 			softDiskPressure := setDiskStatsBasedOnFs(tc.inducePressureOnWhichFs, tc.hardDiskPressure, diskStatStart)
 			summaryProvider.result = summaryStatsMaker(softDiskPressure)
@@ -1788,25 +1788,25 @@ func TestTerminatedPodsEvictionOnDiskPressure(t *testing.T) {
 				t.Fatalf("Manager should have invoked image gc")
 			}
 
-      // Make array with only the pods names
-      podsNames := func(pods []*v1.Pod) []string {
-        var podsNames []string
-        for _, pod := range pods {
-          podsNames = append(podsNames, pod.Name)
-        }
-        return podsNames
-      }
+			// Make array with only the pods names
+			podsNames := func(pods []*v1.Pod) []string {
+				var podsNames []string
+				for _, pod := range pods {
+					podsNames = append(podsNames, pod.Name)
+				}
+				return podsNames
+			}
 
-      expectedKilledPods := append(terminatedPods, pods[0])
-      // verify only terminated pods were killed because image gc was sufficient
-      if !checkIfSamePods(expectedKilledPods, podKiller.pods) {
-        t.Fatalf("Manager killed running pods. Expected: %v, actual: %v", podsNames(expectedKilledPods), podsNames(podKiller.pods))
-      }
+			expectedKilledPods := append(terminatedPods, pods[0])
+			// verify only terminated pods were killed because image gc was sufficient
+			if !checkIfSamePods(expectedKilledPods, podKiller.pods) {
+				t.Fatalf("Manager killed running pods. Expected: %v, actual: %v", podsNames(expectedKilledPods), podsNames(podKiller.pods))
+			}
 
-      // reset state
+			// reset state
 			diskGC.imageGCInvoked = false
 			diskGC.containerGCInvoked = false
-      podKiller.pods = nil
+			podKiller.pods = nil
 
 			// remove disk pressure
 			fakeClock.Step(20 * time.Minute)
