@@ -17,9 +17,9 @@ limitations under the License.
 package pod
 
 import (
+	"reflect"
 	"strings"
 
-	"github.com/google/go-cmp/cmp"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	metavalidation "k8s.io/apimachinery/pkg/apis/meta/v1/validation"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -1296,7 +1296,7 @@ func MarkPodProposedForResize(oldPod, newPod *api.Pod) {
 		if c.Resources.Requests == nil {
 			continue
 		}
-		if cmp.Equal(oldPod.Spec.Containers[i].Resources, c.Resources) {
+		if reflect.DeepEqual(oldPod.Spec.Containers[i].Resources, c.Resources) {
 			continue
 		}
 		newPod.Status.Resize = api.PodResizeStatusProposed
