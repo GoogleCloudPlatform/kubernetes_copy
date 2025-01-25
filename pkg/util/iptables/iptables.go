@@ -219,12 +219,6 @@ type runner struct {
 // newInternal returns a new Interface which will exec iptables, and allows the
 // caller to change the iptables-restore lockfile path
 func newInternal(exec utilexec.Interface, protocol Protocol, lockfilePath14x, lockfilePath16x string) Interface {
-	version, err := getIPTablesVersion(exec, protocol)
-	if err != nil {
-		klog.InfoS("Error checking iptables version, assuming version at least", "version", MinCheckVersion, "err", err)
-		version = MinCheckVersion
-	}
-
 	if lockfilePath16x == "" {
 		lockfilePath16x = LockfilePath16x
 	}
@@ -235,13 +229,22 @@ func newInternal(exec utilexec.Interface, protocol Protocol, lockfilePath14x, lo
 	runner := &runner{
 		exec:            exec,
 		protocol:        protocol,
-		hasCheck:        version.AtLeast(MinCheckVersion),
-		hasRandomFully:  version.AtLeast(RandomFullyMinVersion),
-		waitFlag:        getIPTablesWaitFlag(version),
-		restoreWaitFlag: getIPTablesRestoreWaitFlag(version, exec, protocol),
 		lockfilePath14x: lockfilePath14x,
 		lockfilePath16x: lockfilePath16x,
 	}
+
+	version, err := getIPTablesVersion(exec, protocol)
+	if err != nil {
+		// The only likely error is "no such file or directory", in which case any
+		// further commands will fail the same way, so we don't need to do
+		// anything special here.
+		return runner
+	}
+
+	runner.hasCheck = version.AtLeast(MinCheckVersion)
+	runner.hasRandomFully = version.AtLeast(RandomFullyMinVersion)
+	runner.waitFlag = getIPTablesWaitFlag(version)
+	runner.restoreWaitFlag = getIPTablesRestoreWaitFlag(version, exec, protocol)
 	return runner
 }
 

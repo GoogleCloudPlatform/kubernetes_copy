@@ -177,13 +177,9 @@ func TestNew(t *testing.T) {
 					command: "iptables --version",
 					action:  func() ([]byte, []byte, error) { return nil, nil, fmt.Errorf("no such file or directory") },
 				},
-				{
-					command: "iptables-restore --version",
-					action:  func() ([]byte, []byte, error) { return nil, nil, fmt.Errorf("no such file or directory") },
-				},
 			},
 			expected: &runner{
-				hasCheck:        true,
+				hasCheck:        false,
 				hasRandomFully:  false,
 				waitFlag:        nil,
 				restoreWaitFlag: nil,
@@ -601,7 +597,7 @@ func TestGetIPTablesHasCheckCommand(t *testing.T) {
 		{"iptables v1.4.11", true},
 		{"iptables v1.4.19.1", true},
 		{"iptables v2.0.0", true},
-		{"total junk", true},
+		{"total junk", false},
 	}
 
 	for _, testCase := range testCases {
