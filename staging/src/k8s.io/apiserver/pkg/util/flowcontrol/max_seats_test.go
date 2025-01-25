@@ -27,6 +27,7 @@ import (
 	"k8s.io/apiserver/pkg/util/flowcontrol/metrics"
 	"k8s.io/client-go/informers"
 	clientsetfake "k8s.io/client-go/kubernetes/fake"
+	"k8s.io/klog/v2/ktesting"
 	"k8s.io/utils/ptr"
 )
 
@@ -96,6 +97,8 @@ func Test_GetMaxSeats(t *testing.T) {
 
 	for _, testcase := range testcases {
 		t.Run(testcase.name, func(t *testing.T) {
+			_, ctx := ktesting.NewTestContext(t)
+
 			clientset := clientsetfake.NewSimpleClientset()
 			informerFactory := informers.NewSharedInformerFactory(clientset, time.Second)
 			flowcontrolClient := clientset.FlowcontrolV1()
@@ -130,7 +133,7 @@ func Test_GetMaxSeats(t *testing.T) {
 					},
 				},
 			}
-			if _, err := c.digestConfigObjects([]*flowcontrolv1.PriorityLevelConfiguration{testPriorityLevel}, nil); err != nil {
+			if _, err := c.digestConfigObjects(ctx, []*flowcontrolv1.PriorityLevelConfiguration{testPriorityLevel}, nil); err != nil {
 				t.Errorf("unexpected error from digestConfigObjects: %v", err)
 			}
 			maxSeats := c.GetMaxSeats("test-pl")

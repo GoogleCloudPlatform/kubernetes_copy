@@ -33,6 +33,7 @@ import (
 	fcrequest "k8s.io/apiserver/pkg/util/flowcontrol/request"
 	"k8s.io/client-go/informers"
 	clientsetfake "k8s.io/client-go/kubernetes/fake"
+	"k8s.io/klog/v2/ktesting"
 	"k8s.io/utils/ptr"
 )
 
@@ -115,18 +116,17 @@ func TestQueueWaitTimeLatencyTracker(t *testing.T) {
 		QueueSetFactory:        fqs.NewQueueSetFactory(clk),
 	})
 
-	stopCh := make(chan struct{})
-	defer close(stopCh)
+	_, ctx := ktesting.NewTestContext(t)
 
-	informerFactory.Start(stopCh)
-	status := informerFactory.WaitForCacheSync(stopCh)
+	informerFactory.Start(ctx.Done())
+	status := informerFactory.WaitForCacheSync(ctx.Done())
 	if names := unsynced(status); len(names) > 0 {
 		t.Fatalf("WaitForCacheSync did not successfully complete, resources=%#v", names)
 	}
 
-	go func() {
-		controller.Run(stopCh)
-	}()
+	if err := controller.Start(ctx); err != nil {
+		t.Fatalf("error starting controller: %v", err)
+	}
 
 	// ensure that the controller has run its first loop.
 	err := wait.PollUntilContextTimeout(context.Background(), 100*time.Millisecond, 5*time.Second, true, func(ctx context.Context) (bool, error) {
@@ -153,7 +153,7 @@ func TestQueueWaitTimeLatencyTracker(t *testing.T) {
 	// Add 1 second to the fake clock during QueueNoteFn
 	newTime := startTime.Add(time.Second)
 	qnf := fq.QueueNoteFn(func(bool) { clk.FakePassiveClock.SetTime(newTime) })
-	ctx := request.WithLatencyTrackers(context.Background())
+	ctx = request.WithLatencyTrackers(ctx)
 	controller.Handle(ctx, rd, noteFn, workEstr, qnf, func() {})
 
 	latencyTracker, ok := request.LatencyTrackersFrom(ctx)

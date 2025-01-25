@@ -67,10 +67,10 @@ type Interface interface {
 		execFn func(),
 	)
 
-	// Run monitors config objects from the main apiservers and causes
-	// any needed changes to local behavior.  This method ceases
-	// activity and returns after the given channel is closed.
-	Run(stopCh <-chan struct{}) error
+	// Start waits for informer sync, forks goroutines that monitor config
+	// objects from the main apiservers and causes any needed changes to local
+	// behavior, and then returns without blocking when the controller is running.
+	Start(ctx context.Context) error
 
 	// Install installs debugging endpoints to the web-server.
 	Install(c *mux.PathRecorderMux)

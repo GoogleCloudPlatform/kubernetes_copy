@@ -40,6 +40,7 @@ import (
 	clientsetfake "k8s.io/client-go/kubernetes/fake"
 	fcclient "k8s.io/client-go/kubernetes/typed/flowcontrol/v1"
 	"k8s.io/klog/v2"
+	"k8s.io/klog/v2/ktesting"
 	"k8s.io/utils/clock"
 	"k8s.io/utils/ptr"
 )
@@ -389,22 +390,20 @@ func TestAPFControllerWithGracefulShutdown(t *testing.T) {
 		QueueSetFactory:        cts,
 	})
 
-	stopCh, controllerCompletedCh := make(chan struct{}), make(chan struct{})
-	var controllerErr error
-
-	informerFactory.Start(stopCh)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	_, ctx := ktesting.NewTestContext(t)
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
+
+	informerFactory.Start(ctx.Done())
+
 	status := informerFactory.WaitForCacheSync(ctx.Done())
 	if names := unsynced(status); len(names) > 0 {
 		t.Fatalf("WaitForCacheSync did not successfully complete, resources=%#v", names)
 	}
 
-	go func() {
-		defer close(controllerCompletedCh)
-		controllerErr = controller.Run(stopCh)
-	}()
+	if err := controller.Start(ctx); err != nil {
+		t.Fatalf("error starting controller: %v", err)
+	}
 
 	// ensure that the controller has run its first loop.
 	err := wait.PollUntilContextTimeout(ctx, 100*time.Millisecond, 5*time.Second, true, func(ctx context.Context) (bool, error) {
@@ -412,14 +411,6 @@ func TestAPFControllerWithGracefulShutdown(t *testing.T) {
 	})
 	if err != nil {
 		t.Errorf("expected the controller to reconcile the priority level configuration object: %s, error: %s", plName, err)
-	}
-
-	close(stopCh)
-	t.Log("waiting for the controller Run function to shutdown gracefully")
-	<-controllerCompletedCh
-
-	if controllerErr != nil {
-		t.Errorf("expected nil error from controller Run function, but got: %#v", controllerErr)
 	}
 }
 

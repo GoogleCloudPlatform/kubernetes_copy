@@ -36,6 +36,7 @@ import (
 	fcrequest "k8s.io/apiserver/pkg/util/flowcontrol/request"
 	"k8s.io/client-go/informers"
 	clientsetfake "k8s.io/client-go/kubernetes/fake"
+	"k8s.io/klog/v2/ktesting"
 	"k8s.io/utils/ptr"
 )
 
@@ -149,20 +150,19 @@ func TestBorrowing(t *testing.T) {
 				QueueSetFactory:        fqs.NewQueueSetFactory(clk),
 			})
 
-			ctx, cancel := context.WithTimeout(context.Background(), 50*time.Second)
-			stopCh := ctx.Done()
-			controllerCompletionCh := make(chan error)
+			_, ctx := ktesting.NewTestContext(t)
+			ctx, cancel := context.WithTimeout(ctx, 50*time.Second)
 
-			informerFactory.Start(stopCh)
+			informerFactory.Start(ctx.Done())
 
 			status := informerFactory.WaitForCacheSync(ctx.Done())
 			if names := unsynced(status); len(names) > 0 {
 				t.Fatalf("WaitForCacheSync did not successfully complete, resources=%#v", names)
 			}
 
-			go func() {
-				controllerCompletionCh <- controller.Run(stopCh)
-			}()
+			if err := controller.Start(ctx); err != nil {
+				t.Fatalf("error starting controller: %v", err)
+			}
 
 			// ensure that the controller has run its first loop.
 			err := wait.PollUntilContextTimeout(ctx, 100*time.Millisecond, 5*time.Second, true, func(ctx context.Context) (bool, error) {
@@ -223,12 +223,6 @@ func TestBorrowing(t *testing.T) {
 
 			// Do the checking
 
-			t.Log("waiting for the controller Run function to shutdown gracefully")
-			controllerErr := <-controllerCompletionCh
-			close(controllerCompletionCh)
-			if controllerErr != nil {
-				t.Errorf("expected nil error from controller Run function, but got: %#v", controllerErr)
-			}
 			if results0.Average < 15.5 || results0.Average > 16.1 {
 				t.Errorf("Flow 0 got average concurrency of %v but expected about 16", results0.Average)
 			} else {

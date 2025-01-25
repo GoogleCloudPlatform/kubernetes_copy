@@ -28,13 +28,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
 	fcboot "k8s.io/apiserver/pkg/apis/flowcontrol/bootstrap"
@@ -368,29 +366,29 @@ func newTestableController(config TestableConfig) *configController {
 	return cfgCtlr
 }
 
-func (cfgCtlr *configController) Run(stopCh <-chan struct{}) error {
-	defer utilruntime.HandleCrash()
-
-	// Let the config worker stop when we are done
-	defer cfgCtlr.configQueue.ShutDown()
-
+func (cfgCtlr *configController) Start(ctx context.Context) error {
 	klog.Info("Starting API Priority and Fairness config controller")
-	if ok := cache.WaitForCacheSync(stopCh, cfgCtlr.plInformerSynced, cfgCtlr.fsInformerSynced); !ok {
-		return fmt.Errorf("Never achieved initial sync")
+	if ok := cache.WaitForCacheSync(ctx.Done(), cfgCtlr.plInformerSynced, cfgCtlr.fsInformerSynced); !ok {
+		return fmt.Errorf("never achieved initial sync")
 	}
 
 	klog.Info("Running API Priority and Fairness config worker")
-	go wait.Until(cfgCtlr.runWorker, time.Second, stopCh)
+	go wait.UntilWithContext(ctx, cfgCtlr.runWorker, time.Second)
 
 	klog.Info("Running API Priority and Fairness periodic rebalancing process")
-	go wait.Until(cfgCtlr.updateBorrowing, borrowingAdjustmentPeriod, stopCh)
+	go wait.UntilWithContext(ctx, cfgCtlr.updateBorrowing, borrowingAdjustmentPeriod)
 
-	<-stopCh
-	klog.Info("Shutting down API Priority and Fairness config worker")
+	go func() {
+		<-ctx.Done()
+		// Let the config worker stop when we are done
+		klog.Info("Shutting down API Priority and Fairness config worker")
+		cfgCtlr.configQueue.ShutDown()
+	}()
+
 	return nil
 }
 
-func (cfgCtlr *configController) updateBorrowing() {
+func (cfgCtlr *configController) updateBorrowing(_ context.Context) {
 	cfgCtlr.lock.Lock()
 	defer cfgCtlr.lock.Unlock()
 	cfgCtlr.updateBorrowingLocked(true, cfgCtlr.priorityLevelStates)
@@ -498,14 +496,14 @@ func (cfgCtlr *configController) updateBorrowingLocked(setCompleters bool, plSta
 // runWorker is the logic of the one and only worker goroutine.  We
 // limit the number to one in order to obviate explicit
 // synchronization around access to `cfgCtlr.mostRecentUpdates`.
-func (cfgCtlr *configController) runWorker() {
-	for cfgCtlr.processNextWorkItem() {
+func (cfgCtlr *configController) runWorker(ctx context.Context) {
+	for cfgCtlr.processNextWorkItem(ctx) {
 	}
 }
 
 // processNextWorkItem works on one entry from the work queue.
 // Only invoke this in the one and only worker goroutine.
-func (cfgCtlr *configController) processNextWorkItem() bool {
+func (cfgCtlr *configController) processNextWorkItem(ctx context.Context) bool {
 	obj, shutdown := cfgCtlr.configQueue.Get()
 	if shutdown {
 		return false
@@ -513,7 +511,7 @@ func (cfgCtlr *configController) processNextWorkItem() bool {
 
 	func(obj int) {
 		defer cfgCtlr.configQueue.Done(obj)
-		specificDelay, err := cfgCtlr.syncOne()
+		specificDelay, err := cfgCtlr.syncOne(ctx)
 		switch {
 		case err != nil:
 			klog.Error(err)
@@ -532,7 +530,7 @@ func (cfgCtlr *configController) processNextWorkItem() bool {
 // objects that configure API Priority and Fairness and updates the
 // local configController accordingly.
 // Only invoke this in the one and only worker goroutine
-func (cfgCtlr *configController) syncOne() (specificDelay time.Duration, err error) {
+func (cfgCtlr *configController) syncOne(ctx context.Context) (specificDelay time.Duration, err error) {
 	klog.V(5).Infof("%s syncOne at %s", cfgCtlr.name, cfgCtlr.clock.Now().Format(timeFmt))
 	all := labels.Everything()
 	newPLs, err := cfgCtlr.plLister.List(all)
@@ -543,7 +541,7 @@ func (cfgCtlr *configController) syncOne() (specificDelay time.Duration, err err
 	if err != nil {
 		return 0, fmt.Errorf("unable to list FlowSchema objects: %w", err)
 	}
-	return cfgCtlr.digestConfigObjects(newPLs, newFSs)
+	return cfgCtlr.digestConfigObjects(ctx, newPLs, newFSs)
 }
 
 // cfgMeal is the data involved in the process of digesting the API
@@ -586,7 +584,9 @@ type fsStatusUpdate struct {
 // digestConfigObjects is given all the API objects that configure
 // cfgCtlr and writes its consequent new configState.
 // Only invoke this in the one and only worker goroutine
-func (cfgCtlr *configController) digestConfigObjects(newPLs []*flowcontrol.PriorityLevelConfiguration, newFSs []*flowcontrol.FlowSchema) (time.Duration, error) {
+func (cfgCtlr *configController) digestConfigObjects(ctx context.Context, newPLs []*flowcontrol.PriorityLevelConfiguration, newFSs []*flowcontrol.FlowSchema) (time.Duration, error) {
+	logger := klog.FromContext(ctx)
+
 	fsStatusUpdates := cfgCtlr.lockAndDigestConfigObjects(newPLs, newFSs)
 	var errs []error
 	currResult := updateAttempt{
@@ -605,16 +605,15 @@ func (cfgCtlr *configController) digestConfigObjects(newPLs []*flowcontrol.Prior
 
 		// if we are going to issue an update, be sure we track every name we update so we know if we update it too often.
 		currResult.updatedItems.Insert(fsu.flowSchema.Name)
-		if klogV := klog.V(4); klogV.Enabled() {
-			klogV.Infof("%s writing Condition %s to FlowSchema %s, which had ResourceVersion=%s, because its previous value was %s, diff: %s",
-				cfgCtlr.name, fsu.condition, fsu.flowSchema.Name, fsu.flowSchema.ResourceVersion, fcfmt.Fmt(fsu.oldValue), cmp.Diff(fsu.oldValue, fsu.condition))
-		}
+		logger.V(4).Info("Writing Condition to FlowSchema", "controller", cfgCtlr.name,
+			"flowSchema", fsu.flowSchema.Name, "condition", fsu.condition, "rv", fsu.flowSchema.ResourceVersion, "oldValue", fsu.oldValue, "newValue", fsu.condition)
 
 		if err := apply(cfgCtlr.flowcontrolClient.FlowSchemas(), fsu, cfgCtlr.asFieldManager); err != nil {
 			if apierrors.IsNotFound(err) {
 				// This object has been deleted.  A notification is coming
 				// and nothing more needs to be done here.
-				klog.V(5).Infof("%s at %s: attempted update of concurrently deleted FlowSchema %s; nothing more needs to be done", cfgCtlr.name, cfgCtlr.clock.Now().Format(timeFmt), fsu.flowSchema.Name)
+				logger.V(5).Info("Attempted update of concurrently deleted FlowSchema: nothing more needs to be done",
+					"controller", cfgCtlr.name, "name", fsu.flowSchema.Name)
 			} else {
 				errs = append(errs, fmt.Errorf("failed to set a status.condition for FlowSchema %s: %w", fsu.flowSchema.Name, err))
 			}

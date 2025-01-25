@@ -33,6 +33,7 @@ import (
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/klog/v2/ktesting"
 	"k8s.io/utils/clock"
 	testclocks "k8s.io/utils/clock/testing"
 )
@@ -59,9 +60,9 @@ fightTest configures a test of how API Priority and Fairness config
 type fightTest struct {
 	t              *testing.T
 	ctx            context.Context
+	cancel         context.CancelFunc
 	loopbackConfig *rest.Config
 	teamSize       int
-	stopCh         chan struct{}
 	now            time.Time
 	clk            *testclocks.FakeClock
 	ctlrs          map[bool][]utilfc.Interface
@@ -74,12 +75,14 @@ type fightTest struct {
 
 func newFightTest(t *testing.T, loopbackConfig *rest.Config, teamSize int) *fightTest {
 	now := time.Now()
+	_, ctx := ktesting.NewTestContext(t)
+	ctx, cancel := context.WithCancel(ctx)
 	ft := &fightTest{
 		t:              t,
-		ctx:            context.Background(),
+		ctx:            ctx,
+		cancel:         cancel,
 		loopbackConfig: loopbackConfig,
 		teamSize:       teamSize,
-		stopCh:         make(chan struct{}),
 		now:            now,
 		clk:            testclocks.NewFakeClock(now),
 		ctlrs: map[bool][]utilfc.Interface{
@@ -106,8 +109,8 @@ func (ft *fightTest) createMainInformer() {
 			ft.countWrite(fs)
 		},
 	})
-	go inf.Run(ft.stopCh)
-	if !cache.WaitForCacheSync(ft.stopCh, inf.HasSynced) {
+	go inf.Run(ft.ctx.Done())
+	if !cache.WaitForCacheSync(ft.ctx.Done(), inf.HasSynced) {
 		ft.t.Errorf("Failed to sync main informer cache")
 	}
 }
@@ -142,8 +145,10 @@ func (ft *fightTest) createController(invert bool, i int) {
 		QueueSetFactory:        fqtesting.NewNoRestraintFactory(),
 	})
 	ft.ctlrs[invert][i] = ctlr
-	informerFactory.Start(ft.stopCh)
-	go ctlr.Run(ft.stopCh)
+	informerFactory.Start(ft.ctx.Done())
+	if err := ctlr.Start(ft.ctx); err != nil {
+		ft.t.Fatalf("error starting controller: %v", err)
+	}
 }
 
 func (ft *fightTest) evaluate(tBeforeCreate, tAfterCreate time.Time) {
@@ -177,7 +182,7 @@ func TestConfigConsumerFight(t *testing.T) {
 	tAfterCreate := time.Now()
 	time.Sleep(110 * time.Second)
 	ft.evaluate(tBeforeCreate, tAfterCreate)
-	close(ft.stopCh)
+	ft.cancel()
 }
 
 func (ft *fightTest) foreach(visit func(invert bool, i int)) {
