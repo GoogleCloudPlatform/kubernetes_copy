@@ -35,6 +35,7 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/record"
 	utiltesting "k8s.io/client-go/util/testing"
+	critest "k8s.io/cri-api/pkg/apis/testing"
 	"k8s.io/kubernetes/pkg/kubelet/config"
 	containertest "k8s.io/kubernetes/pkg/kubelet/container/testing"
 	kubepod "k8s.io/kubernetes/pkg/kubelet/pod"
@@ -412,7 +413,7 @@ func newTestVolumeManager(t *testing.T, tmpDir string, podManager kubepod.Manage
 	// TODO (#51147) inject mock prober
 	fakeVolumeHost := volumetest.NewFakeKubeletVolumeHost(t, tmpDir, kubeClient, nil)
 	fakeVolumeHost.WithNode(node)
-
+	fakeRuntimeService := critest.NewFakeRuntimeService()
 	plugMgr.InitPlugins([]volume.VolumePlugin{attachablePlug, unattachablePlug}, nil /* prober */, fakeVolumeHost)
 	stateProvider := &fakePodStateProvider{}
 	fakePathHandler := volumetest.NewBlockVolumePathHandler()
@@ -424,6 +425,7 @@ func newTestVolumeManager(t *testing.T, tmpDir string, podManager kubepod.Manage
 		kubeClient,
 		plugMgr,
 		&containertest.FakeRuntime{},
+		fakeRuntimeService,
 		mount.NewFakeMounter(nil),
 		hostutil.NewFakeHostUtil(nil),
 		"",

@@ -221,6 +221,78 @@ func TestFindAndAddNewPods_WithReprocessPodAndVolumeRetrievalError(t *testing.T)
 	fakePodManager.RemovePod(pod)
 }
 
+func TestIncreaseLoopSleepDuration(t *testing.T) {
+
+	testCases := map[string]struct {
+		dswp     *desiredStateOfWorldPopulator
+		expected *desiredStateOfWorldPopulator
+	}{
+		"sleep-duration-not-changed": {
+			dswp: &desiredStateOfWorldPopulator{
+				executionCounter:  0,
+				loopSleepDuration: time.Duration(100) * time.Millisecond,
+			},
+			expected: &desiredStateOfWorldPopulator{
+				executionCounter:  1,
+				loopSleepDuration: time.Duration(100) * time.Millisecond,
+			},
+		},
+		"sleep-duration-changed": {
+			dswp: &desiredStateOfWorldPopulator{
+				executionCounter:  3,
+				loopSleepDuration: time.Duration(100) * time.Millisecond,
+			},
+			expected: &desiredStateOfWorldPopulator{
+				executionCounter:  4,
+				loopSleepDuration: time.Duration(200) * time.Millisecond,
+			},
+		},
+		"sleep-duration-simple-increase": {
+			dswp: &desiredStateOfWorldPopulator{
+				executionCounter:  7,
+				loopSleepDuration: time.Duration(500) * time.Millisecond,
+			},
+			expected: &desiredStateOfWorldPopulator{
+				executionCounter:  8,
+				loopSleepDuration: time.Duration(600) * time.Millisecond,
+			},
+		},
+		"sleep-duration-reaches-limit": {
+			dswp: &desiredStateOfWorldPopulator{
+				executionCounter:  12,
+				loopSleepDuration: time.Duration(1000) * time.Millisecond,
+			},
+			expected: &desiredStateOfWorldPopulator{
+				executionCounter:  13,
+				loopSleepDuration: time.Duration(1000) * time.Millisecond,
+			},
+		},
+		"sleep-duration-reset-to-inial-value": {
+			dswp: &desiredStateOfWorldPopulator{
+				executionCounter:  999,
+				loopSleepDuration: time.Duration(100) * time.Millisecond,
+			},
+			expected: &desiredStateOfWorldPopulator{
+				executionCounter:  1,
+				loopSleepDuration: time.Duration(100) * time.Millisecond,
+			},
+		},
+	}
+
+	for name, testCase := range testCases {
+		t.Run(name, func(t *testing.T) {
+			testCase.dswp.increaseLoopSleepDuration(context.TODO())
+			if testCase.expected.executionCounter != testCase.dswp.executionCounter {
+				t.Errorf("increase sleep period %s expected counter %v , got %v", name, testCase.dswp.executionCounter, testCase.expected.executionCounter)
+			}
+			if testCase.expected.loopSleepDuration != testCase.dswp.loopSleepDuration {
+				t.Errorf("increase sleep period %s expected loopSleepDuration %v , got %v", name, testCase.expected.loopSleepDuration, testCase.dswp.loopSleepDuration)
+			}
+		})
+
+	}
+}
+
 func TestFindAndAddNewPods_WithVolumeRetrievalError(t *testing.T) {
 	// create dswp
 	dswp, fakePodManager, _ := prepareDswpWithVolume(t)
