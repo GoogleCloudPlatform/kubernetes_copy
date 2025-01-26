@@ -45,7 +45,7 @@ import (
 	utilnet "k8s.io/apimachinery/pkg/util/net"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
-	genericfeatures "k8s.io/apiserver/pkg/features"
+	"k8s.io/apiserver/pkg/features"
 	"k8s.io/apiserver/pkg/server/egressselector"
 	"k8s.io/apiserver/pkg/storage"
 	"k8s.io/apiserver/pkg/storage/etcd3"
@@ -55,6 +55,12 @@ import (
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/component-base/metrics/legacyregistry"
 	tracing "k8s.io/component-base/tracing"
+
+	// This import sets internal.HealthCheckFunc
+	// but function won't be used unless EtcdGrpcHealthcheck feature gate is set
+	//https://github.com/grpc/grpc-go/blob/master/examples/features/health/README.md#client
+	//https://github.com/grpc/grpc-go/blob/v1.64.x/clientconn.go#L1428
+	_ "google.golang.org/grpc/health"
 )
 
 const (
@@ -69,6 +75,17 @@ const (
 	dialTimeout = 20 * time.Second
 
 	dbMetricsMonitorJitter = 0.5
+
+	// grpcServiceConfigWithHealthcheck is used to enable etcd grpc client health check.
+	// See https://grpc.io/docs/guides/health-checking/#enabling-client-health-checking
+	//
+	// Need to specify loadBalancingPolicy because internally etcd sets `round_robin`.
+	// Using config without policy will revert to default `pick_first`
+	// https://grpc.io/docs/guides/custom-load-balancing/#implementing-your-own-policy
+	//
+	// serviceName is set to "" because etcd server uses empty string to represent the health of the whole server
+	// See https://grpc.io/docs/guides/health-checking/#the-server-side-health-service
+	grpcServiceConfigWithHealthcheck = `{"loadBalancingPolicy": "round_robin", "healthCheckConfig": {"serviceName": ""}}`
 )
 
 // TODO(negz): Stop using a package scoped logger. At the time of writing we're
@@ -316,7 +333,7 @@ var newETCD3Client = func(c storagebackend.TransportConfig) (*kubernetes.Client,
 		grpc.WithChainUnaryInterceptor(grpcprom.UnaryClientInterceptor),
 		grpc.WithChainStreamInterceptor(grpcprom.StreamClientInterceptor),
 	}
-	if utilfeature.DefaultFeatureGate.Enabled(genericfeatures.APIServerTracing) {
+	if utilfeature.DefaultFeatureGate.Enabled(features.APIServerTracing) {
 		tracingOpts := []otelgrpc.Option{
 			otelgrpc.WithMessageEvents(otelgrpc.ReceivedEvents, otelgrpc.SentEvents),
 			otelgrpc.WithPropagators(tracing.Propagators()),
@@ -341,6 +358,11 @@ var newETCD3Client = func(c storagebackend.TransportConfig) (*kubernetes.Client,
 			return egressDialer(ctx, "tcp", addr)
 		}
 		dialOptions = append(dialOptions, grpc.WithContextDialer(dialer))
+	}
+	if utilfeature.DefaultFeatureGate.Enabled(features.EtcdGrpcHealthcheck) {
+		// ignore config set by etcd manual resolver inside etcd client
+		dialOptions = append(dialOptions, grpc.WithDisableServiceConfig())
+		dialOptions = append(dialOptions, grpc.WithDefaultServiceConfig(grpcServiceConfigWithHealthcheck))
 	}
 
 	cfg := clientv3.Config{

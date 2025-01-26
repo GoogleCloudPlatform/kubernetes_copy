@@ -486,6 +486,12 @@
     lockToDefault: true
     preRelease: GA
     version: "1.31"
+- name: EtcdGrpcHealthcheck
+  versionedSpecs:
+  - default: false
+    lockToDefault: false
+    preRelease: Alpha
+    version: "1.32"
 - name: EventedPLEG
   versionedSpecs:
   - default: false

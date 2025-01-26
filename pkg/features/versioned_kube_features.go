@@ -294,6 +294,10 @@ var defaultVersionedKubernetesFeatureGates = map[featuregate.Feature]featuregate
 		{Version: version.MustParse("1.24"), Default: true, PreRelease: featuregate.GA, LockToDefault: true},
 	},
 
+	genericfeatures.EtcdGrpcHealthcheck: {
+		{Version: version.MustParse("1.32"), Default: false, PreRelease: featuregate.Alpha},
+	},
+
 	genericfeatures.KMSv1: {
 		{Version: version.MustParse("1.0"), Default: true, PreRelease: featuregate.GA},
 		{Version: version.MustParse("1.28"), Default: true, PreRelease: featuregate.Deprecated},
