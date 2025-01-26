@@ -47,8 +47,8 @@ func TestHealthHandler(t *testing.T) {
 		t.Errorf("Failed to get health check result: %v", err)
 	}
 	t.Logf("Health check result: %v", string(raw))
-	// assert the raw contains `[+]etcd-override ok`
-	if !strings.Contains(string(raw), "[+]etcd-override ok") {
-		t.Errorf("Health check result does not contain etcd-override ok")
+	// assert the raw contains `[+]etcd-override-0 ok`
+	if !strings.Contains(string(raw), "[+]etcd-override-0 ok") {
+		t.Errorf("Health check result does not contain etcd-override-0 ok")
 	}
 }
