@@ -158,7 +158,7 @@ func TestRegistrationHandler(t *testing.T) {
 			}
 
 			// The handler wipes all slices at startup.
-			handler := NewRegistrationHandler(client, getFakeNode)
+			handler := NewRegistrationHandler(client, getFakeNode, time.Second /* very short wiping delay for testing */)
 			requireNoSlices := func() {
 				t.Helper()
 				if client == nil {
