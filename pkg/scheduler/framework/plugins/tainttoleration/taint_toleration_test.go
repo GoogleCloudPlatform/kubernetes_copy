@@ -18,7 +18,6 @@ package tainttoleration
 
 import (
 	"context"
-	"reflect"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -263,7 +262,7 @@ func TestTaintTolerationScore(t *testing.T) {
 				t.Errorf("unexpected error: %v", status)
 			}
 
-			if !reflect.DeepEqual(test.expectedList, gotList) {
+			if diff := cmp.Diff(test.expectedList, gotList); diff != "" {
 				t.Errorf("expected:\n\t%+v,\ngot:\n\t%+v", test.expectedList, gotList)
 			}
 		})
@@ -349,7 +348,7 @@ func TestTaintTolerationFilter(t *testing.T) {
 				t.Fatalf("creating plugin: %v", err)
 			}
 			gotStatus := p.(framework.FilterPlugin).Filter(ctx, nil, test.pod, nodeInfo)
-			if !reflect.DeepEqual(gotStatus, test.wantStatus) {
+			if diff := cmp.Diff(gotStatus, test.wantStatus); diff != "" {
 				t.Errorf("status does not match: %v, want: %v", gotStatus, test.wantStatus)
 			}
 		})

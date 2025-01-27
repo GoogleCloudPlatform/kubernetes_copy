@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"reflect"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -43,7 +42,8 @@ import (
 
 var cmpOpts = []cmp.Option{
 	cmp.Comparer(func(s1 labels.Selector, s2 labels.Selector) bool {
-		return reflect.DeepEqual(s1, s2)
+		diff := cmp.Diff(s1, s2)
+		return diff == ""
 	}),
 	cmp.Comparer(func(p1, p2 criticalPaths) bool {
 		p1.sort()
@@ -3416,7 +3416,7 @@ func TestPreFilterDisabled(t *testing.T) {
 	cycleState := framework.NewCycleState()
 	gotStatus := p.(*PodTopologySpread).Filter(ctx, cycleState, pod, nodeInfo)
 	wantStatus := framework.AsStatus(fmt.Errorf(`reading "PreFilterPodTopologySpread" from cycleState: %w`, framework.ErrNotFound))
-	if !reflect.DeepEqual(gotStatus, wantStatus) {
+	if diff := cmp.Diff(gotStatus, wantStatus); diff != "" {
 		t.Errorf("status does not match: %v, want: %v", gotStatus, wantStatus)
 	}
 }

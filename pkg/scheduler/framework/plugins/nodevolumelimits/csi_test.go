@@ -19,7 +19,6 @@ package nodevolumelimits
 import (
 	"errors"
 	"fmt"
-	"reflect"
 	"strings"
 	"testing"
 
@@ -642,7 +641,7 @@ func TestCSILimits(t *testing.T) {
 			}
 			if gotPreFilterStatus.Code() != framework.Skip {
 				gotStatus := p.Filter(ctx, nil, test.newPod, node)
-				if !reflect.DeepEqual(gotStatus, test.wantStatus) {
+				if diff := cmp.Diff(gotStatus, test.wantStatus); diff != "" {
 					t.Errorf("Filter status does not match: %v, want: %v", gotStatus, test.wantStatus)
 				}
 			}
