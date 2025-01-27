@@ -17,7 +17,6 @@ limitations under the License.
 package nodename
 
 import (
-	"reflect"
 	"testing"
 
 	v1 "k8s.io/api/core/v1"
@@ -62,7 +61,7 @@ func TestNodeName(t *testing.T) {
 				t.Fatalf("creating plugin: %v", err)
 			}
 			gotStatus := p.(framework.FilterPlugin).Filter(ctx, nil, test.pod, nodeInfo)
-			if !reflect.DeepEqual(gotStatus, test.wantStatus) {
+			if diff := cmp.Diff(gotStatus, test.wantStatus); diff != "" {
 				t.Errorf("status does not match: %v, want: %v", gotStatus, test.wantStatus)
 			}
 		})

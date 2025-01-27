@@ -2262,7 +2262,7 @@ func TestPostFilterPlugins(t *testing.T) {
 				_ = f.Close()
 			}()
 			_, gotStatus := f.RunPostFilterPlugins(ctx, nil, pod, nil)
-			if !reflect.DeepEqual(gotStatus, tt.wantStatus) {
+			if diff := cmp.Diff(gotStatus, tt.wantStatus); diff != "" {
 				t.Errorf("Unexpected status. got: %v, want: %v", gotStatus, tt.wantStatus)
 			}
 		})
@@ -2592,7 +2592,7 @@ func TestPreBindPlugins(t *testing.T) {
 
 			status := f.RunPreBindPlugins(ctx, nil, pod, "")
 
-			if !reflect.DeepEqual(status, tt.wantStatus) {
+			if diff := cmp.Diff(status, tt.wantStatus); diff != "" {
 				t.Errorf("wrong status code. got %v, want %v", status, tt.wantStatus)
 			}
 		})
