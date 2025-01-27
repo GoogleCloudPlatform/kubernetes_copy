@@ -745,7 +745,7 @@ func TestWatchNotHangingOnStartupFailure(t *testing.T) {
 	// constantly failing lists to the underlying storage.
 	dummyErr := fmt.Errorf("dummy")
 	backingStorage := &dummyStorage{err: dummyErr}
-	cacher, _, err := newTestCacherWithoutSyncing(backingStorage, clock.RealClock{})
+	cacher, _, err := newTestCacherWithoutSyncing(backingStorage, testingclock.NewFakeClock(time.Now()))
 	if err != nil {
 		t.Fatalf("Couldn't create cacher: %v", err)
 	}
@@ -3146,5 +3146,46 @@ func TestListIndexer(t *testing.T) {
 				t.Errorf("Index doesn't match, expected: %q, got: %q", tt.expectIndex, usedIndex)
 			}
 		})
+	}
+}
+
+func TestRetryAfterForUnreadyCache(t *testing.T) {
+	if !utilfeature.DefaultFeatureGate.Enabled(features.ResilientWatchCacheInitialization) {
+		t.Skipf("the test requires %v to be enabled", features.ResilientWatchCacheInitialization)
+	}
+	backingStorage := &dummyStorage{}
+	clock := testingclock.NewFakeClock(time.Now())
+	cacher, _, err := newTestCacherWithoutSyncing(backingStorage, clock)
+	if err != nil {
+		t.Fatalf("Couldn't create cacher: %v", err)
+	}
+	defer cacher.Stop()
+	if err = cacher.ready.wait(context.Background()); err != nil {
+		t.Fatalf("Unexpected error waiting for the cache to be ready")
+	}
+
+	cacher.ready.set(false)
+	clock.Step(8 * time.Second)
+
+	opts := storage.ListOptions{
+		ResourceVersion: "0",
+		Predicate:       storage.Everything,
+	}
+	result := &example.PodList{}
+	proxy := NewCacheProxy(cacher, backingStorage)
+	err = proxy.GetList(context.TODO(), "/pods/ns", opts, result)
+
+	if !apierrors.IsTooManyRequests(err) {
+		t.Fatalf("Unexpected GetList error: %v", err)
+	}
+	var statusError apierrors.APIStatus
+	if !errors.As(err, &statusError) {
+		t.Fatalf("Unexpected error: %v, expected apierrors.APIStatus", err)
+	}
+	if statusError.Status().Details == nil {
+		t.Fatalf("Expected to get status details, got none")
+	}
+	if statusError.Status().Details.RetryAfterSeconds != 6 {
+		t.Fatalf("Unexpected retry after: %v", statusError.Status().Details.RetryAfterSeconds)
 	}
 }
