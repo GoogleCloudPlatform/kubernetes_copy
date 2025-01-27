@@ -20,11 +20,14 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/klog/v2"
+	kubeletconfig "k8s.io/kubernetes/pkg/kubelet/apis/config"
 	"k8s.io/kubernetes/pkg/kubelet/cm/containermap"
 	"k8s.io/kubernetes/pkg/kubelet/cm/memorymanager/state"
 	"k8s.io/kubernetes/pkg/kubelet/cm/topologymanager"
 	"k8s.io/kubernetes/pkg/kubelet/config"
 	"k8s.io/kubernetes/pkg/kubelet/status"
+
+	cadvisorapi "github.com/google/cadvisor/info/v1"
 )
 
 type fakeManager struct {
@@ -84,6 +87,10 @@ func (m *fakeManager) GetAllocatableMemory() []state.Block {
 func (m *fakeManager) GetMemory(podUID, containerName string) []state.Block {
 	klog.InfoS("Get Memory", "podUID", podUID, "containerName", containerName)
 	return []state.Block{}
+}
+
+func (m *fakeManager) SyncMachineInfo(policyName string, machineInfo *cadvisorapi.MachineInfo, nodeAllocatableReservation v1.ResourceList, reservedMemory []kubeletconfig.MemoryReservation, affinity topologymanager.Store) error {
+	return nil
 }
 
 // NewFakeManager creates empty/fake memory manager

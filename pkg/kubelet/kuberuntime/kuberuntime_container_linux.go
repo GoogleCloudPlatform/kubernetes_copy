@@ -135,8 +135,12 @@ func (m *kubeGenericRuntimeManager) generateLinuxContainerResources(pod *v1.Pod,
 	cpuLimit := getCPULimit(pod, container)
 	lcr := m.calculateLinuxResources(cpuRequest, cpuLimit, memoryLimit)
 
+	machineInfo := m.machineInfo
+	if m.getCachedMachineInfo != nil {
+		machineInfo, _ = m.getCachedMachineInfo()
+	}
 	lcr.OomScoreAdj = int64(qos.GetContainerOOMScoreAdjust(pod, container,
-		int64(m.machineInfo.MemoryCapacity)))
+		int64(machineInfo.MemoryCapacity)))
 
 	lcr.HugepageLimits = GetHugepageLimitsFromResources(container.Resources)
 
@@ -200,7 +204,11 @@ func (m *kubeGenericRuntimeManager) configureContainerSwapResources(lcr *runtime
 		return
 	}
 
-	swapConfigurationHelper := newSwapConfigurationHelper(*m.machineInfo)
+	machineInfo := m.machineInfo
+	if m.getCachedMachineInfo != nil {
+		machineInfo, _ = m.getCachedMachineInfo()
+	}
+	swapConfigurationHelper := newSwapConfigurationHelper(*machineInfo)
 	if m.memorySwapBehavior == kubelettypes.LimitedSwap {
 		if !isCgroup2UnifiedMode() {
 			swapConfigurationHelper.ConfigureNoSwap(lcr)

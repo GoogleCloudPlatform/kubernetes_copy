@@ -17,6 +17,7 @@ limitations under the License.
 package devicemanager
 
 import (
+	cadvisorapi "github.com/google/cadvisor/info/v1"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
@@ -92,6 +93,8 @@ type Manager interface {
 
 	// Updates returns a channel that receives an Update when the device changed its status.
 	Updates() <-chan resourceupdates.Update
+
+	SyncMachineInfo(machineInfo *cadvisorapi.MachineInfo, topologyAffinityStore topologymanager.Store) error
 }
 
 // DeviceRunContainerOptions contains the combined container runtime settings to consume its allocated devices.

@@ -36,6 +36,8 @@ import (
 
 	healthz "k8s.io/apiserver/pkg/server/healthz"
 
+	infov1 "github.com/google/cadvisor/info/v1"
+
 	lifecycle "k8s.io/kubernetes/pkg/kubelet/lifecycle"
 
 	mock "github.com/stretchr/testify/mock"
@@ -1175,6 +1177,52 @@ func (_c *MockContainerManager_PrepareDynamicResources_Call) Return(_a0 error) *
 }
 
 func (_c *MockContainerManager_PrepareDynamicResources_Call) RunAndReturn(run func(context.Context, *corev1.Pod) error) *MockContainerManager_PrepareDynamicResources_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ResyncComponents provides a mock function with given fields: machineInfo
+func (_m *MockContainerManager) ResyncComponents(machineInfo *infov1.MachineInfo) error {
+	ret := _m.Called(machineInfo)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ResyncComponents")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(*infov1.MachineInfo) error); ok {
+		r0 = rf(machineInfo)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockContainerManager_ResyncComponents_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ResyncComponents'
+type MockContainerManager_ResyncComponents_Call struct {
+	*mock.Call
+}
+
+// ResyncComponents is a helper method to define mock.On call
+//   - machineInfo *infov1.MachineInfo
+func (_e *MockContainerManager_Expecter) ResyncComponents(machineInfo interface{}) *MockContainerManager_ResyncComponents_Call {
+	return &MockContainerManager_ResyncComponents_Call{Call: _e.mock.On("ResyncComponents", machineInfo)}
+}
+
+func (_c *MockContainerManager_ResyncComponents_Call) Run(run func(machineInfo *infov1.MachineInfo)) *MockContainerManager_ResyncComponents_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(*infov1.MachineInfo))
+	})
+	return _c
+}
+
+func (_c *MockContainerManager_ResyncComponents_Call) Return(_a0 error) *MockContainerManager_ResyncComponents_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockContainerManager_ResyncComponents_Call) RunAndReturn(run func(*infov1.MachineInfo) error) *MockContainerManager_ResyncComponents_Call {
 	_c.Call.Return(run)
 	return _c
 }

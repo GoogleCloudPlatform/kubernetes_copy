@@ -19,6 +19,7 @@ package cm
 import (
 	"context"
 	"fmt"
+	cadvisorapi "github.com/google/cadvisor/info/v1"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/klog/v2"
@@ -192,6 +193,10 @@ func (cm *containerManagerStub) UpdateAllocatedResourcesStatus(pod *v1.Pod, stat
 }
 
 func (cm *containerManagerStub) Updates() <-chan resourceupdates.Update {
+	return nil
+}
+
+func (cm *containerManagerStub) ResyncComponents(_ *cadvisorapi.MachineInfo) error {
 	return nil
 }
 

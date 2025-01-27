@@ -20,6 +20,8 @@ import (
 	"context"
 	"sync"
 
+	cadvisorapi "github.com/google/cadvisor/info/v1"
+
 	v1 "k8s.io/api/core/v1"
 
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -266,5 +268,9 @@ func (cm *FakeContainerManager) PodMightNeedToUnprepareResources(UID types.UID) 
 func (cm *FakeContainerManager) UpdateAllocatedResourcesStatus(pod *v1.Pod, status *v1.PodStatus) {
 }
 func (cm *FakeContainerManager) Updates() <-chan resourceupdates.Update {
+	return nil
+}
+
+func (cm *FakeContainerManager) ResyncComponents(_ *cadvisorapi.MachineInfo) error {
 	return nil
 }

@@ -24,6 +24,8 @@ import (
 	"strings"
 	"time"
 
+	cadvisorapi "github.com/google/cadvisor/info/v1"
+
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 
@@ -153,6 +155,10 @@ type ContainerManager interface {
 
 	// Updates returns a channel that receives an Update when the device changed its status.
 	Updates() <-chan resourceupdates.Update
+
+	// ResyncComponents will resyc the resource managers like cpu, memory and topology managers
+	// with updated machineInfo
+	ResyncComponents(machineInfo *cadvisorapi.MachineInfo) error
 
 	// Implements the PodResources Provider API
 	podresources.CPUsProvider

@@ -852,6 +852,12 @@
     lockToDefault: false
     preRelease: Beta
     version: "1.30"
+- name: NodeResourceHotPlug
+  versionedSpecs:
+  - default: false
+    lockToDefault: false
+    preRelease: Alpha
+    version: "1.33"
 - name: NodeSwap
   versionedSpecs:
   - default: false

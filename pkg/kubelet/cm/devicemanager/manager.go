@@ -490,6 +490,16 @@ func (m *ManagerImpl) GetCapacity() (v1.ResourceList, v1.ResourceList, []string)
 	return capacity, allocatable, deletedResources.UnsortedList()
 }
 
+func (m *ManagerImpl) SyncMachineInfo(machineInfo *cadvisorapi.MachineInfo, topologyAffinityStore topologymanager.Store) error {
+	var numaNodes []int
+	for _, node := range machineInfo.Topology {
+		numaNodes = append(numaNodes, node.Id)
+	}
+	m.numaNodes = numaNodes
+	m.topologyAffinityStore = topologyAffinityStore
+	return nil
+}
+
 // Checkpoints device to container allocation information to disk.
 func (m *ManagerImpl) writeCheckpoint() error {
 	m.mutex.Lock()
