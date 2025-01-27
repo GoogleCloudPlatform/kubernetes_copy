@@ -549,6 +549,52 @@ func TestBlockMapperTearDownDevice(t *testing.T) {
 	}
 }
 
+func TestBlockMapperTearDownDeviceNoStagingPath(t *testing.T) {
+	plug, tmpDir := newTestPlugin(t, nil)
+	defer os.RemoveAll(tmpDir)
+
+	_, spec, pv, err := prepareBlockMapperTest(plug, "test-pv", t)
+	if err != nil {
+		t.Fatalf("Failed to make a new Mapper: %v", err)
+	}
+
+	unmapper, err := plug.NewBlockVolumeUnmapper(pv.ObjectMeta.Name, testPodUID)
+	if err != nil {
+		t.Fatalf("failed to make a new Unmapper: %v", err)
+	}
+
+	csiUnmapper := unmapper.(*csiBlockMapper)
+	csiUnmapper.csiClient = setupClient(t, true)
+
+	// ensure staging path does not exist
+	stagingPath := csiUnmapper.GetStagingPath()
+	if err := os.RemoveAll(stagingPath); err != nil && !os.IsNotExist(err) {
+		t.Fatalf("Failed to clean up staging path: %v", err)
+	}
+
+	globalMapPath, err := csiUnmapper.GetGlobalMapPath(spec)
+	if err != nil {
+		t.Fatalf("unmapper failed to GetGlobalMapPath: %v", err)
+	}
+
+	err = csiUnmapper.TearDownDevice(globalMapPath, "/dev/test")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// ensure csi client call and node unpblished
+	pubs := csiUnmapper.csiClient.(*fakeCsiDriverClient).nodeClient.GetNodePublishedVolumes()
+	if _, ok := pubs[csiUnmapper.volumeID]; ok {
+		t.Error("csi server may not have received NodeUnpublishVolume call")
+	}
+
+	// ensure csi client call and node unstaged
+	vols := csiUnmapper.csiClient.(*fakeCsiDriverClient).nodeClient.GetNodeStagedVolumes()
+	if _, ok := vols[csiUnmapper.volumeID]; ok {
+		t.Error("csi server may not have received NodeUnstageVolume call")
+	}
+}
+
 func TestBlockMapperTearDownDeviceNoClientError(t *testing.T) {
 	transientError := volumetypes.NewTransientOperationFailure("")
 	plug, tmpDir := newTestPlugin(t, nil)
