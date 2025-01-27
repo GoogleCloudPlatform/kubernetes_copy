@@ -584,12 +584,12 @@ func TestEnoughRequests(t *testing.T) {
 			}
 
 			gotStatus := p.(framework.FilterPlugin).Filter(ctx, cycleState, test.pod, test.nodeInfo)
-			if !reflect.DeepEqual(gotStatus, test.wantStatus) {
+			if diff := cmp.Diff(gotStatus, test.wantStatus); diff != "" {
 				t.Errorf("status does not match: %v, want: %v", gotStatus, test.wantStatus)
 			}
 
 			gotInsufficientResources := fitsRequest(computePodResourceRequest(test.pod, ResourceRequestsOptions{EnablePodLevelResources: test.podLevelResourcesEnabled}), test.nodeInfo, p.(*Fit).ignoredResources, p.(*Fit).ignoredResourceGroups)
-			if !reflect.DeepEqual(gotInsufficientResources, test.wantInsufficientResources) {
+			if diff := cmp.Diff(gotInsufficientResources, test.wantInsufficientResources); diff != "" {
 				t.Errorf("insufficient resources do not match: %+v, want: %v", gotInsufficientResources, test.wantInsufficientResources)
 			}
 		})
@@ -611,7 +611,7 @@ func TestPreFilterDisabled(t *testing.T) {
 	cycleState := framework.NewCycleState()
 	gotStatus := p.(framework.FilterPlugin).Filter(ctx, cycleState, pod, nodeInfo)
 	wantStatus := framework.AsStatus(fmt.Errorf(`error reading "PreFilterNodeResourcesFit" from cycleState: %w`, framework.ErrNotFound))
-	if !reflect.DeepEqual(gotStatus, wantStatus) {
+	if diff := cmp.Diff(gotStatus, wantStatus); diff !=  {
 		t.Errorf("status does not match: %v, want: %v", gotStatus, wantStatus)
 	}
 }
@@ -668,7 +668,7 @@ func TestNotEnoughRequests(t *testing.T) {
 			}
 
 			gotStatus := p.(framework.FilterPlugin).Filter(ctx, cycleState, test.pod, test.nodeInfo)
-			if !reflect.DeepEqual(gotStatus, test.wantStatus) {
+			if diff := cmp.Diff(gotStatus, test.wantStatus); diff != "" {
 				t.Errorf("status does not match: %v, want: %v", gotStatus, test.wantStatus)
 			}
 		})
@@ -729,7 +729,7 @@ func TestStorageRequests(t *testing.T) {
 			}
 
 			gotStatus := p.(framework.FilterPlugin).Filter(ctx, cycleState, test.pod, test.nodeInfo)
-			if !reflect.DeepEqual(gotStatus, test.wantStatus) {
+			if diff := cmp.Diff(gotStatus, test.wantStatus); diff != "" {
 				t.Errorf("status does not match: %v, want: %v", gotStatus, test.wantStatus)
 			}
 		})
@@ -1110,7 +1110,7 @@ func TestFitScore(t *testing.T) {
 				gotPriorities = append(gotPriorities, framework.NodeScore{Name: n.Name, Score: score})
 			}
 
-			if !reflect.DeepEqual(test.expectedPriorities, gotPriorities) {
+			if diff := cmp.Diff(test.expectedPriorities, gotPriorities); diff != "" {
 				t.Errorf("expected:\n\t%+v,\ngot:\n\t%+v", test.expectedPriorities, gotPriorities)
 			}
 		})
