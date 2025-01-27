@@ -403,6 +403,10 @@ func (m *managerImpl) synchronize(diskInfoProvider DiskInfoProvider, podFunc Act
 	rank(activePods, statsFunc)
 
 	klog.InfoS("Eviction manager: pods ranked for eviction", "pods", klog.KObjSlice(activePods))
+	for _, pod := range activePods {
+		st, _ := statsFunc(pod)
+		klog.Infof("Name: %s, Priority: %d, Process: %d", pod.Name, corev1helpers.PodPriority(pod), processUsage(st.ProcessStats))
+	}
 
 	//record age of metrics for met thresholds that we are using for evictions.
 	for _, t := range thresholds {
