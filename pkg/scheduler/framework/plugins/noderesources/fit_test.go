@@ -19,7 +19,6 @@ package noderesources
 import (
 	"context"
 	"fmt"
-	"reflect"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -611,7 +610,7 @@ func TestPreFilterDisabled(t *testing.T) {
 	cycleState := framework.NewCycleState()
 	gotStatus := p.(framework.FilterPlugin).Filter(ctx, cycleState, pod, nodeInfo)
 	wantStatus := framework.AsStatus(fmt.Errorf(`error reading "PreFilterNodeResourcesFit" from cycleState: %w`, framework.ErrNotFound))
-	if diff := cmp.Diff(gotStatus, wantStatus); diff !=  {
+	if diff := cmp.Diff(gotStatus, wantStatus); diff != "" {
 		t.Errorf("status does not match: %v, want: %v", gotStatus, wantStatus)
 	}
 }

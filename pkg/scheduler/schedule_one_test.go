@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
-	"reflect"
 	"regexp"
 	goruntime "runtime"
 	"sort"
@@ -837,16 +836,16 @@ func TestSchedulerScheduleOne(t *testing.T) {
 				}
 				sched.ScheduleOne(ctx)
 				<-called
-				if e, a := item.expectAssumedPod, gotAssumedPod; !reflect.DeepEqual(e, a) {
+				if e, a := item.expectAssumedPod, gotAssumedPod; NotEqual(e, a) {
 					t.Errorf("assumed pod: wanted %v, got %v", e, a)
 				}
-				if e, a := item.expectErrorPod, gotPod; !reflect.DeepEqual(e, a) {
+				if e, a := item.expectErrorPod, gotPod; NotEqual(e, a) {
 					t.Errorf("error pod: wanted %v, got %v", e, a)
 				}
-				if e, a := item.expectForgetPod, gotForgetPod; !reflect.DeepEqual(e, a) {
+				if e, a := item.expectForgetPod, gotForgetPod; NotEqual(e, a) {
 					t.Errorf("forget pod: wanted %v, got %v", e, a)
 				}
-				if e, a := item.expectError, gotError; !reflect.DeepEqual(e, a) {
+				if e, a := item.expectError, gotError; NotEqual(e, a) {
 					t.Errorf("error: wanted %v, got %v", e, a)
 				}
 				if diff := cmp.Diff(item.expectBind, gotBinding); diff != "" {
@@ -863,6 +862,11 @@ func TestSchedulerScheduleOne(t *testing.T) {
 			})
 		}
 	}
+}
+
+func NotEqual(x any, y any) bool {
+	diff := cmp.Diff(x, y)
+	return diff != ""
 }
 
 func TestSchedulerNoPhantomPodAfterExpire(t *testing.T) {
@@ -923,7 +927,7 @@ func TestSchedulerNoPhantomPodAfterExpire(t *testing.T) {
 			ObjectMeta: metav1.ObjectMeta{Name: "bar", UID: types.UID("bar")},
 			Target:     v1.ObjectReference{Kind: "Node", Name: node.Name},
 		}
-		if !reflect.DeepEqual(expectBinding, b) {
+		if diff := cmp.Diff(expectBinding, b); diff != "" {
 			t.Errorf("binding want=%v, get=%v", expectBinding, b)
 		}
 	case <-time.After(wait.ForeverTestTimeout):
@@ -966,7 +970,7 @@ func TestSchedulerNoPhantomPodAfterDelete(t *testing.T) {
 				UnschedulablePlugins: sets.New(nodeports.Name),
 			},
 		}
-		if !reflect.DeepEqual(expectErr, err) {
+		if diff := cmp.Diff(expectErr, err); diff != "" {
 			t.Errorf("err want=%v, get=%v", expectErr, err)
 		}
 	case <-time.After(wait.ForeverTestTimeout):
@@ -993,7 +997,7 @@ func TestSchedulerNoPhantomPodAfterDelete(t *testing.T) {
 			ObjectMeta: metav1.ObjectMeta{Name: "bar", UID: types.UID("bar")},
 			Target:     v1.ObjectReference{Kind: "Node", Name: node.Name},
 		}
-		if !reflect.DeepEqual(expectBinding, b) {
+		if diff := cmp.Diff(expectBinding, b); diff != "" {
 			t.Errorf("binding want=%v, get=%v", expectBinding, b)
 		}
 	case <-time.After(wait.ForeverTestTimeout):
@@ -1076,7 +1080,7 @@ func TestSchedulerFailedSchedulingReasons(t *testing.T) {
 		if len(fmt.Sprint(expectErr)) > 150 {
 			t.Errorf("message is too spammy ! %v ", len(fmt.Sprint(expectErr)))
 		}
-		if !reflect.DeepEqual(expectErr, err) {
+		if diff := cmp.Diff(expectErr, err); diff != "" {
 			t.Errorf("\n err \nWANT=%+v,\nGOT=%+v", expectErr, err)
 		}
 	case <-time.After(wait.ForeverTestTimeout):
@@ -3692,7 +3696,7 @@ func setupTestSchedulerWithOnePodOnNode(ctx context.Context, t *testing.T, queue
 			ObjectMeta: metav1.ObjectMeta{Name: pod.Name, UID: types.UID(pod.Name)},
 			Target:     v1.ObjectReference{Kind: "Node", Name: node.Name},
 		}
-		if !reflect.DeepEqual(expectBinding, b) {
+		if diff := cmp.Diff(expectBinding, b); diff != "" {
 			t.Errorf("binding want=%v, get=%v", expectBinding, b)
 		}
 	case <-time.After(wait.ForeverTestTimeout):

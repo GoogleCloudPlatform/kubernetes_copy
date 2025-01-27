@@ -19,7 +19,6 @@ package interpodaffinity
 import (
 	"context"
 	"fmt"
-	"reflect"
 	"testing"
 
 	cmp "github.com/google/go-cmp/cmp"
@@ -1278,7 +1277,7 @@ func TestPreFilterStateAddRemovePod(t *testing.T) {
 				t.Errorf("State is not equal, got: %v, want: %v", newState.affinityCounts, test.expectedAffinity)
 			}
 
-			if diff := cmp.Diff((allPodsState, state); diff != "" {
+			if diff := cmp.Diff(allPodsState, state); diff != "" {
 				t.Errorf("State is not equal, got: %v, want: %v", state, allPodsState)
 			}
 

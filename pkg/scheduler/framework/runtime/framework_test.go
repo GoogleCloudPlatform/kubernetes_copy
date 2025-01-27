@@ -20,7 +20,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -982,7 +981,7 @@ func TestPreEnqueuePlugins(t *testing.T) {
 				_ = f.Close()
 			}()
 			got := f.PreEnqueuePlugins()
-			if !reflect.DeepEqual(got, tt.want) {
+			if diff := cmp.Diff(got, tt.want); diff != "" {
 				t.Errorf("PreEnqueuePlugins(): want %v, but got %v", tt.want, got)
 			}
 		})
@@ -1519,7 +1518,7 @@ func TestRunScorePlugins(t *testing.T) {
 			if !status.IsSuccess() {
 				t.Errorf("Expected status to be success.")
 			}
-			if !reflect.DeepEqual(res, tt.want) {
+			if diff := cmp.Diff(res, tt.want); diff != "" {
 				t.Errorf("Score map after RunScorePlugin. got: %+v, want: %+v.", res, tt.want)
 			}
 		})
@@ -2754,7 +2753,7 @@ func TestReservePlugins(t *testing.T) {
 
 			status := f.RunReservePluginsReserve(ctx, nil, pod, "")
 
-			if !reflect.DeepEqual(status, tt.wantStatus) {
+			if diff := cmp.Diff(status, tt.wantStatus); diff != "" {
 				t.Errorf("wrong status code. got %v, want %v", status, tt.wantStatus)
 			}
 		})
@@ -2885,7 +2884,7 @@ func TestPermitPlugins(t *testing.T) {
 			}
 
 			status := f.RunPermitPlugins(ctx, nil, pod, "")
-			if !reflect.DeepEqual(status, tt.want) {
+			if diff := cmp.Diff(status, tt.want); diff != "" {
 				t.Errorf("wrong status code. got %v, want %v", status, tt.want)
 			}
 		})
@@ -3320,7 +3319,7 @@ func TestWaitOnPermit(t *testing.T) {
 			go tt.action(f)
 
 			got := f.WaitOnPermit(ctx, pod)
-			if !reflect.DeepEqual(tt.want, got) {
+			if diff := cmp.Diff(tt.want, got); diff != "" {
 				t.Errorf("Unexpected status: want %v, but got %v", tt.want, got)
 			}
 		})
