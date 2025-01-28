@@ -229,7 +229,7 @@ func (p *criStatsProvider) listPodStatsPartiallyFromCRI(ctx context.Context, upd
 
 	result := make([]statsapi.PodStats, 0, len(sandboxIDToPodStats))
 	for _, s := range sandboxIDToPodStats {
-		makePodStorageStats(s, rootFsInfo, p.resourceAnalyzer, p.hostStatsProvider, true)
+		makePodStorageStats(s, nil, rootFsInfo, p.resourceAnalyzer, p.hostStatsProvider, true)
 		result = append(result, *s)
 	}
 	return result, nil
@@ -260,7 +260,7 @@ func (p *criStatsProvider) listPodStatsStrictlyFromCRI(ctx context.Context, upda
 		addCRIPodCPUStats(ps, criSandboxStat)
 		addCRIPodMemoryStats(ps, criSandboxStat)
 		addCRIPodProcessStats(ps, criSandboxStat)
-		makePodStorageStats(ps, rootFsInfo, p.resourceAnalyzer, p.hostStatsProvider, true)
+		makePodStorageStats(ps, nil, rootFsInfo, p.resourceAnalyzer, p.hostStatsProvider, true)
 		summarySandboxStats = append(summarySandboxStats, *ps)
 	}
 	return summarySandboxStats, nil
@@ -926,7 +926,7 @@ func (p *criStatsProvider) addCadvisorContainerCPUAndMemoryStats(
 
 func getCRICadvisorStats(infos map[string]cadvisorapiv2.ContainerInfo) (map[string]cadvisorapiv2.ContainerInfo, map[string]cadvisorapiv2.ContainerInfo) {
 	stats := make(map[string]cadvisorapiv2.ContainerInfo)
-	filteredInfos, cinfosByPodCgroupKey := filterTerminatedContainerInfoAndAssembleByPodCgroupKey(infos)
+	filteredInfos, _, cinfosByPodCgroupKey := filterTerminatedContainerInfoAndAssembleByPodCgroupKey(infos)
 	for key, info := range filteredInfos {
 		// On systemd using devicemapper each mount into the container has an
 		// associated cgroup. We ignore them to ensure we do not get duplicate
