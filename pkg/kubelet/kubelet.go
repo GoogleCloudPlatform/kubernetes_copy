@@ -2897,19 +2897,8 @@ func (kl *Kubelet) canResizePod(pod *v1.Pod) (bool, v1.PodResizeStatus, string) 
 // the allocation decision and pod status.
 func (kl *Kubelet) handlePodResourcesResize(pod *v1.Pod, podStatus *kubecontainer.PodStatus) (*v1.Pod, error) {
 	allocatedPod, updated := kl.statusManager.UpdatePodFromAllocation(pod)
-	// Keep this logic in sync with kuberuntime.isInPlacePodVerticalScalingAllowed
-	if goos == "windows" || kubetypes.IsStaticPod(pod) {
+	if resizable, msg := kuberuntime.IsInPlacePodVerticalScalingAllowed(pod); !resizable {
 		if updated {
-			// A resize is requested but not supported.
-			var msg string
-			switch {
-			case goos == "windows":
-				msg = "Resizing Windows pods is not supported"
-			case kubetypes.IsStaticPod(pod):
-				msg = "Resizing static pods is not supported"
-			default:
-				msg = "Resizing this pod is not supported"
-			}
 			kl.recorder.Eventf(pod, v1.EventTypeWarning, events.ResizeInfeasible, msg)
 			kl.statusManager.SetPodResizeStatus(pod.UID, v1.PodResizeStatusInfeasible)
 		} else {

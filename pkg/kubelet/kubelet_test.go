@@ -24,6 +24,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	goruntime "runtime"
 	"sort"
 	"strconv"
@@ -2583,6 +2584,9 @@ func TestPodResourceAllocationReset(t *testing.T) {
 }
 
 func TestHandlePodResourcesResize(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("InPlacePodVerticalScaling not supported on Windows")
+	}
 	featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.InPlacePodVerticalScaling, true)
 	testKubelet := newTestKubelet(t, false)
 	defer testKubelet.Cleanup()
@@ -2682,7 +2686,6 @@ func TestHandlePodResourcesResize(t *testing.T) {
 		expectedAllocatedLims v1.ResourceList
 		expectedResize        v1.PodResizeStatus
 		expectBackoffReset    bool
-		goos                  string
 		annotations           map[string]string
 	}{
 		{
@@ -2751,14 +2754,6 @@ func TestHandlePodResourcesResize(t *testing.T) {
 			newRequests:           v1.ResourceList{v1.ResourceCPU: cpu1000m, v1.ResourceMemory: mem1000M},
 			expectedAllocatedReqs: v1.ResourceList{v1.ResourceCPU: cpu1000m, v1.ResourceMemory: mem1000M},
 			expectedResize:        "",
-		},
-		{
-			name:                  "windows node, expect Infeasible",
-			originalRequests:      v1.ResourceList{v1.ResourceCPU: cpu1000m, v1.ResourceMemory: mem1000M},
-			newRequests:           v1.ResourceList{v1.ResourceCPU: cpu500m, v1.ResourceMemory: mem500M},
-			expectedAllocatedReqs: v1.ResourceList{v1.ResourceCPU: cpu1000m, v1.ResourceMemory: mem1000M},
-			expectedResize:        v1.PodResizeStatusInfeasible,
-			goos:                  "windows",
 		},
 		{
 			name:                  "static pod, expect Infeasible",
@@ -2852,11 +2847,6 @@ func TestHandlePodResourcesResize(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			oldGOOS := goos
-			defer func() { goos = oldGOOS }()
-			if tt.goos != "" {
-				goos = tt.goos
-			}
 			kubelet.statusManager = status.NewFakeManager()
 
 			originalPod := testPod1.DeepCopy()
