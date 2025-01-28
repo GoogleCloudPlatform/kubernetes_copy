@@ -18,7 +18,6 @@ package framework
 
 import (
 	"fmt"
-	"reflect"
 	"strings"
 	"testing"
 
@@ -74,7 +73,7 @@ func TestNewResource(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			r := NewResource(test.resourceList)
 			if diff := cmp.Diff(test.expected, r); diff != "" {
-				t.Errorf("expected: %#v, got: %#v", test.expected, r)
+				t.Errorf("Unexpected resource: (-want, +got): %s", diff)
 			}
 		})
 	}
@@ -113,7 +112,7 @@ func TestResourceClone(t *testing.T) {
 			// Modify the field to check if the result is a clone of the origin one.
 			test.resource.MilliCPU += 1000
 			if diff := cmp.Diff(test.expected, r); diff != "" {
-				t.Errorf("expected: %#v, got: %#v", test.expected, r)
+				t.Errorf("Unexpected resource: (-want, +got): %s", diff)
 			}
 		})
 	}
@@ -158,7 +157,7 @@ func TestResourceAddScalar(t *testing.T) {
 		t.Run(string(test.scalarName), func(t *testing.T) {
 			test.resource.AddScalar(test.scalarName, test.scalarQuantity)
 			if diff := cmp.Diff(test.expected, test.resource); diff != "" {
-				t.Errorf("expected: %#v, got: %#v", test.expected, test.resource)
+				t.Errorf("Unexpected resource: (-want, +got): %s", diff)
 			}
 		})
 	}
@@ -210,7 +209,7 @@ func TestSetMaxResource(t *testing.T) {
 		t.Run(fmt.Sprintf("case_%d", i), func(t *testing.T) {
 			test.resource.SetMaxResource(test.resourceList)
 			if diff := cmp.Diff(test.expected, test.resource); diff != "" {
-				t.Errorf("expected: %#v, got: %#v", test.expected, test.resource)
+				t.Errorf("Unexpected resource: (-want, +got): %s", diff)
 			}
 		})
 	}
@@ -552,8 +551,8 @@ func TestNodeInfoClone(t *testing.T) {
 			// Modify the field to check if the result is a clone of the origin one.
 			test.nodeInfo.Generation += 10
 			test.nodeInfo.UsedPorts.Remove("127.0.0.1", "TCP", 80)
-			if !reflect.DeepEqual(test.expected, ni) {
-				t.Errorf("expected: %#v, got: %#v", test.expected, ni)
+			if diff := cmp.Diff(test.expected, ni, cmp.AllowUnexported(NodeInfo{}, PodInfo{}, podResource{})); diff != "" {
+				t.Errorf("Unexpected NodeInfo: (-want, +got): %s", diff)
 			}
 		})
 	}
@@ -1206,8 +1205,8 @@ func TestNodeInfoRemovePod(t *testing.T) {
 			}
 
 			test.expectedNodeInfo.Generation = ni.Generation
-			if !reflect.DeepEqual(test.expectedNodeInfo, ni) {
-				t.Errorf("expected: %#v, got: %#v", test.expectedNodeInfo, ni)
+			if diff := cmp.Diff(test.expectedNodeInfo, ni, cmp.AllowUnexported(NodeInfo{}, PodInfo{}, podResource{})); diff != "" {
+				t.Errorf("Unexpected NodeInfo: (-want, +got): %s", diff)
 			}
 		})
 	}
@@ -2066,7 +2065,7 @@ func TestCalculatePodResourcesWithResize(t *testing.T) {
 
 			res := podInfo.calculateResource()
 			if diff := cmp.Diff(tt.expectedResource, res, cmp.AllowUnexported(podResource{})); diff != "" {
-				t.Errorf("Test: %s expected resource: %+v, got: %+v", tt.name, tt.expectedResource, res.resource)
+				t.Errorf("Unexpected podResource: (-want, +got): %s", diff)
 			}
 		})
 	}
