@@ -25,8 +25,8 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	kubeletconfig "k8s.io/kubernetes/pkg/kubelet/apis/config"
 	evictionapi "k8s.io/kubernetes/pkg/kubelet/eviction/api"
+	"k8s.io/kubernetes/test/e2e/feature"
 	"k8s.io/kubernetes/test/e2e/framework"
-	"k8s.io/kubernetes/test/e2e/nodefeature"
 	admissionapi "k8s.io/pod-security-admission/api"
 
 	"github.com/onsi/ginkgo/v2"
@@ -40,7 +40,7 @@ import (
 // Stats is best effort and we evict based on stats being successful
 
 // Container runtime filesystem should display different stats for imagefs and nodefs
-var _ = SIGDescribe("Summary", nodefeature.SeparateDisk, func() {
+var _ = SIGDescribe("Summary", feature.KubeletSeparateDiskGC, func() {
 	f := framework.NewDefaultFramework("summary-test")
 	f.It("should display different stats for imagefs and nodefs", func(ctx context.Context) {
 		summary := eventuallyGetSummary(ctx)
@@ -52,7 +52,7 @@ var _ = SIGDescribe("Summary", nodefeature.SeparateDisk, func() {
 })
 
 // Node disk pressure is induced by consuming all inodes on the Writeable Layer (imageFS).
-var _ = SIGDescribe("InodeEviction", framework.WithSlow(), framework.WithSerial(), framework.WithDisruptive(), nodefeature.SeparateDisk, func() {
+var _ = SIGDescribe("InodeEviction", framework.WithSlow(), framework.WithSerial(), framework.WithDisruptive(), feature.KubeletSeparateDiskGC, func() {
 	f := framework.NewDefaultFramework("inode-eviction-test")
 	f.NamespacePodSecurityLevel = admissionapi.LevelPrivileged
 	expectedNodeCondition := v1.NodeDiskPressure
@@ -79,7 +79,7 @@ var _ = SIGDescribe("InodeEviction", framework.WithSlow(), framework.WithSerial(
 
 // ImageGCNoEviction tests that the node does not evict pods when inodes are consumed by images
 // Disk pressure is induced by pulling large images
-var _ = SIGDescribe("ImageGCNoEviction", framework.WithSlow(), framework.WithSerial(), framework.WithDisruptive(), nodefeature.SeparateDisk, func() {
+var _ = SIGDescribe("ImageGCNoEviction", framework.WithSlow(), framework.WithSerial(), framework.WithDisruptive(), feature.KubeletSeparateDiskGC, func() {
 	f := framework.NewDefaultFramework("image-gc-eviction-test")
 	f.NamespacePodSecurityLevel = admissionapi.LevelPrivileged
 	pressureTimeout := 15 * time.Minute
@@ -107,7 +107,7 @@ var _ = SIGDescribe("ImageGCNoEviction", framework.WithSlow(), framework.WithSer
 // LocalStorageEviction tests that the node responds to node disk pressure by evicting only responsible pods
 // Disk pressure is induced by running pods which consume disk space, which exceed the soft eviction threshold.
 // Note: This test's purpose is to test Soft Evictions.  Local storage was chosen since it is the least costly to run.
-var _ = SIGDescribe("LocalStorageSoftEviction", framework.WithSlow(), framework.WithSerial(), framework.WithDisruptive(), nodefeature.SeparateDisk, func() {
+var _ = SIGDescribe("LocalStorageSoftEviction", framework.WithSlow(), framework.WithSerial(), framework.WithDisruptive(), feature.KubeletSeparateDiskGC, func() {
 	f := framework.NewDefaultFramework("local-storage-imagefs-soft-test")
 	f.NamespacePodSecurityLevel = admissionapi.LevelPrivileged
 	expectedNodeCondition := v1.NodeDiskPressure
@@ -140,7 +140,7 @@ var _ = SIGDescribe("LocalStorageSoftEviction", framework.WithSlow(), framework.
 
 // LocalStorageCapacityIsolationEviction tests that container and volume local storage limits are enforced through evictions
 // removed localstoragecapacityisolation feature gate here as its not a feature gate anymore
-var _ = SIGDescribe("LocalStorageCapacityIsolationEviction", framework.WithSlow(), framework.WithSerial(), framework.WithDisruptive(), nodefeature.SeparateDisk, func() {
+var _ = SIGDescribe("LocalStorageCapacityIsolationEviction", framework.WithSlow(), framework.WithSerial(), framework.WithDisruptive(), feature.KubeletSeparateDiskGC, func() {
 	f := framework.NewDefaultFramework("localstorage-eviction-test")
 	f.NamespacePodSecurityLevel = admissionapi.LevelPrivileged
 	evictionTestTimeout := 10 * time.Minute
@@ -185,7 +185,7 @@ var _ = SIGDescribe("LocalStorageCapacityIsolationEviction", framework.WithSlow(
 })
 
 // LocalStorageEviction tests that the node responds to IMAGE FS pressure by evicting pods.
-var _ = SIGDescribe("ImageStorageEviction", framework.WithSlow(), framework.WithSerial(), framework.WithDisruptive(), nodefeature.SeparateDisk, func() {
+var _ = SIGDescribe("ImageStorageEviction", framework.WithSlow(), framework.WithSerial(), framework.WithDisruptive(), feature.KubeletSeparateDiskGC, func() {
 	f := framework.NewDefaultFramework("local-storage-imagefs-test")
 	f.NamespacePodSecurityLevel = admissionapi.LevelPrivileged
 	expectedNodeCondition := v1.NodeDiskPressure
@@ -213,7 +213,7 @@ var _ = SIGDescribe("ImageStorageEviction", framework.WithSlow(), framework.With
 // LocalStorageVolumeEviction tests that the node responds to node disk pressure by evicting pods.
 // Volumes write to the node filesystem so we are testing eviction on nodefs even if it
 // exceeds imagefs limits.
-var _ = SIGDescribe("ImageStorageVolumeEviction", framework.WithSlow(), framework.WithSerial(), framework.WithDisruptive(), nodefeature.SeparateDisk, func() {
+var _ = SIGDescribe("ImageStorageVolumeEviction", framework.WithSlow(), framework.WithSerial(), framework.WithDisruptive(), feature.KubeletSeparateDiskGC, func() {
 	f := framework.NewDefaultFramework("exceed-nodefs-test")
 	f.NamespacePodSecurityLevel = admissionapi.LevelPrivileged
 	expectedNodeCondition := v1.NodeDiskPressure
