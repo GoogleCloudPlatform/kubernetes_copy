@@ -44,7 +44,7 @@ import (
 	"k8s.io/apiserver/pkg/server/healthz"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	clientset "k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/record"
+	toolsevents "k8s.io/client-go/tools/events"
 	utilsysctl "k8s.io/component-helpers/node/util/sysctl"
 	internalapi "k8s.io/cri-api/pkg/apis"
 	pluginwatcherapi "k8s.io/kubelet/pkg/apis/pluginregistration/v1"
@@ -121,7 +121,7 @@ type containerManagerImpl struct {
 	// This path include a top level container for enforcing Node Allocatable.
 	cgroupRoot CgroupName
 	// Event recorder interface.
-	recorder record.EventRecorder
+	recorder toolsevents.EventRecorder
 	// Interface for QoS cgroup management
 	qosContainerManager QOSContainerManager
 	// Interface for exporting and allocating devices reported by device plugins.
@@ -203,7 +203,7 @@ func validateSystemRequirements(mountUtil mount.Interface) (features, error) {
 // TODO(vmarmol): Add limits to the system containers.
 // Takes the absolute name of the specified containers.
 // Empty container name disables use of the specified container.
-func NewContainerManager(mountUtil mount.Interface, cadvisorInterface cadvisor.Interface, nodeConfig NodeConfig, failSwapOn bool, recorder record.EventRecorder, kubeClient clientset.Interface) (ContainerManager, error) {
+func NewContainerManager(mountUtil mount.Interface, cadvisorInterface cadvisor.Interface, nodeConfig NodeConfig, failSwapOn bool, recorder toolsevents.EventRecorder, kubeClient clientset.Interface) (ContainerManager, error) {
 	subsystems, err := GetCgroupSubsystems()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get mounted cgroup subsystems: %v", err)
@@ -221,7 +221,7 @@ func NewContainerManager(mountUtil mount.Interface, cadvisorInterface cadvisor.I
 
 		if !swap.IsTmpfsNoswapOptionSupported(mountUtil, nodeConfig.KubeletRootDir) {
 			nodeRef := nodeRefFromNode(string(nodeConfig.NodeName))
-			recorder.Event(nodeRef, v1.EventTypeWarning, events.PossibleMemoryBackedVolumesOnDisk,
+			recorder.Eventf(nodeRef, nil, v1.EventTypeWarning, events.PossibleMemoryBackedVolumesOnDisk, "TmpfsNoswapOptionNotSupported",
 				"The tmpfs noswap option is not supported. Memory-backed volumes (e.g. secrets, emptyDirs, etc.) "+
 					"might be swapped to disk and should no longer be considered secure.",
 			)

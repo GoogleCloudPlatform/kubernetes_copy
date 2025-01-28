@@ -31,7 +31,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	featuregatetesting "k8s.io/component-base/featuregate/testing"
 	"k8s.io/klog/v2/ktesting"
 	_ "k8s.io/klog/v2/ktesting/init" // activate ktesting command line flags
@@ -83,7 +83,7 @@ func TestFeatureEnabled(t *testing.T) {
 			featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, pkgfeatures.WindowsGracefulNodeShutdown, tc.featureGateEnabled)
 
 			proberManager := probetest.FakeManager{}
-			fakeRecorder := &record.FakeRecorder{}
+			fakeRecorder := &events.FakeRecorder{}
 			fakeVolumeManager := volumemanager.NewFakeVolumeManager([]v1.UniqueVolumeName{}, 0, nil)
 			nodeRef := &v1.ObjectReference{Kind: "Node", Name: "test", UID: types.UID("test"), Namespace: ""}
 
@@ -108,7 +108,7 @@ func TestFeatureEnabled(t *testing.T) {
 func Test_managerImpl_ProcessShutdownEvent(t *testing.T) {
 	var (
 		probeManager      = probetest.FakeManager{}
-		fakeRecorder      = &record.FakeRecorder{}
+		fakeRecorder      = &events.FakeRecorder{}
 		fakeVolumeManager = volumemanager.NewFakeVolumeManager([]v1.UniqueVolumeName{}, 0, nil)
 		syncNodeStatus    = func() {}
 		nodeRef           = &v1.ObjectReference{Kind: "Node", Name: "test", UID: types.UID("test"), Namespace: ""}
@@ -116,7 +116,7 @@ func Test_managerImpl_ProcessShutdownEvent(t *testing.T) {
 	)
 
 	type fields struct {
-		recorder                         record.EventRecorder
+		recorder                         events.EventRecorder
 		nodeRef                          *v1.ObjectReference
 		probeManager                     prober.Manager
 		volumeManager                    volumemanager.VolumeManager

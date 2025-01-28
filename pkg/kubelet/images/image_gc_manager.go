@@ -34,7 +34,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
-	"k8s.io/client-go/tools/record"
+	toolsevents "k8s.io/client-go/tools/events"
 	statsapi "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 	"k8s.io/kubernetes/pkg/features"
 	"k8s.io/kubernetes/pkg/kubelet/container"
@@ -120,7 +120,7 @@ type realImageGCManager struct {
 	statsProvider StatsProvider
 
 	// Recorder for Kubernetes events.
-	recorder record.EventRecorder
+	recorder toolsevents.EventRecorder
 
 	// Reference to this node.
 	nodeRef *v1.ObjectReference
@@ -181,7 +181,7 @@ type imageRecord struct {
 }
 
 // NewImageGCManager instantiates a new ImageGCManager object.
-func NewImageGCManager(runtime container.Runtime, statsProvider StatsProvider, recorder record.EventRecorder, nodeRef *v1.ObjectReference, policy ImageGCPolicy, tracerProvider trace.TracerProvider) (ImageGCManager, error) {
+func NewImageGCManager(runtime container.Runtime, statsProvider StatsProvider, recorder toolsevents.EventRecorder, nodeRef *v1.ObjectReference, policy ImageGCPolicy, tracerProvider trace.TracerProvider) (ImageGCManager, error) {
 	// Validate policy.
 	if policy.HighThresholdPercent < 0 || policy.HighThresholdPercent > 100 {
 		return nil, fmt.Errorf("invalid HighThresholdPercent %d, must be in range [0-100]", policy.HighThresholdPercent)
@@ -372,7 +372,7 @@ func (im *realImageGCManager) GarbageCollect(ctx context.Context, beganGC time.T
 	// Check valid capacity.
 	if capacity == 0 {
 		err := goerrors.New("invalid capacity 0 on image filesystem")
-		im.recorder.Eventf(im.nodeRef, v1.EventTypeWarning, events.InvalidDiskCapacity, err.Error())
+		im.recorder.Eventf(im.nodeRef, nil, v1.EventTypeWarning, events.InvalidDiskCapacity, "CheckingValidCapacity", err.Error())
 		return err
 	}
 
@@ -388,7 +388,7 @@ func (im *realImageGCManager) GarbageCollect(ctx context.Context, beganGC time.T
 
 		if freed < amountToFree {
 			err := fmt.Errorf("Failed to garbage collect required amount of images. Attempted to free %d bytes, but only found %d bytes eligible to free.", amountToFree, freed)
-			im.recorder.Eventf(im.nodeRef, v1.EventTypeWarning, events.FreeDiskSpaceFailed, err.Error())
+			im.recorder.Eventf(im.nodeRef, nil, v1.EventTypeWarning, events.FreeDiskSpaceFailed, "GarbageCollecting", err.Error())
 			return err
 		}
 	}
@@ -533,7 +533,7 @@ func (im *realImageGCManager) imagesInEvictionOrder(ctx context.Context, freeTim
 			imageID := getImageIDFromTuple(image)
 			// Ensure imageID is valid or else continue
 			if imageID == "" {
-				im.recorder.Eventf(im.nodeRef, v1.EventTypeWarning, "ImageID is not valid, skipping, ImageID: %v", imageID)
+				im.recorder.Eventf(im.nodeRef, nil, v1.EventTypeWarning, "ImageID is not valid, skipping, ImageID: %v", "GarbageCollecting", imageID)
 				continue
 			}
 			images = append(images, evictionInfo{

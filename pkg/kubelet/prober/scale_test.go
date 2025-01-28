@@ -32,7 +32,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes/fake"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	kubepod "k8s.io/kubernetes/pkg/kubelet/pod"
 	"k8s.io/kubernetes/pkg/kubelet/prober/results"
 	"k8s.io/kubernetes/pkg/kubelet/status"
@@ -95,7 +95,7 @@ func TestTCPPortExhaustion(t *testing.T) {
 				results.NewManager(),
 				results.NewManager(),
 				nil, // runner
-				&record.FakeRecorder{},
+				&events.FakeRecorder{},
 			).(*manager)
 			defer cleanup(t, m)
 

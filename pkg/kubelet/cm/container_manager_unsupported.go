@@ -27,7 +27,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	clientset "k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	internalapi "k8s.io/cri-api/pkg/apis"
 	"k8s.io/kubernetes/pkg/kubelet/cadvisor"
 	"k8s.io/kubernetes/pkg/kubelet/config"
@@ -44,6 +44,6 @@ func (unsupportedContainerManager) Start(_ context.Context, _ *v1.Node, _ Active
 	return fmt.Errorf("Container Manager is unsupported in this build")
 }
 
-func NewContainerManager(_ mount.Interface, _ cadvisor.Interface, _ NodeConfig, failSwapOn bool, recorder record.EventRecorder, kubeClient clientset.Interface) (ContainerManager, error) {
+func NewContainerManager(_ mount.Interface, _ cadvisor.Interface, _ NodeConfig, failSwapOn bool, recorder events.EventRecorder, kubeClient clientset.Interface) (ContainerManager, error) {
 	return &unsupportedContainerManager{}, nil
 }

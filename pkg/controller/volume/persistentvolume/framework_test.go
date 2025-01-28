@@ -40,7 +40,7 @@ import (
 	corelisters "k8s.io/client-go/listers/core/v1"
 	storagelisters "k8s.io/client-go/listers/storage/v1"
 	"k8s.io/client-go/tools/cache"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	storagehelpers "k8s.io/component-helpers/storage/volume"
 	"k8s.io/kubernetes/pkg/controller"
 	pvtesting "k8s.io/kubernetes/pkg/controller/volume/persistentvolume/testing"
@@ -178,7 +178,7 @@ func checkEvents(t *testing.T, ctx context.Context, expectedEvents []string, ctr
 	timer := time.NewTimer(time.Minute)
 	defer timer.Stop()
 	logger := klog.FromContext(ctx)
-	fakeRecorder := ctrl.eventRecorder.(*record.FakeRecorder)
+	fakeRecorder := ctrl.eventRecorder.(*events.FakeRecorder)
 	gotEvents := []string{}
 	finished := false
 	for len(gotEvents) < len(expectedEvents) && !finished {
@@ -238,7 +238,7 @@ func newTestController(ctx context.Context, kubeClient clientset.Interface, info
 	if err != nil {
 		return nil, fmt.Errorf("failed to construct persistentvolume controller: %v", err)
 	}
-	ctrl.eventRecorder = record.NewFakeRecorder(1000)
+	ctrl.eventRecorder = events.NewFakeRecorder(1000)
 	ctrl.volumeListerSynced = alwaysReady
 	ctrl.claimListerSynced = alwaysReady
 	ctrl.classListerSynced = alwaysReady

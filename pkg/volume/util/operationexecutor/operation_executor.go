@@ -21,17 +21,20 @@ limitations under the License.
 package operationexecutor
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"time"
 
 	"github.com/go-logr/logr"
-
-	"k8s.io/klog/v2"
-
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	clientset "k8s.io/client-go/kubernetes"
+	corelisters "k8s.io/client-go/listers/core/v1"
+	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/volume"
 	"k8s.io/kubernetes/pkg/volume/util"
 	"k8s.io/kubernetes/pkg/volume/util/hostutil"
@@ -1027,4 +1030,55 @@ func (oe *operationExecutor) ReconstructVolumeOperation(
 	return volume.ReconstructedVolume{
 		Spec: volumeSpec,
 	}, nil
+}
+
+func GetPVCToAttach(v VolumeToAttach, pvcLister corelisters.PersistentVolumeClaimLister, kubeClient clientset.Interface) runtime.Object {
+	var pvc *v1.PersistentVolumeClaim
+	if v.VolumeSpec == nil {
+		return nil
+	}
+	if v.VolumeSpec.PersistentVolume == nil {
+		return nil
+	}
+	pv := v.VolumeSpec.PersistentVolume
+	if pv.Spec.ClaimRef == nil {
+		return nil
+	}
+	var err error
+	if pvcLister != nil {
+		pvc, err = pvcLister.PersistentVolumeClaims(pv.Spec.ClaimRef.Namespace).Get(pv.Spec.ClaimRef.Name)
+	} else if kubeClient != nil {
+		pvc, err = kubeClient.CoreV1().PersistentVolumeClaims(pv.Spec.ClaimRef.Namespace).Get(context.TODO(), pv.Spec.ClaimRef.Name, metav1.GetOptions{})
+	} else {
+		return nil
+	}
+	if err != nil {
+		return nil
+	}
+	return pvc
+}
+func GetPVCToMount(v VolumeToMount, pvcLister corelisters.PersistentVolumeClaimLister, kubeClient clientset.Interface) runtime.Object {
+	var pvc *v1.PersistentVolumeClaim
+	if v.VolumeSpec == nil {
+		return nil
+	}
+	if v.VolumeSpec.PersistentVolume == nil {
+		return nil
+	}
+	pv := v.VolumeSpec.PersistentVolume
+	if pv.Spec.ClaimRef == nil {
+		return nil
+	}
+	var err error
+	if pvcLister != nil {
+		pvc, err = pvcLister.PersistentVolumeClaims(pv.Spec.ClaimRef.Namespace).Get(pv.Spec.ClaimRef.Name)
+	} else if kubeClient != nil {
+		pvc, err = kubeClient.CoreV1().PersistentVolumeClaims(pv.Spec.ClaimRef.Namespace).Get(context.TODO(), pv.Spec.ClaimRef.Name, metav1.GetOptions{})
+	} else {
+		return nil
+	}
+	if err != nil {
+		return nil
+	}
+	return pvc
 }

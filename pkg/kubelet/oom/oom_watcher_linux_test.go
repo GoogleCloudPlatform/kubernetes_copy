@@ -22,7 +22,7 @@ import (
 	"time"
 
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 
 	"github.com/google/cadvisor/utils/oomparser"
 	"github.com/stretchr/testify/assert"
@@ -56,7 +56,7 @@ func TestWatcherRecordsEventsForOomEvents(t *testing.T) {
 		oomInstancesToStream: oomInstancesToStream,
 	}
 
-	fakeRecorder := record.NewFakeRecorder(numExpectedOomEvents)
+	fakeRecorder := events.NewFakeRecorder(numExpectedOomEvents)
 	node := &v1.ObjectReference{}
 
 	oomWatcher := &realWatcher{
@@ -69,7 +69,7 @@ func TestWatcherRecordsEventsForOomEvents(t *testing.T) {
 	assert.Len(t, eventsRecorded, numExpectedOomEvents)
 }
 
-func getRecordedEvents(fakeRecorder *record.FakeRecorder, numExpectedOomEvents int) []string {
+func getRecordedEvents(fakeRecorder *events.FakeRecorder, numExpectedOomEvents int) []string {
 	eventsRecorded := []string{}
 
 	select {
@@ -115,7 +115,7 @@ func TestWatcherRecordsEventsForOomEventsCorrectContainerName(t *testing.T) {
 		oomInstancesToStream: oomInstancesToStream,
 	}
 
-	fakeRecorder := record.NewFakeRecorder(numExpectedOomEvents)
+	fakeRecorder := events.NewFakeRecorder(numExpectedOomEvents)
 	node := &v1.ObjectReference{}
 
 	oomWatcher := &realWatcher{
@@ -150,7 +150,7 @@ func TestWatcherRecordsEventsForOomEventsWithAdditionalInfo(t *testing.T) {
 		oomInstancesToStream: oomInstancesToStream,
 	}
 
-	fakeRecorder := record.NewFakeRecorder(numExpectedOomEvents)
+	fakeRecorder := events.NewFakeRecorder(numExpectedOomEvents)
 	node := &v1.ObjectReference{}
 
 	oomWatcher := &realWatcher{

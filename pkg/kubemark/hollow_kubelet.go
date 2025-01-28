@@ -28,7 +28,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clientset "k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	internalapi "k8s.io/cri-api/pkg/apis"
 	kubeletapp "k8s.io/kubernetes/cmd/kubelet/app"
 	"k8s.io/kubernetes/cmd/kubelet/app/options"
@@ -112,7 +112,7 @@ func NewHollowKubelet(
 		PodStartupLatencyTracker:  kubeletutil.NewPodStartupLatencyTracker(),
 		NodeStartupLatencyTracker: kubeletutil.NewNodeStartupLatencyTracker(),
 		TracerProvider:            noopoteltrace.NewTracerProvider(),
-		Recorder:                  &record.FakeRecorder{}, // With real recorder we attempt to read /dev/kmsg.
+		Recorder:                  &events.FakeRecorder{}, // With real recorder we attempt to read /dev/kmsg.
 	}
 
 	return &HollowKubelet{

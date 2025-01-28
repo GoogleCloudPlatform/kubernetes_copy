@@ -39,7 +39,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/apimachinery/pkg/util/wait"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	featuregatetesting "k8s.io/component-base/featuregate/testing"
 	pluginapi "k8s.io/kubelet/pkg/apis/deviceplugin/v1beta1"
 	watcherapi "k8s.io/kubelet/pkg/apis/pluginregistration/v1"
@@ -308,7 +308,7 @@ func setupDevicePlugin(t *testing.T, devs []*pluginapi.Device, pluginSocketName 
 func setupPluginManager(t *testing.T, pluginSocketName string, m Manager) pluginmanager.PluginManager {
 	pluginManager := pluginmanager.NewPluginManager(
 		filepath.Dir(pluginSocketName), /* sockDir */
-		&record.FakeRecorder{},
+		&events.FakeRecorder{},
 	)
 
 	runPluginManager(pluginManager)
