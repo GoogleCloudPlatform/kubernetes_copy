@@ -726,7 +726,7 @@ func (dc *DisruptionController) trySync(ctx context.Context, pdb *policy.PodDisr
 		return err
 	}
 	if len(pods) == 0 {
-		dc.recorder.Eventf(pdb, v1.EventTypeNormal, "NoPods", "No matching pods found")
+		dc.recorder.Event(pdb, v1.EventTypeNormal, "NoPods", "No matching pods found")
 	}
 
 	expectedCount, desiredHealthy, unmanagedPods, err := dc.getExpectedPodCount(ctx, pdb, pods)

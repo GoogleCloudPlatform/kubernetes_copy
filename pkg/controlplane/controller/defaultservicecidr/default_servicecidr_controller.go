@@ -159,7 +159,7 @@ func (c *Controller) sync() error {
 	}
 	serviceCIDR, err = c.client.NetworkingV1().ServiceCIDRs().Create(context.Background(), serviceCIDR, metav1.CreateOptions{})
 	if err != nil && !apierrors.IsAlreadyExists(err) {
-		c.eventRecorder.Eventf(serviceCIDR, v1.EventTypeWarning, "KubernetesDefaultServiceCIDRError", "The default ServiceCIDR can not be created")
+		c.eventRecorder.Event(serviceCIDR, v1.EventTypeWarning, "KubernetesDefaultServiceCIDRError", "The default ServiceCIDR can not be created")
 		return err
 	}
 	c.syncStatus(serviceCIDR)
@@ -181,7 +181,7 @@ func (c *Controller) syncStatus(serviceCIDR *networkingapiv1.ServiceCIDR) {
 				return
 			}
 			klog.Infof("default ServiceCIDR condition Ready is not True: %v", condition.Status)
-			c.eventRecorder.Eventf(serviceCIDR, v1.EventTypeWarning, condition.Reason, condition.Message)
+			c.eventRecorder.Event(serviceCIDR, v1.EventTypeWarning, condition.Reason, condition.Message)
 			return
 		}
 	}
@@ -197,7 +197,7 @@ func (c *Controller) syncStatus(serviceCIDR *networkingapiv1.ServiceCIDR) {
 		svcApply := networkingapiv1apply.ServiceCIDR(DefaultServiceCIDRName).WithStatus(svcApplyStatus)
 		if _, errApply := c.client.NetworkingV1().ServiceCIDRs().ApplyStatus(context.Background(), svcApply, metav1.ApplyOptions{FieldManager: controllerName, Force: true}); errApply != nil {
 			klog.Infof("error updating default ServiceCIDR status: %v", errApply)
-			c.eventRecorder.Eventf(serviceCIDR, v1.EventTypeWarning, "KubernetesDefaultServiceCIDRError", "The default ServiceCIDR Status can not be set to Ready=True")
+			c.eventRecorder.Event(serviceCIDR, v1.EventTypeWarning, "KubernetesDefaultServiceCIDRError", "The default ServiceCIDR Status can not be set to Ready=True")
 		}
 	}
 }

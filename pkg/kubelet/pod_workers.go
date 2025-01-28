@@ -1684,7 +1684,7 @@ func killPodNow(podWorkers PodWorkers, recorder record.EventRecorder) eviction.K
 		case <-ch:
 			return nil
 		case <-time.After(timeoutDuration):
-			recorder.Eventf(pod, v1.EventTypeWarning, events.ExceededGracePeriod, "Container runtime did not kill the pod within specified grace period.")
+			recorder.Event(pod, v1.EventTypeWarning, events.ExceededGracePeriod, "Container runtime did not kill the pod within specified grace period.")
 			return fmt.Errorf("timeout waiting to kill pod")
 		}
 	}

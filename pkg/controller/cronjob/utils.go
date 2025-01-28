@@ -217,7 +217,7 @@ func nextScheduleTime(logger klog.Logger, cj *batchv1.CronJob, now time.Time, sc
 	}
 
 	if missedSchedules == manyMissed {
-		recorder.Eventf(cj, corev1.EventTypeWarning, "TooManyMissedTimes", "too many missed start times. Set or decrease .spec.startingDeadlineSeconds or check clock skew")
+		recorder.Event(cj, corev1.EventTypeWarning, "TooManyMissedTimes", "too many missed start times. Set or decrease .spec.startingDeadlineSeconds or check clock skew")
 		logger.Info("too many missed times", "cronjob", klog.KObj(cj))
 	}
 

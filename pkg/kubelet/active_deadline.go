@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"time"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/kubernetes/pkg/kubelet/lifecycle"
 	"k8s.io/kubernetes/pkg/kubelet/status"
@@ -71,7 +71,7 @@ func (m *activeDeadlineHandler) ShouldEvict(pod *v1.Pod) lifecycle.ShouldEvictRe
 	if !m.pastActiveDeadline(pod) {
 		return lifecycle.ShouldEvictResponse{Evict: false}
 	}
-	m.recorder.Eventf(pod, v1.EventTypeNormal, reason, message)
+	m.recorder.Event(pod, v1.EventTypeNormal, reason, message)
 	return lifecycle.ShouldEvictResponse{Evict: true, Reason: reason, Message: message}
 }
 

@@ -293,7 +293,7 @@ func (og *operationGenerator) GenerateAttachVolumeFunc(
 		// Successful attach event is useful for user debugging
 		simpleMsg, _ := volumeToAttach.GenerateMsg("AttachVolume.Attach succeeded", "")
 		for _, pod := range volumeToAttach.ScheduledPods {
-			og.recorder.Eventf(pod, v1.EventTypeNormal, kevents.SuccessfulAttachVolume, simpleMsg)
+			og.recorder.Event(pod, v1.EventTypeNormal, kevents.SuccessfulAttachVolume, simpleMsg)
 		}
 		klog.Info(volumeToAttach.GenerateMsgDetailed("AttachVolume.Attach succeeded", ""))
 
@@ -312,7 +312,7 @@ func (og *operationGenerator) GenerateAttachVolumeFunc(
 	eventRecorderFunc := func(err *error) {
 		if *err != nil {
 			for _, pod := range volumeToAttach.ScheduledPods {
-				og.recorder.Eventf(pod, v1.EventTypeWarning, kevents.FailedAttachVolume, (*err).Error())
+				og.recorder.Event(pod, v1.EventTypeWarning, kevents.FailedAttachVolume, (*err).Error())
 			}
 		}
 	}
@@ -646,7 +646,7 @@ func (og *operationGenerator) GenerateMountVolumeFunc(
 
 	eventRecorderFunc := func(err *error) {
 		if *err != nil {
-			og.recorder.Eventf(volumeToMount.Pod, v1.EventTypeWarning, kevents.FailedMountVolume, (*err).Error())
+			og.recorder.Event(volumeToMount.Pod, v1.EventTypeWarning, kevents.FailedMountVolume, (*err).Error())
 		}
 	}
 
@@ -941,7 +941,7 @@ func (og *operationGenerator) GenerateMapVolumeFunc(
 	affinityErr := checkNodeAffinity(og, volumeToMount)
 	if affinityErr != nil {
 		eventErr, detailedErr := volumeToMount.GenerateError("MapVolume.NodeAffinity check failed", affinityErr)
-		og.recorder.Eventf(volumeToMount.Pod, v1.EventTypeWarning, kevents.FailedMountVolume, eventErr.Error())
+		og.recorder.Event(volumeToMount.Pod, v1.EventTypeWarning, kevents.FailedMountVolume, eventErr.Error())
 		return volumetypes.GeneratedOperations{}, detailedErr
 	}
 	blockVolumeMapper, newMapperErr := blockVolumePlugin.NewBlockVolumeMapper(
@@ -949,7 +949,7 @@ func (og *operationGenerator) GenerateMapVolumeFunc(
 		volumeToMount.Pod)
 	if newMapperErr != nil {
 		eventErr, detailedErr := volumeToMount.GenerateError("MapVolume.NewBlockVolumeMapper initialization failed", newMapperErr)
-		og.recorder.Eventf(volumeToMount.Pod, v1.EventTypeWarning, kevents.FailedMapVolume, eventErr.Error())
+		og.recorder.Event(volumeToMount.Pod, v1.EventTypeWarning, kevents.FailedMapVolume, eventErr.Error())
 		return volumetypes.GeneratedOperations{}, detailedErr
 	}
 
@@ -1145,7 +1145,7 @@ func (og *operationGenerator) GenerateMapVolumeFunc(
 
 	eventRecorderFunc := func(err *error) {
 		if *err != nil {
-			og.recorder.Eventf(volumeToMount.Pod, v1.EventTypeWarning, kevents.FailedMapVolume, (*err).Error())
+			og.recorder.Event(volumeToMount.Pod, v1.EventTypeWarning, kevents.FailedMapVolume, (*err).Error())
 		}
 	}
 
@@ -1597,7 +1597,7 @@ func (og *operationGenerator) GenerateExpandVolumeFunc(
 
 	eventRecorderFunc := func(err *error) {
 		if *err != nil {
-			og.recorder.Eventf(pvc, v1.EventTypeWarning, kevents.VolumeResizeFailed, (*err).Error())
+			og.recorder.Event(pvc, v1.EventTypeWarning, kevents.VolumeResizeFailed, (*err).Error())
 		}
 	}
 
@@ -1642,7 +1642,7 @@ func (og *operationGenerator) GenerateExpandAndRecoverVolumeFunc(
 
 	eventRecorderFunc := func(err *error) {
 		if *err != nil {
-			og.recorder.Eventf(pvc, v1.EventTypeWarning, kevents.VolumeResizeFailed, (*err).Error())
+			og.recorder.Event(pvc, v1.EventTypeWarning, kevents.VolumeResizeFailed, (*err).Error())
 		}
 	}
 
@@ -1918,7 +1918,7 @@ func (og *operationGenerator) GenerateExpandInUseVolumeFunc(
 
 	eventRecorderFunc := func(err *error) {
 		if *err != nil {
-			og.recorder.Eventf(volumeToMount.Pod, v1.EventTypeWarning, kevents.VolumeResizeFailed, (*err).Error())
+			og.recorder.Event(volumeToMount.Pod, v1.EventTypeWarning, kevents.VolumeResizeFailed, (*err).Error())
 		}
 	}
 

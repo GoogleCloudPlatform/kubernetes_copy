@@ -576,7 +576,7 @@ func (jm *ControllerV2) syncCronJob(
 		// With replace, we could use a name that is deterministic per execution time.
 		// But that would mean that you could not inspect prior successes or failures of Forbid jobs.
 		logger.V(4).Info("Not starting job because prior execution is still running and concurrency policy is Forbid", "cronjob", klog.KObj(cronJob))
-		jm.recorder.Eventf(cronJob, corev1.EventTypeNormal, "JobAlreadyActive", "Not starting job because prior execution is running and concurrency policy is Forbid")
+		jm.recorder.Event(cronJob, corev1.EventTypeNormal, "JobAlreadyActive", "Not starting job because prior execution is running and concurrency policy is Forbid")
 		t := nextScheduleTimeDuration(cronJob, now, sched)
 		return t, updateStatus, nil
 	}

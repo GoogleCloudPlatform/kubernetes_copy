@@ -273,7 +273,7 @@ func (dc *DeploymentController) getNewReplicaSet(ctx context.Context, d *apps.De
 			// these reasons as well. Related issue: https://github.com/kubernetes/kubernetes/issues/18568
 			_, _ = dc.client.AppsV1().Deployments(d.Namespace).UpdateStatus(ctx, d, metav1.UpdateOptions{})
 		}
-		dc.eventRecorder.Eventf(d, v1.EventTypeWarning, deploymentutil.FailedRSCreateReason, msg)
+		dc.eventRecorder.Event(d, v1.EventTypeWarning, deploymentutil.FailedRSCreateReason, msg)
 		return nil, err
 	}
 	if !alreadyExists && newReplicasCount > 0 {

@@ -1527,7 +1527,7 @@ func (kl *Kubelet) StartGarbageCollection() {
 		ctx := context.Background()
 		if err := kl.containerGC.GarbageCollect(ctx); err != nil {
 			klog.ErrorS(err, "Container garbage collection failed")
-			kl.recorder.Eventf(kl.nodeRef, v1.EventTypeWarning, events.ContainerGCFailed, err.Error())
+			kl.recorder.Event(kl.nodeRef, v1.EventTypeWarning, events.ContainerGCFailed, err.Error())
 			loggedContainerGCFailure = true
 		} else {
 			var vLevel klog.Level = 4
@@ -1556,7 +1556,7 @@ func (kl *Kubelet) StartGarbageCollection() {
 			if prevImageGCFailed {
 				klog.ErrorS(err, "Image garbage collection failed multiple times in a row")
 				// Only create an event for repeated failures
-				kl.recorder.Eventf(kl.nodeRef, v1.EventTypeWarning, events.ImageGCFailed, err.Error())
+				kl.recorder.Event(kl.nodeRef, v1.EventTypeWarning, events.ImageGCFailed, err.Error())
 			} else {
 				klog.ErrorS(err, "Image garbage collection failed once. Stats initialization may not have completed yet")
 			}
@@ -1722,7 +1722,7 @@ func (kl *Kubelet) Run(updates <-chan kubetypes.PodUpdate) {
 	}
 
 	if err := kl.initializeModules(); err != nil {
-		kl.recorder.Eventf(kl.nodeRef, v1.EventTypeWarning, events.KubeletSetupFailed, err.Error())
+		kl.recorder.Event(kl.nodeRef, v1.EventTypeWarning, events.KubeletSetupFailed, err.Error())
 		klog.ErrorS(err, "Failed to initialize internal modules")
 		os.Exit(1)
 	}
@@ -2331,7 +2331,7 @@ func (kl *Kubelet) deletePod(pod *v1.Pod) error {
 // rejectPod records an event about the pod with the given reason and message,
 // and updates the pod to the failed phase in the status manager.
 func (kl *Kubelet) rejectPod(pod *v1.Pod, reason, message string) {
-	kl.recorder.Eventf(pod, v1.EventTypeWarning, reason, message)
+	kl.recorder.Event(pod, v1.EventTypeWarning, reason, message)
 	kl.statusManager.SetPodStatus(pod, v1.PodStatus{
 		QOSClass: v1qos.GetPodQOS(pod), // keep it as is
 		Phase:    v1.PodFailed,
@@ -2947,9 +2947,9 @@ func (kl *Kubelet) handlePodResourcesResize(pod *v1.Pod, podStatus *kubecontaine
 		if resizeMsg != "" {
 			switch resizeStatus {
 			case v1.PodResizeStatusDeferred:
-				kl.recorder.Eventf(pod, v1.EventTypeWarning, events.ResizeDeferred, resizeMsg)
+				kl.recorder.Event(pod, v1.EventTypeWarning, events.ResizeDeferred, resizeMsg)
 			case v1.PodResizeStatusInfeasible:
-				kl.recorder.Eventf(pod, v1.EventTypeWarning, events.ResizeInfeasible, resizeMsg)
+				kl.recorder.Event(pod, v1.EventTypeWarning, events.ResizeInfeasible, resizeMsg)
 			}
 		}
 	}
@@ -3035,7 +3035,7 @@ func (kl *Kubelet) GetConfiguration() kubeletconfiginternal.KubeletConfiguration
 // BirthCry sends an event that the kubelet has started up.
 func (kl *Kubelet) BirthCry() {
 	// Make an event that kubelet restarted.
-	kl.recorder.Eventf(kl.nodeRef, v1.EventTypeNormal, events.StartingKubelet, "Starting kubelet.")
+	kl.recorder.Event(kl.nodeRef, v1.EventTypeNormal, events.StartingKubelet, "Starting kubelet.")
 }
 
 // ListenAndServe runs the kubelet HTTP server.

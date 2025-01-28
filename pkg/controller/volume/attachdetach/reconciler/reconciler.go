@@ -391,7 +391,7 @@ func (rc *reconciler) reportMultiAttachError(logger klog.Logger, volumeToAttach 
 		// We did not find any pods that requests the volume. The pod must have been deleted already.
 		simpleMsg, _ := volumeToAttach.GenerateMsg("Multi-Attach error", "Volume is already exclusively attached to one node and can't be attached to another")
 		for _, pod := range volumeToAttach.ScheduledPods {
-			rc.recorder.Eventf(pod, v1.EventTypeWarning, kevents.FailedAttachVolume, simpleMsg)
+			rc.recorder.Event(pod, v1.EventTypeWarning, kevents.FailedAttachVolume, simpleMsg)
 		}
 		// Log detailed message to system admin
 		logger.Info("Multi-Attach error: volume is already exclusively attached and can't be attached to another node", "attachedTo", otherNodesStr, "volume", volumeToAttach)
@@ -426,7 +426,7 @@ func (rc *reconciler) reportMultiAttachError(logger klog.Logger, volumeToAttach 
 			msg = fmt.Sprintf("Volume is already used by %d pod(s) in different namespaces", otherPods)
 		}
 		simpleMsg, _ := volumeToAttach.GenerateMsg("Multi-Attach error", msg)
-		rc.recorder.Eventf(scheduledPod, v1.EventTypeWarning, kevents.FailedAttachVolume, simpleMsg)
+		rc.recorder.Event(scheduledPod, v1.EventTypeWarning, kevents.FailedAttachVolume, simpleMsg)
 	}
 
 	// Log all pods for system admin

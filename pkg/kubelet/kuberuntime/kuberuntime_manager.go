@@ -1125,7 +1125,7 @@ func (m *kubeGenericRuntimeManager) SyncPod(ctx context.Context, pod *v1.Pod, po
 			klog.ErrorS(err, "Couldn't make a ref to pod", "pod", klog.KObj(pod))
 		}
 		if podContainerChanges.SandboxID != "" {
-			m.recorder.Eventf(ref, v1.EventTypeNormal, events.SandboxChanged, "Pod sandbox changed, it will be killed and re-created.")
+			m.recorder.Event(ref, v1.EventTypeNormal, events.SandboxChanged, "Pod sandbox changed, it will be killed and re-created.")
 		} else {
 			klog.V(4).InfoS("SyncPod received new pod, will create a sandbox for it", "pod", klog.KObj(pod))
 		}
@@ -1506,7 +1506,7 @@ func (m *kubeGenericRuntimeManager) doBackOff(pod *v1.Pod, container *v1.Contain
 	key := GetStableKey(pod, container)
 	if backOff.IsInBackOffSince(key, ts) {
 		if containerRef, err := kubecontainer.GenerateContainerRef(pod, container); err == nil {
-			m.recorder.Eventf(containerRef, v1.EventTypeWarning, events.BackOffStartContainer,
+			m.recorder.Event(containerRef, v1.EventTypeWarning, events.BackOffStartContainer,
 				fmt.Sprintf("Back-off restarting failed container %s in pod %s", container.Name, format.Pod(pod)))
 		}
 		err := fmt.Errorf("back-off %s restarting failed container=%s pod=%s", backOff.Get(key), container.Name, format.Pod(pod))
