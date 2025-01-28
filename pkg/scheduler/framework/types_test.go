@@ -351,8 +351,8 @@ func TestNewNodeInfo(t *testing.T) {
 		t.Errorf("Generation is not incremented. previous: %v, current: %v", gen, ni.Generation)
 	}
 	expected.Generation = ni.Generation
-	if !reflect.DeepEqual(expected, ni) {
-		t.Errorf("expected: %#v, got: %#v", expected, ni)
+	if diff := cmp.Diff(expected, ni, cmp.AllowUnexported(NodeInfo{}, PodInfo{}, podResource{})); diff != "" {
+		t.Errorf("Unexpected nodeInfo: (-want, +got): %s", diff)
 	}
 }
 
