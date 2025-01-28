@@ -63,8 +63,8 @@ type mux interface {
 	Handle(path string, handler http.Handler)
 }
 
-func NewRegistry(componentGlobalsRegistry compatibility.ComponentGlobalsRegistry) statuszRegistry {
-	return &registry{componentGlobalsRegistry: componentGlobalsRegistry}
+func NewRegistry(effectiveVersion compatibility.EffectiveVersion) statuszRegistry {
+	return &registry{effectiveVersion: effectiveVersion}
 }
 
 func Install(m mux, componentName string, reg statuszRegistry) {

@@ -35,7 +35,8 @@ type statuszRegistry interface {
 }
 
 type registry struct {
-	componentGlobalsRegistry compatibility.ComponentGlobalsRegistry
+	// componentGlobalsRegistry compatibility.ComponentGlobalsRegistry
+	effectiveVersion compatibility.EffectiveVersion
 }
 
 func (*registry) processStartTime() time.Time {
@@ -52,22 +53,15 @@ func (*registry) goVersion() string {
 }
 
 func (r *registry) binaryVersion() *version.Version {
-	if r.componentGlobalsRegistry != nil {
-		effectiveVer := r.componentGlobalsRegistry.EffectiveVersionFor(compatibility.DefaultKubeComponent)
-		if effectiveVer != nil {
-			return effectiveVer.BinaryVersion()
-		}
+	if r.effectiveVersion != nil {
+		return r.effectiveVersion.BinaryVersion()
 	}
 	return version.MustParse(utilversion.Get().String())
 }
 
 func (r *registry) emulationVersion() *version.Version {
-	if r.componentGlobalsRegistry == nil {
-		return nil
-	}
-	effectiveVer := r.componentGlobalsRegistry.EffectiveVersionFor(compatibility.DefaultKubeComponent)
-	if effectiveVer != nil {
-		return effectiveVer.EmulationVersion()
+	if r.effectiveVersion != nil {
+		return r.effectiveVersion.EmulationVersion()
 	}
 
 	return nil

@@ -20,10 +20,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/version"
 	"k8s.io/component-base/compatibility"
-	"k8s.io/component-base/featuregate"
 	utilversion "k8s.io/component-base/version"
 )
 
@@ -47,15 +45,13 @@ func TestBinaryVersion(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		componentGlobalsRegistry := compatibility.NewComponentGlobalsRegistry()
 		t.Run(tt.name, func(t *testing.T) {
+			registry := &registry{}
 			if tt.setFakeEffectiveVersion {
 				verKube := compatibility.NewEffectiveVersionFromString(tt.fakeVersion)
-				fg := featuregate.NewVersionedFeatureGate(version.MustParse(tt.fakeVersion))
-				utilruntime.Must(componentGlobalsRegistry.Register(compatibility.DefaultKubeComponent, verKube, fg))
+				registry.effectiveVersion = verKube
 			}
 
-			registry := &registry{componentGlobalsRegistry: componentGlobalsRegistry}
 			got := registry.binaryVersion()
 			assert.Equal(t, tt.wantBinaryVersion, got)
 		})
@@ -82,16 +78,14 @@ func TestEmulationVersion(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		componentGlobalsRegistry := compatibility.NewComponentGlobalsRegistry()
 		t.Run(tt.name, func(t *testing.T) {
+			registry := &registry{}
 			if tt.setFakeEffectiveVersion {
 				verKube := compatibility.NewEffectiveVersionFromString("0.0.0")
 				verKube.SetEmulationVersion(version.MustParse(tt.fakeEmulVer))
-				fg := featuregate.NewVersionedFeatureGate(version.MustParse(tt.fakeEmulVer))
-				utilruntime.Must(componentGlobalsRegistry.Register(compatibility.DefaultKubeComponent, verKube, fg))
+				registry.effectiveVersion = verKube
 			}
 
-			registry := &registry{componentGlobalsRegistry: componentGlobalsRegistry}
 			got := registry.emulationVersion()
 			if tt.wantEmul != nil && got != nil {
 				assert.Equal(t, tt.wantEmul.Major(), got.Major())

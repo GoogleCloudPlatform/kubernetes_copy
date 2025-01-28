@@ -566,7 +566,7 @@ func (s *Server) InstallDebuggingHandlers() {
 
 	if utilfeature.DefaultFeatureGate.Enabled(zpagesfeatures.ComponentStatusz) {
 		s.addMetricsBucketMatcher("statusz")
-		statusz.Install(s.restfulCont, ComponentKubelet, statusz.NewRegistry(compatibility.DefaultComponentGlobalsRegistry))
+		statusz.Install(s.restfulCont, ComponentKubelet, statusz.NewRegistry(compatibility.DefaultBuildEffectiveVersion()))
 	}
 
 	// The /runningpods endpoint is used for testing only.
