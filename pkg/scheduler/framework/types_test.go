@@ -18,6 +18,7 @@ package framework
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -350,7 +351,7 @@ func TestNewNodeInfo(t *testing.T) {
 		t.Errorf("Generation is not incremented. previous: %v, current: %v", gen, ni.Generation)
 	}
 	expected.Generation = ni.Generation
-	if diff := cmp.Diff(expected, ni); diff != "" {
+	if !reflect.DeepEqual(expected, ni) {
 		t.Errorf("expected: %#v, got: %#v", expected, ni)
 	}
 }
@@ -551,7 +552,7 @@ func TestNodeInfoClone(t *testing.T) {
 			// Modify the field to check if the result is a clone of the origin one.
 			test.nodeInfo.Generation += 10
 			test.nodeInfo.UsedPorts.Remove("127.0.0.1", "TCP", 80)
-			if diff := cmp.Diff(test.expected, ni); diff != "" {
+			if !reflect.DeepEqual(test.expected, ni) {
 				t.Errorf("expected: %#v, got: %#v", test.expected, ni)
 			}
 		})
@@ -1205,7 +1206,7 @@ func TestNodeInfoRemovePod(t *testing.T) {
 			}
 
 			test.expectedNodeInfo.Generation = ni.Generation
-			if diff := cmp.Diff(test.expectedNodeInfo, ni); diff != "" {
+			if !reflect.DeepEqual(test.expectedNodeInfo, ni) {
 				t.Errorf("expected: %#v, got: %#v", test.expectedNodeInfo, ni)
 			}
 		})
@@ -1866,7 +1867,7 @@ func TestPodInfoCalculateResources(t *testing.T) {
 				},
 			}
 			res := podInfo.calculateResource()
-			if diff := cmp.Diff(tc.expectedResource, res); diff != "" {
+			if diff := cmp.Diff(tc.expectedResource, res, cmp.AllowUnexported(podResource{})); diff != "" {
 				t.Errorf("Test: %s expected resource: %+v, got: %+v", tc.name, tc.expectedResource, res.resource)
 			}
 		})
@@ -2064,7 +2065,7 @@ func TestCalculatePodResourcesWithResize(t *testing.T) {
 				tt.resizeStatus)
 
 			res := podInfo.calculateResource()
-			if diff := cmp.Diff(tt.expectedResource, res); diff != "" {
+			if diff := cmp.Diff(tt.expectedResource, res, cmp.AllowUnexported(podResource{})); diff != "" {
 				t.Errorf("Test: %s expected resource: %+v, got: %+v", tt.name, tt.expectedResource, res.resource)
 			}
 		})
