@@ -233,7 +233,6 @@ func NewKubeControllerManagerOptions() (*KubeControllerManagerOptions, error) {
 	s.GarbageCollectorController.GCIgnoredResources = gcIgnoredResources
 	s.Generic.LeaderElection.ResourceName = "kube-controller-manager"
 	s.Generic.LeaderElection.ResourceNamespace = "kube-system"
-
 	return &s, nil
 }
 
@@ -500,10 +499,11 @@ func (s KubeControllerManagerOptions) Config(allControllers []string, disabledBy
 	eventRecorder := eventBroadcaster.NewRecorder(clientgokubescheme.Scheme, v1.EventSource{Component: KubeControllerManagerUserAgent})
 
 	c := &kubecontrollerconfig.Config{
-		Client:           client,
-		Kubeconfig:       kubeconfig,
-		EventBroadcaster: eventBroadcaster,
-		EventRecorder:    eventRecorder,
+		Client:                   client,
+		Kubeconfig:               kubeconfig,
+		EventBroadcaster:         eventBroadcaster,
+		EventRecorder:            eventRecorder,
+		ComponentGlobalsRegistry: s.ComponentGlobalsRegistry,
 	}
 	if err := s.ApplyTo(c, allControllers, disabledByDefaultControllers, controllerAliases); err != nil {
 		return nil, err

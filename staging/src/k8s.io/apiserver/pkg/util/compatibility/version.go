@@ -30,11 +30,11 @@ var minimumKubeEmulationVersion *version.Version = version.MajorMinor(1, 31)
 // current build information.
 func DefaultBuildEffectiveVersion() basecompatibility.MutableEffectiveVersion {
 	binaryVersion := defaultBuildBinaryVersion()
+	effectiveVersion := basecompatibility.NewEffectiveVersion(binaryVersion, true)
 	// fall back to the hard coded kube version only when the git tag is not available for local unit tests.
 	if binaryVersion.Major() == 0 && binaryVersion.Minor() == 0 {
-		binaryVersion = version.MustParse(baseversion.DefaultKubeBinaryVersion)
+		effectiveVersion = basecompatibility.NewEffectiveVersionFromString(baseversion.DefaultKubeBinaryVersion)
 	}
-	effectiveVersion := basecompatibility.NewEffectiveVersion(binaryVersion, true)
 	return withKubeEffectiveVersionFloors(effectiveVersion)
 }
 

@@ -337,6 +337,7 @@ func (o *Options) Config(ctx context.Context) (*schedulerappconfig.Config, error
 	dynClient := dynamic.NewForConfigOrDie(c.KubeConfig)
 	c.DynInformerFactory = dynamicinformer.NewFilteredDynamicSharedInformerFactory(dynClient, 0, corev1.NamespaceAll, nil)
 	c.LeaderElection = leaderElectionConfig
+	c.ComponentGlobalsRegistry = o.ComponentGlobalsRegistry
 
 	return c, nil
 }
