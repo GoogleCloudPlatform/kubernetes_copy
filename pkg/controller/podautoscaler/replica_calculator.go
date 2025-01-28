@@ -362,12 +362,12 @@ func (c *ReplicaCalculator) GetExternalPerPodMetricReplicas(statusReplicas int32
 	}
 	usage = 0
 	for _, val := range metrics {
+		usage = usage + val
 		// Check for overflow in summation
-		if val > math.MaxInt64-usage {
+		if usage < 0 {
 			usage = math.MaxInt64
 			break
 		}
-		usage = usage + val
 	}
 
 	replicaCount = statusReplicas
