@@ -35,9 +35,9 @@ import (
 // Tests aiming for full coverage of versions should test fixtures of all supported versions.
 func GetSupportedEmulatedVersions() []string {
 	return []string{
-		compatibility.DefaultKubeEffectiveVersion().BinaryVersion().SubtractMinor(2).String(),
-		compatibility.DefaultKubeEffectiveVersion().BinaryVersion().SubtractMinor(1).String(),
-		compatibility.DefaultKubeEffectiveVersion().BinaryVersion().String(),
+		compatibility.DefaultKubeEffectiveVersionForTest().BinaryVersion().SubtractMinor(2).String(),
+		compatibility.DefaultKubeEffectiveVersionForTest().BinaryVersion().SubtractMinor(1).String(),
+		compatibility.DefaultKubeEffectiveVersionForTest().BinaryVersion().String(),
 	}
 }
 

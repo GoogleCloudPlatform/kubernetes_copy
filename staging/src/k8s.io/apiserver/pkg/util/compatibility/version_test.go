@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	"k8s.io/apimachinery/pkg/util/version"
+	basecompatibility "k8s.io/component-base/compatibility"
 )
 
 func TestValidateKubeEffectiveVersion(t *testing.T) {
@@ -57,8 +58,7 @@ func TestValidateKubeEffectiveVersion(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-
-			effective := DefaultBuildEffectiveVersion()
+			effective := withKubeEffectiveVersionFloors(basecompatibility.NewEffectiveVersionFromString("1.33"))
 			effective.SetEmulationVersion(version.MustParseGeneric(test.emulationVersion))
 			effective.SetMinCompatibilityVersion(version.MustParseGeneric(test.minCompatibilityVersion))
 

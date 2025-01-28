@@ -26,7 +26,7 @@ import (
 )
 
 func TestWardleEmulationVersionToKubeEmulationVersion(t *testing.T) {
-	defaultKubeEffectiveVersion := compatibility.DefaultKubeEffectiveVersion()
+	defaultKubeEffectiveVersion := compatibility.DefaultKubeEffectiveVersionForTest()
 
 	testCases := []struct {
 		desc                     string

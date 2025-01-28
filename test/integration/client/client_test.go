@@ -84,7 +84,7 @@ func TestClient(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	expectedInfo := utilversion.Get()
-	kubeVersion := compatibility.DefaultKubeEffectiveVersion().BinaryVersion()
+	kubeVersion := compatibility.DefaultKubeEffectiveVersionForTest().BinaryVersion()
 	expectedInfo.Major = fmt.Sprintf("%d", kubeVersion.Major())
 	expectedInfo.Minor = fmt.Sprintf("%d", kubeVersion.Minor())
 
