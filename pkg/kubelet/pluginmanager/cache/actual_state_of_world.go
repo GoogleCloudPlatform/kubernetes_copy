@@ -89,6 +89,7 @@ type PluginInfo struct {
 	UUID       types.UID
 	Handler    PluginHandler
 	Name       string
+	Endpoint   string
 }
 
 func (asw *actualStateOfWorld) AddPlugin(pluginInfo PluginInfo) error {

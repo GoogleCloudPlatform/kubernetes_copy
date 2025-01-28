@@ -178,10 +178,10 @@ func (h *RegistrationHandler) RegisterPlugin(pluginName string, endpoint string,
 	// into all log output related to the plugin.
 	ctx := h.backgroundCtx
 	logger := klog.FromContext(ctx)
-	logger = klog.LoggerWithValues(logger, "pluginName", pluginName)
+	logger = klog.LoggerWithValues(logger, "pluginName", pluginName, "endpoint", endpoint)
 	ctx = klog.NewContext(ctx, logger)
 
-	logger.V(3).Info("Register new DRA plugin", "endpoint", endpoint)
+	logger.V(3).Info("Register new DRA plugin")
 
 	chosenService, err := h.validateSupportedServices(pluginName, supportedServices)
 	if err != nil {
@@ -209,9 +209,10 @@ func (h *RegistrationHandler) RegisterPlugin(pluginName string, endpoint string,
 
 	// Storing endpoint of newly registered DRA Plugin into the map, where plugin name will be the key
 	// all other DRA components will be able to get the actual socket of DRA plugins by its name.
-
-	if oldPlugin, replaced := draPlugins.add(pluginInstance); replaced {
-		logger.V(1).Info("DRA plugin already registered, the old plugin was replaced and will be forgotten by the kubelet till the next kubelet restart", "oldEndpoint", oldPlugin.endpoint)
+	if err := draPlugins.add(pluginInstance); err != nil {
+		cancel(err)
+		// No wrapping, the error already contains details.
+		return err
 	}
 
 	// Now cancel any pending ResourceSlice wiping for this plugin.
@@ -259,10 +260,14 @@ func (h *RegistrationHandler) validateSupportedServices(pluginName string, suppo
 
 // DeRegisterPlugin is called when a plugin has removed its socket,
 // signaling it is no longer available.
-func (h *RegistrationHandler) DeRegisterPlugin(pluginName string) {
-	if p := draPlugins.delete(pluginName); p != nil {
+func (h *RegistrationHandler) DeRegisterPlugin(pluginName, endpoint string) {
+	if p, last := draPlugins.remove(pluginName, endpoint); p != nil {
+		// This logger includes endpoint and pluginName.
 		logger := klog.FromContext(p.backgroundCtx)
-		logger.V(3).Info("Deregister DRA plugin", "endpoint", p.endpoint)
+		logger.V(3).Info("Deregister DRA plugin", "lastInstance", last)
+		if !last {
+			return
+		}
 
 		// Prepare for canceling the background wiping. This needs to run
 		// in the context of the registration handler, the one from

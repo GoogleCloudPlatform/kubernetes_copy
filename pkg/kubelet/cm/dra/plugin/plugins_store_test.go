@@ -22,6 +22,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestAddSameName(t *testing.T) {
@@ -30,26 +31,35 @@ func TestAddSameName(t *testing.T) {
 
 	firstWasCancelled := false
 	p := &Plugin{
-		name:   pluginName,
-		cancel: func(err error) { firstWasCancelled = true },
+		name:     pluginName,
+		endpoint: "old",
+		cancel:   func(err error) { firstWasCancelled = true },
 	}
 
 	// ensure the plugin we are using is registered
-	draPlugins.add(p)
-	defer draPlugins.delete(p.name)
+	require.NoError(t, draPlugins.add(p))
+	defer draPlugins.remove(p.name, p.endpoint)
 
 	assert.False(t, firstWasCancelled, "should not cancel context after the first call")
 
+	// Same name, same endpoint -> error.
+	require.Error(t, draPlugins.add(p))
+
 	secondWasCancelled := false
 	p2 := &Plugin{
-		name:   pluginName,
-		cancel: func(err error) { secondWasCancelled = true },
+		name:     pluginName,
+		endpoint: "new",
+		cancel:   func(err error) { secondWasCancelled = true },
 	}
+	require.NoError(t, draPlugins.add(p2))
+	defer draPlugins.remove(p2.name, p2.endpoint)
 
-	draPlugins.add(p2)
-	defer draPlugins.delete(p2.name)
+	assert.False(t, firstWasCancelled, "should not cancel context after registering the second instance")
+	assert.False(t, secondWasCancelled, "should not cancel context of a new plugin")
 
-	assert.True(t, firstWasCancelled, "should cancel context after the second call")
+	// Remove old plugin.
+	draPlugins.remove(p.name, p.endpoint)
+	assert.True(t, firstWasCancelled, "should have canceled context after the explicit removal")
 	assert.False(t, secondWasCancelled, "should not cancel context of a new plugin")
 }
 
@@ -65,7 +75,7 @@ func TestDelete(t *testing.T) {
 	// ensure the plugin we are using is registered
 	draPlugins.add(p)
 
-	draPlugins.delete(p.name)
+	draPlugins.remove(p.name, "")
 
 	assert.True(t, wasCancelled, "should cancel context after the second call")
 }

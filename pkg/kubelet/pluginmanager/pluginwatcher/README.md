@@ -28,8 +28,7 @@ To avoid downtime of a plugin on a node, it would be nice to support running an
 old plugin in parallel to the new plugin. When deploying with a DaemonSet,
 setting `maxSurge` to a value larger than zero enables such a seamless upgrade.
 
-**Warning**: Such a seamless upgrade **is not** supported at the moment. This
-section merely describes what would have to be changed to make it work.
+**Warning**: Such a seamless upgrade is only supported for DRA at the moment.
 
 ### In a plugin
 
@@ -65,7 +64,7 @@ isn't perfect because after a kubelet restart, plugin instances get registered
 in a random order. Restarting the kubelet in the middle of an upgrade should be
 rare.
 
-At the moment, none of the existing handlers support such seamless upgrades:
+At the moment, the following handlers do not support such seamless upgrades:
 
 - The device plugin handler suffers from temporarily removing the extended
   resources during an upgrade. A proposed fix is pending in
@@ -78,7 +77,9 @@ At the moment, none of the existing handlers support such seamless upgrades:
   from the csi-node-registrar as supported version, so this version
   selection mechanism isn't used at all.
 
-- The DRA handler only remembers the most recently registered instance.
+This supports it:
+
+- DRA
 
 ### Deployment
 

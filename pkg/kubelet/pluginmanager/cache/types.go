@@ -56,5 +56,5 @@ type PluginHandler interface {
 	RegisterPlugin(pluginName, endpoint string, versions []string, pluginClientTimeout *time.Duration) error
 	// DeRegisterPlugin is called once the pluginwatcher observes that the socket has
 	// been deleted.
-	DeRegisterPlugin(pluginName string)
+	DeRegisterPlugin(pluginName, endpoint string)
 }

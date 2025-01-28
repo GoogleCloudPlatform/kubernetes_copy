@@ -43,8 +43,8 @@ func (s *server) RegisterPlugin(pluginName string, endpoint string, versions []s
 	return s.connectClient(pluginName, endpoint)
 }
 
-func (s *server) DeRegisterPlugin(pluginName string) {
-	klog.V(2).InfoS("Deregistering plugin", "plugin", pluginName)
+func (s *server) DeRegisterPlugin(pluginName, endpoint string) {
+	klog.V(2).InfoS("Deregistering plugin", "plugin", pluginName, "endpoint", endpoint)
 	client := s.getClient(pluginName)
 	if client != nil {
 		s.disconnectClient(pluginName, client)
@@ -86,7 +86,6 @@ func (s *server) disconnectClient(name string, c Client) error {
 	s.deregisterClient(name)
 	return c.Disconnect()
 }
-
 func (s *server) registerClient(name string, c Client) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()

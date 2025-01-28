@@ -54,7 +54,7 @@ func newFakePluginHandler() *fakePluginHandler {
 func (f *fakePluginHandler) ValidatePlugin(pluginName string, endpoint string, versions []string) error {
 	f.Lock()
 	defer f.Unlock()
-	f.events = append(f.events, "validate "+pluginName)
+	f.events = append(f.events, "validate "+pluginName+" "+endpoint)
 	return nil
 }
 
@@ -62,15 +62,15 @@ func (f *fakePluginHandler) ValidatePlugin(pluginName string, endpoint string, v
 func (f *fakePluginHandler) RegisterPlugin(pluginName, endpoint string, versions []string, pluginClientTimeout *time.Duration) error {
 	f.Lock()
 	defer f.Unlock()
-	f.events = append(f.events, "register "+pluginName)
+	f.events = append(f.events, "register "+pluginName+" "+endpoint)
 	return nil
 }
 
 // DeRegisterPlugin is a fake method
-func (f *fakePluginHandler) DeRegisterPlugin(pluginName string) {
+func (f *fakePluginHandler) DeRegisterPlugin(pluginName, endpoint string) {
 	f.Lock()
 	defer f.Unlock()
-	f.events = append(f.events, "deregister "+pluginName)
+	f.events = append(f.events, "deregister "+pluginName+" "+endpoint)
 }
 
 func (f *fakePluginHandler) Reset() {
@@ -93,8 +93,24 @@ func cleanup(t *testing.T) {
 	os.MkdirAll(socketDir, 0755)
 }
 
-func waitForRegistration(t *testing.T, fakePluginHandler *fakePluginHandler, pluginName string) {
-	expected := []string{"validate " + pluginName, "register " + pluginName}
+func waitForRegistration(t *testing.T, fakePluginHandler *fakePluginHandler, pluginName, endpoint string) {
+	t.Helper()
+	waitFor(t, fakePluginHandler,
+		[]string{"validate " + pluginName + " " + endpoint, "register " + pluginName + " " + endpoint},
+		"Timed out waiting for plugin to be added to actual state of world cache.",
+	)
+}
+
+func waitForDeRegistration(t *testing.T, fakePluginHandler *fakePluginHandler, pluginName, endpoint string) {
+	t.Helper()
+	waitFor(t, fakePluginHandler,
+		[]string{"deregister " + pluginName + " " + endpoint},
+		"Timed out waiting for plugin to be removed from actual state of the world cache.",
+	)
+}
+
+func waitFor(t *testing.T, fakePluginHandler *fakePluginHandler, expected []string, what string) {
+	t.Helper()
 	err := retryWithExponentialBackOff(
 		100*time.Millisecond,
 		func() (bool, error) {
@@ -108,7 +124,7 @@ func waitForRegistration(t *testing.T, fakePluginHandler *fakePluginHandler, plu
 		},
 	)
 	if err != nil {
-		t.Fatalf("Timed out waiting for plugin to be added to actual state of world cache.")
+		t.Fatal(what)
 	}
 }
 
@@ -122,7 +138,7 @@ func retryWithExponentialBackOff(initialDuration time.Duration, fn wait.Conditio
 	return wait.ExponentialBackoff(backoff, fn)
 }
 
-func TestPluginRegistration(t *testing.T) {
+func TestPluginManager(t *testing.T) {
 	defer cleanup(t)
 
 	pluginManager := newTestPluginManager(socketDir)
@@ -157,7 +173,12 @@ func TestPluginRegistration(t *testing.T) {
 		require.NoError(t, p.Serve("v1beta1", "v1beta2"))
 
 		// Verify that the plugin is registered
-		waitForRegistration(t, fakeHandler, pluginName)
+		waitForRegistration(t, fakeHandler, pluginName, socketPath)
+
+		// And unregister.
+		fakeHandler.Reset()
+		require.NoError(t, p.Stop())
+		waitForDeRegistration(t, fakeHandler, pluginName, socketPath)
 	}
 }
 

@@ -132,7 +132,7 @@ func (d *DummyImpl) RegisterPlugin(pluginName string, endpoint string, versions 
 }
 
 // DeRegisterPlugin is a dummy implementation
-func (d *DummyImpl) DeRegisterPlugin(pluginName string) {
+func (d *DummyImpl) DeRegisterPlugin(pluginName, endpoint string) {
 }
 
 // Calls Run()

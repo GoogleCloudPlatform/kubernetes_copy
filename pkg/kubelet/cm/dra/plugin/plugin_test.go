@@ -136,7 +136,7 @@ func TestGRPCConnIsReused(t *testing.T) {
 
 	// ensure the plugin we are using is registered
 	draPlugins.add(p)
-	defer draPlugins.delete(pluginName)
+	defer draPlugins.remove(pluginName, addr)
 
 	// we call `NodePrepareResource` 2 times and check whether a new connection is created or the same is reused
 	for i := 0; i < 2; i++ {
@@ -210,7 +210,7 @@ func TestNewDRAPluginClient(t *testing.T) {
 			setup: func(name string) tearDown {
 				draPlugins.add(&Plugin{name: name})
 				return func() {
-					draPlugins.delete(name)
+					draPlugins.remove(name, "")
 				}
 			},
 			pluginName: "dummy-plugin",
@@ -298,7 +298,7 @@ func TestGRPCMethods(t *testing.T) {
 			}
 
 			draPlugins.add(p)
-			defer draPlugins.delete(pluginName)
+			defer draPlugins.remove(pluginName, addr)
 
 			client, err := NewDRAPluginClient(pluginName)
 			if err != nil {

@@ -118,6 +118,7 @@ func (og *operationGenerator) GenerateRegisterPluginFunc(
 			UUID:       pluginUUID,
 			Handler:    handler,
 			Name:       infoResp.Name,
+			Endpoint:   infoResp.Endpoint,
 		})
 		if err != nil {
 			klog.ErrorS(err, "RegisterPlugin error -- failed to add plugin", "path", socketPath)
@@ -147,7 +148,7 @@ func (og *operationGenerator) GenerateUnregisterPluginFunc(
 		// so that if we receive a register event during Register Plugin, we can process it as a Register call.
 		actualStateOfWorldUpdater.RemovePlugin(pluginInfo.SocketPath)
 
-		pluginInfo.Handler.DeRegisterPlugin(pluginInfo.Name)
+		pluginInfo.Handler.DeRegisterPlugin(pluginInfo.Name, pluginInfo.Endpoint)
 
 		klog.V(4).InfoS("DeRegisterPlugin called", "pluginName", pluginInfo.Name, "pluginHandler", pluginInfo.Handler)
 		return nil
