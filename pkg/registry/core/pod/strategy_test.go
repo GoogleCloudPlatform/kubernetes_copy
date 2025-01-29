@@ -1789,6 +1789,214 @@ func Test_mutatePodAffinity(t *testing.T) {
 	}
 }
 
+func Test_mutateTopologySpreadConstraints(t *testing.T) {
+	tests := []struct {
+		name               string
+		pod                *api.Pod
+		wantPod            *api.Pod
+		featureGateEnabled bool
+	}{
+		{
+			name:               "matchLabelKeys are merged into labelSelector with In",
+			featureGateEnabled: true,
+			pod: &api.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"country": "Japan",
+						"city":    "Tokyo",
+					},
+				},
+				Spec: api.PodSpec{
+					TopologySpreadConstraints: []api.TopologySpreadConstraint{
+						{
+							MaxSkew:           1,
+							TopologyKey:       "kubernetes.io/hostname",
+							WhenUnsatisfiable: api.DoNotSchedule,
+							LabelSelector:     &metav1.LabelSelector{},
+							MatchLabelKeys:    []string{"country", "city"},
+						},
+					},
+				},
+			},
+			wantPod: &api.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"country": "Japan",
+						"city":    "Tokyo",
+					},
+				},
+				Spec: api.PodSpec{
+					TopologySpreadConstraints: []api.TopologySpreadConstraint{
+						{
+							MaxSkew:           1,
+							TopologyKey:       "kubernetes.io/hostname",
+							WhenUnsatisfiable: api.DoNotSchedule,
+							LabelSelector: &metav1.LabelSelector{
+								MatchExpressions: []metav1.LabelSelectorRequirement{
+									{
+										Key:      "country",
+										Operator: metav1.LabelSelectorOpIn,
+										Values:   []string{"Japan"},
+									},
+									{
+										Key:      "city",
+										Operator: metav1.LabelSelectorOpIn,
+										Values:   []string{"Tokyo"},
+									},
+								},
+							},
+							MatchLabelKeys: []string{"country", "city"},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:               "keys, which are not found in Pod labels, are ignored",
+			featureGateEnabled: true,
+			pod: &api.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"country": "Japan",
+						"city":    "Tokyo",
+					},
+				},
+				Spec: api.PodSpec{
+					TopologySpreadConstraints: []api.TopologySpreadConstraint{
+						{
+							MaxSkew:           1,
+							TopologyKey:       "kubernetes.io/hostname",
+							WhenUnsatisfiable: api.DoNotSchedule,
+							LabelSelector:     &metav1.LabelSelector{},
+							MatchLabelKeys:    []string{"country", "not-found"},
+						},
+					},
+				},
+			},
+			wantPod: &api.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"country": "Japan",
+						"city":    "Tokyo",
+					},
+				},
+				Spec: api.PodSpec{
+					TopologySpreadConstraints: []api.TopologySpreadConstraint{
+						{
+							MaxSkew:           1,
+							TopologyKey:       "kubernetes.io/hostname",
+							WhenUnsatisfiable: api.DoNotSchedule,
+							LabelSelector: &metav1.LabelSelector{
+								MatchExpressions: []metav1.LabelSelectorRequirement{
+									{
+										Key:      "country",
+										Operator: metav1.LabelSelectorOpIn,
+										Values:   []string{"Japan"},
+									},
+								},
+							},
+							MatchLabelKeys: []string{"country", "not-found"},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:               "matchLabelKeys is ignored if the labelSelector is nil",
+			featureGateEnabled: true,
+			pod: &api.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"country": "Japan",
+						"city":    "Tokyo",
+					},
+				},
+				Spec: api.PodSpec{
+					TopologySpreadConstraints: []api.TopologySpreadConstraint{
+						{
+							MaxSkew:           1,
+							TopologyKey:       "kubernetes.io/hostname",
+							WhenUnsatisfiable: api.DoNotSchedule,
+							MatchLabelKeys:    []string{"country"},
+						},
+					},
+				},
+			},
+			wantPod: &api.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"country": "Japan",
+						"city":    "Tokyo",
+					},
+				},
+				Spec: api.PodSpec{
+					TopologySpreadConstraints: []api.TopologySpreadConstraint{
+						{
+							MaxSkew:           1,
+							TopologyKey:       "kubernetes.io/hostname",
+							WhenUnsatisfiable: api.DoNotSchedule,
+							MatchLabelKeys:    []string{"country"},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "the feature gate is disabled and matchLabelKeys is ignored",
+			pod: &api.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"country": "Japan",
+						"city":    "Tokyo",
+					},
+				},
+				Spec: api.PodSpec{
+					TopologySpreadConstraints: []api.TopologySpreadConstraint{
+						{
+							MaxSkew:           1,
+							TopologyKey:       "kubernetes.io/hostname",
+							WhenUnsatisfiable: api.DoNotSchedule,
+							LabelSelector:     &metav1.LabelSelector{},
+							MatchLabelKeys:    []string{"country", "city"},
+						},
+					},
+				},
+			},
+			wantPod: &api.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"country": "Japan",
+						"city":    "Tokyo",
+					},
+				},
+				Spec: api.PodSpec{
+					TopologySpreadConstraints: []api.TopologySpreadConstraint{
+						{
+							MaxSkew:           1,
+							TopologyKey:       "kubernetes.io/hostname",
+							WhenUnsatisfiable: api.DoNotSchedule,
+							LabelSelector:     &metav1.LabelSelector{},
+							MatchLabelKeys:    []string{"country", "city"},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.MatchLabelKeysInPodTopologySpread, tc.featureGateEnabled)
+
+			pod := tc.pod
+			mutateTopologySpreadConstraints(pod)
+			if diff := cmp.Diff(tc.wantPod.Spec.TopologySpreadConstraints, pod.Spec.TopologySpreadConstraints); diff != "" {
+				t.Errorf("unexpected TopologySpreadConstraints (-want, +got): %s\n", diff)
+			}
+		})
+	}
+}
+
 func TestPodLifecycleSleepActionEnablement(t *testing.T) {
 	getLifecycle := func(pod *api.Pod) *api.Lifecycle {
 		return pod.Spec.Containers[0].Lifecycle
