@@ -23,30 +23,33 @@ import (
 	"github.com/vishvananda/netlink"
 )
 
-// FakeInterface implements Interface by just recording entries that have been cleared.
-type FakeInterface struct {
+type fakeHandler struct {
+	tableType netlink.ConntrackTableType
+	ipFamily  netlink.InetFamily
+	filters   []*conntrackFilter
+
 	entries []*netlink.ConntrackFlow
 }
 
-var _ Interface = &FakeInterface{}
-
-// NewFake creates a new FakeInterface
-func NewFake() *FakeInterface {
-	return &FakeInterface{entries: make([]*netlink.ConntrackFlow, 0)}
-}
-
-// ListEntries is part of Interface
-func (fake *FakeInterface) ListEntries(_ uint8) ([]*netlink.ConntrackFlow, error) {
+// ConntrackTableList is part of netlinkHandler interface.
+func (fake *fakeHandler) ConntrackTableList(_ netlink.ConntrackTableType, _ netlink.InetFamily) ([]*netlink.ConntrackFlow, error) {
 	return fake.entries, nil
 }
 
-// ClearEntries is part of Interface
-func (fake *FakeInterface) ClearEntries(_ uint8, filters ...netlink.CustomConntrackFilter) (int, error) {
+// ConntrackDeleteFilters is part of netlinkHandler interface.
+func (fake *fakeHandler) ConntrackDeleteFilters(tableType netlink.ConntrackTableType, family netlink.InetFamily, netlinkFilters ...netlink.CustomConntrackFilter) (uint, error) {
+	fake.tableType = tableType
+	fake.ipFamily = family
+	fake.filters = make([]*conntrackFilter, 0, len(netlinkFilters))
+	for _, netlinkFilter := range netlinkFilters {
+		fake.filters = append(fake.filters, netlinkFilter.(*conntrackFilter))
+	}
+
 	var flows []*netlink.ConntrackFlow
 	before := len(fake.entries)
 	for _, flow := range fake.entries {
 		var matched bool
-		for _, filter := range filters {
+		for _, filter := range fake.filters {
 			matched = filter.MatchConntrackFlow(flow)
 			if matched {
 				break
@@ -57,5 +60,12 @@ func (fake *FakeInterface) ClearEntries(_ uint8, filters ...netlink.CustomConntr
 		}
 	}
 	fake.entries = flows
-	return before - len(fake.entries), nil
+	return uint(before - len(fake.entries)), nil
+}
+
+var _ netlinkHandler = (*fakeHandler)(nil)
+
+// NewFake creates a new FakeInterface
+func NewFake() Interface {
+	return &conntracker{handler: &fakeHandler{}}
 }

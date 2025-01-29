@@ -274,11 +274,13 @@ func TestCleanStaleEntries(t *testing.T) {
 		mockEntries = append(mockEntries, entry)
 	}
 
-	fake := NewFake()
+	fake := &fakeHandler{}
 	fake.entries = mockEntries
-	CleanStaleEntries(fake, testIPFamily, svcPortMap, endpointsMap)
 
-	actualEntries, _ := fake.ListEntries(ipFamilyMap[testIPFamily])
+	ct := newConntracker(fake)
+	CleanStaleEntries(ct, testIPFamily, svcPortMap, endpointsMap)
+
+	actualEntries, _ := ct.ListEntries(ipFamilyMap[testIPFamily])
 	require.Equal(t, len(expectedEntries), len(actualEntries))
 
 	// sort the actual flows before comparison
