@@ -38,6 +38,10 @@ import (
 	"k8s.io/kubernetes/test/utils/ktesting/initoption"
 )
 
+var cmpOpts = []cmp.Option{
+	cmp.AllowUnexported(NodeInfo{}, PodInfo{}, podResource{}),
+}
+
 func TestNewResource(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -350,7 +354,7 @@ func TestNewNodeInfo(t *testing.T) {
 		t.Errorf("Generation is not incremented. previous: %v, current: %v", gen, ni.Generation)
 	}
 	expected.Generation = ni.Generation
-	if diff := cmp.Diff(expected, ni, cmp.AllowUnexported(NodeInfo{}, PodInfo{}, podResource{})); diff != "" {
+	if diff := cmp.Diff(expected, ni, cmpOpts...); diff != "" {
 		t.Errorf("Unexpected nodeInfo: (-want, +got): %s", diff)
 	}
 }
@@ -551,7 +555,7 @@ func TestNodeInfoClone(t *testing.T) {
 			// Modify the field to check if the result is a clone of the origin one.
 			test.nodeInfo.Generation += 10
 			test.nodeInfo.UsedPorts.Remove("127.0.0.1", "TCP", 80)
-			if diff := cmp.Diff(test.expected, ni, cmp.AllowUnexported(NodeInfo{}, PodInfo{}, podResource{})); diff != "" {
+			if diff := cmp.Diff(test.expected, ni, cmpOpts...); diff != "" {
 				t.Errorf("Unexpected NodeInfo: (-want, +got): %s", diff)
 			}
 		})
@@ -891,7 +895,7 @@ func TestNodeInfoAddPod(t *testing.T) {
 	}
 
 	expected.Generation = ni.Generation
-	if diff := cmp.Diff(expected, ni, cmp.AllowUnexported(NodeInfo{}, PodInfo{}, podResource{})); diff != "" {
+	if diff := cmp.Diff(expected, ni, cmpOpts...); diff != "" {
 		t.Errorf("unexpected diff (-want, +got):\n%s", diff)
 	}
 }
@@ -1205,7 +1209,7 @@ func TestNodeInfoRemovePod(t *testing.T) {
 			}
 
 			test.expectedNodeInfo.Generation = ni.Generation
-			if diff := cmp.Diff(test.expectedNodeInfo, ni, cmp.AllowUnexported(NodeInfo{}, PodInfo{}, podResource{})); diff != "" {
+			if diff := cmp.Diff(test.expectedNodeInfo, ni, cmpOpts...); diff != "" {
 				t.Errorf("Unexpected NodeInfo: (-want, +got): %s", diff)
 			}
 		})
@@ -1866,8 +1870,8 @@ func TestPodInfoCalculateResources(t *testing.T) {
 				},
 			}
 			res := podInfo.calculateResource()
-			if diff := cmp.Diff(tc.expectedResource, res, cmp.AllowUnexported(podResource{})); diff != "" {
-				t.Errorf("Test: %s expected resource: %+v, got: %+v", tc.name, tc.expectedResource, res.resource)
+			if diff := cmp.Diff(tc.expectedResource, res, cmpOpts...); diff != "" {
+				t.Errorf("Unexpected resource (-want,+got):%s\n", diff)
 			}
 		})
 	}
@@ -2064,7 +2068,7 @@ func TestCalculatePodResourcesWithResize(t *testing.T) {
 				tt.resizeStatus)
 
 			res := podInfo.calculateResource()
-			if diff := cmp.Diff(tt.expectedResource, res, cmp.AllowUnexported(podResource{})); diff != "" {
+			if diff := cmp.Diff(tt.expectedResource, res, cmpOpts...); diff != "" {
 				t.Errorf("Unexpected podResource: (-want, +got): %s", diff)
 			}
 		})
