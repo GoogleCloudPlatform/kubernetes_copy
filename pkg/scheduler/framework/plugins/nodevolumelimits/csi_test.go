@@ -49,6 +49,15 @@ var (
 	scName = "csi-sc"
 )
 
+var cmpOpts = []cmp.Option{
+	cmp.Comparer(func(s1 *framework.Status, s2 *framework.Status) bool {
+		if s1 == nil || s2 == nil {
+			return s1.IsSuccess() && s2.IsSuccess()
+		}
+		return s1.Code() == s2.Code() && s1.Plugin() == s2.Plugin() && s1.Message() == s2.Message()
+	}),
+}
+
 func TestCSILimits(t *testing.T) {
 	runningPod := st.MakePod().PVC("csi-ebs.csi.aws.com-3").Obj()
 	pendingVolumePod := st.MakePod().PVC("csi-4").Obj()
@@ -636,12 +645,12 @@ func TestCSILimits(t *testing.T) {
 			}
 			_, ctx := ktesting.NewTestContext(t)
 			_, gotPreFilterStatus := p.PreFilter(ctx, nil, test.newPod)
-			if diff := cmp.Diff(test.wantPreFilterStatus, gotPreFilterStatus); diff != "" {
+			if diff := cmp.Diff(test.wantPreFilterStatus, gotPreFilterStatus, cmpOpts...); diff != "" {
 				t.Errorf("PreFilter status does not match (-want, +got): %s", diff)
 			}
 			if gotPreFilterStatus.Code() != framework.Skip {
 				gotStatus := p.Filter(ctx, nil, test.newPod, node)
-				if diff := cmp.Diff(gotStatus, test.wantStatus); diff != "" {
+				if diff := cmp.Diff(gotStatus, test.wantStatus, cmpOpts...); diff != "" {
 					t.Errorf("Filter status does not match: %v, want: %v", gotStatus, test.wantStatus)
 				}
 			}
