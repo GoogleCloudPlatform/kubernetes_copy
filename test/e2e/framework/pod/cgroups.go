@@ -33,9 +33,9 @@ import (
 
 const (
 	cgroupFsPath          string = "/sys/fs/cgroup"
-	cgroupCPUSharesFile   string = "cpu/cpu.shares"
-	cgroupCPUQuotaFile    string = "cpu/cpu.cfs_quota_us"
-	cgroupMemLimitFile    string = "memory/memory.limit_in_bytes"
+	cgroupCPUSharesFile   string = "cpu.shares"
+	cgroupCPUQuotaFile    string = "cpu.cfs_quota_us"
+	cgroupMemLimitFile    string = "memory.limit_in_bytes"
 	cgroupv2CPUWeightFile string = "cpu.weight"
 	cgroupv2CPULimitFile  string = "cpu.max"
 	cgroupv2MemLimitFile  string = "memory.max"
@@ -123,9 +123,13 @@ func ConfigureHostPathForPodCgroup(pod *v1.Pod) {
 	})
 }
 
-func getPodCgroupPath(f *framework.Framework, pod *v1.Pod) (string, error) {
+func getPodCgroupPath(f *framework.Framework, pod *v1.Pod, podOnCgroupv2 bool, subsystem string) (string, error) {
+	rootPath := cgroupMountPath
+	if !podOnCgroupv2 {
+		rootPath += "/" + subsystem
+	}
 	// search path for both systemd driver and cgroupfs driver
-	cmd := fmt.Sprintf("find %s -name '*%s*' -o -name '*%s*'", cgroupMountPath, strings.ReplaceAll(string(pod.UID), "-", "_"), string(pod.UID))
+	cmd := fmt.Sprintf("find %s -name '*%s*' -o -name '*%s*'", rootPath, strings.ReplaceAll(string(pod.UID), "-", "_"), string(pod.UID))
 	framework.Logf("Namespace %s Pod %s - looking for Pod cgroup directory path: %q", f.Namespace, pod.Name, cmd)
 	podCgPath, stderr, err := ExecCommandInContainerWithFullOutput(f, pod.Name, pod.Spec.Containers[0].Name, []string{"/bin/sh", "-c", cmd}...)
 	if podCgPath == "" {
@@ -227,15 +231,27 @@ func verifyMemoryLimit(f *framework.Framework, pod *v1.Pod, containerName, cgPat
 }
 
 func verifyContainerCPUWeight(f *framework.Framework, pod *v1.Pod, containerName string, expectedResources *v1.ResourceRequirements, podOnCgroupv2 bool) error {
-	return verifyCPUWeight(f, pod, containerName, cgroupFsPath, expectedResources, podOnCgroupv2)
+	path := cgroupFsPath
+	if !podOnCgroupv2 {
+		path += "/cpu"
+	}
+	return verifyCPUWeight(f, pod, containerName, path, expectedResources, podOnCgroupv2)
 }
 
 func VerifyContainerCPULimit(f *framework.Framework, pod *v1.Pod, containerName string, expectedResources *v1.ResourceRequirements, podOnCgroupv2 bool) error {
-	return verifyCPULimit(f, pod, containerName, cgroupFsPath, expectedResources, podOnCgroupv2)
+	path := cgroupFsPath
+	if !podOnCgroupv2 {
+		path += "/cpu"
+	}
+	return verifyCPULimit(f, pod, containerName, path, expectedResources, podOnCgroupv2)
 }
 
 func VerifyContainerMemoryLimit(f *framework.Framework, pod *v1.Pod, containerName string, expectedResources *v1.ResourceRequirements, podOnCgroupv2 bool) error {
-	return verifyMemoryLimit(f, pod, containerName, cgroupFsPath, expectedResources, podOnCgroupv2)
+	path := cgroupFsPath
+	if !podOnCgroupv2 {
+		path += "/memory"
+	}
+	return verifyMemoryLimit(f, pod, containerName, path, expectedResources, podOnCgroupv2)
 }
 
 func verifyContainerCgroupValues(f *framework.Framework, pod *v1.Pod, tc *v1.Container, podOnCgroupv2 bool) error {
@@ -251,14 +267,27 @@ func verifyContainerCgroupValues(f *framework.Framework, pod *v1.Pod, tc *v1.Con
 	return nil
 }
 
-func verifyPodCPUWeight(f *framework.Framework, pod *v1.Pod, podCgPath string, expectedResources *v1.ResourceRequirements) error {
-	if err := verifyCPUWeight(f, pod, pod.Spec.Containers[0].Name, podCgPath, expectedResources, true); err != nil {
+func verifyPodCPUWeight(f *framework.Framework, pod *v1.Pod, expectedResources *v1.ResourceRequirements, podOnCgroupv2 bool) error {
+	podCgPath, err := getPodCgroupPath(f, pod, podOnCgroupv2, "cpu")
+	if err != nil {
+		if podCgPath, err = getPodCgroupPath(f, pod, podOnCgroupv2, "cpu,cpuacct"); err != nil {
+			return err
+		}
+	}
+	if err := verifyCPUWeight(f, pod, pod.Spec.Containers[0].Name, podCgPath, expectedResources, podOnCgroupv2); err != nil {
 		return fmt.Errorf("pod cgroup cpu weight verification failed: %w", err)
 	}
 	return nil
 }
 
-func verifyPodCPULimit(f *framework.Framework, pod *v1.Pod, podCgPath string, expectedResources *v1.ResourceRequirements) error {
+func verifyPodCPULimit(f *framework.Framework, pod *v1.Pod, expectedResources *v1.ResourceRequirements, podOnCgroupv2 bool) error {
+	podCgPath, err := getPodCgroupPath(f, pod, podOnCgroupv2, "cpu")
+	if err != nil {
+		if podCgPath, err = getPodCgroupPath(f, pod, podOnCgroupv2, "cpu,cpuacct"); err != nil {
+			return err
+		}
+	}
+
 	if strings.Contains(podCgPath, strings.ReplaceAll(string(pod.UID), "-", "_")) {
 		// When systemd cgroup driver is used, pod cpu limit is rounded up to the nearest 10ms.
 		if expectedResources.Limits.Cpu().MilliValue()%10 != 0 {
@@ -272,14 +301,19 @@ func verifyPodCPULimit(f *framework.Framework, pod *v1.Pod, podCgPath string, ex
 		}
 	}
 
-	if err := verifyCPULimit(f, pod, pod.Spec.Containers[0].Name, podCgPath, expectedResources, true); err != nil {
+	if err := verifyCPULimit(f, pod, pod.Spec.Containers[0].Name, podCgPath, expectedResources, podOnCgroupv2); err != nil {
 		return fmt.Errorf("pod cgroup cpu limit verification failed: %w", err)
 	}
 	return nil
 }
 
-func verifyPodMemoryLimit(f *framework.Framework, pod *v1.Pod, podCgPath string, expectedResources *v1.ResourceRequirements) error {
-	if err := verifyMemoryLimit(f, pod, pod.Spec.Containers[0].Name, podCgPath, expectedResources, true); err != nil {
+func verifyPodMemoryLimit(f *framework.Framework, pod *v1.Pod, expectedResources *v1.ResourceRequirements, podOnCgroupv2 bool) error {
+	podCgPath, err := getPodCgroupPath(f, pod, podOnCgroupv2, "memory")
+	if err != nil {
+		return err
+	}
+
+	if err := verifyMemoryLimit(f, pod, pod.Spec.Containers[0].Name, podCgPath, expectedResources, podOnCgroupv2); err != nil {
 		return fmt.Errorf("pod cgroup memory limit verification failed: %w", err)
 	}
 	return nil
@@ -289,18 +323,17 @@ func verifyPodMemoryLimit(f *framework.Framework, pod *v1.Pod, podCgPath string,
 func VerifyPodCgroups(ctx context.Context, f *framework.Framework, pod *v1.Pod, info *ContainerResources) error {
 	ginkgo.GinkgoHelper()
 
-	// Extract pod cgroup directory path
-	podCgPath, err := getPodCgroupPath(f, pod)
-	if err != nil {
-		return err
+	if podOnCgroupv2Node == nil {
+		value := IsPodOnCgroupv2Node(f, pod)
+		podOnCgroupv2Node = &value
 	}
 
 	// Verify cgroup values
 	expectedResources := info.ResourceRequirements()
 	var errs []error
-	errs = append(errs, verifyPodCPUWeight(f, pod, podCgPath, expectedResources))
-	errs = append(errs, verifyPodCPULimit(f, pod, podCgPath, expectedResources))
-	errs = append(errs, verifyPodMemoryLimit(f, pod, podCgPath, expectedResources))
+	errs = append(errs, verifyPodCPUWeight(f, pod, expectedResources, *podOnCgroupv2Node))
+	errs = append(errs, verifyPodCPULimit(f, pod, expectedResources, *podOnCgroupv2Node))
+	errs = append(errs, verifyPodMemoryLimit(f, pod, expectedResources, *podOnCgroupv2Node))
 
 	return utilerrors.NewAggregate(errs)
 }
@@ -348,11 +381,6 @@ func VerifyPodContainersCgroupValues(ctx context.Context, f *framework.Framework
 				podMemoryLimitInBytes += tc.Resources.Limits.Memory().Value()
 			}
 		}
-	}
-
-	if !*podOnCgroupv2Node {
-		// cgroup v1 is in maintenance mode. Skip verifying pod cgroup
-		return utilerrors.NewAggregate(errs)
 	}
 
 	podResourceInfo := buildPodResourceInfo(podCPURequestMilliValue, podCPULimitMilliValue, podMemoryLimitInBytes)
