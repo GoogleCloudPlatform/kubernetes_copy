@@ -47,6 +47,16 @@ var (
 	hugePageResourceA     = v1.ResourceName(v1.ResourceHugePagesPrefix + "2Mi")
 )
 
+var cmpOpts = []cmp.Option{
+	cmp.Comparer(func(s1 *framework.Status, s2 *framework.Status) bool {
+		if s1 == nil || s2 == nil {
+			return s1.IsSuccess() && s2.IsSuccess()
+		}
+		return s1.Code() == s2.Code() && s1.Plugin() == s2.Plugin() && s1.Message() == s2.Message()
+	}),
+	cmpopts.EquateComparable(framework.ClusterEvent{}),
+}
+
 func makeResources(milliCPU, memory, pods, extendedA, storage, hugePageA int64) v1.ResourceList {
 	return v1.ResourceList{
 		v1.ResourceCPU:              *resource.NewMilliQuantity(milliCPU, resource.DecimalSI),
@@ -583,13 +593,13 @@ func TestEnoughRequests(t *testing.T) {
 			}
 
 			gotStatus := p.(framework.FilterPlugin).Filter(ctx, cycleState, test.pod, test.nodeInfo)
-			if diff := cmp.Diff(gotStatus, test.wantStatus); diff != "" {
-				t.Errorf("status does not match: %v, want: %v", gotStatus, test.wantStatus)
+			if diff := cmp.Diff(gotStatus, test.wantStatus, cmpOpts...); diff != "" {
+				t.Errorf("status does not match (-want,+got):\n%s", diff)
 			}
 
 			gotInsufficientResources := fitsRequest(computePodResourceRequest(test.pod, ResourceRequestsOptions{EnablePodLevelResources: test.podLevelResourcesEnabled}), test.nodeInfo, p.(*Fit).ignoredResources, p.(*Fit).ignoredResourceGroups)
-			if diff := cmp.Diff(gotInsufficientResources, test.wantInsufficientResources); diff != "" {
-				t.Errorf("insufficient resources do not match: %+v, want: %v", gotInsufficientResources, test.wantInsufficientResources)
+			if diff := cmp.Diff(gotInsufficientResources, test.wantInsufficientResources, cmpOpts...); diff != "" {
+				t.Errorf("insufficient resources do not match (-want,+got):\n%s", diff)
 			}
 		})
 	}
@@ -610,8 +620,8 @@ func TestPreFilterDisabled(t *testing.T) {
 	cycleState := framework.NewCycleState()
 	gotStatus := p.(framework.FilterPlugin).Filter(ctx, cycleState, pod, nodeInfo)
 	wantStatus := framework.AsStatus(fmt.Errorf(`error reading "PreFilterNodeResourcesFit" from cycleState: %w`, framework.ErrNotFound))
-	if diff := cmp.Diff(gotStatus, wantStatus); diff != "" {
-		t.Errorf("status does not match: %v, want: %v", gotStatus, wantStatus)
+	if diff := cmp.Diff(gotStatus, wantStatus, cmpOpts...); diff != "" {
+		t.Errorf("status does not match (-want,+got):\n%s", diff)
 	}
 }
 
@@ -667,8 +677,8 @@ func TestNotEnoughRequests(t *testing.T) {
 			}
 
 			gotStatus := p.(framework.FilterPlugin).Filter(ctx, cycleState, test.pod, test.nodeInfo)
-			if diff := cmp.Diff(gotStatus, test.wantStatus); diff != "" {
-				t.Errorf("status does not match: %v, want: %v", gotStatus, test.wantStatus)
+			if diff := cmp.Diff(gotStatus, test.wantStatus, cmpOpts...); diff != "" {
+				t.Errorf("status does not match (-want,+got):\n%s", diff)
 			}
 		})
 	}
@@ -728,8 +738,8 @@ func TestStorageRequests(t *testing.T) {
 			}
 
 			gotStatus := p.(framework.FilterPlugin).Filter(ctx, cycleState, test.pod, test.nodeInfo)
-			if diff := cmp.Diff(gotStatus, test.wantStatus); diff != "" {
-				t.Errorf("status does not match: %v, want: %v", gotStatus, test.wantStatus)
+			if diff := cmp.Diff(gotStatus, test.wantStatus, cmpOpts...); diff != "" {
+				t.Errorf("status does not match (-want,+got):\n%s", diff)
 			}
 		})
 	}
@@ -833,7 +843,7 @@ func TestRestartableInitContainers(t *testing.T) {
 			}
 			cycleState := framework.NewCycleState()
 			_, preFilterStatus := p.(framework.PreFilterPlugin).PreFilter(ctx, cycleState, test.pod)
-			if diff := cmp.Diff(test.wantPreFilterStatus, preFilterStatus); diff != "" {
+			if diff := cmp.Diff(test.wantPreFilterStatus, preFilterStatus, cmpOpts...); diff != "" {
 				t.Error("prefilter status does not match (-expected +actual):\n", diff)
 			}
 			if !preFilterStatus.IsSuccess() {
@@ -841,7 +851,7 @@ func TestRestartableInitContainers(t *testing.T) {
 			}
 
 			filterStatus := p.(framework.FilterPlugin).Filter(ctx, cycleState, test.pod, nodeInfo)
-			if diff := cmp.Diff(test.wantFilterStatus, filterStatus); diff != "" {
+			if diff := cmp.Diff(test.wantFilterStatus, filterStatus, cmpOpts...); diff != "" {
 				t.Error("filter status does not match (-expected +actual):\n", diff)
 			}
 		})
@@ -1275,7 +1285,7 @@ func TestEventsToRegister(t *testing.T) {
 			for i := range actualClusterEvents {
 				actualClusterEvents[i].QueueingHintFn = nil
 			}
-			if diff := cmp.Diff(test.expectedClusterEvents, actualClusterEvents, cmpopts.EquateComparable(framework.ClusterEvent{})); diff != "" {
+			if diff := cmp.Diff(test.expectedClusterEvents, actualClusterEvents, cmpOpts...); diff != "" {
 				t.Error("Cluster Events doesn't match extected events (-expected +actual):\n", diff)
 			}
 		})

@@ -404,7 +404,7 @@ func TestNodeResourcesBalancedAllocation(t *testing.T) {
 					t.Errorf("Score is expected to return success, but didn't. Got status: %v", status)
 				}
 				if diff := cmp.Diff(test.expectedList[i].Score, hostResult); diff != "" {
-					t.Errorf("got score %v for host %v, expected %v", hostResult, test.nodes[i].Name, test.expectedList[i].Score)
+					t.Errorf("unexpected score for host %v (-want,+got):\n%s", test.nodes[i].Name, diff)
 				}
 			}
 		})
