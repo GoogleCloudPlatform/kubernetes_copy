@@ -973,10 +973,8 @@ func TestSchedulerNoPhantomPodAfterDelete(t *testing.T) {
 				UnschedulablePlugins: sets.New(nodeports.Name),
 			},
 		}
-		if expectErr == nil || err == nil {
-			if expectErr != err {
-				t.Errorf("unexpected error. wanted %v, got %v", expectErr, err)
-			}
+		if err == nil {
+			t.Errorf("unexpected error. wanted %v, got %v", expectErr, err)
 		} else if diff := cmp.Diff(expectErr.Error(), err.Error()); diff != "" {
 			t.Errorf("unexpected error (-want,+got):\n%s", diff)
 		}
