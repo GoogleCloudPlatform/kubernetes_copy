@@ -978,7 +978,7 @@ func TestPreferredAffinityWithHardPodAffinitySymmetricWeight(t *testing.T) {
 			}
 
 			if diff := cmp.Diff(test.expectedList, gotList); diff != "" {
-				t.Errorf("expected:\n\t%+v,\ngot:\n\t%+v", test.expectedList, gotList)
+				t.Errorf("unexpected NodeScoreList (-want,+got):\n%s", diff)
 			}
 		})
 	}
