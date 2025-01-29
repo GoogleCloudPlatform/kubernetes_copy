@@ -28,6 +28,15 @@ import (
 	"k8s.io/kubernetes/test/utils/ktesting"
 )
 
+var cmpOpts = []cmp.Option{
+	cmp.Comparer(func(s1 *framework.Status, s2 *framework.Status) bool {
+		if s1 == nil || s2 == nil {
+			return s1.IsSuccess() && s2.IsSuccess()
+		}
+		return s1.Code() == s2.Code() && s1.Plugin() == s2.Plugin() && s1.Message() == s2.Message()
+	}),
+}
+
 func TestNodeUnschedulable(t *testing.T) {
 	testCases := []struct {
 		name       string
@@ -83,8 +92,8 @@ func TestNodeUnschedulable(t *testing.T) {
 			t.Fatalf("creating plugin: %v", err)
 		}
 		gotStatus := p.(framework.FilterPlugin).Filter(ctx, nil, test.pod, nodeInfo)
-		if diff := cmp.Diff(gotStatus, test.wantStatus); diff != "" {
-			t.Errorf("status does not match: %v, want: %v", gotStatus, test.wantStatus)
+		if diff := cmp.Diff(gotStatus, test.wantStatus, cmpOpts...); diff != "" {
+			t.Errorf("status does not match (-want,+got):\n%s", diff)
 		}
 	}
 }
