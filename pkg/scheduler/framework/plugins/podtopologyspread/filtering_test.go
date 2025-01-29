@@ -41,14 +41,16 @@ import (
 )
 
 var cmpOpts = []cmp.Option{
-	cmp.Comparer(func(s1 labels.Selector, s2 labels.Selector) bool {
-		diff := cmp.Diff(s1, s2)
-		return diff == ""
-	}),
 	cmp.Comparer(func(p1, p2 criticalPaths) bool {
 		p1.sort()
 		p2.sort()
 		return p1[0] == p2[0] && p1[1] == p2[1]
+	}),
+	cmp.Comparer(func(s1 *framework.Status, s2 *framework.Status) bool {
+		if s1 == nil || s2 == nil {
+			return s1.IsSuccess() && s2.IsSuccess()
+		}
+		return s1.Code() == s2.Code() && s1.Plugin() == s2.Plugin() && s1.Message() == s2.Message()
 	}),
 }
 
@@ -3416,8 +3418,8 @@ func TestPreFilterDisabled(t *testing.T) {
 	cycleState := framework.NewCycleState()
 	gotStatus := p.(*PodTopologySpread).Filter(ctx, cycleState, pod, nodeInfo)
 	wantStatus := framework.AsStatus(fmt.Errorf(`reading "PreFilterPodTopologySpread" from cycleState: %w`, framework.ErrNotFound))
-	if diff := cmp.Diff(gotStatus, wantStatus); diff != "" {
-		t.Errorf("status does not match: %v, want: %v", gotStatus, wantStatus)
+	if diff := cmp.Diff(gotStatus, wantStatus, cmpOpts...); diff != "" {
+		t.Errorf("status does not match (-want,+got):\n%s", diff)
 	}
 }
 
