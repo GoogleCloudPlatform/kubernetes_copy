@@ -19,7 +19,7 @@ package nodename
 import (
 	"testing"
 
-	cmp "github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
@@ -64,7 +64,7 @@ func TestNodeName(t *testing.T) {
 			}
 			gotStatus := p.(framework.FilterPlugin).Filter(ctx, nil, test.pod, nodeInfo)
 			if diff := cmp.Diff(gotStatus, test.wantStatus); diff != "" {
-				t.Errorf("status does not match: %v, want: %v", gotStatus, test.wantStatus)
+				t.Errorf("status does not match (-want,+got):\n%s", diff)
 			}
 		})
 	}
