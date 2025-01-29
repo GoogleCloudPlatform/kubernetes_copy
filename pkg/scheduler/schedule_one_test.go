@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
-	"reflect"
 	"regexp"
 	goruntime "runtime"
 	"sort"
@@ -974,9 +973,12 @@ func TestSchedulerNoPhantomPodAfterDelete(t *testing.T) {
 				UnschedulablePlugins: sets.New(nodeports.Name),
 			},
 		}
-		if !reflect.DeepEqual(expectErr, err) {
-			//if diff := cmp.Diff(expectErr, err, cmpopts.EquateErrors()); diff != "" {
-			t.Errorf("err want=%v, get=%v", expectErr, err)
+		if expectErr == nil || err == nil {
+			if expectErr != err {
+				t.Errorf("unexpected error. wanted %v, got %v", expectErr, err)
+			}
+		} else if diff := cmp.Diff(expectErr.Error(), err.Error()); diff != "" {
+			t.Errorf("unexpected error (-want,+got):\n%s", diff)
 		}
 	case <-time.After(wait.ForeverTestTimeout):
 		t.Fatalf("timeout in fitting after %v", wait.ForeverTestTimeout)
