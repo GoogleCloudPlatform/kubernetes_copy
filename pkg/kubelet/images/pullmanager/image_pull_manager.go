@@ -51,10 +51,10 @@ type PullManager struct {
 
 	imageService kubecontainer.ImageService
 
-	intentAccessors *namedLockSet  // image -> sync.Mutex
-	intentCounters  map[string]int // image -> number of current in-flight pulls
+	intentAccessors *StripedLockSet // image -> sync.Mutex
+	intentCounters  map[string]int  // image -> number of current in-flight pulls
 
-	pulledAccessors *namedLockSet // imageRef -> sync.Mutex
+	pulledAccessors *StripedLockSet // imageRef -> sync.Mutex
 }
 
 func NewImagePullManager(ctx context.Context, recordsAccessor PullRecordsAccessor, imagePullPolicy ImagePullPolicyEnforcer, imageService kubecontainer.ImageService) (*PullManager, error) {
@@ -65,10 +65,10 @@ func NewImagePullManager(ctx context.Context, recordsAccessor PullRecordsAccesso
 
 		imageService: imageService,
 
-		intentAccessors: NewNamedLockSet(),
+		intentAccessors: NewStripedLockSet(defaultLockSetSize),
 		intentCounters:  make(map[string]int),
 
-		pulledAccessors: NewNamedLockSet(),
+		pulledAccessors: NewStripedLockSet(defaultLockSetSize),
 	}
 
 	m.initialize(ctx)

@@ -445,9 +445,9 @@ func TestFileBasedImagePullManager_MustAttemptImagePull(t *testing.T) {
 			f := &PullManager{
 				recordsAccessor:               fsRecordAccessor,
 				requireCredentialVerification: tt.imagePullPolicy,
-				intentAccessors:               NewNamedLockSet(),
+				intentAccessors:               NewStripedLockSet(defaultLockSetSize),
 				intentCounters:                map[string]int{},
-				pulledAccessors:               NewNamedLockSet(),
+				pulledAccessors:               NewStripedLockSet(defaultLockSetSize),
 			}
 			if got := f.MustAttemptImagePull(tt.image, tt.imageRef, tt.podSecrets); got != tt.want {
 				t.Errorf("FileBasedImagePullManager.MustAttemptImagePull() = %v, want %v", got, tt.want)
@@ -521,7 +521,7 @@ func TestFileBasedImagePullManager_RecordPullIntent(t *testing.T) {
 
 			f := &PullManager{
 				recordsAccessor: fsRecordAccessor,
-				intentAccessors: NewNamedLockSet(),
+				intentAccessors: NewStripedLockSet(defaultLockSetSize),
 				intentCounters:  make(map[string]int),
 			}
 
@@ -693,11 +693,11 @@ func TestFileBasedImagePullManager_RecordImagePulled(t *testing.T) {
 
 			f := &PullManager{
 				recordsAccessor: fsRecordAccessor,
-				intentAccessors: NewNamedLockSet(),
+				intentAccessors: NewStripedLockSet(defaultLockSetSize),
 				intentCounters: map[string]int{
 					tt.image: 1,
 				},
-				pulledAccessors: NewNamedLockSet(),
+				pulledAccessors: NewStripedLockSet(defaultLockSetSize),
 			}
 			origIntentCounter := f.intentCounters[tt.image]
 			f.RecordImagePulled(tt.image, tt.imageRef, tt.creds)
@@ -870,9 +870,9 @@ func TestFileBasedImagePullManager_initialize(t *testing.T) {
 			f := &PullManager{
 				recordsAccessor: fsRecordAccessor,
 				imageService:    imageService,
-				intentAccessors: NewNamedLockSet(),
+				intentAccessors: NewStripedLockSet(defaultLockSetSize),
 				intentCounters:  make(map[string]int),
-				pulledAccessors: NewNamedLockSet(),
+				pulledAccessors: NewStripedLockSet(defaultLockSetSize),
 			}
 			f.initialize(testCtx)
 
@@ -983,7 +983,7 @@ func TestFileBasedImagePullManager_PruneUnknownRecords(t *testing.T) {
 
 			f := &PullManager{
 				recordsAccessor: fsRecordAccessor,
-				pulledAccessors: NewNamedLockSet(),
+				pulledAccessors: NewStripedLockSet(defaultLockSetSize),
 			}
 			f.PruneUnknownRecords(tt.imageList, tt.gcStartTime)
 
