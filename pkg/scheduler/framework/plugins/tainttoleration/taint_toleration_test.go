@@ -31,6 +31,15 @@ import (
 	tf "k8s.io/kubernetes/pkg/scheduler/testing/framework"
 )
 
+var cmpOpts = []cmp.Option{
+	cmp.Comparer(func(s1 *framework.Status, s2 *framework.Status) bool {
+		if s1 == nil || s2 == nil {
+			return s1.IsSuccess() && s2.IsSuccess()
+		}
+		return s1.Code() == s2.Code() && s1.Plugin() == s2.Plugin() && s1.Message() == s2.Message()
+	}),
+}
+
 func nodeWithTaints(nodeName string, taints []v1.Taint) *v1.Node {
 	return &v1.Node{
 		ObjectMeta: metav1.ObjectMeta{
@@ -263,7 +272,7 @@ func TestTaintTolerationScore(t *testing.T) {
 			}
 
 			if diff := cmp.Diff(test.expectedList, gotList); diff != "" {
-				t.Errorf("expected:\n\t%+v,\ngot:\n\t%+v", test.expectedList, gotList)
+				t.Errorf("Unexpected NodeScoreList (-want,+got):\n%s", diff)
 			}
 		})
 	}
@@ -348,8 +357,8 @@ func TestTaintTolerationFilter(t *testing.T) {
 				t.Fatalf("creating plugin: %v", err)
 			}
 			gotStatus := p.(framework.FilterPlugin).Filter(ctx, nil, test.pod, nodeInfo)
-			if diff := cmp.Diff(gotStatus, test.wantStatus); diff != "" {
-				t.Errorf("status does not match: %v, want: %v", gotStatus, test.wantStatus)
+			if diff := cmp.Diff(gotStatus, test.wantStatus, cmpOpts...); diff != "" {
+				t.Errorf("Unexpected status (-want,+got):\n%s", diff)
 			}
 		})
 	}
