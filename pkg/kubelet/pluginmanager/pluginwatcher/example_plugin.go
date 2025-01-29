@@ -44,6 +44,7 @@ type examplePlugin struct {
 	pluginType         string
 	versions           []string
 	unlinkSocket       bool
+	getInfoLock        sync.Mutex
 }
 
 type pluginServiceV1Beta1 struct {
@@ -98,6 +99,8 @@ func GetPluginInfo(plugin *examplePlugin) cache.PluginInfo {
 
 // GetInfo is the RPC invoked by plugin watcher
 func (e *examplePlugin) GetInfo(ctx context.Context, req *registerapi.InfoRequest) (*registerapi.PluginInfo, error) {
+	e.getInfoLock.Lock()
+	defer e.getInfoLock.Unlock()
 	return &registerapi.PluginInfo{
 		Type:              e.pluginType,
 		Name:              e.pluginName,
@@ -191,4 +194,14 @@ func (e *examplePlugin) Stop() error {
 
 func (e *examplePlugin) SetUnlinkSocket(unlinkSocket bool) {
 	e.unlinkSocket = unlinkSocket
+}
+
+// StuckGetInfo locks getInfoLock to simulate a stuck GetInfo call.
+func (e *examplePlugin) StuckGetInfo() {
+	e.getInfoLock.Lock()
+}
+
+// UnstuckGetInfo unlocks getInfoLock to unstuck GetInfo call.
+func (e *examplePlugin) UnstuckGetInfo() {
+	e.getInfoLock.Unlock()
 }
