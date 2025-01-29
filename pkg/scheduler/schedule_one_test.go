@@ -86,6 +86,10 @@ var (
 	emptySnapshot         = internalcache.NewEmptySnapshot()
 	podTopologySpreadFunc = frameworkruntime.FactoryAdapter(feature.Features{}, podtopologyspread.New)
 	errPrioritize         = fmt.Errorf("priority map encounters an error")
+	schedulerCmpOpts      = []cmp.Option{
+		cmp.AllowUnexported(framework.NodeToStatus{}),
+		cmpopts.IgnoreFields(framework.Diagnosis{}, "NodeToStatus"),
+	}
 )
 
 type mockScheduleResult struct {
@@ -387,7 +391,7 @@ func nodeToStatusDiff(want, got *framework.NodeToStatus) string {
 	if want == nil || got == nil {
 		return cmp.Diff(want, got)
 	}
-	return cmp.Diff(*want, *got, cmp.AllowUnexported(framework.NodeToStatus{}))
+	return cmp.Diff(*want, *got, schedulerCmpOpts...)
 }
 
 func TestSchedulerMultipleProfilesScheduling(t *testing.T) {
@@ -837,17 +841,21 @@ func TestSchedulerScheduleOne(t *testing.T) {
 				}
 				sched.ScheduleOne(ctx)
 				<-called
-				if e, a := item.expectAssumedPod, gotAssumedPod; NotEqual(e, a, t) {
-					t.Errorf("assumed pod: wanted %v, got %v", e, a)
+				if diff := cmp.Diff(item.expectAssumedPod, gotAssumedPod); diff != "" {
+					t.Errorf("unexpected assumed pod (-want,+got):\n%s", diff)
 				}
-				if e, a := item.expectErrorPod, gotPod; NotEqual(e, a, t) {
-					t.Errorf("error pod: wanted %v, got %v", e, a)
+				if diff := cmp.Diff(item.expectErrorPod, gotPod); diff != "" {
+					t.Errorf("error pod (-want,+got):\n%s", diff)
 				}
-				if e, a := item.expectForgetPod, gotForgetPod; NotEqual(e, a, t) {
-					t.Errorf("forget pod: wanted %v, got %v", e, a)
+				if diff := cmp.Diff(item.expectForgetPod, gotForgetPod); diff != "" {
+					t.Errorf("forget pod (-want,+got):\n%s", diff)
 				}
-				if e, a := item.expectError, gotError; NotEqualErrors(e, a, t) {
-					t.Errorf("error: wanted %v, got %v", e, a)
+				if item.expectError == nil || gotError == nil {
+					if item.expectError != gotError {
+						t.Errorf("unexpected error. wanted %v, got %v", item.expectError, gotError)
+					}
+				} else if diff := cmp.Diff(item.expectError.Error(), gotError.Error()); diff != "" {
+					t.Errorf("unexpected error (-want,+got):\n%s", diff)
 				}
 				if diff := cmp.Diff(item.expectBind, gotBinding); diff != "" {
 					t.Errorf("got binding diff (-want, +got): %s", diff)
@@ -863,25 +871,6 @@ func TestSchedulerScheduleOne(t *testing.T) {
 			})
 		}
 	}
-}
-
-func NotEqual(x any, y any, t *testing.T) bool {
-	diff := cmp.Diff(x, y)
-	if diff != "" {
-		t.Errorf("diff: %v", diff)
-	}
-
-	return diff != ""
-}
-
-func NotEqualErrors(x, y error, t *testing.T) bool {
-	/*diff := cmp.Diff(x, y, cmpopts.EquateErrors())
-	if diff != "" {
-		t.Errorf("diff: %v", diff)
-	}
-
-	return diff != ""*/
-	return !reflect.DeepEqual(x, y)
 }
 
 func TestSchedulerNoPhantomPodAfterExpire(t *testing.T) {
@@ -1096,7 +1085,7 @@ func TestSchedulerFailedSchedulingReasons(t *testing.T) {
 		if len(fmt.Sprint(expectErr)) > 150 {
 			t.Errorf("message is too spammy ! %v ", len(fmt.Sprint(expectErr)))
 		}
-		if diff := cmp.Diff(expectErr, err, cmp.AllowUnexported(framework.NodeToStatus{})); diff != "" {
+		if diff := cmp.Diff(expectErr, err, schedulerCmpOpts...); diff != "" {
 			t.Errorf("\n err \nWANT=%+v,\nGOT=%+v", expectErr, err)
 		}
 	case <-time.After(wait.ForeverTestTimeout):
@@ -2681,7 +2670,7 @@ func TestSchedulerSchedulePod(t *testing.T) {
 				if gotOK != wantOK {
 					t.Errorf("Expected err to be FitError: %v, but got %v (error: %v)", wantOK, gotOK, err)
 				} else if gotOK {
-					if diff := cmp.Diff(wantFitErr, gotFitErr, cmpopts.IgnoreFields(framework.Diagnosis{}, "NodeToStatus")); diff != "" {
+					if diff := cmp.Diff(wantFitErr, gotFitErr, schedulerCmpOpts...); diff != "" {
 						t.Errorf("Unexpected fitErr for map: (-want, +got): %s", diff)
 					}
 					if diff := nodeToStatusDiff(wantFitErr.Diagnosis.NodeToStatus, gotFitErr.Diagnosis.NodeToStatus); diff != "" {
@@ -2739,7 +2728,7 @@ func TestFindFitAllError(t *testing.T) {
 		}, framework.NewStatus(framework.UnschedulableAndUnresolvable)),
 		UnschedulablePlugins: sets.New("MatchFilter"),
 	}
-	if diff := cmp.Diff(diagnosis, expected, cmpopts.IgnoreFields(framework.Diagnosis{}, "NodeToStatus")); diff != "" {
+	if diff := cmp.Diff(diagnosis, expected, schedulerCmpOpts...); diff != "" {
 		t.Errorf("Unexpected diagnosis: (-want, +got): %s", diff)
 	}
 	if diff := nodeToStatusDiff(diagnosis.NodeToStatus, expected.NodeToStatus); diff != "" {
