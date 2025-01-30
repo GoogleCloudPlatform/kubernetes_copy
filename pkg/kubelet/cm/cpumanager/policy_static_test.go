@@ -667,12 +667,12 @@ func runStaticPolicyTestCase(t *testing.T, testCase staticPolicyTest) {
 		}
 
 		if !cset.Equals(testCase.expCSet) {
-			t.Errorf("StaticPolicy Allocate() error (%v). expected cpuset %v but got %v",
+			t.Errorf("StaticPolicy Allocate() error (%v). expected cpuset %s but got %s",
 				testCase.description, testCase.expCSet, cset)
 		}
 
 		if !cset.Intersection(st.defaultCPUSet).IsEmpty() {
-			t.Errorf("StaticPolicy Allocate() error (%v). expected cpuset %v to be disoint from the shared cpuset %v",
+			t.Errorf("StaticPolicy Allocate() error (%v). expected cpuset %s to be disoint from the shared cpuset %s",
 				testCase.description, cset, st.defaultCPUSet)
 		}
 	}
@@ -732,7 +732,7 @@ func TestStaticPolicyReuseCPUs(t *testing.T) {
 			policy.Allocate(st, pod, &container)
 		}
 		if !st.defaultCPUSet.Equals(testCase.expCSetAfterAlloc) {
-			t.Errorf("StaticPolicy Allocate() error (%v). expected default cpuset %v but got %v",
+			t.Errorf("StaticPolicy Allocate() error (%v). expected default cpuset %s but got %s",
 				testCase.description, testCase.expCSetAfterAlloc, st.defaultCPUSet)
 		}
 
@@ -740,7 +740,7 @@ func TestStaticPolicyReuseCPUs(t *testing.T) {
 		policy.RemoveContainer(st, string(pod.UID), testCase.containerName)
 
 		if !st.defaultCPUSet.Equals(testCase.expCSetAfterRemove) {
-			t.Errorf("StaticPolicy RemoveContainer() error (%v). expected default cpuset %v but got %v",
+			t.Errorf("StaticPolicy RemoveContainer() error (%v). expected default cpuset %sv but got %s",
 				testCase.description, testCase.expCSetAfterRemove, st.defaultCPUSet)
 		}
 		if _, found := st.assignments[string(pod.UID)][testCase.containerName]; found {
@@ -792,7 +792,7 @@ func TestStaticPolicyDoNotReuseCPUs(t *testing.T) {
 			}
 		}
 		if !st.defaultCPUSet.Equals(testCase.expCSetAfterAlloc) {
-			t.Errorf("StaticPolicy Allocate() error (%v). expected default cpuset %v but got %v",
+			t.Errorf("StaticPolicy Allocate() error (%v). expected default cpuset %s but got %s",
 				testCase.description, testCase.expCSetAfterAlloc, st.defaultCPUSet)
 		}
 	}
@@ -870,7 +870,7 @@ func TestStaticPolicyRemove(t *testing.T) {
 		policy.RemoveContainer(st, testCase.podUID, testCase.containerName)
 
 		if !st.defaultCPUSet.Equals(testCase.expCSet) {
-			t.Errorf("StaticPolicy RemoveContainer() error (%v). expected default cpuset %v but got %v",
+			t.Errorf("StaticPolicy RemoveContainer() error (%v). expected default cpuset %s but got %s",
 				testCase.description, testCase.expCSet, st.defaultCPUSet)
 		}
 
@@ -1151,12 +1151,12 @@ func TestStaticPolicyAddWithResvList(t *testing.T) {
 			}
 
 			if !cset.Equals(testCase.expCSet) {
-				t.Errorf("StaticPolicy Allocate() error (%v). expected cpuset %v but got %v",
+				t.Errorf("StaticPolicy Allocate() error (%v). expected cpuset %s but got %s",
 					testCase.description, testCase.expCSet, cset)
 			}
 
 			if !cset.Intersection(st.defaultCPUSet).IsEmpty() {
-				t.Errorf("StaticPolicy Allocate() error (%v). expected cpuset %v to be disoint from the shared cpuset %v",
+				t.Errorf("StaticPolicy Allocate() error (%v). expected cpuset %s to be disoint from the shared cpuset %s",
 					testCase.description, cset, st.defaultCPUSet)
 			}
 		}
