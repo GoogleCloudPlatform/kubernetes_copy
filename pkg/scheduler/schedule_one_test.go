@@ -3415,7 +3415,7 @@ func Test_prioritizeNodes(t *testing.T) {
 
 var lowPriority, midPriority, highPriority = int32(0), int32(100), int32(1000)
 
-func umFeasibleNodesToFind(t *testing.T) {
+func TestNumFeasibleNodesToFind(t *testing.T) {
 	tests := []struct {
 		name              string
 		globalPercentage  int32
