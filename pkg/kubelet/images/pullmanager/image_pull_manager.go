@@ -118,7 +118,8 @@ func (f *PullManager) writePulledRecord(image, imageRef string, credentials *kub
 
 	pulledRecord, _, err := f.recordsAccessor.GetImagePulledRecord(imageRef)
 	if err != nil {
-		return err
+		klog.InfoS("failed to retrieve an ImagePulledRecord", "image", image, "err", err)
+		pulledRecord = nil
 	}
 
 	var pulledRecordChanged bool
