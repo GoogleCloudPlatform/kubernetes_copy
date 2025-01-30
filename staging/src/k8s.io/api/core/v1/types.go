@@ -6166,6 +6166,15 @@ type NodeSystemInfo struct {
 	OperatingSystem string `json:"operatingSystem" protobuf:"bytes,9,opt,name=operatingSystem"`
 	// The Architecture reported by the node
 	Architecture string `json:"architecture" protobuf:"bytes,10,opt,name=architecture"`
+	// Swap Info reported by the node.
+	SwapInfo *SwapInfo `json:"swapInfo,omitempty" protobuf:"bytes,11,opt,name=swapInfo"`
+}
+
+// SwapInfo represents swap memory information.
+type SwapInfo struct {
+	// Total amount of swap memory in bytes.
+	// +optional
+	Capacity *int64 `json:"capacity,omitempty" protobuf:"varint,1,opt,name=capacity"`
 }
 
 // NodeConfigStatus describes the status of the config assigned by Node.Spec.ConfigSource.
