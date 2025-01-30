@@ -28,12 +28,17 @@ type fakeHandler struct {
 	ipFamily  netlink.InetFamily
 	filters   []*conntrackFilter
 
-	entries []*netlink.ConntrackFlow
+	entries [][]*netlink.ConntrackFlow
+	errors  []error
+	// calls is a counter that gets incremented each time ConntrackTableList is called
+	calls int
 }
 
 // ConntrackTableList is part of netlinkHandler interface.
 func (fake *fakeHandler) ConntrackTableList(_ netlink.ConntrackTableType, _ netlink.InetFamily) ([]*netlink.ConntrackFlow, error) {
-	return fake.entries, nil
+	calls := fake.calls
+	fake.calls++
+	return fake.entries[calls], fake.errors[calls]
 }
 
 // ConntrackDeleteFilters is part of netlinkHandler interface.
@@ -47,7 +52,7 @@ func (fake *fakeHandler) ConntrackDeleteFilters(tableType netlink.ConntrackTable
 
 	var flows []*netlink.ConntrackFlow
 	before := len(fake.entries)
-	for _, flow := range fake.entries {
+	for _, flow := range fake.entries[fake.calls] {
 		var matched bool
 		for _, filter := range fake.filters {
 			matched = filter.MatchConntrackFlow(flow)
@@ -59,7 +64,7 @@ func (fake *fakeHandler) ConntrackDeleteFilters(tableType netlink.ConntrackTable
 			flows = append(flows, flow)
 		}
 	}
-	fake.entries = flows
+	fake.entries[fake.calls] = flows
 	return uint(before - len(fake.entries)), nil
 }
 

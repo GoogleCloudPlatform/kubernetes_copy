@@ -275,7 +275,16 @@ func TestCleanStaleEntries(t *testing.T) {
 	}
 
 	fake := &fakeHandler{}
-	fake.entries = mockEntries
+
+	// we will simulate 3 calls to ConntrackTableList
+	// 1. Partial result + EINTR - first list call - retried
+	// 2. Full result - second list call - not retried
+	// 3. Full result - for the cleanup call and subsequent list call
+	entries := [][]*netlink.ConntrackFlow{mockEntries[len(mockEntries)/2:], mockEntries, mockEntries}
+	errors := []error{unix.EINTR, nil, nil}
+
+	fake.entries = entries
+	fake.errors = errors
 
 	ct := newConntracker(fake)
 	CleanStaleEntries(ct, testIPFamily, svcPortMap, endpointsMap)
