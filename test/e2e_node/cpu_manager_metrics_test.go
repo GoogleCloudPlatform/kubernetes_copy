@@ -165,7 +165,7 @@ var _ = SIGDescribe("CPU Manager Metrics", framework.WithSerial(), feature.CPUMa
 			gomega.Consistently(ctx, getKubeletMetrics, 1*time.Minute, 15*time.Second).Should(matchResourceMetrics)
 		})
 
-		ginkgo.It("should return updated alignment counters when pod successfully run", func(ctx context.Context) {
+		ginkgo.It("should return updated SMT alignment counters when pod successfully run", func(ctx context.Context) {
 			ginkgo.By("Creating the test pod")
 			testPod = e2epod.NewPodClient(f).Create(ctx, makeGuaranteedCPUExclusiveSleeperPod("count-align-smt-ok", smtLevel))
 
