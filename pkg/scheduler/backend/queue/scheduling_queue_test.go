@@ -1122,6 +1122,7 @@ func TestPriorityQueue_Update(t *testing.T) {
 				q.unschedulablePods.addOrUpdate(attemptQueuedPodInfo(q.newQueuedPodInfo(medPriorityPodInfo.Pod, queuePlugin)))
 				updatedPod := medPriorityPodInfo.Pod.DeepCopy()
 				updatedPod.Annotations["foo"] = "test1"
+				c := testingclock.NewFakeClock(time.Now())
 				// Move clock by podInitialBackoffDuration, so that pods in the unschedulablePods would pass the backing off,
 				// and the pods will be moved into activeQ.
 				c.Step(q.podInitialBackoffDuration)

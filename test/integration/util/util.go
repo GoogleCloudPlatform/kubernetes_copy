@@ -1156,3 +1156,20 @@ func NextPodOrDie(t *testing.T, testCtx *TestContext) *schedulerframework.Queued
 	}
 	return podInfo
 }
+
+func WaitForNominatedNodeNameWithTimeout(cs clientset.Interface, pod *v1.Pod, timeout time.Duration) error {
+	if err := wait.PollUntilContextTimeout(context.TODO(), 1000*time.Millisecond, timeout, false, func(ctx context.Context) (bool, error) {
+		pod, err := cs.CoreV1().Pods(pod.Namespace).Get(ctx, pod.Name, metav1.GetOptions{})
+		if err != nil {
+			return false, err
+		}
+		return len(pod.Status.NominatedNodeName) > 0, nil
+	}); err != nil {
+		return fmt.Errorf(".status.nominatedNodeName of Pod %v/%v did not get set: %v", pod.Namespace, pod.Name, err)
+	}
+	return nil
+}
+
+func WaitForNominatedNodeName(cs clientset.Interface, pod *v1.Pod) error {
+	return WaitForNominatedNodeNameWithTimeout(cs, pod, wait.ForeverTestTimeout)
+}

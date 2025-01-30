@@ -18,6 +18,7 @@ package scheduler
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"testing"
 	"time"
@@ -30,8 +31,10 @@ import (
 	resourceapi "k8s.io/api/resource/v1beta1"
 	storagev1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/apimachinery/pkg/util/sets"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	featuregatetesting "k8s.io/component-base/featuregate/testing"
+	"k8s.io/klog/v2"
 	"k8s.io/klog/v2/ktesting"
 
 	"k8s.io/apimachinery/pkg/runtime"
@@ -42,17 +45,165 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 
 	"k8s.io/kubernetes/pkg/features"
-	"k8s.io/kubernetes/pkg/scheduler/backend/cache"
-	"k8s.io/kubernetes/pkg/scheduler/backend/queue"
+	internalcache "k8s.io/kubernetes/pkg/scheduler/backend/cache"
+	internalqueue "k8s.io/kubernetes/pkg/scheduler/backend/queue"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/nodeaffinity"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/nodename"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/nodeports"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/noderesources"
+	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/queuesort"
 	"k8s.io/kubernetes/pkg/scheduler/metrics"
 	st "k8s.io/kubernetes/pkg/scheduler/testing"
+	"k8s.io/kubernetes/pkg/scheduler/util"
 	"k8s.io/kubernetes/pkg/scheduler/util/assumecache"
 )
+
+func TestEventHandlers_MoveToActiveOnNominatedNodeUpdate(t *testing.T) {
+	metrics.Register()
+	highPriorityPod :=
+		st.MakePod().Name("hpp").Namespace("ns1").UID("hppns1").Priority(highPriority).SchedulerName(testSchedulerName).Obj()
+
+	medNominatedPriorityPod :=
+		st.MakePod().Name("mpp").Namespace("ns2").UID("mppns1").Priority(midPriority).SchedulerName(testSchedulerName).NominatedNodeName("node1").Obj()
+	medPriorityPod :=
+		st.MakePod().Name("smpp").Namespace("ns3").UID("mppns2").Priority(midPriority).SchedulerName(testSchedulerName).Obj()
+
+	lowPriorityPod :=
+		st.MakePod().Name("lpp").Namespace("ns4").UID("lppns1").Priority(lowPriority).SchedulerName(testSchedulerName).Obj()
+
+	unschedulablePods := []*v1.Pod{highPriorityPod, medNominatedPriorityPod, medPriorityPod, lowPriorityPod}
+
+	// Make pods schedulable on Delete event when QHints are enabled, but not when nominated node appears.
+	queueHintForPodDelete := func(logger klog.Logger, pod *v1.Pod, oldObj, newObj interface{}) (framework.QueueingHint, error) {
+		oldPod, _, err := util.As[*v1.Pod](oldObj, newObj)
+		if err != nil {
+			t.Errorf("Failed to convert objects to pods: %v", err)
+		}
+		if oldPod.Status.NominatedNodeName == "" {
+			return framework.QueueSkip, nil
+		}
+		return framework.Queue, nil
+	}
+	queueingHintMap := internalqueue.QueueingHintMapPerProfile{
+		testSchedulerName: {
+			framework.EventAssignedPodDelete: {
+				{
+					PluginName:     "fooPlugin1",
+					QueueingHintFn: queueHintForPodDelete,
+				},
+			},
+		},
+	}
+
+	tests := []struct {
+		name         string
+		updateFunc   func(s *Scheduler)
+		wantInActive sets.Set[string]
+	}{
+		{
+			name: "Update of a nominated node name to a different value should trigger rescheduling of lower priority pods",
+			updateFunc: func(s *Scheduler) {
+				updatedPod := medNominatedPriorityPod.DeepCopy()
+				updatedPod.Status.NominatedNodeName = "node2"
+				updatedPod.ResourceVersion = "1"
+				s.updatePodInSchedulingQueue(medNominatedPriorityPod, updatedPod)
+			},
+			wantInActive: sets.New(lowPriorityPod.Name, medPriorityPod.Name, medNominatedPriorityPod.Name),
+		},
+		{
+			name: "Removal of a nominated node name should trigger rescheduling of lower priority pods",
+			updateFunc: func(s *Scheduler) {
+				updatedPod := medNominatedPriorityPod.DeepCopy()
+				updatedPod.Status.NominatedNodeName = ""
+				updatedPod.ResourceVersion = "1"
+				s.updatePodInSchedulingQueue(medNominatedPriorityPod, updatedPod)
+			},
+			wantInActive: sets.New[string](lowPriorityPod.Name, medPriorityPod.Name, medNominatedPriorityPod.Name),
+		},
+		{
+			name: "Removal of a pod that had nominated node name should trigger rescheduling of lower priority pods",
+			updateFunc: func(s *Scheduler) {
+				s.deletePodFromSchedulingQueue(medNominatedPriorityPod)
+			},
+			wantInActive: sets.New[string](lowPriorityPod.Name, medPriorityPod.Name),
+		},
+		{
+			name: "Addition of a nominated node name to the high priority pod that did not have it before shouldn't trigger rescheduling",
+			updateFunc: func(s *Scheduler) {
+				updatedPod := highPriorityPod.DeepCopy()
+				updatedPod.Status.NominatedNodeName = "node2"
+				updatedPod.ResourceVersion = "1"
+				s.updatePodInSchedulingQueue(highPriorityPod, updatedPod)
+			},
+			wantInActive: sets.New[string](),
+		},
+	}
+
+	for _, tt := range tests {
+		for _, qHintEnabled := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s, with queuehint(%v)", tt.name, qHintEnabled), func(t *testing.T) {
+				featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.SchedulerQueueingHints, qHintEnabled)
+
+				logger, ctx := ktesting.NewTestContext(t)
+				ctx, cancel := context.WithCancel(ctx)
+				defer cancel()
+
+				var objs []runtime.Object
+				for _, pod := range unschedulablePods {
+					objs = append(objs, pod)
+				}
+				client := fake.NewClientset(objs...)
+				informerFactory := informers.NewSharedInformerFactory(client, 0)
+
+				recorder := metrics.NewMetricsAsyncRecorder(3, 20*time.Microsecond, ctx.Done())
+				queue := internalqueue.NewPriorityQueue(
+					newDefaultQueueSort(),
+					informerFactory,
+					internalqueue.WithMetricsRecorder(*recorder),
+					internalqueue.WithQueueingHintMapPerProfile(queueingHintMap),
+					// disable backoff queue
+					internalqueue.WithPodInitialBackoffDuration(0),
+					internalqueue.WithPodMaxBackoffDuration(0))
+				schedulerCache := internalcache.New(ctx, 30*time.Second)
+
+				// Put test pods into unschedulable queue
+				for _, pod := range unschedulablePods {
+					queue.Add(logger, pod)
+					poppedPod, err := queue.Pop(logger)
+					if err != nil {
+						t.Fatalf("Pop failed: %v", err)
+					}
+					poppedPod.UnschedulablePlugins = sets.New("fooPlugin1")
+					queue.AddUnschedulableIfNotPresent(logger, poppedPod, queue.SchedulingCycle())
+				}
+
+				s, _, err := initScheduler(ctx, schedulerCache, queue, client, informerFactory)
+				if err != nil {
+					t.Fatalf("Failed to initialize test scheduler: %v", err)
+				}
+
+				if len(s.SchedulingQueue.PodsInActiveQ()) > 0 {
+					t.Errorf("No pods were expected to be in the activeQ before the update, but there were %v", s.SchedulingQueue.PodsInActiveQ())
+				}
+				tt.updateFunc(s)
+				if len(s.SchedulingQueue.PodsInActiveQ()) != len(tt.wantInActive) {
+					t.Errorf("Different number of pods were expected to be in the activeQ, but found actual %v vs. expected %v", s.SchedulingQueue.PodsInActiveQ(), tt.wantInActive)
+				}
+				for _, pod := range s.SchedulingQueue.PodsInActiveQ() {
+					if !tt.wantInActive.Has(pod.Name) {
+						t.Errorf("Found unexpected pod in activeQ: %s", pod.Name)
+					}
+				}
+			})
+		}
+	}
+}
+
+func newDefaultQueueSort() framework.LessFunc {
+	sort := &queuesort.PrioritySort{}
+	return sort.Less
+}
 
 func TestUpdatePodInCache(t *testing.T) {
 	ttl := 10 * time.Second
@@ -81,8 +232,8 @@ func TestUpdatePodInCache(t *testing.T) {
 			ctx, cancel := context.WithCancel(ctx)
 			defer cancel()
 			sched := &Scheduler{
-				Cache:           cache.New(ctx, ttl),
-				SchedulingQueue: queue.NewTestQueue(ctx, nil),
+				Cache:           internalcache.New(ctx, ttl),
+				SchedulingQueue: internalqueue.NewTestQueue(ctx, nil),
 				logger:          logger,
 			}
 			sched.addPodToCache(tt.oldObj)
@@ -354,7 +505,7 @@ func TestAddAllEventHandlers(t *testing.T) {
 			defer cancel()
 
 			informerFactory := informers.NewSharedInformerFactory(fake.NewClientset(), 0)
-			schedulingQueue := queue.NewTestQueueWithInformerFactory(ctx, nil, informerFactory)
+			schedulingQueue := internalqueue.NewTestQueueWithInformerFactory(ctx, nil, informerFactory)
 			testSched := Scheduler{
 				StopEverything:  ctx.Done(),
 				SchedulingQueue: schedulingQueue,

@@ -294,7 +294,7 @@ func (f *Fit) isSchedulableAfterPodEvent(logger klog.Logger, pod *v1.Pod, oldObj
 	}
 
 	if modifiedPod == nil {
-		if originalPod.Spec.NodeName == "" {
+		if originalPod.Spec.NodeName == "" && originalPod.Status.NominatedNodeName == "" {
 			logger.V(5).Info("the deleted pod was unscheduled and it wouldn't make the unscheduled pod schedulable", "pod", klog.KObj(pod), "deletedPod", klog.KObj(originalPod))
 			return framework.QueueSkip, nil
 		}

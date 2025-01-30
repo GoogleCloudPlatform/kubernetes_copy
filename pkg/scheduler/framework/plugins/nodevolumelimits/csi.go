@@ -103,7 +103,7 @@ func (pl *CSILimits) isSchedulableAfterPodDeleted(logger klog.Logger, pod *v1.Po
 		return framework.QueueSkip, nil
 	}
 
-	if deletedPod.Spec.NodeName == "" {
+	if deletedPod.Spec.NodeName == "" && deletedPod.Status.NominatedNodeName == "" {
 		return framework.QueueSkip, nil
 	}
 

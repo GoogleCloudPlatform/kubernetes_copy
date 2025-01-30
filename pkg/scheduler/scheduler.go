@@ -50,6 +50,7 @@ import (
 	"k8s.io/kubernetes/pkg/scheduler/metrics"
 	"k8s.io/kubernetes/pkg/scheduler/profile"
 	"k8s.io/kubernetes/pkg/scheduler/util/assumecache"
+	"k8s.io/utils/clock"
 )
 
 const (
@@ -116,6 +117,7 @@ func (sched *Scheduler) applyDefaultHandlers() {
 }
 
 type schedulerOptions struct {
+	clock                  clock.Clock
 	componentConfigVersion string
 	kubeConfig             *restclient.Config
 	// Overridden by profile level percentageOfNodesToScore if set in v1.
@@ -227,6 +229,13 @@ func WithExtenders(e ...schedulerapi.Extender) Option {
 	}
 }
 
+// WithClock sets clock for PriorityQueue, the default clock is clock.RealClock.
+func WithClock(clock clock.Clock) Option {
+	return func(o *schedulerOptions) {
+		o.clock = clock
+	}
+}
+
 // FrameworkCapturer is used for registering a notify function in building framework.
 type FrameworkCapturer func(schedulerapi.KubeSchedulerProfile)
 
@@ -238,6 +247,7 @@ func WithBuildFrameworkCapturer(fc FrameworkCapturer) Option {
 }
 
 var defaultSchedulerOptions = schedulerOptions{
+	clock:                             clock.RealClock{},
 	percentageOfNodesToScore:          schedulerapi.DefaultPercentageOfNodesToScore,
 	podInitialBackoffSeconds:          int64(internalqueue.DefaultPodInitialBackoffDuration.Seconds()),
 	podMaxBackoffSeconds:              int64(internalqueue.DefaultPodMaxBackoffDuration.Seconds()),
@@ -343,6 +353,7 @@ func New(ctx context.Context,
 	podQueue := internalqueue.NewSchedulingQueue(
 		profiles[options.profiles[0].SchedulerName].QueueSortFunc(),
 		informerFactory,
+		internalqueue.WithClock(options.clock),
 		internalqueue.WithPodInitialBackoffDuration(time.Duration(options.podInitialBackoffSeconds)*time.Second),
 		internalqueue.WithPodMaxBackoffDuration(time.Duration(options.podMaxBackoffSeconds)*time.Second),
 		internalqueue.WithPodLister(podLister),
