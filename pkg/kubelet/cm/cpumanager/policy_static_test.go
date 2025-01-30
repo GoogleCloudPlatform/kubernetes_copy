@@ -965,16 +965,16 @@ func TestTopologyAwareAllocateCPUs(t *testing.T) {
 			continue
 		}
 
-		cset, err := policy.allocateCPUs(st, tc.numRequested, tc.socketMask, cpuset.New())
+		cpuAlloc, err := policy.allocateCPUs(st, tc.numRequested, tc.socketMask, cpuset.New())
 		if err != nil {
 			t.Errorf("StaticPolicy allocateCPUs() error (%v). expected CPUSet %v not error %v",
 				tc.description, tc.expCSet, err)
 			continue
 		}
 
-		if !tc.expCSet.Equals(cset) {
+		if !tc.expCSet.Equals(cpuAlloc.CPUs) {
 			t.Errorf("StaticPolicy allocateCPUs() error (%v). expected CPUSet %v but got %v",
-				tc.description, tc.expCSet, cset)
+				tc.description, tc.expCSet, cpuAlloc.CPUs)
 		}
 	}
 }

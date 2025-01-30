@@ -101,6 +101,15 @@ func (topo *CPUTopology) CPUNUMANodeID(cpu int) (int, error) {
 	return info.NUMANodeID, nil
 }
 
+// CheckAlignment returns alignment information for the given cpuset in
+// the context of the current CPU topology
+func (topo *CPUTopology) CheckAlignment(cpus cpuset.CPUSet) Alignment {
+	cpuList := cpus.UnsortedList()
+	return Alignment{
+		UncoreCache: isAlignedAtUncoreCache(topo, cpuList...),
+	}
+}
+
 // CPUInfo contains the NUMA, socket, UncoreCache and core IDs associated with a CPU.
 type CPUInfo struct {
 	NUMANodeID    int
