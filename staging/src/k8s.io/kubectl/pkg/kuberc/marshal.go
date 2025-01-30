@@ -23,11 +23,9 @@ import (
 	"io"
 	"os"
 
-	"github.com/pkg/errors"
+	"k8s.io/klog/v2"
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	yamlserializer "k8s.io/apimachinery/pkg/runtime/serializer/yaml"
-	errorsutil "k8s.io/apimachinery/pkg/util/errors"
 	utilyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"k8s.io/kubectl/pkg/config"
@@ -35,96 +33,68 @@ import (
 
 // decodePreference iterates over the yamls in kuberc file to find the supported kuberc version.
 // Once it finds, it returns the compatible kuberc object as well as accumulated errors during the iteration.
-func decodePreference(kubercFile string, explicitly bool) (*config.Preference, error) {
+func decodePreference(kubercFile string) (*config.Preference, error) {
 	kubercBytes, err := os.ReadFile(kubercFile)
 	if err != nil {
-		if !explicitly && os.IsNotExist(err) {
-			// We don't log if the kuberc file does not exist. Because user simply does not
-			// specify neither default kuberc file nor explicitly pass it.
-			// We'll continue to default behavior without raising any error.
-			return nil, nil
-		}
 		return nil, err
 	}
 
-	var errs []error
-	document, err := splitYAMLDocuments(kubercBytes)
-	if err != nil {
-		errs = append(errs, err)
-	}
-	for docGVK, doc := range document {
-		pref, gvk, decodeErr := strictCodecs.UniversalDecoder().Decode(doc, nil, nil)
-		if decodeErr != nil {
-			errs = append(errs, decodeErr)
-
-			// default kuberc is incompatible with this version, or it simply is invalid.
-			// falling back to lenient decoding to do our best.
-			pref, gvk, decodeErr = lenientCodecs.UniversalDecoder().Decode(doc, nil, nil)
-			if decodeErr != nil {
-				errs = append(errs, decodeErr)
+	attemptedItems := 0
+	reader := utilyaml.NewYAMLReader(bufio.NewReader(bytes.NewBuffer(kubercBytes)))
+	for {
+		doc, readErr := reader.Read()
+		if readErr == io.EOF {
+			// no more entries, expected when we reach the end of the file
+			break
+		}
+		if readErr != nil {
+			// other errors are fatal
+			return nil, readErr
+		}
+		if len(bytes.TrimSpace(doc)) == 0 {
+			// empty item, ignore
+			continue
+		}
+		// remember we attempted
+		attemptedItems++
+		pref, gvk, strictDecodeErr := strictCodecs.UniversalDecoder().Decode(doc, nil, nil)
+		if strictDecodeErr != nil {
+			var lenientDecodeErr error
+			pref, gvk, lenientDecodeErr = lenientCodecs.UniversalDecoder().Decode(doc, nil, nil)
+			if lenientDecodeErr != nil {
+				// both strict and lenient failed
+				// verbose log the error with the most information about this item and continue
+				klog.V(5).Infof("kuberc strict decoding failed %v", strictDecodeErr)
 				continue
 			}
 		}
 
+		// check expected GVK, if bad, verbose log and continue
 		expectedGK := schema.GroupKind{
 			Group: config.SchemeGroupVersion.Group,
 			Kind:  "Preference",
 		}
-		if gvk.GroupKind() != expectedGK && docGVK.GroupKind() != expectedGK {
-			errs = append(errs, fmt.Errorf("unsupported preference GVK %s", gvk.GroupKind().String()))
+		if gvk.GroupKind() != expectedGK {
+			klog.V(5).Infof("unexpected GroupVersionKind for kuberc: %v", gvk)
 			continue
 		}
 
+		// check expected go type, if bad, verbose log and continue
 		preferences, ok := pref.(*config.Preference)
 		if !ok {
-			errs = append(errs, fmt.Errorf("preferences in %s file is not a valid config.Preference type", kubercFile))
+			klog.V(5).Infof("invalid preference format in kuberc")
 			continue
 		}
 
-		return preferences, errorsutil.NewAggregate(errs)
-	}
+		// we have a usable preferences to return
+		klog.V(5).Infof("successfully decoded kuberc %s", kubercFile)
+		return preferences, strictDecodeErr
 
-	return nil, errorsutil.NewAggregate(errs)
-}
-
-// splitYAMLDocuments reads the YAML bytes per-document, unmarshals the TypeMeta information from each document
-// and returns a map between the GroupVersionKind of the document and the document bytes
-func splitYAMLDocuments(yamlBytes []byte) (map[schema.GroupVersionKind][]byte, error) {
-	gvkMap := make(map[schema.GroupVersionKind][]byte)
-	var errs []error
-	buf := bytes.NewBuffer(yamlBytes)
-	reader := utilyaml.NewYAMLReader(bufio.NewReader(buf))
-	for {
-		// Read one YAML document at a time, until io.EOF is returned
-		b, err := reader.Read()
-		if errors.Is(err, io.EOF) {
-			break
-		} else if err != nil {
-			return nil, err
-		}
-		if len(b) == 0 {
-			break
-		}
-		// Deserialize the TypeMeta information of this byte slice
-		gvk, err := yamlserializer.DefaultMetaFactory.Interpret(b)
-		if err != nil {
-			return nil, err
-		}
-		if len(gvk.Group) == 0 || len(gvk.Version) == 0 || len(gvk.Kind) == 0 {
-			errs = append(errs, errors.Errorf("invalid configuration for GroupVersionKind %+v: kind and apiVersion is mandatory information that must be specified", gvk))
-			continue
-		}
-
-		// There must be only one kuberc file with the given group, version and kind, e.g. preference.kubectl.config.k8s.io/v1alpha1
-		if _, ok := gvkMap[*gvk]; ok {
-			errs = append(errs, errors.Errorf("invalid configuration: GroupVersionKind %+v is specified more than once in YAML file", gvk))
-			continue
-		}
-		// Save the mapping between the gvk and the bytes that object consists of
-		gvkMap[*gvk] = b
 	}
-	if err := errorsutil.NewAggregate(errs); err != nil {
-		return nil, err
+	if attemptedItems > 0 {
+		return nil, fmt.Errorf("no valid preferences found in %s, use --v=5 to see details", kubercFile)
 	}
-	return gvkMap, nil
+	// empty doc
+	klog.V(5).Infof("empty kuberc file %s", kubercFile)
+	return nil, nil
 }

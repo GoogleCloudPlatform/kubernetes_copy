@@ -316,16 +316,29 @@ func DefaultGetPreferences(kuberc string, errOut io.Writer) (*config.Preference,
 		explicitly = true
 	}
 
-	preference, err := decodePreference(kubeRCFile, explicitly)
-	if preference == nil && err != nil && explicitly {
+	preference, err := decodePreference(kubeRCFile)
+	switch {
+	case explicitly && preference != nil && runtime.IsStrictDecodingError(err):
+		// if explicitly requested, just warn about strict decoding errors if we got a usable Preference object back
+		fmt.Fprintf(errOut, "kuberc error: %v", err)
+		return preference, nil
+
+	case explicitly && err != nil:
+		// if explicitly requested, error on any error other than a StrictDecodingError
 		return nil, err
-	}
 
-	if err != nil {
-		fmt.Fprintf(errOut, "kuberc file decode error: %v", err)
-	}
+	case !explicitly && os.IsNotExist(err):
+		// if not explicitly requested, silently ignore missing kuberc
+		return nil, nil
 
-	return preference, nil
+	case !explicitly && err != nil:
+		// if not explicitly requested, only warn on any other error
+		fmt.Fprintf(errOut, "kuberc error: %v", err)
+		return nil, nil
+
+	default:
+		return preference, nil
+	}
 }
 
 // Normally, we should extract this value directly from kuberc flag.
