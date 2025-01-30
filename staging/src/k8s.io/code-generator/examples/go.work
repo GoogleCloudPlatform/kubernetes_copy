@@ -4,3 +4,5 @@
 go 1.22.0
 
 use .
+
+godebug default=go1.22

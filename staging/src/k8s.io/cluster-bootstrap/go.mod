@@ -37,3 +37,5 @@ replace (
 	k8s.io/apimachinery => ../apimachinery
 	k8s.io/cluster-bootstrap => ../cluster-bootstrap
 )
+
+godebug default=go1.22

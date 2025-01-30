@@ -75,3 +75,5 @@ replace (
 	k8s.io/kms => ../kms
 	k8s.io/kubelet => ../kubelet
 )
+
+godebug default=go1.22

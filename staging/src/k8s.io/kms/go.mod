@@ -20,3 +20,5 @@ require (
 )
 
 replace k8s.io/kms => ../kms
+
+godebug default=go1.22

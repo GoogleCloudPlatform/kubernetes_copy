@@ -58,3 +58,5 @@ require (
 )
 
 replace k8s.io/apimachinery => ../apimachinery
+
+godebug default=go1.22

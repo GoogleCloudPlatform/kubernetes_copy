@@ -27,3 +27,5 @@ require (
 )
 
 replace k8s.io/cri-api => ../cri-api
+
+godebug default=go1.22

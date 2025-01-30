@@ -70,3 +70,5 @@ replace (
 	k8s.io/component-base => ../component-base
 	k8s.io/endpointslice => ../endpointslice
 )
+
+godebug default=go1.22

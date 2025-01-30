@@ -64,3 +64,5 @@ replace (
 	k8s.io/code-generator => ../code-generator
 	k8s.io/sample-controller => ../sample-controller
 )
+
+godebug default=go1.22

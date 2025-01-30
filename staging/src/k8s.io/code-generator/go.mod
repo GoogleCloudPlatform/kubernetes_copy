@@ -42,3 +42,5 @@ replace (
 	k8s.io/apimachinery => ../apimachinery
 	k8s.io/code-generator => ../code-generator
 )
+
+godebug default=go1.22

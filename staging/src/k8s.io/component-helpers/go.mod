@@ -58,3 +58,5 @@ replace (
 	k8s.io/client-go => ../client-go
 	k8s.io/component-helpers => ../component-helpers
 )
+
+godebug default=go1.22
