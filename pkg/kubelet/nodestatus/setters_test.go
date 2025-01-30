@@ -240,15 +240,19 @@ func TestNodeAddress(t *testing.T) {
 			nodeIP:            netutils.ParseIPSloppy("::"),
 			nodeAddresses:     []v1.NodeAddress{},
 			cloudProviderType: cloudProviderExternal,
-			expectedAddresses: []v1.NodeAddress{},
-			shouldError:       false,
+			expectedAddresses: []v1.NodeAddress{
+				{Type: v1.NodeHostName, Address: testKubeletHostname},
+			},
+			shouldError: false,
 		},
 		{
 			name:              "cloud provider is external and no nodeIP",
 			nodeAddresses:     []v1.NodeAddress{},
 			cloudProviderType: cloudProviderExternal,
-			expectedAddresses: []v1.NodeAddress{},
-			shouldError:       false,
+			expectedAddresses: []v1.NodeAddress{
+				{Type: v1.NodeHostName, Address: testKubeletHostname},
+			},
+			shouldError: false,
 		},
 		{
 			name: "cloud doesn't report hostname, no override, detected hostname mismatch",

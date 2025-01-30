@@ -136,6 +136,9 @@ func NodeAddress(nodeIPs []net.IP, // typically Kubelet.nodeIPs
 			// in https://github.com/kubernetes/kubernetes/issues/120720.
 			// We are already hinting the external cloud provider via the annotation AnnotationAlphaProvidedIPAddr.
 			if !nodeIPSpecified {
+				node.Status.Addresses = []v1.NodeAddress{
+					{Type: v1.NodeHostName, Address: hostname},
+				}
 				return nil
 			}
 		}
