@@ -71,6 +71,7 @@ func TestConntracker_ClearEntries(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			handler := &fakeHandler{}
+			handler.deleteErrors = []error{unix.EINTR, nil}
 			ct := newConntracker(handler)
 			_, err := ct.ClearEntries(tc.ipFamily, tc.filters...)
 			require.NoError(t, err)

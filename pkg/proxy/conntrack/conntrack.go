@@ -75,7 +75,15 @@ func (ct *conntracker) ClearEntries(ipFamily uint8, filters ...netlink.CustomCon
 		return 0, nil
 	}
 
-	n, err := ct.handler.ConntrackDeleteFilters(netlink.ConntrackTable, netlink.InetFamily(ipFamily), filters...)
+	var n uint
+	var err error
+	err = retry.OnError(util.MaxAttemptsEINTR, util.ShouldRetryOnEINTR, func() error {
+		var count uint
+		count, err = ct.handler.ConntrackDeleteFilters(netlink.ConntrackTable, netlink.InetFamily(ipFamily), filters...)
+		n += count
+		return err
+	})
+
 	if err != nil {
 		return int(n), fmt.Errorf("error deleting conntrack entries, error: %w", err)
 	}

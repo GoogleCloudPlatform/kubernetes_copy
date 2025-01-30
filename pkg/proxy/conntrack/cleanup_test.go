@@ -284,7 +284,7 @@ func TestCleanStaleEntries(t *testing.T) {
 	errors := []error{unix.EINTR, nil, nil}
 
 	fake.entries = entries
-	fake.errors = errors
+	fake.tableListErrors = errors
 
 	ct := newConntracker(fake)
 	CleanStaleEntries(ct, testIPFamily, svcPortMap, endpointsMap)
