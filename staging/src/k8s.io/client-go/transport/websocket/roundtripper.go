@@ -181,6 +181,11 @@ func (rt *RoundTripper) RoundTrip(request *http.Request) (retResp *http.Response
 // websocket connection after RoundTrip() on the wrapper. Returns an error if there is
 // a problem creating the round trippers.
 func RoundTripperFor(config *restclient.Config) (http.RoundTripper, ConnectionHolder, error) {
+	// Custom dialers not currently supported for streaming connections:
+	//   https://github.com/kubernetes/kubernetes/issues/129915
+	if config.Dial != nil {
+		return nil, nil, fmt.Errorf("custom dial function not supported for streaming connections")
+	}
 	transportCfg, err := config.TransportConfig()
 	if err != nil {
 		return nil, nil, err

@@ -35,6 +35,11 @@ type Upgrader interface {
 
 // RoundTripperFor returns a round tripper and upgrader to use with SPDY.
 func RoundTripperFor(config *restclient.Config) (http.RoundTripper, Upgrader, error) {
+	// Custom dialers not currently supported for streaming connections:
+	//   https://github.com/kubernetes/kubernetes/issues/129915
+	if config.Dial != nil {
+		return nil, nil, fmt.Errorf("custom dial function not supported for streaming connections")
+	}
 	tlsConfig, err := restclient.TLSConfigFor(config)
 	if err != nil {
 		return nil, nil, err
