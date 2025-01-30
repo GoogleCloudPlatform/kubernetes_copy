@@ -19,6 +19,7 @@ package kuberc
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -43,7 +44,7 @@ func decodePreference(kubercFile string) (*config.Preference, error) {
 	reader := utilyaml.NewYAMLReader(bufio.NewReader(bytes.NewBuffer(kubercBytes)))
 	for {
 		doc, readErr := reader.Read()
-		if readErr == io.EOF {
+		if errors.Is(readErr, io.EOF) {
 			// no more entries, expected when we reach the end of the file
 			break
 		}
