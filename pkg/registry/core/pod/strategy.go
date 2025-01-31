@@ -830,9 +830,9 @@ func mutateTopologySpreadConstraints(pod *api.Pod) {
 	if !utilfeature.DefaultFeatureGate.Enabled(features.MatchLabelKeysInPodTopologySpread) || pod.Spec.TopologySpreadConstraints == nil {
 		return
 	}
-	topologySpreadConstraint := pod.Spec.TopologySpreadConstraints
-	for i := range topologySpreadConstraint {
-		applyMatchLabelKeys(&topologySpreadConstraint[i], pod.Labels)
+	topologySpreadConstraints := pod.Spec.TopologySpreadConstraints
+	for i := range topologySpreadConstraints {
+		applyMatchLabelKeys(&topologySpreadConstraints[i], pod.Labels)
 	}
 }
 
