@@ -17,7 +17,6 @@ limitations under the License.
 package podresources
 
 import (
-	"context"
 	"testing"
 
 	v1 "k8s.io/api/core/v1"
@@ -26,9 +25,11 @@ import (
 	podresourcesv1 "k8s.io/kubelet/pkg/apis/podresources/v1"
 	"k8s.io/kubelet/pkg/apis/podresources/v1alpha1"
 	podresourcetest "k8s.io/kubernetes/pkg/kubelet/apis/podresources/testing"
+	"k8s.io/kubernetes/test/utils/ktesting"
 )
 
 func TestListPodResourcesV1alpha1(t *testing.T) {
+	tCtx := ktesting.Init(t)
 	podName := "pod-name"
 	podNamespace := "pod-namespace"
 	podUID := types.UID("pod-uid")
@@ -135,7 +136,7 @@ func TestListPodResourcesV1alpha1(t *testing.T) {
 				Devices: mockDevicesProvider,
 			}
 			server := NewV1alpha1PodResourcesServer(providers)
-			resp, err := server.List(context.TODO(), &v1alpha1.ListPodResourcesRequest{})
+			resp, err := server.List(tCtx, &v1alpha1.ListPodResourcesRequest{})
 			if err != nil {
 				t.Errorf("want err = %v, got %q", nil, err)
 			}
