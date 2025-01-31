@@ -40,7 +40,7 @@ import (
 	schedutil "k8s.io/kubernetes/pkg/scheduler/util"
 )
 
-var cmpOpts = []cmp.Option{
+var nodeInfoCmpOpts = []cmp.Option{
 	cmp.AllowUnexported(framework.NodeInfo{}),
 	cmpopts.IgnoreUnexported(framework.PodInfo{}),
 }
@@ -57,7 +57,7 @@ func deepEqualWithoutGeneration(actual *nodeInfoListItem, expected *framework.No
 		expected.Generation = 0
 	}
 	if actual != nil {
-		if diff := cmp.Diff(expected, actual.info, cmpOpts...); diff != "" {
+		if diff := cmp.Diff(expected, actual.info, nodeInfoCmpOpts...); diff != "" {
 			return fmt.Errorf("Unexpected node info (-want,+got):\n%s", diff)
 		}
 	}
@@ -471,7 +471,7 @@ func TestDump(t *testing.T) {
 	}
 	for name, ni := range snapshot.Nodes {
 		nItem := cache.nodes[name]
-		if diff := cmp.Diff(nItem.info, ni, cmpOpts...); diff != "" {
+		if diff := cmp.Diff(nItem.info, ni, nodeInfoCmpOpts...); diff != "" {
 			t.Errorf("Unexpected node info (-want,+got):\n%s", diff)
 		}
 	}
@@ -1251,7 +1251,7 @@ func TestNodeOperators(t *testing.T) {
 
 			// Generations are globally unique. We check in our unit tests that they are incremented correctly.
 			expected.Generation = got.info.Generation
-			if diff := cmp.Diff(expected, got.info, cmpOpts...); diff != "" {
+			if diff := cmp.Diff(expected, got.info, nodeInfoCmpOpts...); diff != "" {
 				t.Errorf("Failed to add node into scheduler cache (-want,+got):\n%s", diff)
 			}
 
@@ -1270,8 +1270,8 @@ func TestNodeOperators(t *testing.T) {
 				t.Errorf("failed to dump cached nodes:\n got: %v \nexpected: %v", cachedNodes.nodeInfoMap, tc.nodes)
 			}
 			expected.Generation = newNode.Generation
-			if diff := cmp.Diff(newNode, expected.Snapshot(), cmpOpts...); diff != "" {
-				t.Errorf("Failed to clone node:\n%s", diff)
+			if diff := cmp.Diff(expected.Snapshot(), newNode, nodeInfoCmpOpts...); diff != "" {
+				t.Errorf("Failed to clone node (-want,+got):\n%s", diff)
 			}
 			// check imageState of NodeInfo with specific image when update snapshot
 			if !checkImageStateSummary(cachedNodes.nodeInfoMap, "gcr.io/80:latest", "gcr.io/300:latest") {
@@ -1292,7 +1292,7 @@ func TestNodeOperators(t *testing.T) {
 			}
 			expected.Generation = got.info.Generation
 
-			if diff := cmp.Diff(expected, got.info, cmpOpts...); diff != "" {
+			if diff := cmp.Diff(expected, got.info, nodeInfoCmpOpts...); diff != "" {
 				t.Errorf("Unexpected schedulertypes after updating node (-want, +got):\n%s", diff)
 			}
 			// check imageState of NodeInfo with specific image when update node
@@ -1769,7 +1769,7 @@ func compareCacheWithNodeInfoSnapshot(t *testing.T, cache *cacheImpl, snapshot *
 		if want.Node() == nil {
 			want = nil
 		}
-		if diff := cmp.Diff(want, snapshot.nodeInfoMap[name], cmpOpts...); diff != "" {
+		if diff := cmp.Diff(want, snapshot.nodeInfoMap[name], nodeInfoCmpOpts...); diff != "" {
 			return fmt.Errorf("Unexpected node info for node (-want, +got):\n%s", diff)
 		}
 	}

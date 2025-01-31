@@ -41,7 +41,7 @@ import (
 	tf "k8s.io/kubernetes/pkg/scheduler/testing/framework"
 )
 
-var cmpOpts = []cmp.Option{
+var scheduleResultCmpOpts = []cmp.Option{
 	cmpopts.EquateComparable(),
 	cmp.AllowUnexported(ScheduleResult{}),
 }
@@ -371,8 +371,8 @@ func TestSchedulerWithExtenders(t *testing.T) {
 					return
 				}
 
-				if diff := cmp.Diff(result, test.expectedResult, cmpOpts...); diff != "" {
-					t.Errorf("Unexpected result: (-want, +got): %s", diff)
+				if diff := cmp.Diff(result, test.expectedResult, scheduleResultCmpOpts...); diff != "" {
+					t.Errorf("Unexpected result: (-want, +got):\n%s", diff)
 				}
 			}
 		})
