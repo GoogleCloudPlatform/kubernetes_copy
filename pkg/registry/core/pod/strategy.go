@@ -817,23 +817,22 @@ func mutatePodAffinity(pod *api.Pod) {
 	}
 }
 
-func applyMatchLabelKeys(constraint *api.TopologySpreadConstraint, label map[string]string) {
+func applyMatchLabelKeys(constraint *api.TopologySpreadConstraint, labels map[string]string) {
 	if len(constraint.MatchLabelKeys) == 0 || constraint.LabelSelector == nil {
 		// If LabelSelector is nil, we don't need to apply label keys to it because nil-LabelSelector is match none.
 		return
 	}
 
-	applyLabelKeysToLabelSelector(constraint.LabelSelector, constraint.MatchLabelKeys, metav1.LabelSelectorOpIn, label)
+	applyLabelKeysToLabelSelector(constraint.LabelSelector, constraint.MatchLabelKeys, metav1.LabelSelectorOpIn, labels)
 }
 
 func mutateTopologySpreadConstraints(pod *api.Pod) {
 	if !utilfeature.DefaultFeatureGate.Enabled(features.MatchLabelKeysInPodTopologySpread) || pod.Spec.TopologySpreadConstraints == nil {
 		return
 	}
-	if topologySpreadConstraint := pod.Spec.TopologySpreadConstraints; topologySpreadConstraint != nil {
-		for i := range topologySpreadConstraint {
-			applyMatchLabelKeys(&topologySpreadConstraint[i], pod.Labels)
-		}
+	topologySpreadConstraint := pod.Spec.TopologySpreadConstraints
+	for i := range topologySpreadConstraint {
+		applyMatchLabelKeys(&topologySpreadConstraint[i], pod.Labels)
 	}
 }
 

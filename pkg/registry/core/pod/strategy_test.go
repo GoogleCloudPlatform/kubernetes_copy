@@ -1791,14 +1791,14 @@ func Test_mutatePodAffinity(t *testing.T) {
 
 func Test_mutateTopologySpreadConstraints(t *testing.T) {
 	tests := []struct {
-		name               string
-		pod                *api.Pod
-		wantPod            *api.Pod
-		featureGateEnabled bool
+		name                  string
+		pod                   *api.Pod
+		wantPod               *api.Pod
+		matchLabelKeysEnabled bool
 	}{
 		{
-			name:               "matchLabelKeys are merged into labelSelector with In",
-			featureGateEnabled: true,
+			name:                  "matchLabelKeys are merged into labelSelector with In",
+			matchLabelKeysEnabled: true,
 			pod: &api.Pod{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
@@ -1852,8 +1852,8 @@ func Test_mutateTopologySpreadConstraints(t *testing.T) {
 			},
 		},
 		{
-			name:               "keys, which are not found in Pod labels, are ignored",
-			featureGateEnabled: true,
+			name:                  "keys, which are not found in Pod labels, are ignored",
+			matchLabelKeysEnabled: true,
 			pod: &api.Pod{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
@@ -1902,8 +1902,8 @@ func Test_mutateTopologySpreadConstraints(t *testing.T) {
 			},
 		},
 		{
-			name:               "matchLabelKeys is ignored if the labelSelector is nil",
-			featureGateEnabled: true,
+			name:                  "matchLabelKeys is ignored if the labelSelector is nil",
+			matchLabelKeysEnabled: true,
 			pod: &api.Pod{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
@@ -1986,7 +1986,7 @@ func Test_mutateTopologySpreadConstraints(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.MatchLabelKeysInPodTopologySpread, tc.featureGateEnabled)
+			featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.MatchLabelKeysInPodTopologySpread, tc.matchLabelKeysEnabled)
 
 			pod := tc.pod
 			mutateTopologySpreadConstraints(pod)

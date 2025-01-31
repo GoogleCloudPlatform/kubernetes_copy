@@ -22740,7 +22740,9 @@ func TestValidateTopologySpreadConstraints(t *testing.T) {
 				},
 			},
 		}},
-		wantFieldErrors: field.ErrorList{field.Invalid(fieldPathMatchLabelKeys.Index(0), "foo", "exists in both matchLabelKeys and labelSelector")},
+		// TODO: This expected result should be reverted after #129900 is merged.
+		// wantFieldErrors: field.ErrorList{field.Invalid(fieldPathMatchLabelKeys.Index(0), "foo", "exists in both matchLabelKeys and labelSelector")},
+		wantFieldErrors: field.ErrorList{field.Invalid(subFldPath0.Index(0), "foo", "exists in both matchLabelKeys and labelSelector")},
 	}, {
 		name: "key in MatchLabelKeys is forbidden to be specified when labelSelector is not set",
 		constraints: []core.TopologySpreadConstraint{{
