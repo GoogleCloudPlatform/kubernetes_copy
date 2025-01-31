@@ -646,12 +646,12 @@ func TestCSILimits(t *testing.T) {
 			_, ctx := ktesting.NewTestContext(t)
 			_, gotPreFilterStatus := p.PreFilter(ctx, nil, test.newPod)
 			if diff := cmp.Diff(test.wantPreFilterStatus, gotPreFilterStatus, cmpOpts...); diff != "" {
-				t.Errorf("PreFilter status does not match (-want, +got): %s", diff)
+				t.Errorf("PreFilter status does not match (-want, +got):\n%s", diff)
 			}
 			if gotPreFilterStatus.Code() != framework.Skip {
 				gotStatus := p.Filter(ctx, nil, test.newPod, node)
 				if diff := cmp.Diff(gotStatus, test.wantStatus, cmpOpts...); diff != "" {
-					t.Errorf("Filter status does not match: %v, want: %v", gotStatus, test.wantStatus)
+					t.Errorf("Filter status does not match (-want, +got):\n%s", diff)
 				}
 			}
 		})

@@ -488,7 +488,7 @@ func TestConvertToMetaVictims(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := convertToMetaVictims(tt.nodeNameToVictims)
 			if diff := cmp.Diff(got, tt.want); diff != "" {
-				t.Errorf("Unexpected convertToMetaVictims(): (-want, +got): %s", diff)
+				t.Errorf("Unexpected convertToMetaVictims(): (-want, +got):\n%s", diff)
 			}
 		})
 	}
@@ -570,7 +570,7 @@ func TestConvertToVictims(t *testing.T) {
 				return
 			}
 			if diff := cmp.Diff(got, tt.want); diff != "" {
-				t.Errorf("Unexpected convertToVictims(): (-want, +got): %s", diff)
+				t.Errorf("Unexpected convertToVictims(): (-want, +got):\n%s", diff)
 			}
 		})
 	}

@@ -67,8 +67,7 @@ func TestDecodeInto(t *testing.T) {
 				t.Errorf("DecodeInto(): failed to decode args %+v: %v", test.args, err)
 			}
 			if diff := cmp.Diff(test.expected, pluginFooConf); diff != "" {
-				t.Errorf("DecodeInto(): failed to decode plugin config, expected: %+v, got: %+v",
-					test.expected, pluginFooConf)
+				t.Errorf("DecodeInto(): failed to decode plugin config (-want,+got):\n%s", diff)
 			}
 		})
 	}

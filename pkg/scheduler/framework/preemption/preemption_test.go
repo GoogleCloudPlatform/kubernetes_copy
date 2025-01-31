@@ -755,7 +755,7 @@ func TestPrepareCandidate(t *testing.T) {
 					if asyncPreemptionEnabled {
 						if tt.expectedActivatedPods != nil {
 							if diff := cmp.Diff(tt.expectedActivatedPods, fakeActivator.activatedPods); diff != "" {
-								lastErrMsg = fmt.Sprintf("expected activated pods %v, got %v", tt.expectedActivatedPods, fakeActivator.activatedPods)
+								lastErrMsg = fmt.Sprintf("Unexpected activated pods (-want,+got):\n%s", diff)
 								return false, nil
 							}
 						}
