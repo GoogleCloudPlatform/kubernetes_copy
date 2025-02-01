@@ -4278,3 +4278,60 @@ func TestValidateInvalidLabelValueInNodeSelectorOption(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateAllowPodLifecycleSleepActionZeroValue(t *testing.T) {
+	testCases := []struct {
+		name       string
+		podSpec    *api.PodSpec
+		wantOption bool
+	}{
+		{
+			name:       "no lifecycle hooks",
+			podSpec:    &api.PodSpec{},
+			wantOption: false,
+		},
+		{
+			name: "PreStop",
+			podSpec: &api.PodSpec{
+				Containers: []api.Container{
+					{
+						Lifecycle: &api.Lifecycle{
+							PreStop: &api.LifecycleHandler{
+								Sleep: &api.SleepAction{
+									Seconds: 0,
+								},
+							},
+						},
+					},
+				},
+			},
+			wantOption: true,
+		},
+		{
+			name: "PostStart",
+			podSpec: &api.PodSpec{
+				Containers: []api.Container{
+					{
+						Lifecycle: &api.Lifecycle{
+							PostStart: &api.LifecycleHandler{
+								Sleep: &api.SleepAction{
+									Seconds: 0,
+								},
+							},
+						},
+					},
+				},
+			},
+			wantOption: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			gotOptions := GetValidationOptionsFromPodSpecAndMeta(tc.podSpec, &api.PodSpec{}, nil, nil)
+			if tc.wantOption != gotOptions.AllowPodLifecycleSleepActionZeroValue {
+				t.Errorf("Got AllowPodLifecycleSleepActionZeroValue=%t, want %t", gotOptions.AllowPodLifecycleSleepActionZeroValue, tc.wantOption)
+			}
+		})
+	}
+}
