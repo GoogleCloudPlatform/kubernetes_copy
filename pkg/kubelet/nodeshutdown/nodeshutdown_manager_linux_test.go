@@ -37,6 +37,7 @@ import (
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/client-go/tools/record"
 	featuregatetesting "k8s.io/component-base/featuregate/testing"
+	"k8s.io/klog/v2"
 	"k8s.io/klog/v2/ktesting"
 	_ "k8s.io/klog/v2/ktesting/init" // activate ktesting command line flags
 	"k8s.io/kubernetes/pkg/apis/scheduling"
@@ -83,7 +84,7 @@ func (f *fakeDbus) ReloadLogindConf() error {
 	return nil
 }
 
-func (f *fakeDbus) MonitorShutdown() (<-chan bool, error) {
+func (f *fakeDbus) MonitorShutdown(_ klog.Logger) (<-chan bool, error) {
 	return f.shutdownChan, nil
 }
 
