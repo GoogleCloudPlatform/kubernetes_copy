@@ -133,7 +133,7 @@ func init() {
 }
 
 // NewKubeletCommand creates a *cobra.Command object with default parameters
-func NewKubeletCommand() *cobra.Command {
+func NewKubeletCommand(ctx context.Context) *cobra.Command {
 	cleanFlagSet := pflag.NewFlagSet(server.ComponentKubelet, pflag.ContinueOnError)
 	cleanFlagSet.SetNormalizeFunc(cliflag.WordSepNormalizeFunc)
 	kubeletFlags := options.NewKubeletFlags()
@@ -213,7 +213,7 @@ is checked every 20 seconds (also configurable with a flag).`,
 
 			// load kubelet config file, if provided
 			if len(kubeletFlags.KubeletConfigFile) > 0 {
-				kubeletConfig, err = loadConfigFile(kubeletFlags.KubeletConfigFile)
+				kubeletConfig, err = loadConfigFile(ctx, kubeletFlags.KubeletConfigFile)
 				if err != nil {
 					return fmt.Errorf("failed to load kubelet config file, path: %s, error: %w", kubeletFlags.KubeletConfigFile, err)
 				}
@@ -422,7 +422,7 @@ func kubeletConfigFlagPrecedence(kc *kubeletconfiginternal.KubeletConfiguration,
 	return nil
 }
 
-func loadConfigFile(name string) (*kubeletconfiginternal.KubeletConfiguration, error) {
+func loadConfigFile(ctx context.Context, name string) (*kubeletconfiginternal.KubeletConfiguration, error) {
 	const errFmt = "failed to load Kubelet config file %s, error %v"
 	// compute absolute path based on current working dir
 	kubeletConfigFile, err := filepath.Abs(name)
@@ -433,7 +433,7 @@ func loadConfigFile(name string) (*kubeletconfiginternal.KubeletConfiguration, e
 	if err != nil {
 		return nil, fmt.Errorf(errFmt, name, err)
 	}
-	kc, err := loader.Load()
+	kc, err := loader.Load(ctx)
 	if err != nil {
 		return nil, fmt.Errorf(errFmt, name, err)
 	}

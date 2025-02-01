@@ -17,6 +17,7 @@ limitations under the License.
 package services
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
@@ -74,13 +75,13 @@ func init() {
 
 // RunKubelet starts kubelet and waits for termination signal. Once receives the
 // termination signal, it will stop the kubelet gracefully.
-func RunKubelet(featureGates map[string]bool) {
+func RunKubelet(ctx context.Context, featureGates map[string]bool) {
 	var err error
 	// Enable monitorParent to make sure kubelet will receive termination signal
 	// when test process exits.
 	e := NewE2EServices(true /* monitorParent */)
 	defer e.Stop()
-	e.kubelet, err = e.startKubelet(featureGates)
+	e.kubelet, err = e.startKubelet(ctx, featureGates)
 	if err != nil {
 		klog.Fatalf("Failed to start kubelet: %v", err)
 	}
@@ -96,7 +97,7 @@ const (
 // Health check url of kubelet
 var kubeletHealthCheckURL = fmt.Sprintf("http://127.0.0.1:%d/healthz", ports.KubeletHealthzPort)
 
-func baseKubeConfiguration(cfgPath string) (*kubeletconfig.KubeletConfiguration, error) {
+func baseKubeConfiguration(ctx context.Context, cfgPath string) (*kubeletconfig.KubeletConfiguration, error) {
 	cfgPath, err := filepath.Abs(cfgPath)
 	if err != nil {
 		return nil, err
@@ -147,12 +148,12 @@ func baseKubeConfiguration(cfgPath string) (*kubeletconfig.KubeletConfiguration,
 		return nil, err
 	}
 
-	return loader.Load()
+	return loader.Load(ctx)
 }
 
 // startKubelet starts the Kubelet in a separate process or returns an error
 // if the Kubelet fails to start.
-func (e *E2EServices) startKubelet(featureGates map[string]bool) (*server, error) {
+func (e *E2EServices) startKubelet(ctx context.Context, featureGates map[string]bool) (*server, error) {
 	klog.Info("Starting kubelet")
 
 	framework.Logf("Standalone mode: %v", framework.TestContext.StandaloneMode)
@@ -195,7 +196,7 @@ func (e *E2EServices) startKubelet(featureGates map[string]bool) (*server, error
 	if lookup != nil {
 		kubeletConfigFile = lookup.Value.String()
 	}
-	kc, err := baseKubeConfiguration(kubeletConfigFile)
+	kc, err := baseKubeConfiguration(ctx, kubeletConfigFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load base kubelet configuration: %w", err)
 	}

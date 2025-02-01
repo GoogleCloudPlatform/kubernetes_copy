@@ -17,6 +17,7 @@ limitations under the License.
 package services
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -60,7 +61,7 @@ func NewE2EServices(monitorParent bool) *E2EServices {
 // namespace controller.
 // * kubelet: kubelet binary is outside. (We plan to move main kubelet start logic out when we have
 // standard kubelet launcher)
-func (e *E2EServices) Start(featureGates map[string]bool) error {
+func (e *E2EServices) Start(ctx context.Context, featureGates map[string]bool) error {
 	var err error
 	if e.services, err = e.startInternalServices(); err != nil {
 		return fmt.Errorf("failed to start internal services: %w", err)
@@ -71,7 +72,7 @@ func (e *E2EServices) Start(featureGates map[string]bool) error {
 		klog.Info("nothing to do in node-e2e-services, running conformance suite")
 	} else {
 		// Start kubelet
-		e.kubelet, err = e.startKubelet(featureGates)
+		e.kubelet, err = e.startKubelet(ctx, featureGates)
 		if err != nil {
 			return fmt.Errorf("failed to start kubelet: %w", err)
 		}
