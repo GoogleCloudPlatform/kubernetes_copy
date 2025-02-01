@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -322,17 +323,17 @@ func getPatchSetsFromPath(targetPath string, knownTargets []string, output io.Wr
 		goto return_path_error
 	}
 
-	err = filepath.Walk(targetPath, func(path string, info os.FileInfo, err error) error {
+	err = filepath.WalkDir(targetPath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 
 		// Sub-directories and "." are ignored.
-		if info.IsDir() {
+		if d.IsDir() {
 			return nil
 		}
 
-		baseName := info.Name()
+		baseName := d.Name()
 
 		// Parse the filename and retrieve the target and patch type
 		targetName, patchType, warn, err := parseFilename(baseName, knownTargets)

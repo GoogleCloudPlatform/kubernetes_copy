@@ -27,6 +27,7 @@ import (
 	"go/format"
 	"go/parser"
 	"go/token"
+	"io/fs"
 	"log"
 	"os"
 	"path/filepath"
@@ -193,11 +194,11 @@ type collector struct {
 // handlePath walks the filesystem recursively, collecting directories,
 // ignoring some unneeded directories (hidden/vendored) that are handled
 // specially later.
-func (c *collector) handlePath(path string, info os.FileInfo, err error) error {
+func (c *collector) handlePath(path string, d fs.DirEntry, err error) error {
 	if err != nil {
 		return err
 	}
-	if info.IsDir() {
+	if d.IsDir() {
 		// Ignore hidden directories (.git, .cache, etc)
 		if len(path) > 1 && path[0] == '.' ||
 			// OS-specific vendor code tends to be imported by OS-specific
@@ -233,7 +234,7 @@ func main() {
 	}
 	c := collector{regex: regex}
 	for _, arg := range args {
-		err := filepath.Walk(arg, c.handlePath)
+		err := filepath.WalkDir(arg, c.handlePath)
 		if err != nil {
 			log.Fatalf("Error walking: %v", err)
 		}

@@ -25,6 +25,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"io"
+	"io/fs"
 	"math/big"
 	"net/http"
 	"net/http/httptest"
@@ -194,14 +195,14 @@ func Test_buildClientCertificateManager_populateCertDir(t *testing.T) {
 
 }
 
-func getFileInfo(dir string) map[string]os.FileInfo {
-	fi := make(map[string]os.FileInfo)
-	filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+func getFileInfo(dir string) map[string]fs.DirEntry {
+	fi := make(map[string]fs.DirEntry)
+	filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
 		if path == dir {
 			return nil
 		}
-		fi[path] = info
-		if !info.IsDir() {
+		fi[path] = d
+		if !d.IsDir() {
 			os.Remove(path)
 		}
 		return nil

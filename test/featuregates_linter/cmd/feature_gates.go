@@ -21,6 +21,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -229,7 +230,7 @@ func searchPathForFeatures(path string, versioned bool) ([]featureInfo, error) {
 	allFeatures := []featureInfo{}
 	// Create a FileSet to work with
 	fset := token.NewFileSet()
-	err := filepath.Walk(path, func(path string, info os.FileInfo, err error) error {
+	err := filepath.WalkDir(path, func(path string, d fs.DirEntry, err error) error {
 		if strings.HasPrefix(path, "vendor") || strings.HasPrefix(path, "_") {
 			return filepath.SkipDir
 		}
