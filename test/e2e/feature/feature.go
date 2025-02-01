@@ -252,7 +252,7 @@ var (
 
 	// KubeletSeparateDiskGC (SIG-node, used for testing separate image filesystem <https://kep.k8s.io/4191>)
 	// The tests need separate disk settings on nodes and separate filesystems in storage.conf
-	KubeletSeparateDiskGC = framework.WithFeature(framework.ValidFeatures.Add("KubeletSeparateDiskGC"))
+	KubeletSeparateDiskGC = framework.WithFeature(framework.ValidFeatures.Add("SeparateDiskTest"))
 
 	// TODO: document the feature (owning SIG, when to use this feature for a test)
 	KubeProxyDaemonSetDowngrade = framework.WithFeature(framework.ValidFeatures.Add("KubeProxyDaemonSetDowngrade"))
