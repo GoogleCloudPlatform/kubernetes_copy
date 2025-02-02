@@ -556,12 +556,6 @@
     lockToDefault: false
     preRelease: Alpha
     version: "1.31"
-- name: InheritDefaultEvictionValues
-  versionedSpecs:
-  - default: true
-    lockToDefault: false
-    preRelease: Beta
-    version: "1.33"
 - name: InPlacePodVerticalScaling
   versionedSpecs:
   - default: false

@@ -258,6 +258,7 @@ var (
 		"MaxPods",
 		"MemoryManagerPolicy",
 		"MemorySwap.SwapBehavior",
+		"MergeDefaultEvictionSettings",
 		"NodeLeaseDurationSeconds",
 		"NodeStatusMaxImages",
 		"NodeStatusUpdateFrequency.Duration",

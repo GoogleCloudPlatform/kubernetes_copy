@@ -26,12 +26,10 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
-	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	corev1helpers "k8s.io/component-helpers/scheduling/corev1"
 	"k8s.io/klog/v2"
 	statsapi "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 	v1resource "k8s.io/kubernetes/pkg/api/v1/resource"
-	"k8s.io/kubernetes/pkg/features"
 	evictionapi "k8s.io/kubernetes/pkg/kubelet/eviction/api"
 	kubetypes "k8s.io/kubernetes/pkg/kubelet/types"
 	volumeutils "k8s.io/kubernetes/pkg/volume/util"
@@ -118,11 +116,15 @@ func getReclaimableThreshold(thresholds []evictionapi.Threshold) (evictionapi.Th
 }
 
 // ParseThresholdConfig parses the flags for thresholds.
-func ParseThresholdConfig(allocatableConfig []string, evictionHard, evictionSoft, evictionSoftGracePeriod, evictionMinimumReclaim map[string]string) ([]evictionapi.Threshold, error) {
+func ParseThresholdConfig(allocatableConfig []string, evictionHard, evictionSoft, evictionSoftGracePeriod, evictionMinimumReclaim map[string]string, mergeDefault bool) ([]evictionapi.Threshold, error) {
 	results := []evictionapi.Threshold{}
 	hardThresholds, err := parseThresholdStatements(evictionHard)
 	if err != nil {
 		return nil, err
+	}
+	if mergeDefault {
+		hardThreshold, _ := mergeEvictionHardDefaults(evictionHard)
+		hardThresholds = append(hardThresholds, hardThreshold...)
 	}
 	results = append(results, hardThresholds...)
 	softThresholds, err := parseThresholdStatements(evictionSoft)
@@ -366,16 +368,6 @@ func parseThresholdStatements(statements map[string]string) ([]evictionapi.Thres
 			results = append(results, *result)
 		}
 	}
-	if utilfeature.DefaultFeatureGate.Enabled(features.InheritDefaultEvictionValues) {
-		for signal, val := range DefaultEvictionHard {
-			key := signal
-			_, exists := statements[key]
-			if !exists {
-				result, _ := parseThresholdStatement(evictionapi.Signal(key), val)
-				results = append(results, *result)
-			}
-		}
-	}
 	return results, nil
 }
 
@@ -426,6 +418,23 @@ func parseThresholdStatement(signal evictionapi.Signal, val string) (*evictionap
 	}, nil
 }
 
+// add the unchanged hard eviction threshold parameters to their default values when mergeDefaultEvictionSettings is set to true
+func mergeEvictionHardDefaults(statements map[string]string) ([]evictionapi.Threshold, error) {
+	if len(statements) == 0 {
+		return nil, nil
+	}
+	results := []evictionapi.Threshold{}
+	for signal, val := range DefaultEvictionHard {
+		key := signal
+		_, exists := statements[key]
+		if !exists {
+			result, _ := parseThresholdStatement(evictionapi.Signal(key), val)
+			results = append(results, *result)
+		}
+	}
+	return results, nil
+}
+
 // parsePercentage parses a string representing a percentage value
 func parsePercentage(input string) (float32, error) {
 	value, err := strconv.ParseFloat(strings.TrimRight(input, "%"), 32)
@@ -474,7 +483,7 @@ func parseMinimumReclaims(statements map[string]string) (map[evictionapi.Signal]
 			if err != nil {
 				return nil, err
 			}
-			if percentage <= 0 {
+			if percentage < 0 {
 				return nil, fmt.Errorf("eviction percentage minimum reclaim %v must be positive: %s", signal, val)
 			}
 			results[signal] = evictionapi.ThresholdValue{
