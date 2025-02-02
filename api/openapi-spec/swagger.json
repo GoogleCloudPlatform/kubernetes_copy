@@ -14835,12 +14835,72 @@
       ],
       "type": "object"
     },
+    "io.k8s.api.resource.v1alpha3.CompositeDevice": {
+      "description": "CompositeDevice defines one device instance.",
+      "properties": {
+        "attributes": {
+          "additionalProperties": {
+            "$ref": "#/definitions/io.k8s.api.resource.v1alpha3.DeviceAttribute"
+          },
+          "description": "Attributes defines the set of attributes for this device. The name of each attribute must be unique in that set.\n\nTo ensure this uniqueness, attributes defined by the vendor must be listed without the driver name as domain prefix in their name. All others must be listed with their domain prefix.\n\nConflicting attributes from those provided via mixins are overwritten by the ones provided here.\n\nThe maximum number of attributes and capacities combined is 32.",
+          "type": "object"
+        },
+        "capacity": {
+          "additionalProperties": {
+            "$ref": "#/definitions/io.k8s.apimachinery.pkg.api.resource.Quantity"
+          },
+          "description": "Capacity defines the set of capacities for this device. The name of each capacity must be unique in that set.\n\nTo ensure this uniqueness, capacities defined by the vendor must be listed without the driver name as domain prefix in their name. All others must be listed with their domain prefix.\n\nConflicting capacities from those provided via mixins are overwritten by the ones provided here.\n\nThe maximum number of attributes and capacities combined is 32.",
+          "type": "object"
+        },
+        "consumesCapacityFrom": {
+          "description": "ConsumesCapacityFrom defines the set of devices where any capacity consumed by this device should be pulled from. This applies recursively. In cases where the device names itself as its source, the recursion is halted.\n\nConflicting capacities from multiple devices are taken from the last device listed that contains them.\n\nThe maximum number of devices that can be referenced is 8.",
+          "items": {
+            "$ref": "#/definitions/io.k8s.api.resource.v1alpha3.DeviceRef"
+          },
+          "type": "array",
+          "x-kubernetes-list-type": "atomic"
+        },
+        "includes": {
+          "description": "Includes defines the set of device mixins that this device includes.\n\nThe propertes of each included mixin are applied to this device in order. Conflicting properties from multiple mixins are taken from the last mixin listed that contains them.\n\nThe maximum number of mixins that can be included is 8.",
+          "items": {
+            "$ref": "#/definitions/io.k8s.api.resource.v1alpha3.DeviceMixinRef"
+          },
+          "type": "array",
+          "x-kubernetes-list-type": "atomic"
+        }
+      },
+      "type": "object"
+    },
+    "io.k8s.api.resource.v1alpha3.CompositeDeviceMixin": {
+      "description": "CompositeDeviceMixin defines a mixin that a composite device can include.",
+      "properties": {
+        "attributes": {
+          "additionalProperties": {
+            "$ref": "#/definitions/io.k8s.api.resource.v1alpha3.DeviceAttribute"
+          },
+          "description": "Attributes defines the set of attributes for this mixin. The name of each attribute must be unique in that set.\n\nTo ensure this uniqueness, attributes defined by the vendor must be listed without the driver name as domain prefix in their name. All others must be listed with their domain prefix.\n\nConflicting attributes from those provided via other mixins are overwritten by the ones provided here.\n\nThe maximum number of attributes and capacities combined is 32.",
+          "type": "object"
+        },
+        "capacity": {
+          "additionalProperties": {
+            "$ref": "#/definitions/io.k8s.apimachinery.pkg.api.resource.Quantity"
+          },
+          "description": "Capacity defines the set of capacities for this mixin. The name of each capacity must be unique in that set.\n\nTo ensure this uniqueness, capacities defined by the vendor must be listed without the driver name as domain prefix in their name. All others must be listed with their domain prefix.\n\nConflicting capacities from those provided via other mixins are overwritten by the ones provided here.\n\nThe maximum number of attributes and capacities combined is 32.",
+          "type": "object"
+        }
+      },
+      "type": "object"
+    },
     "io.k8s.api.resource.v1alpha3.Device": {
       "description": "Device represents one individual hardware instance that can be selected based on its attributes. Besides the name, exactly one field must be set.",
       "properties": {
         "basic": {
           "$ref": "#/definitions/io.k8s.api.resource.v1alpha3.BasicDevice",
           "description": "Basic defines one device instance."
+        },
+        "composite": {
+          "$ref": "#/definitions/io.k8s.api.resource.v1alpha3.CompositeDevice",
+          "description": "Composite defines one composite device instance.\n\nThis is an alpha field and requires enabling the DRAPartitionableDevices feature gate."
         },
         "name": {
           "description": "Name is unique identifier among all devices managed by the driver in the pool. It must be a DNS label.",
@@ -14860,7 +14920,7 @@
           "description": "Opaque provides driver-specific configuration parameters."
         },
         "requests": {
-          "description": "Requests lists the names of requests where the configuration applies. If empty, its applies to all requests.",
+          "description": "Requests lists the names of requests where the configuration applies. If empty, its applies to all requests.\n\nReferences to subrequests must include the name of both the parent request and the subrequest using the format <parent request>/<subrequest>. If just the parent request is given, the configuration applies to all subrequests.",
           "items": {
             "type": "string"
           },
@@ -14960,7 +15020,7 @@
           "description": "Opaque provides driver-specific configuration parameters."
         },
         "requests": {
-          "description": "Requests lists the names of requests where the configuration applies. If empty, it applies to all requests.",
+          "description": "Requests lists the names of requests where the configuration applies. If empty, it applies to all requests.\n\nReferences to subrequests must include the name of both the parent request and the subrequest using the format <parent request>/<subrequest>. If just the parent request is given, the configuration applies to all subrequests.",
           "items": {
             "type": "string"
           },
@@ -15077,7 +15137,7 @@
           "type": "string"
         },
         "requests": {
-          "description": "Requests is a list of the one or more requests in this claim which must co-satisfy this constraint. If a request is fulfilled by multiple devices, then all of the devices must satisfy the constraint. If this is not specified, this constraint applies to all requests in this claim.",
+          "description": "Requests is a list of the one or more requests in this claim which must co-satisfy this constraint. If a request is fulfilled by multiple devices, then all of the devices must satisfy the constraint. If this is not specified, this constraint applies to all requests in this claim.\n\nReferences to subrequests must include the name of both the parent request and the subrequest using the format <parent request>/<subrequest>. If just the parent request is given, the constraint applies to all subrequests.",
           "items": {
             "type": "string"
           },
@@ -15087,8 +15147,51 @@
       },
       "type": "object"
     },
+    "io.k8s.api.resource.v1alpha3.DeviceMixin": {
+      "description": "DeviceMixin defines a specific device mixin for each device type. Besides the name, exactly one field must be set.",
+      "properties": {
+        "composite": {
+          "$ref": "#/definitions/io.k8s.api.resource.v1alpha3.CompositeDeviceMixin",
+          "description": "Composite defines a mixin usable by a composite device."
+        },
+        "name": {
+          "description": "Name is a unique identifier among all mixins managed by the driver in the pool. It must be a DNS label.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    },
+    "io.k8s.api.resource.v1alpha3.DeviceMixinRef": {
+      "description": "DeviceMixinRef defines a reference to a device mixin.",
+      "properties": {
+        "name": {
+          "description": "Name refers to the name of a device mixin in the pool.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    },
+    "io.k8s.api.resource.v1alpha3.DeviceRef": {
+      "description": "DeviceRef defines a reference to a device.",
+      "properties": {
+        "name": {
+          "description": "Name refers to the name of a device in the pool.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    },
     "io.k8s.api.resource.v1alpha3.DeviceRequest": {
-      "description": "DeviceRequest is a request for devices required for a claim. This is typically a request for a single resource like a device, but can also ask for several identical devices.\n\nA DeviceClassName is currently required. Clients must check that it is indeed set. It's absence indicates that something changed in a way that is not supported by the client yet, in which case it must refuse to handle the request.",
+      "description": "DeviceRequest is a request for devices required for a claim. This is typically a request for a single resource like a device, but can also ask for several identical devices. It can also provide a list of alternative subrequests using the firstAvailableOf list.\n\nA DeviceClassName is currently required if the firstAvailableOf list is empty. It's absence indicates that something changed in a way that is not supported by the client yet, in which case it must refuse to handle the request. If the firstAvailableOf list has one or more subrequests, then all other fields except the name must be unset.",
       "properties": {
         "adminAccess": {
           "description": "AdminAccess indicates that this is a claim for administrative access to the device(s). Claims with AdminAccess are expected to be used for monitoring or other management services for a device.  They ignore all ordinary claims to the device with respect to access modes and any resource allocations.\n\nThis is an alpha field and requires enabling the DRAAdminAccess feature gate. Admin access is disabled if this field is unset or set to false, otherwise it is enabled.",
@@ -15104,11 +15207,19 @@
           "type": "integer"
         },
         "deviceClassName": {
-          "description": "DeviceClassName references a specific DeviceClass, which can define additional configuration and selectors to be inherited by this request.\n\nA class is required. Which classes are available depends on the cluster.\n\nAdministrators may use this to restrict which devices may get requested by only installing classes with selectors for permitted devices. If users are free to request anything without restrictions, then administrators can create an empty DeviceClass for users to reference.",
+          "description": "DeviceClassName references a specific DeviceClass, which can define additional configuration and selectors to be inherited by this request.\n\nA class is required if no subrequests are specified in the firstAvailableOf slice. Which classes are available depends on the cluster.\n\nAdministrators may use this to restrict which devices may get requested by only installing classes with selectors for permitted devices. If users are free to request anything without restrictions, then administrators can create an empty DeviceClass for users to reference.",
           "type": "string"
         },
+        "firstAvailableOf": {
+          "description": "FirstAvailableOf contains subrequests, exactly one of which must be satisfied in order to satisfy this request. This field may only be set in the entries of DeviceClaim.Requests.",
+          "items": {
+            "$ref": "#/definitions/io.k8s.api.resource.v1alpha3.DeviceSubRequest"
+          },
+          "type": "array",
+          "x-kubernetes-list-type": "atomic"
+        },
         "name": {
-          "description": "Name can be used to reference this request in a pod.spec.containers[].resources.claims entry and in a constraint of the claim.\n\nMust be a DNS label.",
+          "description": "Name can be used to reference this request in a pod.spec.containers[].resources.claims entry and in a constraint of the claim.\n\nMust be a DNS label and unique among all DeviceRequests in a ResourceClaim.",
           "type": "string"
         },
         "selectors": {
@@ -15121,8 +15232,7 @@
         }
       },
       "required": [
-        "name",
-        "deviceClassName"
+        "name"
       ],
       "type": "object"
     },
@@ -15146,7 +15256,7 @@
           "type": "string"
         },
         "request": {
-          "description": "Request is the name of the request in the claim which caused this device to be allocated. Multiple devices may have been allocated per request.",
+          "description": "Request is the name of the request in the claim which caused this device to be allocated. If it references a subrequest in the firstAvailableOf list on a DeviceRequest, this field must include both the name of the parent request and the subrequest using the format <parent request>/<subrequest>.\n\nMultiple devices may have been allocated per request.",
           "type": "string"
         }
       },
@@ -15166,6 +15276,40 @@
           "description": "CEL contains a CEL expression for selecting a device."
         }
       },
+      "type": "object"
+    },
+    "io.k8s.api.resource.v1alpha3.DeviceSubRequest": {
+      "description": "DeviceSubRequest describes a request for device provided in the claim.spec.devices.requests[].firstAvailableOf array. Each is typically a request for a single resource like a device, but can also ask for several identical devices.\n\nDeviceSubRequest is similar to Request, but doesn't expose the AdminAccess (not supported) or FirstAvailableOf (recursion not supported) fields, as those can only be set on the top-level request.\n\nA DeviceClassName is currently required. Clients must check that it is indeed set. It's absence indicates that something changed in a way that is not supported by the client yet, in which case it must refuse to handle the request.",
+      "properties": {
+        "allocationMode": {
+          "description": "AllocationMode and its related fields define how devices are allocated to satisfy this request. Supported values are:\n\n- ExactCount: This request is for a specific number of devices.\n  This is the default. The exact number is provided in the\n  count field.\n\n- All: This request is for all of the matching devices in a pool.\n  Allocation will fail if some devices are already allocated,\n  unless adminAccess is requested.\n\nIf AlloctionMode is not specified, the default mode is ExactCount. If the mode is ExactCount and count is not specified, the default count is one. Any other requests must specify this field.\n\nMore modes may get added in the future. Clients must refuse to handle requests with unknown modes.",
+          "type": "string"
+        },
+        "count": {
+          "description": "Count is used only when the count mode is \"ExactCount\". Must be greater than zero. If AllocationMode is ExactCount and this field is not specified, the default is one.",
+          "format": "int64",
+          "type": "integer"
+        },
+        "deviceClassName": {
+          "description": "DeviceClassName references a specific DeviceClass, which can define additional configuration and selectors to be inherited by this subrequest.\n\nA class is required. Which classes are available depends on the cluster.\n\nAdministrators may use this to restrict which devices may get requested by only installing classes with selectors for permitted devices. If users are free to request anything without restrictions, then administrators can create an empty DeviceClass for users to reference.",
+          "type": "string"
+        },
+        "name": {
+          "description": "Name can be used to reference this subrequest in a pod.spec.containers[].resources.claims entry and in a constraint of the claim. References must use the format <parent request>/<subrequest>.\n\nMust be a DNS label.",
+          "type": "string"
+        },
+        "selectors": {
+          "description": "Selectors define criteria which must be satisfied by a specific device in order for that device to be considered for this request. All selectors must be satisfied for a device to be considered.",
+          "items": {
+            "$ref": "#/definitions/io.k8s.api.resource.v1alpha3.DeviceSelector"
+          },
+          "type": "array",
+          "x-kubernetes-list-type": "atomic"
+        }
+      },
+      "required": [
+        "name"
+      ],
       "type": "object"
     },
     "io.k8s.api.resource.v1alpha3.NetworkDeviceData": {
@@ -15535,8 +15679,16 @@
           "description": "AllNodes indicates that all nodes have access to the resources in the pool.\n\nExactly one of NodeName, NodeSelector and AllNodes must be set.",
           "type": "boolean"
         },
+        "deviceMixins": {
+          "description": "DeviceMixins represents a list of device mixins, i.e. a collection of shared attributes and capacities that an actual device can \"include\" to extend the set of attributes and capacities it already defines.\n\nThe main purposes of these mixins is to reduce the memory footprint of devices since they can reference the mixins provided here rather than duplicate them.\n\nThe total number of mixins and devices must be less than 128.\n\nThis is an alpha field and requires enabling the DRAPartitionableDevices feature gate.",
+          "items": {
+            "$ref": "#/definitions/io.k8s.api.resource.v1alpha3.DeviceMixin"
+          },
+          "type": "array",
+          "x-kubernetes-list-type": "atomic"
+        },
         "devices": {
-          "description": "Devices lists some or all of the devices in this pool.\n\nMust not have more than 128 entries.",
+          "description": "Devices lists some or all of the devices in this pool.\n\nThe total number of mixins and devices must be less than 128.",
           "items": {
             "$ref": "#/definitions/io.k8s.api.resource.v1alpha3.Device"
           },
@@ -15655,12 +15807,72 @@
       ],
       "type": "object"
     },
+    "io.k8s.api.resource.v1beta1.CompositeDevice": {
+      "description": "CompositeDevice defines one device instance.",
+      "properties": {
+        "attributes": {
+          "additionalProperties": {
+            "$ref": "#/definitions/io.k8s.api.resource.v1beta1.DeviceAttribute"
+          },
+          "description": "Attributes defines the set of attributes for this device. The name of each attribute must be unique in that set.\n\nTo ensure this uniqueness, attributes defined by the vendor must be listed without the driver name as domain prefix in their name. All others must be listed with their domain prefix.\n\nConflicting attributes from those provided via mixins are overwritten by the ones provided here.\n\nThe maximum number of attributes and capacities combined is 32.",
+          "type": "object"
+        },
+        "capacity": {
+          "additionalProperties": {
+            "$ref": "#/definitions/io.k8s.api.resource.v1beta1.DeviceCapacity"
+          },
+          "description": "Capacity defines the set of capacities for this device. The name of each capacity must be unique in that set.\n\nTo ensure this uniqueness, capacities defined by the vendor must be listed without the driver name as domain prefix in their name. All others must be listed with their domain prefix.\n\nConflicting capacities from those provided via mixins are overwritten by the ones provided here.\n\nThe maximum number of attributes and capacities combined is 32.",
+          "type": "object"
+        },
+        "consumesCapacityFrom": {
+          "description": "ConsumesCapacityFrom defines the set of devices where any capacity consumed by this device should be pulled from. This applies recursively. In cases where the device names itself as its source, the recursion is halted.\n\nConflicting capacities from multiple devices are taken from the last device listed that contains them.\n\nThe maximum number of devices that can be referenced is 8.",
+          "items": {
+            "$ref": "#/definitions/io.k8s.api.resource.v1beta1.DeviceRef"
+          },
+          "type": "array",
+          "x-kubernetes-list-type": "atomic"
+        },
+        "includes": {
+          "description": "Includes defines the set of device mixins that this device includes.\n\nThe propertes of each included mixin are applied to this device in order. Conflicting properties from multiple mixins are taken from the last mixin listed that contains them.\n\nThe maximum number of mixins that can be included is 8.",
+          "items": {
+            "$ref": "#/definitions/io.k8s.api.resource.v1beta1.DeviceMixinRef"
+          },
+          "type": "array",
+          "x-kubernetes-list-type": "atomic"
+        }
+      },
+      "type": "object"
+    },
+    "io.k8s.api.resource.v1beta1.CompositeDeviceMixin": {
+      "description": "CompositeDeviceMixin defines a mixin that a composite device can include.",
+      "properties": {
+        "attributes": {
+          "additionalProperties": {
+            "$ref": "#/definitions/io.k8s.api.resource.v1beta1.DeviceAttribute"
+          },
+          "description": "Attributes defines the set of attributes for this mixin. The name of each attribute must be unique in that set.\n\nTo ensure this uniqueness, attributes defined by the vendor must be listed without the driver name as domain prefix in their name. All others must be listed with their domain prefix.\n\nConflicting attributes from those provided via other mixins are overwritten by the ones provided here.\n\nThe maximum number of attributes and capacities combined is 32.",
+          "type": "object"
+        },
+        "capacity": {
+          "additionalProperties": {
+            "$ref": "#/definitions/io.k8s.api.resource.v1beta1.DeviceCapacity"
+          },
+          "description": "Capacity defines the set of capacities for this mixin. The name of each capacity must be unique in that set.\n\nTo ensure this uniqueness, capacities defined by the vendor must be listed without the driver name as domain prefix in their name. All others must be listed with their domain prefix.\n\nConflicting capacities from those provided via other mixins are overwritten by the ones provided here.\n\nThe maximum number of attributes and capacities combined is 32.",
+          "type": "object"
+        }
+      },
+      "type": "object"
+    },
     "io.k8s.api.resource.v1beta1.Device": {
       "description": "Device represents one individual hardware instance that can be selected based on its attributes. Besides the name, exactly one field must be set.",
       "properties": {
         "basic": {
           "$ref": "#/definitions/io.k8s.api.resource.v1beta1.BasicDevice",
           "description": "Basic defines one device instance."
+        },
+        "composite": {
+          "$ref": "#/definitions/io.k8s.api.resource.v1beta1.CompositeDevice",
+          "description": "Composite defines one composite device instance.\n\nThis is an alpha field and requires enabling the DRAPartitionableDevices feature gate."
         },
         "name": {
           "description": "Name is unique identifier among all devices managed by the driver in the pool. It must be a DNS label.",
@@ -15680,7 +15892,7 @@
           "description": "Opaque provides driver-specific configuration parameters."
         },
         "requests": {
-          "description": "Requests lists the names of requests where the configuration applies. If empty, its applies to all requests.",
+          "description": "Requests lists the names of requests where the configuration applies. If empty, its applies to all requests.\n\nReferences to subrequests must include the name of both the parent request and the subrequest using the format <parent request>/<subrequest>. If just the parent request is given, the configuration applies to all subrequests.",
           "items": {
             "type": "string"
           },
@@ -15793,7 +16005,7 @@
           "description": "Opaque provides driver-specific configuration parameters."
         },
         "requests": {
-          "description": "Requests lists the names of requests where the configuration applies. If empty, it applies to all requests.",
+          "description": "Requests lists the names of requests where the configuration applies. If empty, it applies to all requests.\n\nReferences to subrequests must include the name of both the parent request and the subrequest using the format <parent request>/<subrequest>. if just the parent request is given, the configuration applies to all subrequests.",
           "items": {
             "type": "string"
           },
@@ -15910,7 +16122,7 @@
           "type": "string"
         },
         "requests": {
-          "description": "Requests is a list of the one or more requests in this claim which must co-satisfy this constraint. If a request is fulfilled by multiple devices, then all of the devices must satisfy the constraint. If this is not specified, this constraint applies to all requests in this claim.",
+          "description": "Requests is a list of the one or more requests in this claim which must co-satisfy this constraint. If a request is fulfilled by multiple devices, then all of the devices must satisfy the constraint. If this is not specified, this constraint applies to all requests in this claim.\n\nReferences to subrequests must include the name of both the parent request and the subrequest using the format <parent request>/<subrequest>. If just the parent request is given, the constraint applies to all subrequests.",
           "items": {
             "type": "string"
           },
@@ -15920,8 +16132,51 @@
       },
       "type": "object"
     },
+    "io.k8s.api.resource.v1beta1.DeviceMixin": {
+      "description": "DeviceMixin defines a specific device mixin for each device type. Besides the name, exactly one field must be set.",
+      "properties": {
+        "composite": {
+          "$ref": "#/definitions/io.k8s.api.resource.v1beta1.CompositeDeviceMixin",
+          "description": "Composite defines a mixin usable by a composite device."
+        },
+        "name": {
+          "description": "Name is a unique identifier among all mixins managed by the driver in the pool. It must be a DNS label.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    },
+    "io.k8s.api.resource.v1beta1.DeviceMixinRef": {
+      "description": "DeviceMixinRef defines a reference to a device mixin.",
+      "properties": {
+        "name": {
+          "description": "Name refers to the name of a device mixin in the pool.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    },
+    "io.k8s.api.resource.v1beta1.DeviceRef": {
+      "description": "DeviceRef defines a reference to a device.",
+      "properties": {
+        "name": {
+          "description": "Name refers to the name of a device in the pool.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    },
     "io.k8s.api.resource.v1beta1.DeviceRequest": {
-      "description": "DeviceRequest is a request for devices required for a claim. This is typically a request for a single resource like a device, but can also ask for several identical devices.\n\nA DeviceClassName is currently required. Clients must check that it is indeed set. It's absence indicates that something changed in a way that is not supported by the client yet, in which case it must refuse to handle the request.",
+      "description": "DeviceRequest is a request for devices required for a claim. This is typically a request for a single resource like a device, but can also ask for several identical devices. It can also provide a list of alternative subrequests using the firstAvailableOf list.\n\nA DeviceClassName is currently required if the firstAvailableOf list is empty. It's absence indicates that something changed in a way that is not supported by the client yet, in which case it must refuse to handle the request. If the firstAvailableOf list has one or more subrequests, then all other fields except the name must be unset.",
       "properties": {
         "adminAccess": {
           "description": "AdminAccess indicates that this is a claim for administrative access to the device(s). Claims with AdminAccess are expected to be used for monitoring or other management services for a device.  They ignore all ordinary claims to the device with respect to access modes and any resource allocations.\n\nThis is an alpha field and requires enabling the DRAAdminAccess feature gate. Admin access is disabled if this field is unset or set to false, otherwise it is enabled.",
@@ -15937,11 +16192,19 @@
           "type": "integer"
         },
         "deviceClassName": {
-          "description": "DeviceClassName references a specific DeviceClass, which can define additional configuration and selectors to be inherited by this request.\n\nA class is required. Which classes are available depends on the cluster.\n\nAdministrators may use this to restrict which devices may get requested by only installing classes with selectors for permitted devices. If users are free to request anything without restrictions, then administrators can create an empty DeviceClass for users to reference.",
+          "description": "DeviceClassName references a specific DeviceClass, which can define additional configuration and selectors to be inherited by this request.\n\nA class is required if no subrequests are specified in the firstAvailableOf slice. Which classes are available depends on the cluster.\n\nAdministrators may use this to restrict which devices may get requested by only installing classes with selectors for permitted devices. If users are free to request anything without restrictions, then administrators can create an empty DeviceClass for users to reference.",
           "type": "string"
         },
+        "firstAvailableOf": {
+          "description": "FirstAvailableOf contains subrequests, exactly one of which must be satisfied in order to satisfy this request. This field may only be set in the entries of DeviceClaim.Requests.",
+          "items": {
+            "$ref": "#/definitions/io.k8s.api.resource.v1beta1.DeviceSubRequest"
+          },
+          "type": "array",
+          "x-kubernetes-list-type": "atomic"
+        },
         "name": {
-          "description": "Name can be used to reference this request in a pod.spec.containers[].resources.claims entry and in a constraint of the claim.\n\nMust be a DNS label.",
+          "description": "Name can be used to reference this request in a pod.spec.containers[].resources.claims entry and in a constraint of the claim.\n\nMust be a DNS label and unique among all DeviceRequests in a ResourceClaim.",
           "type": "string"
         },
         "selectors": {
@@ -15954,8 +16217,7 @@
         }
       },
       "required": [
-        "name",
-        "deviceClassName"
+        "name"
       ],
       "type": "object"
     },
@@ -15979,7 +16241,7 @@
           "type": "string"
         },
         "request": {
-          "description": "Request is the name of the request in the claim which caused this device to be allocated. Multiple devices may have been allocated per request.",
+          "description": "Request is the name of the request in the claim which caused this device to be allocated. If it references a subrequest in the firstAvailableOf list on a DeviceRequest, this field must include both the name of the parent request and the subrequest using the format <parent request>/<subrequest>.\n\nMultiple devices may have been allocated per request.",
           "type": "string"
         }
       },
@@ -15999,6 +16261,40 @@
           "description": "CEL contains a CEL expression for selecting a device."
         }
       },
+      "type": "object"
+    },
+    "io.k8s.api.resource.v1beta1.DeviceSubRequest": {
+      "description": "DeviceSubRequest describes a request for device provided in the claim.spec.devices.requests[].firstAvailableOf array. Each is typically a request for a single resource like a device, but can also ask for several identical devices.\n\nDeviceSubRequest is similar to Request, but doesn't expose the AdminAccess (not supported) or FirstAvailableOf (recursion not supported) fields, as those can only be set on the top-level request.\n\nA DeviceClassName is currently required. Clients must check that it is indeed set. It's absence indicates that something changed in a way that is not supported by the client yet, in which case it must refuse to handle the request.",
+      "properties": {
+        "allocationMode": {
+          "description": "AllocationMode and its related fields define how devices are allocated to satisfy this subrequest. Supported values are:\n\n- ExactCount: This request is for a specific number of devices.\n  This is the default. The exact number is provided in the\n  count field.\n\n- All: This subrequest is for all of the matching devices in a pool.\n  Allocation will fail if some devices are already allocated,\n  unless adminAccess is requested.\n\nIf AlloctionMode is not specified, the default mode is ExactCount. If the mode is ExactCount and count is not specified, the default count is one. Any other subrequests must specify this field.\n\nMore modes may get added in the future. Clients must refuse to handle requests with unknown modes.",
+          "type": "string"
+        },
+        "count": {
+          "description": "Count is used only when the count mode is \"ExactCount\". Must be greater than zero. If AllocationMode is ExactCount and this field is not specified, the default is one.",
+          "format": "int64",
+          "type": "integer"
+        },
+        "deviceClassName": {
+          "description": "DeviceClassName references a specific DeviceClass, which can define additional configuration and selectors to be inherited by this subrequest.\n\nA class is required. Which classes are available depends on the cluster.\n\nAdministrators may use this to restrict which devices may get requested by only installing classes with selectors for permitted devices. If users are free to request anything without restrictions, then administrators can create an empty DeviceClass for users to reference.",
+          "type": "string"
+        },
+        "name": {
+          "description": "Name can be used to reference this subrequest in a pod.spec.containers[].resources.claims entry and in a constraint of the claim. References must use the format <parent request>/<subrequest>.\n\nMust be a DNS label.",
+          "type": "string"
+        },
+        "selectors": {
+          "description": "Selectors define criteria which must be satisfied by a specific device in order for that device to be considered for this subrequest. All selectors must be satisfied for a device to be considered.",
+          "items": {
+            "$ref": "#/definitions/io.k8s.api.resource.v1beta1.DeviceSelector"
+          },
+          "type": "array",
+          "x-kubernetes-list-type": "atomic"
+        }
+      },
+      "required": [
+        "name"
+      ],
       "type": "object"
     },
     "io.k8s.api.resource.v1beta1.NetworkDeviceData": {
@@ -16368,8 +16664,16 @@
           "description": "AllNodes indicates that all nodes have access to the resources in the pool.\n\nExactly one of NodeName, NodeSelector and AllNodes must be set.",
           "type": "boolean"
         },
+        "deviceMixins": {
+          "description": "DeviceMixins represents a list of device mixins, i.e. a collection of shared attributes and capacities that an actual device can \"include\" to extend the set of attributes and capacities it already defines.\n\nThe main purposes of these mixins is to reduce the memory footprint of devices since they can reference the mixins provided here rather than duplicate them.\n\nThe total number of mixins and devices must be less than 128.\n\nThis is an alpha field and requires enabling the DRAPartitionableDevices feature gate.",
+          "items": {
+            "$ref": "#/definitions/io.k8s.api.resource.v1beta1.DeviceMixin"
+          },
+          "type": "array",
+          "x-kubernetes-list-type": "atomic"
+        },
         "devices": {
-          "description": "Devices lists some or all of the devices in this pool.\n\nMust not have more than 128 entries.",
+          "description": "Devices lists some or all of the devices in this pool.\n\nThe total number of mixins and devices must be less than 128.",
           "items": {
             "$ref": "#/definitions/io.k8s.api.resource.v1beta1.Device"
           },

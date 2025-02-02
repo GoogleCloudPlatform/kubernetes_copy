@@ -34,6 +34,18 @@ metadata:
   uid: uidValue
 spec:
   allNodes: true
+  deviceMixins:
+  - composite:
+      attributes:
+        attributesKey:
+          bool: true
+          int: 2
+          string: stringValue
+          version: versionValue
+      capacity:
+        capacityKey:
+          value: "0"
+    name: nameValue
   devices:
   - basic:
       attributes:
@@ -45,6 +57,20 @@ spec:
       capacity:
         capacityKey:
           value: "0"
+    composite:
+      attributes:
+        attributesKey:
+          bool: true
+          int: 2
+          string: stringValue
+          version: versionValue
+      capacity:
+        capacityKey:
+          value: "0"
+      consumesCapacityFrom:
+      - name: nameValue
+      includes:
+      - name: nameValue
     name: nameValue
   driver: driverValue
   nodeName: nodeNameValue

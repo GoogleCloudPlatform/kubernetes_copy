@@ -409,6 +409,7 @@ func startResourceClaimController(ctx context.Context, controllerContext Control
 	ephemeralController, err := resourceclaim.NewController(
 		klog.FromContext(ctx),
 		utilfeature.DefaultFeatureGate.Enabled(features.DRAAdminAccess),
+		utilfeature.DefaultFeatureGate.Enabled(features.DRAPrioritizedList),
 		controllerContext.ClientBuilder.ClientOrDie("resource-claim-controller"),
 		controllerContext.InformerFactory.Core().V1().Pods(),
 		controllerContext.InformerFactory.Resource().V1beta1().ResourceClaims(),

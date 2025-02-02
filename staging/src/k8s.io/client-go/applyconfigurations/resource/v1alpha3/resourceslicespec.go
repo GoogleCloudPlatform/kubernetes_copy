@@ -31,6 +31,7 @@ type ResourceSliceSpecApplyConfiguration struct {
 	NodeSelector *v1.NodeSelectorApplyConfiguration `json:"nodeSelector,omitempty"`
 	AllNodes     *bool                              `json:"allNodes,omitempty"`
 	Devices      []DeviceApplyConfiguration         `json:"devices,omitempty"`
+	DeviceMixins []DeviceMixinApplyConfiguration    `json:"deviceMixins,omitempty"`
 }
 
 // ResourceSliceSpecApplyConfiguration constructs a declarative configuration of the ResourceSliceSpec type for use with
@@ -88,6 +89,19 @@ func (b *ResourceSliceSpecApplyConfiguration) WithDevices(values ...*DeviceApply
 			panic("nil value passed to WithDevices")
 		}
 		b.Devices = append(b.Devices, *values[i])
+	}
+	return b
+}
+
+// WithDeviceMixins adds the given value to the DeviceMixins field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the DeviceMixins field.
+func (b *ResourceSliceSpecApplyConfiguration) WithDeviceMixins(values ...*DeviceMixinApplyConfiguration) *ResourceSliceSpecApplyConfiguration {
+	for i := range values {
+		if values[i] == nil {
+			panic("nil value passed to WithDeviceMixins")
+		}
+		b.DeviceMixins = append(b.DeviceMixins, *values[i])
 	}
 	return b
 }

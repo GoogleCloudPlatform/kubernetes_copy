@@ -25,12 +25,13 @@ import (
 // DeviceRequestApplyConfiguration represents a declarative configuration of the DeviceRequest type for use
 // with apply.
 type DeviceRequestApplyConfiguration struct {
-	Name            *string                               `json:"name,omitempty"`
-	DeviceClassName *string                               `json:"deviceClassName,omitempty"`
-	Selectors       []DeviceSelectorApplyConfiguration    `json:"selectors,omitempty"`
-	AllocationMode  *resourcev1beta1.DeviceAllocationMode `json:"allocationMode,omitempty"`
-	Count           *int64                                `json:"count,omitempty"`
-	AdminAccess     *bool                                 `json:"adminAccess,omitempty"`
+	Name             *string                               `json:"name,omitempty"`
+	DeviceClassName  *string                               `json:"deviceClassName,omitempty"`
+	Selectors        []DeviceSelectorApplyConfiguration    `json:"selectors,omitempty"`
+	AllocationMode   *resourcev1beta1.DeviceAllocationMode `json:"allocationMode,omitempty"`
+	Count            *int64                                `json:"count,omitempty"`
+	AdminAccess      *bool                                 `json:"adminAccess,omitempty"`
+	FirstAvailableOf []DeviceSubRequestApplyConfiguration  `json:"firstAvailableOf,omitempty"`
 }
 
 // DeviceRequestApplyConfiguration constructs a declarative configuration of the DeviceRequest type for use with
@@ -89,5 +90,18 @@ func (b *DeviceRequestApplyConfiguration) WithCount(value int64) *DeviceRequestA
 // If called multiple times, the AdminAccess field is set to the value of the last call.
 func (b *DeviceRequestApplyConfiguration) WithAdminAccess(value bool) *DeviceRequestApplyConfiguration {
 	b.AdminAccess = &value
+	return b
+}
+
+// WithFirstAvailableOf adds the given value to the FirstAvailableOf field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the FirstAvailableOf field.
+func (b *DeviceRequestApplyConfiguration) WithFirstAvailableOf(values ...*DeviceSubRequestApplyConfiguration) *DeviceRequestApplyConfiguration {
+	for i := range values {
+		if values[i] == nil {
+			panic("nil value passed to WithFirstAvailableOf")
+		}
+		b.FirstAvailableOf = append(b.FirstAvailableOf, *values[i])
+	}
 	return b
 }

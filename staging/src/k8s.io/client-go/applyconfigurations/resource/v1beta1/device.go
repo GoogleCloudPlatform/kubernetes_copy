@@ -21,8 +21,9 @@ package v1beta1
 // DeviceApplyConfiguration represents a declarative configuration of the Device type for use
 // with apply.
 type DeviceApplyConfiguration struct {
-	Name  *string                        `json:"name,omitempty"`
-	Basic *BasicDeviceApplyConfiguration `json:"basic,omitempty"`
+	Name      *string                            `json:"name,omitempty"`
+	Basic     *BasicDeviceApplyConfiguration     `json:"basic,omitempty"`
+	Composite *CompositeDeviceApplyConfiguration `json:"composite,omitempty"`
 }
 
 // DeviceApplyConfiguration constructs a declarative configuration of the Device type for use with
@@ -44,5 +45,13 @@ func (b *DeviceApplyConfiguration) WithName(value string) *DeviceApplyConfigurat
 // If called multiple times, the Basic field is set to the value of the last call.
 func (b *DeviceApplyConfiguration) WithBasic(value *BasicDeviceApplyConfiguration) *DeviceApplyConfiguration {
 	b.Basic = value
+	return b
+}
+
+// WithComposite sets the Composite field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the Composite field is set to the value of the last call.
+func (b *DeviceApplyConfiguration) WithComposite(value *CompositeDeviceApplyConfiguration) *DeviceApplyConfiguration {
+	b.Composite = value
 	return b
 }

@@ -332,3 +332,273 @@ func TestName(t *testing.T) {
 		})
 	}
 }
+
+func TestBaseRequestRef(t *testing.T) {
+	testcases := map[string]struct {
+		requestRef             string
+		expectedBaseRequestRef string
+	}{
+		"valid-no-subrequest": {
+			requestRef:             "foo",
+			expectedBaseRequestRef: "foo",
+		},
+		"valid-subrequest": {
+			requestRef:             "foo/bar",
+			expectedBaseRequestRef: "foo",
+		},
+	}
+
+	for name, tc := range testcases {
+		t.Run(name, func(t *testing.T) {
+			baseRequestRef := BaseRequestRef(tc.requestRef)
+			assert.Equal(t, tc.expectedBaseRequestRef, baseRequestRef)
+		})
+	}
+}
+
+func TestConfigForResult(t *testing.T) {
+	testcases := map[string]struct {
+		deviceConfigurations []resourceapi.DeviceAllocationConfiguration
+		result               resourceapi.DeviceRequestAllocationResult
+		driver               string
+		expectedConfigs      []resourceapi.DeviceAllocationConfiguration
+	}{
+		"opaque-nil": {
+			deviceConfigurations: []resourceapi.DeviceAllocationConfiguration{
+				{
+					Source:   resourceapi.AllocationConfigSourceClass,
+					Requests: []string{},
+					DeviceConfiguration: resourceapi.DeviceConfiguration{
+						Opaque: nil,
+					},
+				},
+			},
+			result: resourceapi.DeviceRequestAllocationResult{
+				Request: "foo",
+				Device:  "device-1",
+			},
+			driver:          "driver-a",
+			expectedConfigs: nil,
+		},
+		"driver-doesn't-match": {
+			deviceConfigurations: []resourceapi.DeviceAllocationConfiguration{
+				{
+					Source:   resourceapi.AllocationConfigSourceClass,
+					Requests: []string{},
+					DeviceConfiguration: resourceapi.DeviceConfiguration{
+						Opaque: &resourceapi.OpaqueDeviceConfiguration{
+							Driver: "driver-b",
+						},
+					},
+				},
+			},
+			result: resourceapi.DeviceRequestAllocationResult{
+				Request: "foo",
+				Device:  "device-1",
+			},
+			driver:          "driver-a",
+			expectedConfigs: nil,
+		},
+		"empty-requests-match-all": {
+			deviceConfigurations: []resourceapi.DeviceAllocationConfiguration{
+				{
+					Source:   resourceapi.AllocationConfigSourceClass,
+					Requests: []string{},
+					DeviceConfiguration: resourceapi.DeviceConfiguration{
+						Opaque: &resourceapi.OpaqueDeviceConfiguration{
+							Driver: "driver-a",
+						},
+					},
+				},
+			},
+			result: resourceapi.DeviceRequestAllocationResult{
+				Request: "foo",
+				Device:  "device-1",
+			},
+			driver: "driver-a",
+			expectedConfigs: []resourceapi.DeviceAllocationConfiguration{
+				{
+					Source:   resourceapi.AllocationConfigSourceClass,
+					Requests: []string{},
+					DeviceConfiguration: resourceapi.DeviceConfiguration{
+						Opaque: &resourceapi.OpaqueDeviceConfiguration{
+							Driver: "driver-a",
+						},
+					},
+				},
+			},
+		},
+		"match-regular-request": {
+			deviceConfigurations: []resourceapi.DeviceAllocationConfiguration{
+				{
+					Source: resourceapi.AllocationConfigSourceClass,
+					Requests: []string{
+						"foo",
+					},
+					DeviceConfiguration: resourceapi.DeviceConfiguration{
+						Opaque: &resourceapi.OpaqueDeviceConfiguration{
+							Driver: "driver-a",
+						},
+					},
+				},
+			},
+			result: resourceapi.DeviceRequestAllocationResult{
+				Request: "foo",
+				Device:  "device-1",
+			},
+			driver: "driver-a",
+			expectedConfigs: []resourceapi.DeviceAllocationConfiguration{
+				{
+					Source: resourceapi.AllocationConfigSourceClass,
+					Requests: []string{
+						"foo",
+					},
+					DeviceConfiguration: resourceapi.DeviceConfiguration{
+						Opaque: &resourceapi.OpaqueDeviceConfiguration{
+							Driver: "driver-a",
+						},
+					},
+				},
+			},
+		},
+		"match-parent-request-for-subrequest": {
+			deviceConfigurations: []resourceapi.DeviceAllocationConfiguration{
+				{
+					Source: resourceapi.AllocationConfigSourceClass,
+					Requests: []string{
+						"foo",
+					},
+					DeviceConfiguration: resourceapi.DeviceConfiguration{
+						Opaque: &resourceapi.OpaqueDeviceConfiguration{
+							Driver: "driver-a",
+						},
+					},
+				},
+			},
+			result: resourceapi.DeviceRequestAllocationResult{
+				Request: "foo/bar",
+				Device:  "device-1",
+			},
+			driver: "driver-a",
+			expectedConfigs: []resourceapi.DeviceAllocationConfiguration{
+				{
+					Source: resourceapi.AllocationConfigSourceClass,
+					Requests: []string{
+						"foo",
+					},
+					DeviceConfiguration: resourceapi.DeviceConfiguration{
+						Opaque: &resourceapi.OpaqueDeviceConfiguration{
+							Driver: "driver-a",
+						},
+					},
+				},
+			},
+		},
+		"match-subrequest": {
+			deviceConfigurations: []resourceapi.DeviceAllocationConfiguration{
+				{
+					Source: resourceapi.AllocationConfigSourceClass,
+					Requests: []string{
+						"foo/bar",
+					},
+					DeviceConfiguration: resourceapi.DeviceConfiguration{
+						Opaque: &resourceapi.OpaqueDeviceConfiguration{
+							Driver: "driver-a",
+						},
+					},
+				},
+				{
+					Source: resourceapi.AllocationConfigSourceClass,
+					Requests: []string{
+						"foo/not-bar",
+					},
+					DeviceConfiguration: resourceapi.DeviceConfiguration{
+						Opaque: &resourceapi.OpaqueDeviceConfiguration{
+							Driver: "driver-a",
+						},
+					},
+				},
+			},
+			result: resourceapi.DeviceRequestAllocationResult{
+				Request: "foo/bar",
+				Device:  "device-1",
+			},
+			driver: "driver-a",
+			expectedConfigs: []resourceapi.DeviceAllocationConfiguration{
+				{
+					Source: resourceapi.AllocationConfigSourceClass,
+					Requests: []string{
+						"foo/bar",
+					},
+					DeviceConfiguration: resourceapi.DeviceConfiguration{
+						Opaque: &resourceapi.OpaqueDeviceConfiguration{
+							Driver: "driver-a",
+						},
+					},
+				},
+			},
+		},
+		"match-both-source-class-and-claim": {
+			deviceConfigurations: []resourceapi.DeviceAllocationConfiguration{
+				{
+					Source: resourceapi.AllocationConfigSourceClass,
+					Requests: []string{
+						"foo",
+					},
+					DeviceConfiguration: resourceapi.DeviceConfiguration{
+						Opaque: &resourceapi.OpaqueDeviceConfiguration{
+							Driver: "driver-a",
+						},
+					},
+				},
+				{
+					Source: resourceapi.AllocationConfigSourceClaim,
+					Requests: []string{
+						"foo/bar",
+					},
+					DeviceConfiguration: resourceapi.DeviceConfiguration{
+						Opaque: &resourceapi.OpaqueDeviceConfiguration{
+							Driver: "driver-a",
+						},
+					},
+				},
+			},
+			result: resourceapi.DeviceRequestAllocationResult{
+				Request: "foo/bar",
+				Device:  "device-1",
+			},
+			driver: "driver-a",
+			expectedConfigs: []resourceapi.DeviceAllocationConfiguration{
+				{
+					Source: resourceapi.AllocationConfigSourceClass,
+					Requests: []string{
+						"foo",
+					},
+					DeviceConfiguration: resourceapi.DeviceConfiguration{
+						Opaque: &resourceapi.OpaqueDeviceConfiguration{
+							Driver: "driver-a",
+						},
+					},
+				},
+				{
+					Source: resourceapi.AllocationConfigSourceClaim,
+					Requests: []string{
+						"foo/bar",
+					},
+					DeviceConfiguration: resourceapi.DeviceConfiguration{
+						Opaque: &resourceapi.OpaqueDeviceConfiguration{
+							Driver: "driver-a",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for name, tc := range testcases {
+		t.Run(name, func(t *testing.T) {
+			configs := ConfigForResult(tc.deviceConfigurations, tc.result, tc.driver)
+			assert.Equal(t, tc.expectedConfigs, configs)
+		})
+	}
+}

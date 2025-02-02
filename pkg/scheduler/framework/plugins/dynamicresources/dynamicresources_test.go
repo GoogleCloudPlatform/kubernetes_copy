@@ -117,6 +117,11 @@ var (
 		Namespace(namespace).
 		Request(className).
 		Obj()
+	claimWithPrioritzedList = st.MakeResourceClaim().
+				Name(claimName).
+				Namespace(namespace).
+				RequestWithPrioritizedList(className).
+				Obj()
 	pendingClaim = st.FromResourceClaim(claim).
 			OwnerReference(podName, podUID, podKind).
 			Obj()
@@ -199,6 +204,24 @@ func breakCELInClass(class *resourceapi.DeviceClass) *resourceapi.DeviceClass {
 	}
 
 	return class
+}
+
+func updateDeviceClassName(claim *resourceapi.ResourceClaim, deviceClassName string) *resourceapi.ResourceClaim {
+	claim = claim.DeepCopy()
+	for i := range claim.Spec.Devices.Requests {
+		// If the firstAvailableOf list is empty we update the device class name
+		// on the base request.
+		if len(claim.Spec.Devices.Requests[i].FirstAvailableOf) == 0 {
+			claim.Spec.Devices.Requests[i].DeviceClassName = deviceClassName
+		} else {
+			// If subrequests are specified, update the device class name on
+			// all of them.
+			for j := range claim.Spec.Devices.Requests[i].FirstAvailableOf {
+				claim.Spec.Devices.Requests[i].FirstAvailableOf[j].DeviceClassName = deviceClassName
+			}
+		}
+	}
+	return claim
 }
 
 // result defines the expected outcome of some operation. It covers
@@ -771,6 +794,60 @@ func TestPlugin(t *testing.T) {
 			},
 			disableDRA: true,
 		},
+		"claim-with-request-with-empty-device-class": {
+			pod:    podWithClaimName,
+			claims: []*resourceapi.ResourceClaim{updateDeviceClassName(claim, "")},
+			want: want{
+				prefilter: result{
+					status: framework.AsStatus(errors.New("request req-1: unsupported request type")),
+				},
+			},
+		},
+		"claim-with-request-with-unknown-device-class": {
+			pod:    podWithClaimName,
+			claims: []*resourceapi.ResourceClaim{updateDeviceClassName(claim, "does-not-exist")},
+			want: want{
+				prefilter: result{
+					status: framework.NewStatus(framework.Unschedulable, `request req-1: device class does-not-exist does not exist`),
+				},
+				postfilter: result{
+					status: framework.NewStatus(framework.Unschedulable, `no new claims to deallocate`),
+				},
+			},
+		},
+		"claim-with-prioritized-list": {
+			pod:     podWithClaimName,
+			claims:  []*resourceapi.ResourceClaim{claimWithPrioritzedList},
+			classes: []*resourceapi.DeviceClass{deviceClass},
+			want: want{
+				filter: perNodeResult{
+					workerNode.Name: {
+						status: framework.NewStatus(framework.UnschedulableAndUnresolvable, `claim default/my-pod-my-resource, request req-1: has subrequests, but the feature is disabled`),
+					},
+				},
+			},
+		},
+		"claim-with-prioritized-list-empty-device-class": {
+			pod:    podWithClaimName,
+			claims: []*resourceapi.ResourceClaim{updateDeviceClassName(claimWithPrioritzedList, "")},
+			want: want{
+				prefilter: result{
+					status: framework.AsStatus(errors.New("request req-1/subreq-0: unsupported request type")),
+				},
+			},
+		},
+		"claim-with-prioritized-list-unknown-device-class": {
+			pod:    podWithClaimName,
+			claims: []*resourceapi.ResourceClaim{updateDeviceClassName(claimWithPrioritzedList, "does-not-exist")},
+			want: want{
+				prefilter: result{
+					status: framework.NewStatus(framework.Unschedulable, `request req-1/subreq-0: device class does-not-exist does not exist`),
+				},
+				postfilter: result{
+					status: framework.NewStatus(framework.Unschedulable, `no new claims to deallocate`),
+				},
+			},
+		},
 	}
 
 	for name, tc := range testcases {
@@ -784,6 +861,7 @@ func TestPlugin(t *testing.T) {
 			}
 			features := feature.Features{
 				EnableDynamicResourceAllocation: !tc.disableDRA,
+				EnableDRAAdminAccess:            true,
 			}
 			testCtx := setup(t, nodes, tc.claims, tc.classes, tc.objs, features)
 			initialObjects := testCtx.listAll(t)
@@ -801,7 +879,7 @@ func TestPlugin(t *testing.T) {
 				assert.Equal(t, tc.want.preFilterResult, result)
 				testCtx.verify(t, tc.want.prefilter, initialObjects, result, status)
 			})
-			if status.IsSkip() {
+			if status.IsSkip() || status.Code() == framework.Error {
 				return
 			}
 			unschedulable := status.Code() != framework.Success
@@ -912,7 +990,7 @@ type testContext struct {
 
 func (tc *testContext) verify(t *testing.T, expected result, initialObjects []metav1.Object, result interface{}, status *framework.Status) {
 	t.Helper()
-	if expectedErr := status.AsError(); expectedErr != nil {
+	if expectedErr := expected.status.AsError(); expectedErr != nil {
 		// Compare only the error strings.
 		assert.ErrorContains(t, status.AsError(), expectedErr.Error())
 	} else {
