@@ -17,6 +17,7 @@ limitations under the License.
 package preemption
 
 import (
+	"context"
 	"fmt"
 	"math"
 
@@ -60,7 +61,7 @@ func NewCriticalPodAdmissionHandler(getPodsFunc eviction.ActivePodsFunc, killPod
 
 // HandleAdmissionFailure gracefully handles admission rejection, and, in some cases,
 // to allow admission of the pod despite its previous failure.
-func (c *CriticalPodAdmissionHandler) HandleAdmissionFailure(admitPod *v1.Pod, failureReasons []lifecycle.PredicateFailureReason) ([]lifecycle.PredicateFailureReason, error) {
+func (c *CriticalPodAdmissionHandler) HandleAdmissionFailure(ctx context.Context, admitPod *v1.Pod, failureReasons []lifecycle.PredicateFailureReason) ([]lifecycle.PredicateFailureReason, error) {
 	if !kubetypes.IsCriticalPod(admitPod) {
 		return failureReasons, nil
 	}
@@ -82,7 +83,7 @@ func (c *CriticalPodAdmissionHandler) HandleAdmissionFailure(admitPod *v1.Pod, f
 		// Return only reasons that are not resource related, since critical pods cannot fail admission for resource reasons.
 		return nonResourceReasons, nil
 	}
-	err := c.evictPodsToFreeRequests(admitPod, admissionRequirementList(resourceReasons))
+	err := c.evictPodsToFreeRequests(ctx, admitPod, admissionRequirementList(resourceReasons))
 	// if no error is returned, preemption succeeded and the pod is safe to admit.
 	return nil, err
 }
@@ -90,7 +91,8 @@ func (c *CriticalPodAdmissionHandler) HandleAdmissionFailure(admitPod *v1.Pod, f
 // evictPodsToFreeRequests takes a list of insufficient resources, and attempts to free them by evicting pods
 // based on requests.  For example, if the only insufficient resource is 200Mb of memory, this function could
 // evict a pod with request=250Mb.
-func (c *CriticalPodAdmissionHandler) evictPodsToFreeRequests(admitPod *v1.Pod, insufficientResources admissionRequirementList) error {
+func (c *CriticalPodAdmissionHandler) evictPodsToFreeRequests(ctx context.Context, admitPod *v1.Pod, insufficientResources admissionRequirementList) error {
+	logger := klog.FromContext(ctx)
 	podsToPreempt, err := getPodsToPreempt(admitPod, c.getPodsFunc(), insufficientResources)
 	if err != nil {
 		return fmt.Errorf("preemption: error finding a set of pods to preempt: %v", err)
@@ -99,7 +101,7 @@ func (c *CriticalPodAdmissionHandler) evictPodsToFreeRequests(admitPod *v1.Pod, 
 		// record that we are evicting the pod
 		c.recorder.Eventf(pod, v1.EventTypeWarning, events.PreemptContainer, message)
 		// this is a blocking call and should only return when the pod and its containers are killed.
-		klog.V(3).InfoS("Preempting pod to free up resources", "pod", klog.KObj(pod), "podUID", pod.UID, "insufficientResources", insufficientResources)
+		logger.V(3).Info("Preempting pod to free up resources", "pod", klog.KObj(pod), "podUID", pod.UID, "insufficientResources", insufficientResources)
 		err := c.killPodFunc(pod, true, nil, func(status *v1.PodStatus) {
 			status.Phase = v1.PodFailed
 			status.Reason = events.PreemptContainer
@@ -112,7 +114,7 @@ func (c *CriticalPodAdmissionHandler) evictPodsToFreeRequests(admitPod *v1.Pod, 
 			})
 		})
 		if err != nil {
-			klog.ErrorS(err, "Failed to evict pod", "pod", klog.KObj(pod))
+			logger.Error(err, "Failed to evict pod", "pod", klog.KObj(pod))
 			// In future syncPod loops, the kubelet will retry the pod deletion steps that it was stuck on.
 			continue
 		}
@@ -121,7 +123,7 @@ func (c *CriticalPodAdmissionHandler) evictPodsToFreeRequests(admitPod *v1.Pod, 
 		} else {
 			metrics.Preemptions.WithLabelValues("").Inc()
 		}
-		klog.InfoS("Pod evicted successfully", "pod", klog.KObj(pod))
+		logger.Info("Pod evicted successfully", "pod", klog.KObj(pod))
 	}
 	return nil
 }
