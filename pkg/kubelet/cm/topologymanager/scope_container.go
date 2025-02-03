@@ -50,6 +50,9 @@ func (s *containerScope) Admit(pod *v1.Pod) lifecycle.PodAdmitResult {
 		klog.InfoS("Best TopologyHint", "bestHint", bestHint, "pod", klog.KObj(pod), "containerName", container.Name)
 
 		if !admit {
+			if IsAlignmentGuaranteed(s.policy) {
+				metrics.ContainerAlignedComputeResourcesFailure.WithLabelValues(metrics.AlignScopeContainer, metrics.AlignedNUMANode).Inc()
+			}
 			metrics.TopologyManagerAdmissionErrorsTotal.Inc()
 			return admission.GetPodAdmitResult(&TopologyAffinityError{})
 		}
