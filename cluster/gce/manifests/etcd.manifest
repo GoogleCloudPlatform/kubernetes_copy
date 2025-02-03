@@ -18,7 +18,7 @@
     {
     "name": "etcd-container",
     {{security_context}}
-    "image": "{{ pillar.get('etcd_docker_repository', 'registry.k8s.io/etcd') }}:{{ pillar.get('etcd_docker_tag', '3.5.16-0') }}",
+    "image": "{{ pillar.get('etcd_docker_repository', 'registry.k8s.io/etcd') }}:{{ pillar.get('etcd_docker_tag', '3.5.17-0') }}",
     "resources": {
       "requests": {
         "cpu": {{ cpulimit }}
@@ -34,7 +34,7 @@
         "value": "{{ pillar.get('storage_backend', 'etcd3') }}"
       },
       { "name": "TARGET_VERSION",
-        "value": "{{ pillar.get('etcd_version', '3.5.16') }}"
+        "value": "{{ pillar.get('etcd_version', '3.5.17') }}"
       },
       {
         "name": "DO_NOT_MOVE_BINARIES",

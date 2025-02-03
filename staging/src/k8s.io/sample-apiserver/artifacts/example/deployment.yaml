@@ -26,4 +26,4 @@ spec:
         imagePullPolicy: Never
         args: [ "--etcd-servers=http://localhost:2379" ]
       - name: etcd
-        image: gcr.io/etcd-development/etcd:v3.5.16
+        image: gcr.io/etcd-development/etcd:v3.5.17
