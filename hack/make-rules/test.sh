@@ -233,9 +233,14 @@ produceJUnitXMLReport() {
 
   if ! command -v gotestsum >/dev/null 2>&1; then
     kube::log::status "gotestsum not found; installing from hack/tools"
-    pushd "${KUBE_ROOT}/hack/tools" >/dev/null
+    (
+      cd "${KUBE_ROOT}/hack/tools"
+      # override only for installing tools (in subshell), if set
+      if [ -n "${KUBE_HACK_TOOLS_GOTOOLCHAIN+x}" ]; then
+        export GOTOOLCHAIN="${KUBE_HACK_TOOLS_GOTOOLCHAIN}";
+      fi
       GO111MODULE=on go install gotest.tools/gotestsum
-    popd >/dev/null
+    )
   fi
   gotestsum --junitfile "${junit_xml_filename}" --raw-command cat "${junit_filename_prefix}"*.stdout
   if [[ ! ${KUBE_KEEP_VERBOSE_TEST_OUTPUT} =~ ^[yY]$ ]]; then
@@ -243,7 +248,8 @@ produceJUnitXMLReport() {
   fi
 
   if ! command -v prune-junit-xml >/dev/null 2>&1; then
-    kube::log::status "prune-junit-xml not found; installing from hack/tools"
+    # TODO: is this really necessary to log? we're not every going to get this from the host are we?
+    kube::log::status "prune-junit-xml not found; installing from cmd/prune-junit-xml"
     pushd "${KUBE_ROOT}/cmd/prune-junit-xml" >/dev/null
       GO111MODULE=on go install .
     popd >/dev/null

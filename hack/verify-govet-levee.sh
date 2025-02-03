@@ -31,9 +31,14 @@ export GOBIN="${KUBE_OUTPUT_BINPATH}"
 PATH="${GOBIN}:${PATH}"
 
 # Install levee
-pushd "${KUBE_ROOT}/hack/tools" >/dev/null
+(
+  cd "${KUBE_ROOT}/hack/tools"
+  # override only for installing tools (in subshell), if set
+  if [ -n "${KUBE_HACK_TOOLS_GOTOOLCHAIN+x}" ]; then
+    export GOTOOLCHAIN="${KUBE_HACK_TOOLS_GOTOOLCHAIN}";
+  fi
   GO111MODULE=on go install github.com/google/go-flow-levee/cmd/levee
-popd >/dev/null
+)
 
 # Prefer full path for interaction with make vet
 LEVEE_BIN="$(which levee)"
