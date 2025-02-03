@@ -18,6 +18,7 @@ package pluginwatcher
 
 import (
 	"context"
+	"os"
 	"sync"
 	"time"
 
@@ -25,6 +26,8 @@ import (
 	"k8s.io/klog/v2"
 	registerapi "k8s.io/kubelet/pkg/apis/pluginregistration/v1"
 	"k8s.io/kubernetes/pkg/kubelet/pluginmanager/cache"
+	"k8s.io/kubernetes/pkg/kubelet/util"
+	utilfs "k8s.io/kubernetes/pkg/util/filesystem"
 )
 
 const (
@@ -43,10 +46,18 @@ const (
 	// maxFailures is the maximum number of allowed connection monitor failures.
 	// If the number of consecutive failures exceeds this value, the connection is considered dead.
 	maxFailures uint = 2
+
+	// UndefinedPluginName is the name of the plugin that is the not registered yet.
+	// It is used to monitor sockets that are not belong to registered plugins.
+	// As soon as the plugin becomes registered, the name is updated with the actual plugin name.
+	UndefinedPluginName = "Undefined"
 )
 
 // pluginConnectionMonitor is a struct to monitor GRPC connections between Kubelet and plugins
 type pluginConnectionMonitor struct {
+	// Directory to watch for plugin sockets
+	sockDir string
+
 	// A sync.Map to store monitored connections
 	connMap sync.Map
 
@@ -59,8 +70,9 @@ type pluginConnectionMonitor struct {
 }
 
 // newPluginConnectionMonitor creates a new plugin connection monitor.
-func newPluginConnectionMonitor(dsw cache.DesiredStateOfWorld, asw cache.ActualStateOfWorld) *pluginConnectionMonitor {
+func newPluginConnectionMonitor(sockDir string, dsw cache.DesiredStateOfWorld, asw cache.ActualStateOfWorld) *pluginConnectionMonitor {
 	return &pluginConnectionMonitor{
+		sockDir: sockDir,
 		connMap: sync.Map{},
 		stopCh:  make(chan struct{}),
 		dsw:     dsw,
@@ -82,8 +94,45 @@ func (m *pluginConnectionMonitor) start() {
 						if _, exists := m.connMap.Load(plugin.SocketPath); !exists {
 							m.connMap.Store(plugin.SocketPath, nil)
 							go m.monitorPluginConnection(plugin)
+						} else {
+							klog.V(5).InfoS("Plugin is already monitored", "plugin", plugin.Name, "socket", plugin.SocketPath)
 						}
+					} else {
+						klog.V(5).InfoS("Plugin is not registered in desired state cache", "plugin", plugin.Name, "socket", plugin.SocketPath)
 					}
+				}
+				// Discover previously unregistered plugins that became functional
+				// again and start monitoring their connections
+				fs := &utilfs.DefaultFs{}
+				err := fs.Walk(m.sockDir, func(path string, info os.FileInfo, err error) error {
+					if err != nil {
+						klog.ErrorS(err, "Error accessing path", "path", path)
+						return nil
+					}
+					mode := info.Mode()
+					if mode.IsDir() {
+						return nil
+					}
+					if isSocket, _ := util.IsUnixDomainSocket(path); isSocket {
+						// Skip registered plugins
+						if m.dsw.PluginExists(path) || m.asw.PluginExists(path) {
+							klog.V(5).InfoS("Plugin exists in DSW or ASW", "socket", path)
+							return nil
+						}
+						// Skip sockets that are already monitored
+						if _, exists := m.connMap.Load(path); exists {
+							klog.V(5).InfoS("Plugin is already monitored", "socket", path)
+							return nil
+						}
+						m.connMap.Store(path, nil)
+						go m.monitorPluginConnection(cache.PluginInfo{Name: UndefinedPluginName, SocketPath: path})
+					} else {
+						klog.V(5).InfoS("Ignoring non-socket", "path", path, "mode", mode)
+					}
+					return nil
+				})
+				if err != nil {
+					klog.ErrorS(err, "Error walking directory", "dir", m.sockDir)
 				}
 			}
 		}
@@ -118,8 +167,18 @@ func (m *pluginConnectionMonitor) monitorPluginConnection(plugin cache.PluginInf
 			client, conn, err = getOrEstablishConnection(client, conn, plugin)
 			if err == nil {
 				m.connMap.Store(socket, conn)
-				if err = checkConnection(client, plugin); err == nil {
+				if err = checkConnection(client, &plugin); err == nil {
 					consecutiveFailures = 0
+					// This code path is hit when a plugin becomes non-functional and got unregistered
+					// and after some time it becomes functional again. If it listens to the same socket
+					// it wouldn't be detected by the plugin watcher as no fsnotify event would be triggered.
+					// So, we need to trigger its registration here.
+					err = m.dsw.AddOrUpdatePlugin(socket)
+					if err != nil {
+						klog.ErrorS(err, "Failed to add plugin to dsw", "plugin", plugin.Name, "socket", socket)
+					} else {
+						klog.InfoS("Plugin added to dsw", "plugin", plugin.Name, "socket", socket)
+					}
 					continue
 				}
 			}

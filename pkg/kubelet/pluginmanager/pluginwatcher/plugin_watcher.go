@@ -69,7 +69,7 @@ func (w *Watcher) Start(stopCh <-chan struct{}) error {
 		klog.ErrorS(err, "Failed to traverse plugin socket path", "path", w.path)
 	}
 
-	monitor := newPluginConnectionMonitor(w.desiredStateOfWorld, w.actualStateOfWorld)
+	monitor := newPluginConnectionMonitor(w.path, w.desiredStateOfWorld, w.actualStateOfWorld)
 	monitor.start()
 
 	go func(fsWatcher *fsnotify.Watcher) {
