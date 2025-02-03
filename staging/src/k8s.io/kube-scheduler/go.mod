@@ -36,3 +36,5 @@ replace (
 	k8s.io/component-base => ../component-base
 	k8s.io/kube-scheduler => ../kube-scheduler
 )
+
+godebug default=go1.21

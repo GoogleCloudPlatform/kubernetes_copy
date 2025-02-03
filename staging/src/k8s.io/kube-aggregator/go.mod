@@ -122,3 +122,5 @@ replace (
 	k8s.io/kms => ../kms
 	k8s.io/kube-aggregator => ../kube-aggregator
 )
+
+godebug default=go1.21

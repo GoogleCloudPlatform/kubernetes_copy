@@ -42,3 +42,5 @@ replace (
 	k8s.io/kms => ../kms
 	k8s.io/kube-controller-manager => ../kube-controller-manager
 )
+
+godebug default=go1.21

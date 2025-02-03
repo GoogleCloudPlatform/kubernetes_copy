@@ -121,3 +121,5 @@ replace (
 	k8s.io/controller-manager => ../controller-manager
 	k8s.io/kms => ../kms
 )
+
+godebug default=go1.21

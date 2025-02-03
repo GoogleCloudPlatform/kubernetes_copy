@@ -23,3 +23,5 @@ require (
 )
 
 replace k8s.io/mount-utils => ../mount-utils
+
+godebug default=go1.21

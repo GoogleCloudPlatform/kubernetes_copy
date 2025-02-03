@@ -106,3 +106,5 @@ replace (
 	k8s.io/kubectl => ../kubectl
 	k8s.io/metrics => ../metrics
 )
+
+godebug default=go1.21

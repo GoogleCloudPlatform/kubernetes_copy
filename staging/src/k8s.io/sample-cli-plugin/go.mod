@@ -75,3 +75,5 @@ replace (
 	k8s.io/client-go => ../client-go
 	k8s.io/sample-cli-plugin => ../sample-cli-plugin
 )
+
+godebug default=go1.21

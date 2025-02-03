@@ -106,3 +106,5 @@ replace (
 	k8s.io/kms => ../kms
 	k8s.io/legacy-cloud-providers => ../legacy-cloud-providers
 )
+
+godebug default=go1.21

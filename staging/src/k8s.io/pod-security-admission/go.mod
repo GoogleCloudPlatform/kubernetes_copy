@@ -115,3 +115,5 @@ replace (
 	k8s.io/kms => ../kms
 	k8s.io/pod-security-admission => ../pod-security-admission
 )
+
+godebug default=go1.21

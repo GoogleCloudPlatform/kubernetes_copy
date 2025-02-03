@@ -117,3 +117,5 @@ replace (
 	k8s.io/kms => ../kms
 	k8s.io/sample-apiserver => ../sample-apiserver
 )
+
+godebug default=go1.21

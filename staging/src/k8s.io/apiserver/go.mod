@@ -133,3 +133,5 @@ replace (
 	k8s.io/component-base => ../component-base
 	k8s.io/kms => ../kms
 )
+
+godebug default=go1.21

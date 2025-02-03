@@ -66,3 +66,5 @@ replace (
 	k8s.io/dynamic-resource-allocation => ../dynamic-resource-allocation
 	k8s.io/kubelet => ../kubelet
 )
+
+godebug default=go1.21
