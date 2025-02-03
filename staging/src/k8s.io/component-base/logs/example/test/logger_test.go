@@ -21,6 +21,7 @@ package logger_test
 
 import (
 	"flag"
+	"os"
 	"testing"
 
 	"k8s.io/component-base/logs/example"
@@ -49,5 +50,5 @@ func TestMain(m *testing.M) {
 	ktesting.DefaultConfig = ktesting.NewConfig(ktesting.Verbosity(2))
 	ktesting.DefaultConfig.AddFlags(flag.CommandLine)
 	flag.Parse()
-	m.Run()
+	os.Exit(m.Run())
 }

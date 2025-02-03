@@ -186,6 +186,7 @@ linters-settings: # please keep this alphabetized
       {{- if .Base }}
       - "-SA1019"  # TODO(fix) Using a deprecated function, variable, constant or field
       - "-SA2002"  # TODO(fix) Called testing.T.FailNow or SkipNow in a goroutine, which isn’t allowed
+      - "-SA1006"  # TODO(fix) Using a printf-style function with a dynamic format string and no arguments can just use a print-style func
       {{- end}}
   {{- if .Base }}
   stylecheck:

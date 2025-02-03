@@ -24,7 +24,6 @@ import (
 	"os/signal"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"syscall"
 	"testing"
 	"time"
@@ -69,9 +68,6 @@ func TestContainerNameFromProcCgroup(t *testing.T) {
 }
 
 func TestPidOf(t *testing.T) {
-	if runtime.GOOS == "darwin" || runtime.GOOS == "windows" {
-		t.Skipf("not supported on GOOS=%s", runtime.GOOS)
-	}
 	pids, err := PidOf(filepath.Base(os.Args[0]))
 	assert.Empty(t, err)
 	assert.NotZero(t, pids)
@@ -79,9 +75,6 @@ func TestPidOf(t *testing.T) {
 }
 
 func TestPKill(t *testing.T) {
-	if runtime.GOOS == "darwin" || runtime.GOOS == "windows" {
-		t.Skipf("not supported on GOOS=%s", runtime.GOOS)
-	}
 	sig := syscall.SIGCONT
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, sig)
@@ -98,10 +91,6 @@ func TestPKill(t *testing.T) {
 }
 
 func BenchmarkGetPids(b *testing.B) {
-	if runtime.GOOS == "darwin" || runtime.GOOS == "windows" {
-		b.Skipf("not supported on GOOS=%s", runtime.GOOS)
-	}
-
 	re, err := regexp.Compile("(^|/)" + filepath.Base(os.Args[0]) + "$")
 	assert.Empty(b, err)
 
