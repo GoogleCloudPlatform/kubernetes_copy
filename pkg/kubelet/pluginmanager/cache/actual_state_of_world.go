@@ -88,11 +88,13 @@ var _ ActualStateOfWorld = &actualStateOfWorld{}
 
 // PluginInfo holds information of a plugin
 type PluginInfo struct {
-	SocketPath string
-	Timestamp  time.Time
-	UUID       types.UID
-	Handler    PluginHandler
-	Name       string
+	SocketPath        string
+	Timestamp         time.Time
+	UUID              types.UID
+	Handler           PluginHandler
+	Name              string
+	Endpoint          string
+	SupportedVersions []string
 }
 
 func (asw *actualStateOfWorld) AddPlugin(pluginInfo PluginInfo) error {

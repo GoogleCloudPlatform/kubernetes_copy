@@ -114,10 +114,12 @@ func (og *operationGenerator) GenerateRegisterPluginFunc(
 		// We add the plugin to the actual state of world cache before calling a plugin consumer's Register handle
 		// so that if we receive a delete event during Register Plugin, we can process it as a DeRegister call.
 		err = actualStateOfWorldUpdater.AddPlugin(cache.PluginInfo{
-			SocketPath: socketPath,
-			UUID:       pluginUUID,
-			Handler:    handler,
-			Name:       infoResp.Name,
+			SocketPath:        socketPath,
+			UUID:              pluginUUID,
+			Handler:           handler,
+			Name:              infoResp.Name,
+			Endpoint:          infoResp.Endpoint,
+			SupportedVersions: infoResp.SupportedVersions,
 		})
 		if err != nil {
 			klog.ErrorS(err, "RegisterPlugin error -- failed to add plugin", "path", socketPath)

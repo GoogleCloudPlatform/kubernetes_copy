@@ -17,6 +17,7 @@ limitations under the License.
 package cache
 
 import (
+	"reflect"
 	goruntime "runtime"
 	"testing"
 	"time"
@@ -49,8 +50,8 @@ func Test_ASW_AddPlugin_Positive_NewPlugin(t *testing.T) {
 	if len(aswPlugins) != 1 {
 		t.Fatalf("Actual state of world length should be one but it's %d", len(aswPlugins))
 	}
-	if aswPlugins[0] != pluginInfo {
-		t.Fatalf("Expected\n%v\nin actual state of world, but got\n%v\n", pluginInfo, aswPlugins[0])
+	if !reflect.DeepEqual(aswPlugins[0], pluginInfo) {
+		t.Fatalf("Expected\n%#v\nin actual state of world, but got\n%#v\n", pluginInfo, aswPlugins[0])
 	}
 
 	// Check PluginExistsWithCorrectUUID returns true

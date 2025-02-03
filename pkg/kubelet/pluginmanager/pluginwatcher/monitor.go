@@ -19,6 +19,7 @@ package pluginwatcher
 import (
 	"context"
 	"os"
+	"slices"
 	"sync"
 	"time"
 
@@ -219,15 +220,30 @@ func getOrEstablishConnection(
 }
 
 // checkConnection checks the connection to the plugin by sending GetInfo RPC.
-func checkConnection(client registerapi.RegistrationClient, plugin cache.PluginInfo) error {
+func checkConnection(client registerapi.RegistrationClient, plugin *cache.PluginInfo) error {
 	ctx, cancel := context.WithTimeout(context.Background(), getInfoTimeout)
 	defer cancel()
 
-	_, err := client.GetInfo(ctx, &registerapi.InfoRequest{})
+	info, err := client.GetInfo(ctx, &registerapi.InfoRequest{})
 	if err != nil {
 		klog.ErrorS(err, "Failed to get plugin info", "plugin", plugin.Name, "socket", plugin.SocketPath)
 		return err
 	}
+
+	// Update plugin attributes if they're different from the received info
+	if plugin.Endpoint != info.Endpoint {
+		klog.InfoS("Plugin endpoint updated", "old", plugin.Endpoint, "new", info.Endpoint, "name", plugin.Name, "socket", plugin.SocketPath)
+		plugin.Endpoint = info.Endpoint
+	}
+	if slices.Compare(plugin.SupportedVersions, info.SupportedVersions) != 0 {
+		plugin.SupportedVersions = info.SupportedVersions
+		klog.InfoS("Plugin supported versions updated", "old", plugin.SupportedVersions, "new", info.SupportedVersions, "name", plugin.Name, "socket", plugin.SocketPath)
+	}
+	if plugin.Name != info.Name {
+		klog.InfoS("Plugin name updated", "old", plugin.Name, "new", info.Name, "socket", plugin.SocketPath)
+		plugin.Name = info.Name
+	}
+
 	return nil
 }
 
