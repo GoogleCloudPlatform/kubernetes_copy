@@ -1768,7 +1768,7 @@ var _ = common.SIGDescribe("Services", func() {
 		t.Name = "slow-terminating-unready-pod"
 		t.Image = imageutils.GetE2EImage(imageutils.Agnhost)
 		port := int32(80)
-		//terminateSeconds := int64(100)
+		terminateSeconds := int64(100)
 
 		service := &v1.Service{
 			ObjectMeta: metav1.ObjectMeta{
@@ -1786,7 +1786,33 @@ var _ = common.SIGDescribe("Services", func() {
 			},
 		}
 
-		deploymentSpec := e2edeployment.NewDeployment(t.Name, 1, t.Labels, t.Name, t.Image, appsv1.RecreateDeploymentStrategyType)
+		deploymentSpec := e2edeployment.NewDeployment(t.Name,
+			1,
+			t.Labels,
+			t.Name,
+			t.Image,
+			appsv1.RecreateDeploymentStrategyType)
+		deploymentSpec.Spec.Template.Spec.Containers[0] = v1.Container{
+			Args:  []string{"netexec", fmt.Sprintf("--http-port=%d", port)},
+			Name:  t.Name,
+			Image: t.Image,
+			Ports: []v1.ContainerPort{{ContainerPort: port, Protocol: v1.ProtocolTCP}},
+			ReadinessProbe: &v1.Probe{
+				ProbeHandler: v1.ProbeHandler{
+					Exec: &v1.ExecAction{
+						Command: []string{"/bin/false"},
+					},
+				},
+			},
+			Lifecycle: &v1.Lifecycle{
+				PreStop: &v1.LifecycleHandler{
+					Exec: &v1.ExecAction{
+						Command: []string{"/bin/sleep", fmt.Sprintf("%d", terminateSeconds)},
+					},
+				},
+			},
+		}
+		deploymentSpec.Spec.Template.Spec.TerminationGracePeriodSeconds = &terminateSeconds
 
 		ginkgo.By(fmt.Sprintf("creating Deployment %v with selectors %v", deploymentSpec.Name, deploymentSpec.Spec.Selector))
 		_, err := t.CreateDeployment(deploymentSpec)
@@ -1820,8 +1846,7 @@ var _ = common.SIGDescribe("Services", func() {
 
 		ginkgo.By("Scaling down replication controller to zero")
 		_, err = e2edeployment.UpdateDeploymentWithRetries(f.ClientSet, t.Namespace, t.Name, func(deployment *appsv1.Deployment) {
-			newReplicas := int32(0)
-			deployment.Spec.Replicas = &newReplicas
+			deployment.Spec.Replicas = ptr.To[int32](0)
 		})
 		framework.ExpectNoError(err)
 
