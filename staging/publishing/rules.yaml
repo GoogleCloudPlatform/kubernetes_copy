@@ -31,7 +31,7 @@ rules:
       dirs:
       - staging/src/k8s.io/code-generator
   - name: release-1.29
-    go: 1.22.10
+    go: 1.22.11
     source:
       branch: release-1.29
       dirs:
@@ -68,7 +68,7 @@ rules:
       dirs:
       - staging/src/k8s.io/apimachinery
   - name: release-1.29
-    go: 1.22.10
+    go: 1.22.11
     source:
       branch: release-1.29
       dirs:
@@ -121,7 +121,7 @@ rules:
       dirs:
       - staging/src/k8s.io/api
   - name: release-1.29
-    go: 1.22.10
+    go: 1.22.11
     dependencies:
     - repository: apimachinery
       branch: release-1.29
@@ -207,7 +207,7 @@ rules:
       go build -mod=mod ./...
       go test -mod=mod ./...
   - name: release-1.29
-    go: 1.22.10
+    go: 1.22.11
     dependencies:
     - repository: apimachinery
       branch: release-1.29
@@ -289,7 +289,7 @@ rules:
       dirs:
       - staging/src/k8s.io/component-base
   - name: release-1.29
-    go: 1.22.10
+    go: 1.22.11
     dependencies:
     - repository: apimachinery
       branch: release-1.29
@@ -369,7 +369,7 @@ rules:
       dirs:
       - staging/src/k8s.io/component-helpers
   - name: release-1.29
-    go: 1.22.10
+    go: 1.22.11
     dependencies:
     - repository: apimachinery
       branch: release-1.29
@@ -425,7 +425,7 @@ rules:
       dirs:
       - staging/src/k8s.io/kms
   - name: release-1.29
-    go: 1.22.10
+    go: 1.22.11
     dependencies:
     - repository: apimachinery
       branch: release-1.29
@@ -519,7 +519,7 @@ rules:
       dirs:
       - staging/src/k8s.io/apiserver
   - name: release-1.29
-    go: 1.22.10
+    go: 1.22.11
     dependencies:
     - repository: apimachinery
       branch: release-1.29
@@ -641,7 +641,7 @@ rules:
       dirs:
       - staging/src/k8s.io/kube-aggregator
   - name: release-1.29
-    go: 1.22.10
+    go: 1.22.11
     dependencies:
     - repository: apimachinery
       branch: release-1.29
@@ -791,7 +791,7 @@ rules:
       # assumes GO111MODULE=on
       go build -mod=mod .
   - name: release-1.29
-    go: 1.22.10
+    go: 1.22.11
     dependencies:
     - repository: apimachinery
       branch: release-1.29
@@ -918,7 +918,7 @@ rules:
       # assumes GO111MODULE=on
       go build -mod=mod .
   - name: release-1.29
-    go: 1.22.10
+    go: 1.22.11
     dependencies:
     - repository: apimachinery
       branch: release-1.29
@@ -1052,7 +1052,7 @@ rules:
     required-packages:
     - k8s.io/code-generator
   - name: release-1.29
-    go: 1.22.10
+    go: 1.22.11
     dependencies:
     - repository: apimachinery
       branch: release-1.29
@@ -1151,7 +1151,7 @@ rules:
       dirs:
       - staging/src/k8s.io/metrics
   - name: release-1.29
-    go: 1.22.10
+    go: 1.22.11
     dependencies:
     - repository: apimachinery
       branch: release-1.29
@@ -1233,7 +1233,7 @@ rules:
       dirs:
       - staging/src/k8s.io/cli-runtime
   - name: release-1.29
-    go: 1.22.10
+    go: 1.22.11
     dependencies:
     - repository: api
       branch: release-1.29
@@ -1323,7 +1323,7 @@ rules:
       dirs:
       - staging/src/k8s.io/sample-cli-plugin
   - name: release-1.29
-    go: 1.22.10
+    go: 1.22.11
     dependencies:
     - repository: api
       branch: release-1.29
@@ -1414,7 +1414,7 @@ rules:
       dirs:
       - staging/src/k8s.io/kube-proxy
   - name: release-1.29
-    go: 1.22.10
+    go: 1.22.11
     dependencies:
     - repository: apimachinery
       branch: release-1.29
@@ -1461,7 +1461,7 @@ rules:
       dirs:
       - staging/src/k8s.io/cri-api
   - name: release-1.29
-    go: 1.22.10
+    go: 1.22.11
     source:
       branch: release-1.29
       dirs:
@@ -1556,7 +1556,7 @@ rules:
       dirs:
       - staging/src/k8s.io/kubelet
   - name: release-1.29
-    go: 1.22.10
+    go: 1.22.11
     dependencies:
     - repository: apimachinery
       branch: release-1.29
@@ -1654,7 +1654,7 @@ rules:
       dirs:
       - staging/src/k8s.io/kube-scheduler
   - name: release-1.29
-    go: 1.22.10
+    go: 1.22.11
     dependencies:
     - repository: apimachinery
       branch: release-1.29
@@ -1764,7 +1764,7 @@ rules:
       dirs:
       - staging/src/k8s.io/controller-manager
   - name: release-1.29
-    go: 1.22.10
+    go: 1.22.11
     dependencies:
     - repository: api
       branch: release-1.29
@@ -1898,7 +1898,7 @@ rules:
       dirs:
       - staging/src/k8s.io/cloud-provider
   - name: release-1.29
-    go: 1.22.10
+    go: 1.22.11
     dependencies:
     - repository: api
       branch: release-1.29
@@ -2046,7 +2046,7 @@ rules:
       dirs:
       - staging/src/k8s.io/kube-controller-manager
   - name: release-1.29
-    go: 1.22.10
+    go: 1.22.11
     dependencies:
     - repository: apimachinery
       branch: release-1.29
@@ -2128,7 +2128,7 @@ rules:
       dirs:
       - staging/src/k8s.io/cluster-bootstrap
   - name: release-1.29
-    go: 1.22.10
+    go: 1.22.11
     dependencies:
     - repository: apimachinery
       branch: release-1.29
@@ -2196,7 +2196,7 @@ rules:
       dirs:
       - staging/src/k8s.io/csi-translation-lib
   - name: release-1.29
-    go: 1.22.10
+    go: 1.22.11
     dependencies:
     - repository: api
       branch: release-1.29
@@ -2239,7 +2239,7 @@ rules:
       dirs:
       - staging/src/k8s.io/mount-utils
   - name: release-1.29
-    go: 1.22.10
+    go: 1.22.11
     source:
       branch: release-1.29
       dirs:
@@ -2378,7 +2378,7 @@ rules:
       dirs:
       - staging/src/k8s.io/legacy-cloud-providers
   - name: release-1.29
-    go: 1.22.10
+    go: 1.22.11
     dependencies:
     - repository: api
       branch: release-1.29
@@ -2520,7 +2520,7 @@ rules:
       dirs:
       - staging/src/k8s.io/kubectl
   - name: release-1.29
-    go: 1.22.10
+    go: 1.22.11
     dependencies:
     - repository: api
       branch: release-1.29
@@ -2638,7 +2638,7 @@ rules:
       dirs:
       - staging/src/k8s.io/pod-security-admission
   - name: release-1.29
-    go: 1.22.10
+    go: 1.22.11
     dependencies:
     - repository: api
       branch: release-1.29
@@ -2735,7 +2735,7 @@ rules:
       dirs:
       - staging/src/k8s.io/dynamic-resource-allocation
   - name: release-1.29
-    go: 1.22.10
+    go: 1.22.11
     dependencies:
     - repository: apimachinery
       branch: release-1.29
@@ -2787,7 +2787,7 @@ rules:
       dirs:
       - staging/src/k8s.io/endpointslice
   - name: release-1.29
-    go: 1.22.10
+    go: 1.22.11
     dependencies:
     - repository: api
       branch: release-1.29
@@ -2803,4 +2803,4 @@ rules:
       - staging/src/k8s.io/endpointslice
 recursive-delete-patterns:
 - '*/.gitattributes'
-default-go-version: 1.22.10
+default-go-version: 1.22.11
