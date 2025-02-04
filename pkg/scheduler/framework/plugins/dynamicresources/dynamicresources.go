@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"sync"
 
 	"github.com/google/go-cmp/cmp" //nolint:depguard
@@ -103,6 +104,7 @@ type informationForClaim struct {
 type DynamicResources struct {
 	enabled                   bool
 	enableAdminAccess         bool
+	enablePrioritizedList     bool
 	enableSchedulingQueueHint bool
 
 	fh         framework.Handle
@@ -121,6 +123,7 @@ func New(ctx context.Context, plArgs runtime.Object, fh framework.Handle, fts fe
 	pl := &DynamicResources{
 		enabled:                   true,
 		enableAdminAccess:         fts.EnableDRAAdminAccess,
+		enablePrioritizedList:     fts.EnableDRAPrioritizedList,
 		enableSchedulingQueueHint: fts.EnableSchedulingQueueHint,
 
 		fh:        fh,
@@ -405,21 +408,21 @@ func (pl *DynamicResources) PreFilter(ctx context.Context, state *framework.Cycl
 			// initial set of potential nodes before we ask the
 			// driver(s) for information about the specific pod.
 			for _, request := range claim.Spec.Devices.Requests {
-				if request.DeviceClassName == "" {
-					return nil, statusError(logger, fmt.Errorf("request %s: unsupported request type", request.Name))
+				// The requirements differ depending on whether the request has a list of
+				// alternative subrequests defined in the firstAvailable field.
+				if len(request.FirstAvailable) == 0 {
+					if status := pl.validateDeviceClass(logger, request.DeviceClassName, request.Name); status != nil {
+						return nil, status
+					}
+				} else {
+					for _, subRequest := range request.FirstAvailable {
+						qualRequestName := strings.Join([]string{request.Name, subRequest.Name}, "/")
+						if status := pl.validateDeviceClass(logger, subRequest.DeviceClassName, qualRequestName); status != nil {
+							return nil, status
+						}
+					}
 				}
 
-				_, err := pl.draManager.DeviceClasses().Get(request.DeviceClassName)
-				if err != nil {
-					// If the class cannot be retrieved, allocation cannot proceed.
-					if apierrors.IsNotFound(err) {
-						// Here we mark the pod as "unschedulable", so it'll sleep in
-						// the unscheduleable queue until a DeviceClass event occurs.
-						return nil, statusUnschedulable(logger, fmt.Sprintf("request %s: device class %s does not exist", request.Name, request.DeviceClassName))
-					}
-					// Other error, retry with backoff.
-					return nil, statusError(logger, fmt.Errorf("request %s: look up device class: %w", request.Name, err))
-				}
 			}
 		}
 	}
@@ -447,7 +450,7 @@ func (pl *DynamicResources) PreFilter(ctx context.Context, state *framework.Cycl
 		if err != nil {
 			return nil, statusError(logger, err)
 		}
-		allocator, err := structured.NewAllocator(ctx, pl.enableAdminAccess, allocateClaims, allAllocatedDevices, pl.draManager.DeviceClasses(), slices, pl.celCache)
+		allocator, err := structured.NewAllocator(ctx, pl.enableAdminAccess, pl.enablePrioritizedList, allocateClaims, allAllocatedDevices, pl.draManager.DeviceClasses(), slices, pl.celCache)
 		if err != nil {
 			return nil, statusError(logger, err)
 		}
@@ -457,6 +460,23 @@ func (pl *DynamicResources) PreFilter(ctx context.Context, state *framework.Cycl
 
 	s.claims = claims
 	return nil, nil
+}
+
+func (pl *DynamicResources) validateDeviceClass(logger klog.Logger, deviceClassName, requestName string) *framework.Status {
+	if deviceClassName == "" {
+		return statusError(logger, fmt.Errorf("request %s: unsupported request type", requestName))
+	}
+
+	_, err := pl.draManager.DeviceClasses().Get(deviceClassName)
+	if err != nil {
+		// If the class cannot be retrieved, allocation cannot proceed.
+		if apierrors.IsNotFound(err) {
+			// Here we mark the pod as "unschedulable", so it'll sleep in
+			// the unscheduleable queue until a DeviceClass event occurs.
+			return statusUnschedulable(logger, fmt.Sprintf("request %s: device class %s does not exist", requestName, deviceClassName))
+		}
+	}
+	return nil
 }
 
 // PreFilterExtensions returns prefilter extensions, pod add and remove.

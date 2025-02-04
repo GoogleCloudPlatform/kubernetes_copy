@@ -20,6 +20,7 @@ package feature
 // This struct allows us to break the dependency of the plugins on
 // the internal k8s features pkg.
 type Features struct {
+	EnableDRAPrioritizedList                     bool
 	EnableDRAAdminAccess                         bool
 	EnableDynamicResourceAllocation              bool
 	EnableVolumeCapacityPriority                 bool

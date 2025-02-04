@@ -41,29 +41,36 @@ import (
 )
 
 const (
-	region1 = "region-1"
-	region2 = "region-2"
-	node1   = "node-1"
-	node2   = "node-2"
-	classA  = "class-a"
-	classB  = "class-b"
-	driverA = "driver-a"
-	driverB = "driver-b"
-	pool1   = "pool-1"
-	pool2   = "pool-2"
-	pool3   = "pool-3"
-	pool4   = "pool-4"
-	req0    = "req-0"
-	req1    = "req-1"
-	req2    = "req-2"
-	req3    = "req-3"
-	claim0  = "claim-0"
-	claim1  = "claim-1"
-	slice1  = "slice-1"
-	slice2  = "slice-2"
-	device1 = "device-1"
-	device2 = "device-2"
-	device3 = "device-3"
+	region1     = "region-1"
+	region2     = "region-2"
+	node1       = "node-1"
+	node2       = "node-2"
+	classA      = "class-a"
+	classB      = "class-b"
+	driverA     = "driver-a"
+	driverB     = "driver-b"
+	pool1       = "pool-1"
+	pool2       = "pool-2"
+	pool3       = "pool-3"
+	pool4       = "pool-4"
+	req0        = "req-0"
+	req1        = "req-1"
+	req2        = "req-2"
+	req3        = "req-3"
+	subReq0     = "subReq-0"
+	subReq1     = "subReq-1"
+	req0SubReq0 = "req-0/subReq-0"
+	req0SubReq1 = "req-0/subReq-1"
+	req1SubReq0 = "req-1/subReq-0"
+	req1SubReq1 = "req-1/subReq-1"
+	claim0      = "claim-0"
+	claim1      = "claim-1"
+	slice1      = "slice-1"
+	slice2      = "slice-2"
+	device1     = "device-1"
+	device2     = "device-2"
+	device3     = "device-3"
+	device4     = "device-4"
 )
 
 func init() {
@@ -165,6 +172,24 @@ func request(name, class string, count int64, selectors ...resourceapi.DeviceSel
 	}
 }
 
+func subRequest(name, class string, count int64, selectors ...resourceapi.DeviceSelector) resourceapi.DeviceSubRequest {
+	return resourceapi.DeviceSubRequest{
+		Name:            name,
+		Count:           count,
+		AllocationMode:  resourceapi.DeviceAllocationModeExactCount,
+		DeviceClassName: class,
+		Selectors:       selectors,
+	}
+}
+
+// genereate a DeviceRequest with the given name and list of prioritized requests.
+func requestWithPrioritizedList(name string, prioritizedRequests ...resourceapi.DeviceSubRequest) resourceapi.DeviceRequest {
+	return resourceapi.DeviceRequest{
+		Name:           name,
+		FirstAvailable: prioritizedRequests,
+	}
+}
+
 // generate a ResourceClaim object with the given name, request and class.
 func claim(name, req, class string, constraints ...resourceapi.DeviceConstraint) *resourceapi.ResourceClaim {
 	claim := claimWithRequests(name, constraints, request(req, class, 1))
@@ -181,6 +206,19 @@ func claimWithDeviceConfig(name, request, class, driver, attribute string) *reso
 		},
 	}
 	return claim
+}
+
+func claimWithAll(name string, requests []resourceapi.DeviceRequest, constraints []resourceapi.DeviceConstraint, configs []resourceapi.DeviceClaimConfiguration) *resourceapi.ResourceClaim {
+	claim := claimWithRequests(name, constraints, requests...)
+	claim.Spec.Devices.Config = configs
+	return claim
+}
+
+func deviceClaimConfig(requests []string, deviceConfig resourceapi.DeviceConfiguration) resourceapi.DeviceClaimConfiguration {
+	return resourceapi.DeviceClaimConfiguration{
+		Requests:            requests,
+		DeviceConfiguration: deviceConfig,
+	}
 }
 
 // generate a Device object with the given name, capacity and attributes.
@@ -334,6 +372,16 @@ func allocationResultWithConfig(selector *v1.NodeSelector, driver string, source
 	}
 }
 
+func allocationResultWithConfigs(selector *v1.NodeSelector, results []resourceapi.DeviceRequestAllocationResult, configs []resourceapi.DeviceAllocationConfiguration) resourceapi.AllocationResult {
+	return resourceapi.AllocationResult{
+		Devices: resourceapi.DeviceAllocationResult{
+			Results: results,
+			Config:  configs,
+		},
+		NodeSelector: selector,
+	}
+}
+
 // Helpers
 
 // convert a list of objects to a slice
@@ -346,6 +394,15 @@ func sliceWithOneDevice(name string, nodeSelection any, pool, driver string) *re
 	return slice(name, nodeSelection, pool, driver, device(device1, nil, nil))
 }
 
+// generate a ResourceSclie object with the given parameters and the specified number of devices.
+func sliceWithMultipleDevices(name string, nodeSelection any, pool, driver string, count int) *resourceapi.ResourceSlice {
+	var devices []resourceapi.Device
+	for i := 0; i < count; i++ {
+		devices = append(devices, device(fmt.Sprintf("device-%d", i), nil, nil))
+	}
+	return slice(name, nodeSelection, pool, driver, devices...)
+}
+
 func TestAllocator(t *testing.T) {
 	nonExistentAttribute := resourceapi.FullyQualifiedName(driverA + "/" + "NonExistentAttribute")
 	boolAttribute := resourceapi.FullyQualifiedName(driverA + "/" + "boolAttribute")
@@ -355,6 +412,7 @@ func TestAllocator(t *testing.T) {
 
 	testcases := map[string]struct {
 		adminAccess      bool
+		prioritizedList  bool
 		claimsToAllocate []*resourceapi.ResourceClaim
 		allocatedDevices []DeviceID
 		classes          []*resourceapi.DeviceClass
@@ -1352,6 +1410,8 @@ func TestAllocator(t *testing.T) {
 				),
 			),
 			classes: objects(class(classA, driverA)),
+			slices:  objects(sliceWithMultipleDevices(slice1, node1, pool1, driverA, resourceapi.AllocationResultsMaxSize+1)),
+			node:    node(node1, region1),
 
 			expectError: gomega.MatchError(gomega.ContainSubstring("exceeds the claim limit")),
 		},
@@ -1360,6 +1420,478 @@ func TestAllocator(t *testing.T) {
 			classes:          objects(class(classA, driverA)),
 
 			expectError: gomega.MatchError(gomega.ContainSubstring("exceeds the claim limit")),
+		},
+		"prioritized-list-first-unavailable": {
+			prioritizedList: true,
+			claimsToAllocate: objects(claimWithRequests(claim0, nil, requestWithPrioritizedList(req0,
+				subRequest(subReq0, classB, 1),
+				subRequest(subReq1, classA, 1),
+			))),
+			classes: objects(class(classA, driverA), class(classB, driverB)),
+			slices:  objects(sliceWithOneDevice(slice1, node1, pool1, driverA)),
+			node:    node(node1, region1),
+
+			expectResults: []any{allocationResult(
+				localNodeSelector(node1),
+				deviceAllocationResult(req0SubReq1, driverA, pool1, device1, false),
+			)},
+		},
+		"prioritized-list-non-available": {
+			prioritizedList: true,
+			claimsToAllocate: objects(claimWithRequests(claim0, nil, requestWithPrioritizedList(req0,
+				subRequest(subReq0, classB, 2),
+				subRequest(subReq1, classA, 2),
+			))),
+			classes: objects(class(classA, driverA), class(classB, driverB)),
+			slices: objects(
+				sliceWithOneDevice(slice1, node1, pool1, driverA),
+				sliceWithOneDevice(slice2, node1, pool2, driverB),
+			),
+			node: node(node1, region1),
+
+			expectResults: nil,
+		},
+		"prioritized-list-device-config": {
+			prioritizedList: true,
+			claimsToAllocate: objects(
+				claimWithAll(claim0,
+					objects(
+						requestWithPrioritizedList(req0,
+							subRequest(subReq0, classA, 1),
+							subRequest(subReq1, classB, 2),
+						),
+					),
+					nil,
+					objects(
+						deviceClaimConfig([]string{req0SubReq0}, deviceConfiguration(driverA, "foo")),
+						deviceClaimConfig([]string{req0SubReq1}, deviceConfiguration(driverB, "bar")),
+					),
+				),
+			),
+			classes: objects(class(classA, driverA), class(classB, driverB)),
+			slices: objects(slice(slice1, node1, pool1, driverB,
+				device(device1, nil, map[resourceapi.QualifiedName]resourceapi.DeviceAttribute{}),
+				device(device2, nil, map[resourceapi.QualifiedName]resourceapi.DeviceAttribute{}),
+			)),
+			node: node(node1, region1),
+
+			expectResults: []any{allocationResultWithConfigs(
+				localNodeSelector(node1),
+				objects(
+					deviceAllocationResult(req0SubReq1, driverB, pool1, device1, false),
+					deviceAllocationResult(req0SubReq1, driverB, pool1, device2, false),
+				),
+				[]resourceapi.DeviceAllocationConfiguration{
+					{
+						Source: resourceapi.AllocationConfigSourceClaim,
+						Requests: []string{
+							req0SubReq1,
+						},
+						DeviceConfiguration: deviceConfiguration(driverB, "bar"),
+					},
+				},
+			)},
+		},
+		"prioritized-list-class-config": {
+			prioritizedList: true,
+			claimsToAllocate: objects(claimWithRequests(claim0, nil, requestWithPrioritizedList(req0,
+				subRequest(subReq0, classA, 2),
+				subRequest(subReq1, classB, 2),
+			))),
+			classes: objects(
+				classWithConfig(classA, driverA, "foo"),
+				classWithConfig(classB, driverB, "bar"),
+			),
+			slices: objects(
+				slice(slice1, node1, pool1, driverB,
+					device(device1, nil, nil),
+					device(device2, nil, nil),
+				),
+				slice(slice2, node1, pool2, driverA,
+					device(device3, nil, nil),
+				),
+			),
+			node: node(node1, region1),
+
+			expectResults: []any{allocationResultWithConfigs(
+				localNodeSelector(node1),
+				objects(
+					deviceAllocationResult(req0SubReq1, driverB, pool1, device1, false),
+					deviceAllocationResult(req0SubReq1, driverB, pool1, device2, false),
+				),
+				[]resourceapi.DeviceAllocationConfiguration{
+					{
+						Source:              resourceapi.AllocationConfigSourceClass,
+						Requests:            nil,
+						DeviceConfiguration: deviceConfiguration(driverB, "bar"),
+					},
+				},
+			)},
+		},
+		"prioritized-list-subrequests-with-expressions": {
+			prioritizedList: true,
+			claimsToAllocate: objects(
+				claimWithRequests(claim0, nil,
+					request(req0, classA, 1, resourceapi.DeviceSelector{
+						CEL: &resourceapi.CELDeviceSelector{
+							Expression: fmt.Sprintf(`device.capacity["%s"].memory.compareTo(quantity("1Gi")) >= 0`, driverA),
+						}},
+					),
+					requestWithPrioritizedList(req1,
+						subRequest(subReq0, classA, 1, resourceapi.DeviceSelector{
+							CEL: &resourceapi.CELDeviceSelector{
+								Expression: fmt.Sprintf(`device.capacity["%s"].memory.compareTo(quantity("4Gi")) >= 0`, driverA),
+							}}),
+						subRequest(subReq1, classA, 2, resourceapi.DeviceSelector{
+							CEL: &resourceapi.CELDeviceSelector{
+								Expression: fmt.Sprintf(`device.capacity["%s"].memory.compareTo(quantity("2Gi")) >= 0`, driverA),
+							}}),
+					),
+				),
+			),
+			classes: objects(class(classA, driverA)),
+			slices: objects(slice(slice1, node1, pool1, driverA,
+				device(device1, map[resourceapi.QualifiedName]resource.Quantity{
+					"memory": resource.MustParse("2Gi"),
+				}, nil),
+				device(device2, map[resourceapi.QualifiedName]resource.Quantity{
+					"memory": resource.MustParse("2Gi"),
+				}, nil),
+				device(device3, map[resourceapi.QualifiedName]resource.Quantity{
+					"memory": resource.MustParse("1Gi"),
+				}, nil),
+			)),
+			node: node(node1, region1),
+
+			expectResults: []any{allocationResult(
+				localNodeSelector(node1),
+				deviceAllocationResult(req0, driverA, pool1, device3, false),
+				deviceAllocationResult(req1SubReq1, driverA, pool1, device1, false),
+				deviceAllocationResult(req1SubReq1, driverA, pool1, device2, false),
+			)},
+		},
+		"prioritized-list-subrequests-with-constraints-ref-parent-request": {
+			prioritizedList: true,
+			claimsToAllocate: objects(
+				claimWithRequests(claim0,
+					[]resourceapi.DeviceConstraint{
+						{
+							Requests:       []string{req0, req1},
+							MatchAttribute: &versionAttribute,
+						},
+					},
+					request(req0, classA, 1, resourceapi.DeviceSelector{
+						CEL: &resourceapi.CELDeviceSelector{
+							Expression: fmt.Sprintf(`device.capacity["%s"].memory.compareTo(quantity("8Gi")) >= 0`, driverA),
+						}},
+					),
+					requestWithPrioritizedList(req1,
+						subRequest(subReq0, classA, 1, resourceapi.DeviceSelector{
+							CEL: &resourceapi.CELDeviceSelector{
+								Expression: fmt.Sprintf(`device.capacity["%s"].memory.compareTo(quantity("2Gi")) >= 0`, driverA),
+							}},
+						),
+						subRequest(subReq1, classA, 1, resourceapi.DeviceSelector{
+							CEL: &resourceapi.CELDeviceSelector{
+								Expression: fmt.Sprintf(`device.capacity["%s"].memory.compareTo(quantity("1Gi")) >= 0`, driverA),
+							}},
+						),
+					),
+				),
+			),
+			classes: objects(class(classA, driverA)),
+			slices: objects(
+				slice(slice1, node1, pool1, driverA,
+					device(device1,
+						map[resourceapi.QualifiedName]resource.Quantity{
+							"memory": resource.MustParse("8Gi"),
+						},
+						map[resourceapi.QualifiedName]resourceapi.DeviceAttribute{
+							"driverVersion": {VersionValue: ptr.To("1.0.0")},
+						},
+					),
+				),
+				slice(slice2, node1, pool2, driverA,
+					device(device2,
+						map[resourceapi.QualifiedName]resource.Quantity{
+							"memory": resource.MustParse("2Gi"),
+						},
+						map[resourceapi.QualifiedName]resourceapi.DeviceAttribute{
+							"driverVersion": {VersionValue: ptr.To("2.0.0")},
+						},
+					),
+					device(device3,
+						map[resourceapi.QualifiedName]resource.Quantity{
+							"memory": resource.MustParse("1Gi"),
+						},
+						map[resourceapi.QualifiedName]resourceapi.DeviceAttribute{
+							"driverVersion": {VersionValue: ptr.To("1.0.0")},
+						},
+					),
+				),
+			),
+			node: node(node1, region1),
+
+			expectResults: []any{allocationResult(
+				localNodeSelector(node1),
+				deviceAllocationResult(req0, driverA, pool1, device1, false),
+				deviceAllocationResult(req1SubReq1, driverA, pool2, device3, false),
+			)},
+		},
+		"prioritized-list-subrequests-with-constraints-ref-sub-request": {
+			prioritizedList: true,
+			claimsToAllocate: objects(
+				claimWithRequests(claim0,
+					[]resourceapi.DeviceConstraint{
+						{
+							Requests:       []string{req0, req1SubReq0},
+							MatchAttribute: &versionAttribute,
+						},
+					},
+					request(req0, classA, 1, resourceapi.DeviceSelector{
+						CEL: &resourceapi.CELDeviceSelector{
+							Expression: fmt.Sprintf(`device.capacity["%s"].memory.compareTo(quantity("8Gi")) >= 0`, driverA),
+						}},
+					),
+					requestWithPrioritizedList(req1,
+						subRequest(subReq0, classA, 1, resourceapi.DeviceSelector{
+							CEL: &resourceapi.CELDeviceSelector{
+								Expression: fmt.Sprintf(`device.capacity["%s"].memory.compareTo(quantity("2Gi")) >= 0`, driverA),
+							}},
+						),
+						subRequest(subReq1, classA, 1, resourceapi.DeviceSelector{
+							CEL: &resourceapi.CELDeviceSelector{
+								Expression: fmt.Sprintf(`device.capacity["%s"].memory.compareTo(quantity("1Gi")) >= 0`, driverA),
+							}},
+						),
+					),
+				),
+			),
+			classes: objects(class(classA, driverA)),
+			slices: objects(
+				slice(slice1, node1, pool1, driverA,
+					device(device1,
+						map[resourceapi.QualifiedName]resource.Quantity{
+							"memory": resource.MustParse("8Gi"),
+						},
+						map[resourceapi.QualifiedName]resourceapi.DeviceAttribute{
+							"driverVersion": {VersionValue: ptr.To("1.0.0")},
+						},
+					),
+				),
+				slice(slice2, node1, pool2, driverA,
+					device(device2,
+						map[resourceapi.QualifiedName]resource.Quantity{
+							"memory": resource.MustParse("2Gi"),
+						},
+						map[resourceapi.QualifiedName]resourceapi.DeviceAttribute{
+							"driverVersion": {VersionValue: ptr.To("2.0.0")},
+						},
+					),
+				),
+			),
+			node: node(node1, region1),
+
+			expectResults: []any{allocationResult(
+				localNodeSelector(node1),
+				deviceAllocationResult(req0, driverA, pool1, device1, false),
+				deviceAllocationResult(req1SubReq1, driverA, pool2, device2, false),
+			)},
+		},
+		"prioritized-list-subrequests-with-allocation-mode-all": {
+			prioritizedList: true,
+			claimsToAllocate: objects(
+				func() *resourceapi.ResourceClaim {
+					claim := claimWithRequests(claim0, nil,
+						requestWithPrioritizedList(req0,
+							subRequest(subReq0, classA, 1),
+							subRequest(subReq1, classA, 1),
+						),
+					)
+					claim.Spec.Devices.Requests[0].FirstAvailable[0].AllocationMode = resourceapi.DeviceAllocationModeAll
+					claim.Spec.Devices.Requests[0].FirstAvailable[0].Count = 0
+					return claim
+				}(),
+			),
+			classes: objects(class(classA, driverA)),
+			slices: objects(
+				slice(slice1, node1, pool1, driverA,
+					device(device1, nil, nil),
+					device(device2, nil, nil),
+				),
+			),
+			allocatedDevices: []DeviceID{
+				MakeDeviceID(driverA, pool1, device1),
+			},
+			node: node(node1, region1),
+
+			expectResults: []any{allocationResult(
+				localNodeSelector(node1),
+				deviceAllocationResult(req0SubReq1, driverA, pool1, device2, false),
+			)},
+		},
+		"prioritized-list-allocation-mode-all-multiple-requests": {
+			prioritizedList: true,
+			claimsToAllocate: objects(
+				claimWithRequests(claim0, nil,
+					request(req0, classA, 1),
+					requestWithPrioritizedList(req1,
+						func() resourceapi.DeviceSubRequest {
+							subReq := subRequest(subReq0, classA, 1)
+							subReq.AllocationMode = resourceapi.DeviceAllocationModeAll
+							subReq.Count = 0
+							return subReq
+						}(),
+						subRequest(subReq1, classA, 1),
+					),
+				),
+			),
+			classes: objects(class(classA, driverA)),
+			slices: objects(
+				slice(slice1, node1, pool1, driverA,
+					device(device1, nil, nil),
+					device(device2, nil, nil),
+				),
+			),
+			node: node(node1, region1),
+
+			expectResults: []any{allocationResult(
+				localNodeSelector(node1),
+				deviceAllocationResult(req0, driverA, pool1, device1, false),
+				deviceAllocationResult(req1SubReq1, driverA, pool1, device2, false),
+			)},
+		},
+		"prioritized-list-disabled": {
+			prioritizedList: false,
+			claimsToAllocate: objects(
+				func() *resourceapi.ResourceClaim {
+					claim := claimWithRequests(claim0, nil,
+						requestWithPrioritizedList(req0,
+							subRequest(subReq0, classA, 1),
+						),
+					)
+					return claim
+				}(),
+			),
+			classes: objects(class(classA, driverA)),
+			slices:  objects(sliceWithOneDevice(slice1, node1, pool1, driverA)),
+			node:    node(node1, region1),
+
+			expectResults: nil,
+			expectError:   gomega.MatchError(gomega.ContainSubstring("claim claim-0, request req-0: has subrequests, but the feature is disabled")),
+		},
+		"prioritized-list-multi-request": {
+			prioritizedList: true,
+			claimsToAllocate: objects(
+				claimWithRequests(claim0, nil,
+					request(req1, classA, 1, resourceapi.DeviceSelector{
+						CEL: &resourceapi.CELDeviceSelector{
+							Expression: fmt.Sprintf(`device.capacity["%s"].memory.compareTo(quantity("8Gi")) >= 0`, driverA),
+						}},
+					),
+					requestWithPrioritizedList(req0,
+						subRequest(subReq0, classA, 1, resourceapi.DeviceSelector{
+							CEL: &resourceapi.CELDeviceSelector{
+								Expression: fmt.Sprintf(`device.capacity["%s"].memory.compareTo(quantity("8Gi")) >= 0`, driverA),
+							}},
+						),
+						subRequest(subReq1, classA, 1, resourceapi.DeviceSelector{
+							CEL: &resourceapi.CELDeviceSelector{
+								Expression: fmt.Sprintf(`device.capacity["%s"].memory.compareTo(quantity("4Gi")) >= 0`, driverA),
+							}},
+						),
+					),
+				),
+			),
+			classes: objects(class(classA, driverA)),
+			slices: objects(
+				slice(slice1, node1, pool1, driverA,
+					device(device1,
+						map[resourceapi.QualifiedName]resource.Quantity{
+							"memory": resource.MustParse("8Gi"),
+						},
+						map[resourceapi.QualifiedName]resourceapi.DeviceAttribute{},
+					),
+				),
+				slice(slice2, node1, pool2, driverA,
+					device(device2,
+						map[resourceapi.QualifiedName]resource.Quantity{
+							"memory": resource.MustParse("4Gi"),
+						},
+						map[resourceapi.QualifiedName]resourceapi.DeviceAttribute{},
+					),
+				),
+			),
+			node: node(node1, region1),
+			expectResults: []any{allocationResult(
+				localNodeSelector(node1),
+				deviceAllocationResult(req1, driverA, pool1, device1, false),
+				deviceAllocationResult(req0SubReq1, driverA, pool2, device2, false),
+			)},
+		},
+		"prioritized-list-with-backtracking": {
+			prioritizedList: true,
+			claimsToAllocate: objects(
+				claimWithRequests(claim0, nil,
+					requestWithPrioritizedList(req0,
+						subRequest(subReq0, classA, 1, resourceapi.DeviceSelector{
+							CEL: &resourceapi.CELDeviceSelector{
+								Expression: fmt.Sprintf(`device.capacity["%s"].memory.compareTo(quantity("8Gi")) >= 0`, driverA),
+							}},
+						),
+						subRequest(subReq1, classA, 1, resourceapi.DeviceSelector{
+							CEL: &resourceapi.CELDeviceSelector{
+								Expression: fmt.Sprintf(`device.capacity["%s"].memory.compareTo(quantity("4Gi")) >= 0`, driverA),
+							}},
+						),
+					),
+					request(req1, classA, 1, resourceapi.DeviceSelector{
+						CEL: &resourceapi.CELDeviceSelector{
+							Expression: fmt.Sprintf(`device.capacity["%s"].memory.compareTo(quantity("8Gi")) >= 0`, driverA),
+						}},
+					),
+				),
+			),
+			classes: objects(class(classA, driverA)),
+			slices: objects(
+				slice(slice1, node1, pool1, driverA,
+					device(device1,
+						map[resourceapi.QualifiedName]resource.Quantity{
+							"memory": resource.MustParse("8Gi"),
+						},
+						map[resourceapi.QualifiedName]resourceapi.DeviceAttribute{},
+					),
+				),
+				slice(slice2, node1, pool2, driverA,
+					device(device2,
+						map[resourceapi.QualifiedName]resource.Quantity{
+							"memory": resource.MustParse("4Gi"),
+						},
+						map[resourceapi.QualifiedName]resourceapi.DeviceAttribute{},
+					),
+				),
+			),
+			node: node(node1, region1),
+			expectResults: []any{allocationResult(
+				localNodeSelector(node1),
+				deviceAllocationResult(req0SubReq1, driverA, pool2, device2, false),
+				deviceAllocationResult(req1, driverA, pool1, device1, false),
+			)},
+		},
+		"prioritized-list-too-many-in-first-subrequest": {
+			prioritizedList: true,
+			claimsToAllocate: objects(claimWithRequests(claim0, nil, requestWithPrioritizedList(req0,
+				subRequest(subReq0, classB, 500),
+				subRequest(subReq1, classA, 1),
+			))),
+			classes: objects(class(classA, driverA), class(classB, driverB)),
+			slices:  objects(sliceWithOneDevice(slice1, node1, pool1, driverA)),
+			node:    node(node1, region1),
+
+			expectResults: []any{allocationResult(
+				localNodeSelector(node1),
+				deviceAllocationResult(req0SubReq1, driverA, pool1, device1, false),
+			)},
 		},
 	}
 
@@ -1379,7 +1911,7 @@ func TestAllocator(t *testing.T) {
 			allocatedDevices := slices.Clone(tc.allocatedDevices)
 			slices := slices.Clone(tc.slices)
 
-			allocator, err := NewAllocator(ctx, tc.adminAccess, claimsToAllocate, sets.New(allocatedDevices...), classLister, slices, cel.NewCache(1))
+			allocator, err := NewAllocator(ctx, tc.adminAccess, tc.prioritizedList, claimsToAllocate, sets.New(allocatedDevices...), classLister, slices, cel.NewCache(1))
 			g.Expect(err).ToNot(gomega.HaveOccurred())
 
 			results, err := allocator.Allocate(ctx, tc.node)
