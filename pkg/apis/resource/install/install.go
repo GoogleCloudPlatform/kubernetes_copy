@@ -25,6 +25,7 @@ import (
 	"k8s.io/kubernetes/pkg/apis/resource"
 	"k8s.io/kubernetes/pkg/apis/resource/v1alpha3"
 	"k8s.io/kubernetes/pkg/apis/resource/v1beta1"
+	"k8s.io/kubernetes/pkg/apis/resource/v1beta2"
 )
 
 func init() {
@@ -36,5 +37,8 @@ func Install(scheme *runtime.Scheme) {
 	utilruntime.Must(resource.AddToScheme(scheme))
 	utilruntime.Must(v1alpha3.AddToScheme(scheme))
 	utilruntime.Must(v1beta1.AddToScheme(scheme))
-	utilruntime.Must(scheme.SetVersionPriority(v1beta1.SchemeGroupVersion, v1alpha3.SchemeGroupVersion))
+	utilruntime.Must(v1beta2.AddToScheme(scheme))
+	// TODO(https://github.com/kubernetes/kubernetes/issues/129889) We should
+	// change the serialization version to v1beta2 for 1.34.
+	utilruntime.Must(scheme.SetVersionPriority(v1beta1.SchemeGroupVersion, v1beta2.SchemeGroupVersion, v1alpha3.SchemeGroupVersion))
 }

@@ -94,6 +94,7 @@ coordination.k8s.io/v1beta1 \
 coordination.k8s.io/v1 \
 discovery.k8s.io/v1 \
 discovery.k8s.io/v1beta1 \
+resource.k8s.io/v1beta2 \
 resource.k8s.io/v1beta1 \
 resource.k8s.io/v1alpha3 \
 extensions/v1beta1 \
