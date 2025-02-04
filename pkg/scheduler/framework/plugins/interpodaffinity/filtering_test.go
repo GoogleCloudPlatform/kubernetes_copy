@@ -46,6 +46,9 @@ var cmpOpts = []cmp.Option{
 		if s1 == nil || s2 == nil {
 			return s1.IsSuccess() && s2.IsSuccess()
 		}
+		if s1.Code() == framework.Error {
+			return s1.AsError().Error() == s2.AsError().Error()
+		}
 		return s1.Code() == s2.Code() && s1.Plugin() == s2.Plugin() && s1.Message() == s2.Message()
 	}),
 	cmp.AllowUnexported(preFilterState{}, framework.PodInfo{}),
