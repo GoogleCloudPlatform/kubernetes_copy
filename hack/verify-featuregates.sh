@@ -14,8 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# This script checks test/featuregates_linter/test_data/unversioned_feature_list.yaml and
-# test/featuregates_linter/test_data/versioned_feature_list.yaml are up to date with all the feature gate features.
+# This script checks test/compatibility_lifecycle/reference/versioned_feature_list.yaml
+# are up to date with all the feature gate features.
 # We should run `hack/update-featuregates.sh` if the list is out of date.
 # Usage: `hack/verify-featuregates.sh`.
 
@@ -30,7 +30,7 @@ kube::golang::setup_env
 
 cd "${KUBE_ROOT}"
 
-if ! go run test/featuregates_linter/main.go feature-gates verify; then
+if ! go run test/compatibility_lifecycle/main.go feature-gates verify; then
   echo "Please run 'hack/update-featuregates.sh' to update the feature list."
   exit 1
 fi
