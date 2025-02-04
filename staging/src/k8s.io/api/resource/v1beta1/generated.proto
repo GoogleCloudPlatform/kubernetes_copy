@@ -198,6 +198,10 @@ message DeviceAllocationConfiguration {
   // Requests lists the names of requests where the configuration applies.
   // If empty, its applies to all requests.
   //
+  // References to subrequests must include the name of both the main request
+  // and the subrequest using the format <main request>/<subrequest>. If just
+  // the main request is given, the configuration applies to all subrequests.
+  //
   // +optional
   // +listType=atomic
   repeated string requests = 2;
@@ -292,6 +296,10 @@ message DeviceClaimConfiguration {
   // Requests lists the names of requests where the configuration applies.
   // If empty, it applies to all requests.
   //
+  // References to subrequests must include the name of both the main request
+  // and the subrequest using the format <main request>/<subrequest>. if just
+  // the main request is given, the configuration applies to all subrequests.
+  //
   // +optional
   // +listType=atomic
   repeated string requests = 1;
@@ -376,6 +384,10 @@ message DeviceConstraint {
   // constraint. If this is not specified, this constraint applies to all
   // requests in this claim.
   //
+  // References to subrequests must include the name of both the main request
+  // and the subrequest using the format <main request>/<subrequest>. If just
+  // the main request is given, the constraint applies to all subrequests.
+  //
   // +optional
   // +listType=atomic
   repeated string requests = 1;
@@ -401,16 +413,12 @@ message DeviceConstraint {
 // DeviceRequest is a request for devices required for a claim.
 // This is typically a request for a single resource like a device, but can
 // also ask for several identical devices.
-//
-// A DeviceClassName is currently required. Clients must check that it is
-// indeed set. It's absence indicates that something changed in a way that
-// is not supported by the client yet, in which case it must refuse to
-// handle the request.
 message DeviceRequest {
   // Name can be used to reference this request in a pod.spec.containers[].resources.claims
   // entry and in a constraint of the claim.
   //
-  // Must be a DNS label.
+  // Must be a DNS label and unique among all DeviceRequests in a
+  // ResourceClaim.
   //
   // +required
   optional string name = 1;
@@ -419,7 +427,8 @@ message DeviceRequest {
   // additional configuration and selectors to be inherited by this
   // request.
   //
-  // A class is required. Which classes are available depends on the cluster.
+  // A class is required if no subrequests are specified in the
+  // firstAvailable list. Which classes are available depends on the cluster.
   //
   // Administrators may use this to restrict which devices may get
   // requested by only installing classes with selectors for permitted
@@ -427,7 +436,8 @@ message DeviceRequest {
   // then administrators can create an empty DeviceClass for users
   // to reference.
   //
-  // +required
+  // +optional
+  // +oneOf=deviceRequestType
   optional string deviceClassName = 2;
 
   // Selectors define criteria which must be satisfied by a specific
@@ -480,13 +490,39 @@ message DeviceRequest {
   // +optional
   // +featureGate=DRAAdminAccess
   optional bool adminAccess = 6;
+
+  // FirstAvailable contains subrequests, of which exactly one will be
+  // satisfied by the scheduler to satisfy this request. It tries to
+  // satisfy them in the order in which they are listed here. So if
+  // there are two entries in the list, the schduler will only check
+  // the second one if it determines that the first one can not be used.
+  //
+  // This field may only be set in the entries of DeviceClaim.Requests.
+  //
+  // DRA does not yet implement scoring, so the scheduler will
+  // select the first set of devices that satisfies all the
+  // requests in the claim. And if the requirements can
+  // be satisfied on more than one node, other scheduling features
+  // will determine which node is chosen. This means that the set of
+  // devices allocated to a claim might not be the optimal set
+  // available to the cluster. Scoring will be implemented later.
+  //
+  // +optional
+  // +oneOf=deviceRequestType
+  // +listType=atomic
+  // +featureGate=DRAPrioritizedList
+  repeated DeviceSubRequest firstAvailable = 7;
 }
 
 // DeviceRequestAllocationResult contains the allocation result for one request.
 message DeviceRequestAllocationResult {
   // Request is the name of the request in the claim which caused this
-  // device to be allocated. Multiple devices may have been allocated
-  // per request.
+  // device to be allocated. If it references a subrequest in the
+  // firstAvailable list on a DeviceRequest, this field must
+  // include both the name of the main request and the subrequest
+  // using the format <main request>/<subrequest>.
+  //
+  // Multiple devices may have been allocated per request.
   //
   // +required
   optional string request = 1;
@@ -536,6 +572,77 @@ message DeviceSelector {
   // +optional
   // +oneOf=SelectorType
   optional CELDeviceSelector cel = 1;
+}
+
+// DeviceSubRequest describes a request for device provided in the
+// claim.spec.devices.requests[].firstAvailable array. Each
+// is typically a request for a single resource like a device, but can
+// also ask for several identical devices.
+//
+// DeviceSubRequest is similar to Request, but doesn't expose the AdminAccess (not
+// supported) or FirstAvailable (recursion not supported) fields, as those can
+// only be set on the top-level request.
+message DeviceSubRequest {
+  // Name can be used to reference this subrequest in the list of constraints
+  // or the list of configurations for the claim. References must use the
+  // format <main request>/<subrequest>.
+  //
+  // Must be a DNS label.
+  //
+  // +required
+  optional string name = 1;
+
+  // DeviceClassName references a specific DeviceClass, which can define
+  // additional configuration and selectors to be inherited by this
+  // subrequest.
+  //
+  // A class is required. Which classes are available depends on the cluster.
+  //
+  // Administrators may use this to restrict which devices may get
+  // requested by only installing classes with selectors for permitted
+  // devices. If users are free to request anything without restrictions,
+  // then administrators can create an empty DeviceClass for users
+  // to reference.
+  //
+  // +required
+  optional string deviceClassName = 2;
+
+  // Selectors define criteria which must be satisfied by a specific
+  // device in order for that device to be considered for this
+  // subrequest. All selectors must be satisfied for a device to be
+  // considered.
+  //
+  // +optional
+  // +listType=atomic
+  repeated DeviceSelector selectors = 3;
+
+  // AllocationMode and its related fields define how devices are allocated
+  // to satisfy this subrequest. Supported values are:
+  //
+  // - ExactCount: This request is for a specific number of devices.
+  //   This is the default. The exact number is provided in the
+  //   count field.
+  //
+  // - All: This subrequest is for all of the matching devices in a pool.
+  //   Allocation will fail if some devices are already allocated,
+  //   unless adminAccess is requested.
+  //
+  // If AlloctionMode is not specified, the default mode is ExactCount. If
+  // the mode is ExactCount and count is not specified, the default count is
+  // one. Any other subrequests must specify this field.
+  //
+  // More modes may get added in the future. Clients must refuse to handle
+  // requests with unknown modes.
+  //
+  // +optional
+  optional string allocationMode = 4;
+
+  // Count is used only when the count mode is "ExactCount". Must be greater than zero.
+  // If AllocationMode is ExactCount and this field is not specified, the default is one.
+  //
+  // +optional
+  // +oneOf=AllocationMode
+  optional int64 count = 5;
 }
 
 // NetworkDeviceData provides network-related details for the allocated device.

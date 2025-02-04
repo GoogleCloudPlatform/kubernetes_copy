@@ -22,28 +22,26 @@ import (
 	resourcev1alpha3 "k8s.io/api/resource/v1alpha3"
 )
 
-// DeviceRequestApplyConfiguration represents a declarative configuration of the DeviceRequest type for use
+// DeviceSubRequestApplyConfiguration represents a declarative configuration of the DeviceSubRequest type for use
 // with apply.
-type DeviceRequestApplyConfiguration struct {
+type DeviceSubRequestApplyConfiguration struct {
 	Name            *string                                `json:"name,omitempty"`
 	DeviceClassName *string                                `json:"deviceClassName,omitempty"`
 	Selectors       []DeviceSelectorApplyConfiguration     `json:"selectors,omitempty"`
 	AllocationMode  *resourcev1alpha3.DeviceAllocationMode `json:"allocationMode,omitempty"`
 	Count           *int64                                 `json:"count,omitempty"`
-	AdminAccess     *bool                                  `json:"adminAccess,omitempty"`
-	FirstAvailable  []DeviceSubRequestApplyConfiguration   `json:"firstAvailable,omitempty"`
 }
 
-// DeviceRequestApplyConfiguration constructs a declarative configuration of the DeviceRequest type for use with
+// DeviceSubRequestApplyConfiguration constructs a declarative configuration of the DeviceSubRequest type for use with
 // apply.
-func DeviceRequest() *DeviceRequestApplyConfiguration {
-	return &DeviceRequestApplyConfiguration{}
+func DeviceSubRequest() *DeviceSubRequestApplyConfiguration {
+	return &DeviceSubRequestApplyConfiguration{}
 }
 
 // WithName sets the Name field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the Name field is set to the value of the last call.
-func (b *DeviceRequestApplyConfiguration) WithName(value string) *DeviceRequestApplyConfiguration {
+func (b *DeviceSubRequestApplyConfiguration) WithName(value string) *DeviceSubRequestApplyConfiguration {
 	b.Name = &value
 	return b
 }
@@ -51,7 +49,7 @@ func (b *DeviceRequestApplyConfiguration) WithName(value string) *DeviceRequestA
 // WithDeviceClassName sets the DeviceClassName field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the DeviceClassName field is set to the value of the last call.
-func (b *DeviceRequestApplyConfiguration) WithDeviceClassName(value string) *DeviceRequestApplyConfiguration {
+func (b *DeviceSubRequestApplyConfiguration) WithDeviceClassName(value string) *DeviceSubRequestApplyConfiguration {
 	b.DeviceClassName = &value
 	return b
 }
@@ -59,7 +57,7 @@ func (b *DeviceRequestApplyConfiguration) WithDeviceClassName(value string) *Dev
 // WithSelectors adds the given value to the Selectors field in the declarative configuration
 // and returns the receiver, so that objects can be build by chaining "With" function invocations.
 // If called multiple times, values provided by each call will be appended to the Selectors field.
-func (b *DeviceRequestApplyConfiguration) WithSelectors(values ...*DeviceSelectorApplyConfiguration) *DeviceRequestApplyConfiguration {
+func (b *DeviceSubRequestApplyConfiguration) WithSelectors(values ...*DeviceSelectorApplyConfiguration) *DeviceSubRequestApplyConfiguration {
 	for i := range values {
 		if values[i] == nil {
 			panic("nil value passed to WithSelectors")
@@ -72,7 +70,7 @@ func (b *DeviceRequestApplyConfiguration) WithSelectors(values ...*DeviceSelecto
 // WithAllocationMode sets the AllocationMode field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the AllocationMode field is set to the value of the last call.
-func (b *DeviceRequestApplyConfiguration) WithAllocationMode(value resourcev1alpha3.DeviceAllocationMode) *DeviceRequestApplyConfiguration {
+func (b *DeviceSubRequestApplyConfiguration) WithAllocationMode(value resourcev1alpha3.DeviceAllocationMode) *DeviceSubRequestApplyConfiguration {
 	b.AllocationMode = &value
 	return b
 }
@@ -80,28 +78,7 @@ func (b *DeviceRequestApplyConfiguration) WithAllocationMode(value resourcev1alp
 // WithCount sets the Count field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the Count field is set to the value of the last call.
-func (b *DeviceRequestApplyConfiguration) WithCount(value int64) *DeviceRequestApplyConfiguration {
+func (b *DeviceSubRequestApplyConfiguration) WithCount(value int64) *DeviceSubRequestApplyConfiguration {
 	b.Count = &value
-	return b
-}
-
-// WithAdminAccess sets the AdminAccess field in the declarative configuration to the given value
-// and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the AdminAccess field is set to the value of the last call.
-func (b *DeviceRequestApplyConfiguration) WithAdminAccess(value bool) *DeviceRequestApplyConfiguration {
-	b.AdminAccess = &value
-	return b
-}
-
-// WithFirstAvailable adds the given value to the FirstAvailable field in the declarative configuration
-// and returns the receiver, so that objects can be build by chaining "With" function invocations.
-// If called multiple times, values provided by each call will be appended to the FirstAvailable field.
-func (b *DeviceRequestApplyConfiguration) WithFirstAvailable(values ...*DeviceSubRequestApplyConfiguration) *DeviceRequestApplyConfiguration {
-	for i := range values {
-		if values[i] == nil {
-			panic("nil value passed to WithFirstAvailable")
-		}
-		b.FirstAvailable = append(b.FirstAvailable, *values[i])
-	}
 	return b
 }
