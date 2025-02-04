@@ -103,7 +103,6 @@ func TestSetDefaultsKubeletConfiguration(t *testing.T) {
 				SerializeImagePulls:                       ptr.To(true),
 				MaxParallelImagePulls:                     nil,
 				EvictionHard:                              nil,
-				MergeDefaultEvictionSettings:              true,
 				EvictionPressureTransitionPeriod:          metav1.Duration{Duration: 5 * time.Minute},
 				EnableControllerAttachDetach:              ptr.To(true),
 				MakeIPTablesUtilChains:                    ptr.To(true),
