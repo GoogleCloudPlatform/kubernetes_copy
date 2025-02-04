@@ -1,0 +1,123 @@
+apiVersion: resource.k8s.io/v1beta2
+kind: ResourceClaim
+metadata:
+  annotations:
+    annotationsKey: annotationsValue
+  creationTimestamp: "2008-01-01T01:01:01Z"
+  deletionGracePeriodSeconds: 10
+  deletionTimestamp: "2009-01-01T01:01:01Z"
+  finalizers:
+  - finalizersValue
+  generateName: generateNameValue
+  generation: 7
+  labels:
+    labelsKey: labelsValue
+  managedFields:
+  - apiVersion: apiVersionValue
+    fieldsType: fieldsTypeValue
+    fieldsV1: {}
+    manager: managerValue
+    operation: operationValue
+    subresource: subresourceValue
+    time: "2004-01-01T01:01:01Z"
+  name: nameValue
+  namespace: namespaceValue
+  ownerReferences:
+  - apiVersion: apiVersionValue
+    blockOwnerDeletion: true
+    controller: true
+    kind: kindValue
+    name: nameValue
+    uid: uidValue
+  resourceVersion: resourceVersionValue
+  selfLink: selfLinkValue
+  uid: uidValue
+spec:
+  devices:
+    config:
+    - opaque:
+        driver: driverValue
+        parameters:
+          apiVersion: example.com/v1
+          kind: CustomType
+          spec:
+            replicas: 1
+          status:
+            available: 1
+      requests:
+      - requestsValue
+    constraints:
+    - matchAttribute: matchAttributeValue
+      requests:
+      - requestsValue
+    requests:
+    - adminAccess: true
+      allocationMode: allocationModeValue
+      count: 5
+      deviceClassName: deviceClassNameValue
+      name: nameValue
+      selectors:
+      - cel:
+          expression: expressionValue
+status:
+  allocation:
+    devices:
+      config:
+      - opaque:
+          driver: driverValue
+          parameters:
+            apiVersion: example.com/v1
+            kind: CustomType
+            spec:
+              replicas: 1
+            status:
+              available: 1
+        requests:
+        - requestsValue
+        source: sourceValue
+      results:
+      - adminAccess: true
+        device: deviceValue
+        driver: driverValue
+        pool: poolValue
+        request: requestValue
+    nodeSelector:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: keyValue
+          operator: operatorValue
+          values:
+          - valuesValue
+        matchFields:
+        - key: keyValue
+          operator: operatorValue
+          values:
+          - valuesValue
+  devices:
+  - conditions:
+    - lastTransitionTime: "2004-01-01T01:01:01Z"
+      message: messageValue
+      observedGeneration: 3
+      reason: reasonValue
+      status: statusValue
+      type: typeValue
+    data:
+      apiVersion: example.com/v1
+      kind: CustomType
+      spec:
+        replicas: 1
+      status:
+        available: 1
+    device: deviceValue
+    driver: driverValue
+    networkData:
+      hardwareAddress: hardwareAddressValue
+      interfaceName: interfaceNameValue
+      ips:
+      - ipsValue
+    pool: poolValue
+  reservedFor:
+  - apiGroup: apiGroupValue
+    name: nameValue
+    resource: resourceValue
+    uid: uidValue

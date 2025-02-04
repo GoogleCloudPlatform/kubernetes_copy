@@ -63,6 +63,11 @@ API rule violation: names_match,k8s.io/api/resource/v1beta1,DeviceAttribute,IntV
 API rule violation: names_match,k8s.io/api/resource/v1beta1,DeviceAttribute,StringValue
 API rule violation: names_match,k8s.io/api/resource/v1beta1,DeviceAttribute,VersionValue
 API rule violation: names_match,k8s.io/api/resource/v1beta1,NetworkDeviceData,IPs
+API rule violation: names_match,k8s.io/api/resource/v1beta2,DeviceAttribute,BoolValue
+API rule violation: names_match,k8s.io/api/resource/v1beta2,DeviceAttribute,IntValue
+API rule violation: names_match,k8s.io/api/resource/v1beta2,DeviceAttribute,StringValue
+API rule violation: names_match,k8s.io/api/resource/v1beta2,DeviceAttribute,VersionValue
+API rule violation: names_match,k8s.io/api/resource/v1beta2,NetworkDeviceData,IPs
 API rule violation: names_match,k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1,JSONSchemaProps,Ref
 API rule violation: names_match,k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1,JSONSchemaProps,Schema
 API rule violation: names_match,k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1,JSONSchemaProps,XEmbeddedResource

@@ -3,10 +3,14 @@
   "kind": "APIGroup",
   "name": "resource.k8s.io",
   "preferredVersion": {
-    "groupVersion": "resource.k8s.io/v1beta1",
-    "version": "v1beta1"
+    "groupVersion": "resource.k8s.io/v1beta2",
+    "version": "v1beta2"
   },
   "versions": [
+    {
+      "groupVersion": "resource.k8s.io/v1beta2",
+      "version": "v1beta2"
+    },
     {
       "groupVersion": "resource.k8s.io/v1beta1",
       "version": "v1beta1"
