@@ -551,7 +551,7 @@ type KubeletConfiguration struct {
 	// parameters were set to 0. Disable it to use this behaviour
 	// Default: true
 	// +optional
-	MergeDefaultEvictionSettings bool `json:"mergeDefaultEvictionSettings,omitempty"`
+	MergeDefaultEvictionSettings *bool `json:"mergeDefaultEvictionSettings,omitempty"`
 	// podsPerCore is the maximum number of pods per core. Cannot exceed maxPods.
 	// The value must be a non-negative integer.
 	// If 0, there is no limit on the number of Pods.
