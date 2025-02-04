@@ -77,6 +77,7 @@ func (m *podContainerManagerImpl) EnsureExists(pod *v1.Pod) error {
 	if !alreadyExists {
 		enforceCPULimits := m.enforceCPULimits
 		if utilfeature.DefaultFeatureGate.Enabled(kubefeatures.DisableCPUQuotaWithExclusiveCPUs) && m.podContainerManager.PodHasExclusiveCPUs(pod) {
+			klog.V(2).InfoS("Disabled CFS quota", "pod", klog.KObj(pod))
 			enforceCPULimits = false
 		}
 		enforceMemoryQoS := false
