@@ -141,7 +141,7 @@ func NewCommandStartWardleServer(ctx context.Context, defaults *WardleServerOpti
 	// associating it with its effective version and feature gate configuration.
 	// Will skip if the component has been registered, like in the integration test.
 	_, wardleFeatureGate := defaults.ComponentGlobalsRegistry.ComponentGlobalsOrRegister(
-		apiserver.WardleComponentName, basecompatibility.NewEffectiveVersionFromString(defaultWardleVersion),
+		apiserver.WardleComponentName, basecompatibility.NewEffectiveVersionFromString(defaultWardleVersion, "", ""),
 		featuregate.NewVersionedFeatureGate(version.MustParse(defaultWardleVersion)))
 
 	// Add versioned feature specifications for the "BanFlunder" feature.
@@ -156,7 +156,7 @@ func NewCommandStartWardleServer(ctx context.Context, defaults *WardleServerOpti
 
 	// Register the default kube component if not already present in the global registry.
 	_, _ = defaults.ComponentGlobalsRegistry.ComponentGlobalsOrRegister(basecompatibility.DefaultKubeComponent,
-		basecompatibility.NewEffectiveVersionFromString(baseversion.DefaultKubeBinaryVersion), utilfeature.DefaultMutableFeatureGate)
+		basecompatibility.NewEffectiveVersionFromString(baseversion.DefaultKubeBinaryVersion, "", ""), utilfeature.DefaultMutableFeatureGate)
 
 	// Set the emulation version mapping from the "Wardle" component to the kube component.
 	// This ensures that the emulation version of the latter is determined by the emulation version of the former.

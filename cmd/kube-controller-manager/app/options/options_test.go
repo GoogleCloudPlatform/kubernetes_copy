@@ -1539,7 +1539,7 @@ func setupControllerManagerFlagSet(t *testing.T) (*pflag.FlagSet, *KubeControlle
 
 	componentGlobalsRegistry := basecompatibility.NewComponentGlobalsRegistry()
 
-	verKube := basecompatibility.NewEffectiveVersionFromString("1.32").WithEmulationVersionFloor(version.MustParse("1.31"))
+	verKube := basecompatibility.NewEffectiveVersionFromString("1.32", "1.31", "1.31")
 	fg := featuregate.NewVersionedFeatureGate(version.MustParse("1.32"))
 	utilruntime.Must(fg.AddVersioned(map[featuregate.Feature]featuregate.VersionedSpecs{
 		"kubeA": {

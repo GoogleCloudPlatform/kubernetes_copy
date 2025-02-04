@@ -52,7 +52,7 @@ func TestAddFlags(t *testing.T) {
 	componentGlobalsRegistry := basecompatibility.NewComponentGlobalsRegistry()
 	fs := pflag.NewFlagSet("addflagstest", pflag.PanicOnError)
 
-	utilruntime.Must(componentGlobalsRegistry.Register("test", basecompatibility.NewEffectiveVersionFromString("1.32"), featuregate.NewFeatureGate()))
+	utilruntime.Must(componentGlobalsRegistry.Register("test", basecompatibility.NewEffectiveVersionFromString("1.32", "1.31", "1.31"), featuregate.NewFeatureGate()))
 	s := NewServerRunOptions()
 	s.GenericServerRunOptions.ComponentGlobalsRegistry = componentGlobalsRegistry
 	for _, f := range s.Flags().FlagSets {

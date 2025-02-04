@@ -190,10 +190,9 @@ func StartTestServer(t ktesting.TB, instanceOptions *TestServerInstanceOptions, 
 	fs := pflag.NewFlagSet("test", pflag.PanicOnError)
 
 	featureGate := utilfeature.DefaultMutableFeatureGate.DeepCopy()
-	featureGate.AddMetrics()
 	effectiveVersion := compatibility.DefaultKubeEffectiveVersionForTest()
 	if instanceOptions.BinaryVersion != "" {
-		effectiveVersion = basecompatibility.NewEffectiveVersionFromString(instanceOptions.BinaryVersion)
+		effectiveVersion = basecompatibility.NewEffectiveVersionFromString(instanceOptions.BinaryVersion, "", "")
 	}
 	effectiveVersion.SetEmulationVersion(featureGate.EmulationVersion())
 	componentGlobalsRegistry := basecompatibility.NewComponentGlobalsRegistry()
@@ -383,6 +382,7 @@ func StartTestServer(t ktesting.TB, instanceOptions *TestServerInstanceOptions, 
 			featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, f, featureGate.Enabled(f))
 		}
 	}
+	utilfeature.DefaultMutableFeatureGate.AddMetrics()
 
 	saSigningKeyFile, err := os.CreateTemp("/tmp", "insecure_test_key")
 	if err != nil {

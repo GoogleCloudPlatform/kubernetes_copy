@@ -124,7 +124,7 @@ func TestNewWithDelegate(t *testing.T) {
 	delegateConfig.PublicAddress = netutils.ParseIPSloppy("192.168.10.4")
 	delegateConfig.LegacyAPIGroupPrefixes = sets.NewString("/api")
 	delegateConfig.LoopbackClientConfig = &rest.Config{}
-	delegateConfig.EffectiveVersion = basecompatibility.NewEffectiveVersionFromString("")
+	delegateConfig.EffectiveVersion = basecompatibility.NewEffectiveVersionFromString("", "", "")
 	clientset := fake.NewSimpleClientset()
 	if clientset == nil {
 		t.Fatal("unable to create fake client set")
@@ -157,7 +157,7 @@ func TestNewWithDelegate(t *testing.T) {
 	wrappingConfig.PublicAddress = netutils.ParseIPSloppy("192.168.10.4")
 	wrappingConfig.LegacyAPIGroupPrefixes = sets.NewString("/api")
 	wrappingConfig.LoopbackClientConfig = &rest.Config{}
-	wrappingConfig.EffectiveVersion = basecompatibility.NewEffectiveVersionFromString("")
+	wrappingConfig.EffectiveVersion = basecompatibility.NewEffectiveVersionFromString("", "", "")
 
 	wrappingConfig.HealthzChecks = append(wrappingConfig.HealthzChecks, healthz.NamedCheck("wrapping-health", func(r *http.Request) error {
 		return fmt.Errorf("wrapping failed healthcheck")
@@ -434,7 +434,7 @@ func TestNewFeatureGatedSerializer(t *testing.T) {
 		}
 	})))
 	config.ExternalAddress = "192.168.10.4:443"
-	config.EffectiveVersion = basecompatibility.NewEffectiveVersionFromString("")
+	config.EffectiveVersion = basecompatibility.NewEffectiveVersionFromString("", "", "")
 	config.LoopbackClientConfig = &rest.Config{}
 
 	if _, err := config.Complete(nil).New("test", NewEmptyDelegate()); err != nil {

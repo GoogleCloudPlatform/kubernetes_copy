@@ -58,7 +58,9 @@ func TestValidateKubeEffectiveVersion(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			effective := withKubeEffectiveVersionFloors(basecompatibility.NewEffectiveVersionFromString("1.33"))
+			binaryVersion := version.MustParseGeneric("1.33")
+			versionFloor := kubeEffectiveVersionFloors(binaryVersion)
+			effective := basecompatibility.NewEffectiveVersion(binaryVersion, false, versionFloor, versionFloor)
 			effective.SetEmulationVersion(version.MustParseGeneric(test.emulationVersion))
 			effective.SetMinCompatibilityVersion(version.MustParseGeneric(test.minCompatibilityVersion))
 

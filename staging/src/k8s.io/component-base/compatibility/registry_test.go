@@ -34,8 +34,8 @@ const (
 
 func TestEffectiveVersionRegistry(t *testing.T) {
 	r := NewComponentGlobalsRegistry()
-	ver1 := NewEffectiveVersionFromString("1.31")
-	ver2 := NewEffectiveVersionFromString("1.28")
+	ver1 := NewEffectiveVersionFromString("1.31", "", "")
+	ver2 := NewEffectiveVersionFromString("1.28", "", "")
 
 	if r.EffectiveVersionFor(testComponent) != nil {
 		t.Fatalf("expected nil EffectiveVersion initially")
@@ -57,7 +57,7 @@ func TestEffectiveVersionRegistry(t *testing.T) {
 
 func testRegistry(t *testing.T) *componentGlobalsRegistry {
 	r := NewComponentGlobalsRegistry()
-	verKube := NewEffectiveVersionFromString("1.31").WithEmulationVersionFloor(version.MustParse("1.31")).WithMinCompatibilityVersionFloor(version.MustParse("1.30"))
+	verKube := NewEffectiveVersionFromString("1.31", "1.31", "1.30")
 	fgKube := featuregate.NewVersionedFeatureGate(version.MustParse("0.0"))
 	err := fgKube.AddVersioned(map[featuregate.Feature]featuregate.VersionedSpecs{
 		"kubeA": {
@@ -77,7 +77,7 @@ func testRegistry(t *testing.T) *componentGlobalsRegistry {
 		t.Fatal(err)
 	}
 
-	verTest := NewEffectiveVersionFromString("2.8").WithEmulationVersionFloor(version.MustParse("2.8")).WithMinCompatibilityVersionFloor(version.MustParse("2.7"))
+	verTest := NewEffectiveVersionFromString("2.8", "2.8", "2.7")
 	fgTest := featuregate.NewVersionedFeatureGate(version.MustParse("0.0"))
 	err = fgTest.AddVersioned(map[featuregate.Feature]featuregate.VersionedSpecs{
 		"testA": {
@@ -313,9 +313,9 @@ func TestFlags(t *testing.T) {
 
 func TestVersionMapping(t *testing.T) {
 	r := NewComponentGlobalsRegistry()
-	ver1 := NewEffectiveVersionFromString("0.58")
-	ver2 := NewEffectiveVersionFromString("1.28")
-	ver3 := NewEffectiveVersionFromString("2.10")
+	ver1 := NewEffectiveVersionFromString("0.58", "", "")
+	ver2 := NewEffectiveVersionFromString("1.28", "", "")
+	ver3 := NewEffectiveVersionFromString("2.10", "", "")
 
 	utilruntime.Must(r.Register("test1", ver1, nil))
 	utilruntime.Must(r.Register("test2", ver2, nil))
@@ -355,9 +355,9 @@ func TestVersionMapping(t *testing.T) {
 
 func TestVersionMappingWithMultipleDependency(t *testing.T) {
 	r := NewComponentGlobalsRegistry()
-	ver1 := NewEffectiveVersionFromString("0.58")
-	ver2 := NewEffectiveVersionFromString("1.28")
-	ver3 := NewEffectiveVersionFromString("2.10")
+	ver1 := NewEffectiveVersionFromString("0.58", "", "")
+	ver2 := NewEffectiveVersionFromString("1.28", "", "")
+	ver3 := NewEffectiveVersionFromString("2.10", "", "")
 
 	utilruntime.Must(r.Register("test1", ver1, nil))
 	utilruntime.Must(r.Register("test2", ver2, nil))
@@ -382,9 +382,9 @@ func TestVersionMappingWithMultipleDependency(t *testing.T) {
 
 func TestVersionMappingWithCyclicDependency(t *testing.T) {
 	r := NewComponentGlobalsRegistry()
-	ver1 := NewEffectiveVersionFromString("0.58")
-	ver2 := NewEffectiveVersionFromString("1.28")
-	ver3 := NewEffectiveVersionFromString("2.10")
+	ver1 := NewEffectiveVersionFromString("0.58", "", "")
+	ver2 := NewEffectiveVersionFromString("1.28", "", "")
+	ver3 := NewEffectiveVersionFromString("2.10", "", "")
 
 	utilruntime.Must(r.Register("test1", ver1, nil))
 	utilruntime.Must(r.Register("test2", ver2, nil))

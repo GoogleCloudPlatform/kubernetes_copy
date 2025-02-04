@@ -98,7 +98,6 @@ func StartRealAPIServerOrDie(t *testing.T, configFuncs ...func(*options.ServerRu
 	opts := options.NewServerRunOptions()
 	// If EmulationVersion of DefaultFeatureGate is set during test, we need to propagate it to the apiserver ComponentGlobalsRegistry.
 	featureGate := feature.DefaultMutableFeatureGate.DeepCopy()
-	featureGate.AddMetrics()
 	effectiveVersion := compatibility.DefaultKubeEffectiveVersionForTest()
 	effectiveVersion.SetEmulationVersion(featureGate.EmulationVersion())
 	// set up new instance of ComponentGlobalsRegistry instead of using the DefaultComponentGlobalsRegistry to avoid contention in parallel tests.
@@ -134,6 +133,7 @@ func StartRealAPIServerOrDie(t *testing.T, configFuncs ...func(*options.ServerRu
 			featuregatetesting.SetFeatureGateDuringTest(t, feature.DefaultFeatureGate, f, featureGate.Enabled(f))
 		}
 	}
+	feature.DefaultMutableFeatureGate.AddMetrics()
 
 	completedOptions, err := opts.Complete(tCtx)
 	if err != nil {

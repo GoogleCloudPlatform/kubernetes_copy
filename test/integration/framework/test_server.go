@@ -142,7 +142,6 @@ func StartTestServer(ctx context.Context, t testing.TB, setup TestServerSetup) (
 	opts := options.NewServerRunOptions()
 	// If EmulationVersion of DefaultFeatureGate is set during test, we need to propagate it to the apiserver ComponentGlobalsRegistry.
 	featureGate := utilfeature.DefaultMutableFeatureGate.DeepCopy()
-	featureGate.AddMetrics()
 	effectiveVersion := compatibility.DefaultKubeEffectiveVersionForTest()
 	effectiveVersion.SetEmulationVersion(featureGate.EmulationVersion())
 	// set up new instance of ComponentGlobalsRegistry instead of using the DefaultComponentGlobalsRegistry to avoid contention in parallel tests.
@@ -184,6 +183,7 @@ func StartTestServer(ctx context.Context, t testing.TB, setup TestServerSetup) (
 			featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, f, featureGate.Enabled(f))
 		}
 	}
+	utilfeature.DefaultMutableFeatureGate.AddMetrics()
 
 	completedOptions, err := opts.Complete(ctx)
 	if err != nil {

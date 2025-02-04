@@ -48,7 +48,7 @@ func TestBinaryVersion(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			registry := &registry{}
 			if tt.setFakeEffectiveVersion {
-				verKube := compatibility.NewEffectiveVersionFromString(tt.fakeVersion)
+				verKube := compatibility.NewEffectiveVersionFromString(tt.fakeVersion, "", "")
 				registry.effectiveVersion = verKube
 			}
 
@@ -81,7 +81,7 @@ func TestEmulationVersion(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			registry := &registry{}
 			if tt.setFakeEffectiveVersion {
-				verKube := compatibility.NewEffectiveVersionFromString("0.0.0")
+				verKube := compatibility.NewEffectiveVersionFromString("0.0.0", "", "")
 				verKube.SetEmulationVersion(version.MustParse(tt.fakeEmulVer))
 				registry.effectiveVersion = verKube
 			}

@@ -278,7 +278,7 @@ func TestServerRunWithSNI(t *testing.T) {
 			// launch server
 			config := setUp(t)
 			v := fakeVersion()
-			config.EffectiveVersion = basecompatibility.NewEffectiveVersionFromString(v.String())
+			config.EffectiveVersion = basecompatibility.NewEffectiveVersionFromString(v.String(), "", "")
 
 			config.EnableIndex = true
 			secureOptions := (&SecureServingOptions{

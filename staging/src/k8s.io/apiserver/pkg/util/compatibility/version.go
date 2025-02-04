@@ -30,21 +30,23 @@ var minimumKubeEmulationVersion *version.Version = version.MajorMinor(1, 31)
 // current build information.
 func DefaultBuildEffectiveVersion() basecompatibility.MutableEffectiveVersion {
 	binaryVersion := defaultBuildBinaryVersion()
-	effectiveVersion := basecompatibility.NewEffectiveVersion(binaryVersion, true)
+	useDefaultBuildBinaryVersion := true
 	// fall back to the hard coded kube version only when the git tag is not available for local unit tests.
 	if binaryVersion.Major() == 0 && binaryVersion.Minor() == 0 {
-		effectiveVersion = basecompatibility.NewEffectiveVersionFromString(baseversion.DefaultKubeBinaryVersion)
+		useDefaultBuildBinaryVersion = false
+		binaryVersion = version.MustParse(baseversion.DefaultKubeBinaryVersion)
 	}
-	return withKubeEffectiveVersionFloors(effectiveVersion)
+	versionFloor := kubeEffectiveVersionFloors(binaryVersion)
+	return basecompatibility.NewEffectiveVersion(binaryVersion, useDefaultBuildBinaryVersion, versionFloor, versionFloor)
 }
 
-func withKubeEffectiveVersionFloors(effectiveVersion basecompatibility.MutableEffectiveVersion) basecompatibility.MutableEffectiveVersion {
+func kubeEffectiveVersionFloors(binaryVersion *version.Version) *version.Version {
 	// both emulationVersion and minCompatibilityVersion can be set to binaryVersion - 3
-	versionFloor := effectiveVersion.BinaryVersion().WithPatch(0).SubtractMinor(3)
+	versionFloor := binaryVersion.WithPatch(0).SubtractMinor(3)
 	if versionFloor.LessThan(minimumKubeEmulationVersion) {
 		versionFloor = minimumKubeEmulationVersion
 	}
-	return effectiveVersion.WithEmulationVersionFloor(versionFloor).WithMinCompatibilityVersionFloor(versionFloor)
+	return versionFloor
 }
 
 // DefaultKubeEffectiveVersionForTest returns the MutableEffectiveVersion based on the
@@ -54,7 +56,7 @@ func withKubeEffectiveVersionFloors(effectiveVersion basecompatibility.MutableEf
 // Only used in tests.
 func DefaultKubeEffectiveVersionForTest() basecompatibility.MutableEffectiveVersion {
 	binaryVersion := version.MustParse(baseversion.DefaultKubeBinaryVersion).WithInfo(baseversion.Get())
-	return basecompatibility.NewEffectiveVersion(binaryVersion, false)
+	return basecompatibility.NewEffectiveVersion(binaryVersion, false, version.MustParse("0.0"), version.MustParse("0.0"))
 }
 
 func defaultBuildBinaryVersion() *version.Version {

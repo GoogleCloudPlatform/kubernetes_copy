@@ -82,17 +82,11 @@ func TestValidate(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			binaryVersion := version.MustParseGeneric(test.binaryVersion)
-			effective := NewEffectiveVersionFromString(test.binaryVersion)
+			effective := NewEffectiveVersionFromString(test.binaryVersion, test.emulationVersionFloor, test.minCompatibilityVersionFloor)
 			emulationVersion := version.MustParseGeneric(test.emulationVersion)
 			minCompatibilityVersion := version.MustParseGeneric(test.minCompatibilityVersion)
-			effective.Set(binaryVersion, emulationVersion, minCompatibilityVersion)
-			if len(test.emulationVersionFloor) > 0 {
-				effective = effective.WithEmulationVersionFloor(version.MustParseGeneric(test.emulationVersionFloor))
-			}
-			if len(test.minCompatibilityVersionFloor) > 0 {
-				effective = effective.WithMinCompatibilityVersionFloor(version.MustParseGeneric(test.minCompatibilityVersionFloor))
-			}
+			effective.SetEmulationVersion(emulationVersion)
+			effective.SetMinCompatibilityVersion(minCompatibilityVersion)
 
 			errs := effective.Validate()
 			if len(errs) > 0 && !test.expectErrors {
@@ -135,7 +129,7 @@ func TestSetEmulationVersion(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			effective := NewEffectiveVersionFromString(test.binaryVersion).WithEmulationVersionFloor(version.MustParseGeneric(test.emulationVersionFloor)).WithMinCompatibilityVersionFloor(version.MustParseGeneric(test.minCompatibilityVersionFloor))
+			effective := NewEffectiveVersionFromString(test.binaryVersion, test.emulationVersionFloor, test.minCompatibilityVersionFloor)
 
 			emulationVersion := version.MustParseGeneric(test.emulationVersion)
 			effective.SetEmulationVersion(emulationVersion)
