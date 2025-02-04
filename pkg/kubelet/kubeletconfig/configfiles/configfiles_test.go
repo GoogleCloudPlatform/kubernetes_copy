@@ -31,6 +31,7 @@ import (
 	utilfiles "k8s.io/kubernetes/pkg/kubelet/kubeletconfig/util/files"
 	utiltest "k8s.io/kubernetes/pkg/kubelet/kubeletconfig/util/test"
 	utilfs "k8s.io/kubernetes/pkg/util/filesystem"
+	"k8s.io/kubernetes/test/utils/ktesting"
 )
 
 const configDir = "/test-config-dir"
@@ -38,6 +39,7 @@ const relativePath = "relative/path/test"
 const kubeletFile = "kubelet"
 
 func TestLoad(t *testing.T) {
+	tCtx := ktesting.Init(t)
 	cases := []struct {
 		desc          string
 		file          *string
@@ -176,7 +178,7 @@ foo: bar`),
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
-			kc, err := loader.Load()
+			kc, err := loader.Load(tCtx)
 
 			if c.strictErr && !runtime.IsStrictDecodingError(errors.Unwrap(err)) {
 				t.Fatalf("got error: %v, want strict decoding error", err)

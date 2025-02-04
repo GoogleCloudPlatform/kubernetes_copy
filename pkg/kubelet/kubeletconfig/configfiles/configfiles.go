@@ -17,6 +17,7 @@ limitations under the License.
 package configfiles
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 
@@ -31,7 +32,7 @@ import (
 // Loader loads configuration from a storage layer
 type Loader interface {
 	// Load loads and returns the KubeletConfiguration from the storage layer, or an error if a configuration could not be loaded
-	Load() (*kubeletconfig.KubeletConfiguration, error)
+	Load(context.Context) (*kubeletconfig.KubeletConfiguration, error)
 	// LoadIntoJSON loads and returns the KubeletConfiguration from the storage layer, or an error if a configuration could not be
 	// loaded. It returns the configuration as a JSON byte slice
 	LoadIntoJSON() ([]byte, *schema.GroupVersionKind, error)
@@ -61,7 +62,7 @@ func NewFsLoader(fs utilfs.Filesystem, kubeletFile string) (Loader, error) {
 	}, nil
 }
 
-func (loader *fsLoader) Load() (*kubeletconfig.KubeletConfiguration, error) {
+func (loader *fsLoader) Load(ctx context.Context) (*kubeletconfig.KubeletConfiguration, error) {
 	data, err := loader.fs.ReadFile(loader.kubeletFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read kubelet config file %q, error: %v", loader.kubeletFile, err)
@@ -72,7 +73,7 @@ func (loader *fsLoader) Load() (*kubeletconfig.KubeletConfiguration, error) {
 		return nil, fmt.Errorf("kubelet config file %q was empty", loader.kubeletFile)
 	}
 
-	kc, err := utilcodec.DecodeKubeletConfiguration(loader.kubeletCodecs, data)
+	kc, err := utilcodec.DecodeKubeletConfiguration(ctx, loader.kubeletCodecs, data)
 	if err != nil {
 		return nil, err
 	}

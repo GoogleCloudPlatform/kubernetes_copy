@@ -17,7 +17,6 @@ limitations under the License.
 package pod
 
 import (
-	"context"
 	"errors"
 	"testing"
 
@@ -29,6 +28,7 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
 	kubetypes "k8s.io/kubernetes/pkg/kubelet/types"
+	"k8s.io/kubernetes/test/utils/ktesting"
 	"k8s.io/utils/ptr"
 )
 
@@ -64,6 +64,7 @@ func TestParsePodFullName(t *testing.T) {
 }
 
 func TestCreateMirrorPod(t *testing.T) {
+	tCtx := ktesting.Init(t)
 	const (
 		testNodeName = "test-node-name"
 		testNodeUID  = types.UID("test-node-uid-1234")
@@ -120,13 +121,13 @@ func TestCreateMirrorPod(t *testing.T) {
 				},
 			}
 
-			err := mc.CreateMirrorPod(pod)
+			err := mc.CreateMirrorPod(tCtx, pod)
 			if !test.expectSuccess {
 				assert.Error(t, err)
 				return
 			}
 
-			createdPod, err := clientset.CoreV1().Pods(testPodNS).Get(context.TODO(), testPodName, metav1.GetOptions{})
+			createdPod, err := clientset.CoreV1().Pods(testPodNS).Get(tCtx, testPodName, metav1.GetOptions{})
 			require.NoError(t, err)
 
 			// Validate created pod

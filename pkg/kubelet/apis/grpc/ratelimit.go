@@ -49,9 +49,10 @@ func LimiterUnaryServerInterceptor(limiter Limiter) grpc.UnaryServerInterceptor 
 }
 
 // WithRateLimiter creates new rate limiter with unary interceptor.
-func WithRateLimiter(serviceName string, qps, burstTokens int32) grpc.ServerOption {
+func WithRateLimiter(ctx context.Context, serviceName string, qps, burstTokens int32) grpc.ServerOption {
+	logger := klog.FromContext(ctx)
 	qpsVal := gotimerate.Limit(qps)
 	burstVal := int(burstTokens)
-	klog.InfoS("Setting rate limiting for endpoint", "service", serviceName, "qps", qpsVal, "burstTokens", burstVal)
+	logger.Info("Setting rate limiting for endpoint", "service", serviceName, "qps", qpsVal, "burstTokens", burstVal)
 	return grpc.UnaryInterceptor(LimiterUnaryServerInterceptor(gotimerate.NewLimiter(qpsVal, burstVal)))
 }

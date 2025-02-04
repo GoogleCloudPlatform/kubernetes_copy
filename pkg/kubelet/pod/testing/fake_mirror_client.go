@@ -17,6 +17,7 @@ limitations under the License.
 package testing
 
 import (
+	"context"
 	"sync"
 
 	v1 "k8s.io/api/core/v1"
@@ -42,7 +43,7 @@ func NewFakeMirrorClient() *FakeMirrorClient {
 	return &m
 }
 
-func (fmc *FakeMirrorClient) CreateMirrorPod(pod *v1.Pod) error {
+func (fmc *FakeMirrorClient) CreateMirrorPod(_ context.Context, pod *v1.Pod) error {
 	fmc.mirrorPodLock.Lock()
 	defer fmc.mirrorPodLock.Unlock()
 	podFullName := kubecontainer.GetPodFullName(pod)
@@ -52,7 +53,7 @@ func (fmc *FakeMirrorClient) CreateMirrorPod(pod *v1.Pod) error {
 }
 
 // TODO (Robert Krawitz): Implement UID checking
-func (fmc *FakeMirrorClient) DeleteMirrorPod(podFullName string, _ *types.UID) (bool, error) {
+func (fmc *FakeMirrorClient) DeleteMirrorPod(_ context.Context, podFullName string, _ *types.UID) (bool, error) {
 	fmc.mirrorPodLock.Lock()
 	defer fmc.mirrorPodLock.Unlock()
 	fmc.mirrorPods.Delete(podFullName)

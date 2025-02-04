@@ -26,6 +26,7 @@ import (
 	"k8s.io/client-go/tools/record"
 	kubeapi "k8s.io/kubernetes/pkg/apis/core"
 	"k8s.io/kubernetes/pkg/apis/scheduling"
+	"k8s.io/kubernetes/test/utils/ktesting"
 )
 
 const (
@@ -91,6 +92,7 @@ func getTestCriticalPodAdmissionHandler(podProvider *fakePodProvider, podKiller 
 }
 
 func TestEvictPodsToFreeRequests(t *testing.T) {
+	tCtx := ktesting.Init(t)
 	type testRun struct {
 		testName              string
 		isPodKillerWithError  bool
@@ -144,7 +146,7 @@ func TestEvictPodsToFreeRequests(t *testing.T) {
 			podKiller := newFakePodKiller(r.isPodKillerWithError)
 			criticalPodAdmissionHandler := getTestCriticalPodAdmissionHandler(podProvider, podKiller)
 			podProvider.setPods(r.inputPods)
-			outErr := criticalPodAdmissionHandler.evictPodsToFreeRequests(allPods[clusterCritical], r.insufficientResources)
+			outErr := criticalPodAdmissionHandler.evictPodsToFreeRequests(tCtx, allPods[clusterCritical], r.insufficientResources)
 			outputPods := podKiller.getKilledPods()
 			if !r.expectErr && outErr != nil {
 				t.Errorf("evictPodsToFreeRequests returned an unexpected error during the %s test.  Err: %v", r.testName, outErr)

@@ -17,6 +17,7 @@ limitations under the License.
 package codec
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 
@@ -64,7 +65,7 @@ func NewKubeletconfigYAMLEncoder(targetVersion schema.GroupVersion) (runtime.Enc
 }
 
 // DecodeKubeletConfiguration decodes a serialized KubeletConfiguration to the internal type.
-func DecodeKubeletConfiguration(kubeletCodecs *serializer.CodecFactory, data []byte) (*kubeletconfig.KubeletConfiguration, error) {
+func DecodeKubeletConfiguration(ctx context.Context, kubeletCodecs *serializer.CodecFactory, data []byte) (*kubeletconfig.KubeletConfiguration, error) {
 	var (
 		obj runtime.Object
 		gvk *schema.GroupVersionKind
@@ -73,6 +74,7 @@ func DecodeKubeletConfiguration(kubeletCodecs *serializer.CodecFactory, data []b
 	// The UniversalDecoder runs defaulting and returns the internal type by default.
 	obj, gvk, err := kubeletCodecs.UniversalDecoder().Decode(data, nil, nil)
 	if err != nil {
+		logger := klog.FromContext(ctx)
 		// Try strict decoding first. If that fails decode with a lenient
 		// decoder, which has only v1beta1 registered, and log a warning.
 		// The lenient path is to be dropped when support for v1beta1 is dropped.
@@ -97,7 +99,7 @@ func DecodeKubeletConfiguration(kubeletCodecs *serializer.CodecFactory, data []b
 			return nil, fmt.Errorf("failed lenient decoding: %v", err)
 		}
 		// Continue with the v1beta1 object that was decoded leniently, but emit a warning.
-		klog.InfoS("Using lenient decoding as strict decoding failed", "err", err)
+		logger.Info("Using lenient decoding as strict decoding failed", "err", err)
 	}
 
 	internalKC, ok := obj.(*kubeletconfig.KubeletConfiguration)

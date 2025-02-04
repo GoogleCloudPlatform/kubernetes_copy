@@ -18,6 +18,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -58,6 +59,7 @@ func main() {
 	// Set environment variables used by command so the output is consistent,
 	// regardless of where we run.
 	os.Setenv("HOME", "/home/username")
+	ctx := context.Background()
 
 	switch module {
 	case "kube-apiserver":
@@ -90,7 +92,7 @@ func main() {
 		}
 	case "kubelet":
 		// generate manpage for kubelet
-		kubelet := kubeletapp.NewKubeletCommand()
+		kubelet := kubeletapp.NewKubeletCommand(ctx)
 		genMarkdown(kubelet, "", outDir)
 		for _, c := range kubelet.Commands() {
 			genMarkdown(c, "kubelet", outDir)
