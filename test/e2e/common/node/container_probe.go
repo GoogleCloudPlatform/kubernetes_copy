@@ -94,7 +94,7 @@ var _ = SIGDescribe("Probing container", func() {
 			framework.Failf("Pod became ready before it's %v initial delay", initialDelay)
 		}
 
-		restartCount := getRestartCount(p)
+		restartCount := e2epod.GetRestartCount(p)
 		gomega.Expect(restartCount).To(gomega.Equal(0), "pod should have a restart count of 0 but got %v", restartCount)
 	})
 
@@ -122,7 +122,7 @@ var _ = SIGDescribe("Probing container", func() {
 			framework.Failf("pod %s/%s should be not ready", f.Namespace.Name, p.Name)
 		}
 
-		restartCount := getRestartCount(p)
+		restartCount := e2epod.GetRestartCount(p)
 		gomega.Expect(restartCount).To(gomega.Equal(0), "pod should have a restart count of 0 but got %v", restartCount)
 	})
 
@@ -772,7 +772,7 @@ var _ = SIGDescribe(feature.SidecarContainers, "Probing restartable init contain
 			framework.Failf("Pod became ready before it's %v initial delay", initialDelay)
 		}
 
-		restartCount := getRestartCount(p)
+		restartCount := e2epod.GetRestartCount(p)
 		gomega.Expect(restartCount).To(gomega.Equal(0), "pod should have a restart count of 0 but got %v", restartCount)
 	})
 
@@ -801,7 +801,7 @@ var _ = SIGDescribe(feature.SidecarContainers, "Probing restartable init contain
 			framework.Failf("pod %s/%s should be not ready", f.Namespace.Name, p.Name)
 		}
 
-		restartCount := getRestartCount(p)
+		restartCount := e2epod.GetRestartCount(p)
 		gomega.Expect(restartCount).To(gomega.Equal(0), "pod should have a restart count of 0 but got %v", restartCount)
 	})
 
@@ -1573,14 +1573,6 @@ func GetTransitionTimeForReadyCondition(p *v1.Pod) (time.Time, error) {
 		}
 	}
 	return time.Time{}, fmt.Errorf("no ready condition can be found for pod")
-}
-
-func getRestartCount(p *v1.Pod) int {
-	count := 0
-	for _, containerStatus := range append(p.Status.InitContainerStatuses, p.Status.ContainerStatuses...) {
-		count += int(containerStatus.RestartCount)
-	}
-	return count
 }
 
 func testWebServerPodSpec(readinessProbe, livenessProbe *v1.Probe, containerName string, port int) *v1.Pod {

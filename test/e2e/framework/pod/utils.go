@@ -307,3 +307,13 @@ func IsPodOnCgroupv2Node(f *framework.Framework, pod *v1.Pod) bool {
 	}
 	return len(out) != 0
 }
+
+// GetRestartCount takes a pointer to a v1.Pod object as input and calculates
+// the total restart count for all containers within that pod.
+func GetRestartCount(p *v1.Pod) int {
+	count := 0
+	for _, containerStatus := range p.Status.ContainerStatuses {
+		count += int(containerStatus.RestartCount)
+	}
+	return count
+}
