@@ -71,6 +71,32 @@ var objWithAdminAccess = &resource.ResourceClaimTemplate{
 	},
 }
 
+var objWithPrioritizedList = &resource.ResourceClaimTemplate{
+	ObjectMeta: metav1.ObjectMeta{
+		Name:      "valid-claim-template",
+		Namespace: "default",
+	},
+	Spec: resource.ResourceClaimTemplateSpec{
+		Spec: resource.ResourceClaimSpec{
+			Devices: resource.DeviceClaim{
+				Requests: []resource.DeviceRequest{
+					{
+						Name: "req-0",
+						FirstAvailable: []resource.DeviceSubRequest{
+							{
+								Name:            "subreq-0",
+								DeviceClassName: "class",
+								AllocationMode:  resource.DeviceAllocationModeExactCount,
+								Count:           1,
+							},
+						},
+					},
+				},
+			},
+		},
+	},
+}
+
 func TestClaimTemplateStrategy(t *testing.T) {
 	if !Strategy.NamespaceScoped() {
 		t.Errorf("ResourceClaimTemplate must be namespace scoped")
@@ -86,6 +112,7 @@ func TestClaimTemplateStrategyCreate(t *testing.T) {
 	testcases := map[string]struct {
 		obj                   *resource.ResourceClaimTemplate
 		adminAccess           bool
+		prioritizedList       bool
 		expectValidationError bool
 		expectObj             *resource.ResourceClaimTemplate
 	}{
@@ -111,11 +138,22 @@ func TestClaimTemplateStrategyCreate(t *testing.T) {
 			adminAccess: true,
 			expectObj:   objWithAdminAccess,
 		},
+		"drop-fields-prioritized-list": {
+			obj:                   objWithPrioritizedList,
+			prioritizedList:       false,
+			expectValidationError: true,
+		},
+		"keep-fields-prioritized-list": {
+			obj:             objWithPrioritizedList,
+			prioritizedList: true,
+			expectObj:       objWithPrioritizedList,
+		},
 	}
 
 	for name, tc := range testcases {
 		t.Run(name, func(t *testing.T) {
 			featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.DRAAdminAccess, tc.adminAccess)
+			featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.DRAPrioritizedList, tc.prioritizedList)
 
 			obj := tc.obj.DeepCopy()
 			Strategy.PrepareForCreate(ctx, obj)
