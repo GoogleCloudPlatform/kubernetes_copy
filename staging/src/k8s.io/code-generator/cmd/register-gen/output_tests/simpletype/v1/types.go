@@ -14,7 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// +k8s:register-gen=simpletype
+package v1
 
-// +groupName=simpletype.foo.bar
-package simpletype
+import (
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+)
+
+type SimpleType struct {
+	metav1.TypeMeta `json:",inline"`
+}
