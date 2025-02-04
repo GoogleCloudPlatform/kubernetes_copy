@@ -8635,6 +8635,10 @@
           "description": "OS Image reported by the node from /etc/os-release (e.g. Debian GNU/Linux 7 (wheezy)).",
           "type": "string"
         },
+        "swapInfo": {
+          "$ref": "#/definitions/io.k8s.api.core.v1.SwapInfo",
+          "description": "Swap Info reported by the node."
+        },
         "systemUUID": {
           "description": "SystemUUID reported by the node. For unique machine identification MachineID is preferred. This field is specific to Red Hat hosts https://access.redhat.com/documentation/en-us/red_hat_subscription_management/1/html/rhsm/uuid",
           "type": "string"
@@ -11564,6 +11568,17 @@
         "volumeNamespace": {
           "description": "volumeNamespace specifies the scope of the volume within StorageOS.  If no namespace is specified then the Pod's namespace will be used.  This allows the Kubernetes name scoping to be mirrored within StorageOS for tighter integration. Set VolumeName to any name to override the default behaviour. Set to \"default\" if you are not using namespaces within StorageOS. Namespaces that do not pre-exist within StorageOS will be created.",
           "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "io.k8s.api.core.v1.SwapInfo": {
+      "description": "SwapInfo represents swap memory information.",
+      "properties": {
+        "capacity": {
+          "description": "Total amount of swap memory in bytes.",
+          "format": "int64",
+          "type": "integer"
         }
       },
       "type": "object"
