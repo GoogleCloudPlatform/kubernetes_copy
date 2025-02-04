@@ -416,6 +416,12 @@
     lockToDefault: true
     preRelease: GA
     version: "1.31"
+- name: DisableCPUQuotaWithExclusiveCPUs
+  versionedSpecs:
+  - default: true
+    lockToDefault: false
+    preRelease: Beta
+    version: "1.33"
 - name: DisableKubeletCloudCredentialProviders
   versionedSpecs:
   - default: false

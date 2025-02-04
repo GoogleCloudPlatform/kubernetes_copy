@@ -2951,6 +2951,8 @@ func TestDoPodResizeAction(t *testing.T) {
 	} {
 		t.Run(tc.testName, func(t *testing.T) {
 			mockCM := cmtesting.NewMockContainerManager(t)
+			mockCM.EXPECT().PodHasExclusiveCPUs(mock.Anything).Return(false).Maybe()
+			mockCM.EXPECT().ContainerHasExclusiveCPUs(mock.Anything, mock.Anything).Return(false).Maybe()
 			m.containerManager = mockCM
 			mockPCM := cmtesting.NewMockPodContainerManager(t)
 			mockCM.EXPECT().NewPodContainerManager().Return(mockPCM)

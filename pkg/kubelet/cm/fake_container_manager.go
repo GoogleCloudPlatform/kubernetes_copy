@@ -268,3 +268,11 @@ func (cm *FakeContainerManager) UpdateAllocatedResourcesStatus(pod *v1.Pod, stat
 func (cm *FakeContainerManager) Updates() <-chan resourceupdates.Update {
 	return nil
 }
+
+func (cm *FakeContainerManager) PodHasExclusiveCPUs(pod *v1.Pod) bool {
+	return false
+}
+
+func (cm *FakeContainerManager) ContainerHasExclusiveCPUs(pod *v1.Pod, container *v1.Container) bool {
+	return false
+}

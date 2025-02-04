@@ -408,7 +408,7 @@ func TestCalculateLinuxResources(t *testing.T) {
 	for _, test := range tests {
 		setCgroupVersionDuringTest(test.cgroupVersion)
 		m.singleProcessOOMKill = ptr.To(test.singleProcessOOMKill)
-		linuxContainerResources := m.calculateLinuxResources(test.cpuReq, test.cpuLim, test.memLim)
+		linuxContainerResources := m.calculateLinuxResources(test.cpuReq, test.cpuLim, test.memLim, false)
 		assert.Equal(t, test.expected, linuxContainerResources)
 	}
 }

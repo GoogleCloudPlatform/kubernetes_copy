@@ -31,6 +31,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apiserver/pkg/server/healthz"
 	internalapi "k8s.io/cri-api/pkg/apis"
+	"k8s.io/klog/v2"
 	podresourcesapi "k8s.io/kubelet/pkg/apis/podresources/v1"
 	kubeletconfig "k8s.io/kubernetes/pkg/kubelet/apis/config"
 	"k8s.io/kubernetes/pkg/kubelet/apis/podresources"
@@ -154,11 +155,22 @@ type ContainerManager interface {
 	// Updates returns a channel that receives an Update when the device changed its status.
 	Updates() <-chan resourceupdates.Update
 
+	// PodHasExclusiveCPUs returns true if the provided pod has containers with exclusive CPUs,
+	// This means that at least one sidecar container or one app container has exclusive CPUs allocated.
+	PodHasExclusiveCPUs(pod *v1.Pod) bool
+
+	// ContainerHasExclusiveCPUs returns true if the provided container in the pod has exclusive cpu
+	ContainerHasExclusiveCPUs(pod *v1.Pod, container *v1.Container) bool
+
 	// Implements the PodResources Provider API
 	podresources.CPUsProvider
 	podresources.DevicesProvider
 	podresources.MemoryProvider
 	podresources.DynamicResourcesProvider
+}
+
+type cpuAllocationReader interface {
+	GetExclusiveCPUs(podUID, containerName string) cpuset.CPUSet
 }
 
 type NodeConfig struct {
@@ -210,6 +222,30 @@ func int64Slice(in []int) []int64 {
 		out[i] = int64(in[i])
 	}
 	return out
+}
+
+func podHasExclusiveCPUs(cr cpuAllocationReader, pod *v1.Pod) bool {
+	for _, container := range pod.Spec.InitContainers {
+		if containerHasExclusiveCPUs(cr, pod, &container) {
+			return true
+		}
+	}
+	for _, container := range pod.Spec.Containers {
+		if containerHasExclusiveCPUs(cr, pod, &container) {
+			return true
+		}
+	}
+	klog.V(4).InfoS("Pod contains no container with pinned cpus", "podName", pod.Name)
+	return false
+}
+
+func containerHasExclusiveCPUs(cr cpuAllocationReader, pod *v1.Pod, container *v1.Container) bool {
+	exclusiveCPUs := cr.GetExclusiveCPUs(string(pod.UID), container.Name)
+	if !exclusiveCPUs.IsEmpty() {
+		klog.V(4).InfoS("Container has pinned cpus", "podName", pod.Name, "containerName", container.Name)
+		return true
+	}
+	return false
 }
 
 // parsePercentage parses the percentage string to numeric value.

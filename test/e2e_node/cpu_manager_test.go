@@ -70,6 +70,16 @@ func makeCPUManagerPod(podName string, ctnAttributes []ctnAttribute) *v1.Pod {
 				},
 			},
 			Command: []string{"sh", "-c", cpusetCmd},
+			VolumeMounts: []v1.VolumeMount{
+				{
+					Name:      "sysfscgroup",
+					MountPath: "/sysfscgroup",
+				},
+				{
+					Name:      "podinfo",
+					MountPath: "/podinfo",
+				},
+			},
 		}
 		containers = append(containers, ctn)
 	}
@@ -81,6 +91,30 @@ func makeCPUManagerPod(podName string, ctnAttributes []ctnAttribute) *v1.Pod {
 		Spec: v1.PodSpec{
 			RestartPolicy: v1.RestartPolicyNever,
 			Containers:    containers,
+			Volumes: []v1.Volume{
+				{
+					Name: "sysfscgroup",
+					VolumeSource: v1.VolumeSource{
+						HostPath: &v1.HostPathVolumeSource{Path: "/sys/fs/cgroup"},
+					},
+				},
+				{
+					Name: "podinfo",
+					VolumeSource: v1.VolumeSource{
+						DownwardAPI: &v1.DownwardAPIVolumeSource{
+							Items: []v1.DownwardAPIVolumeFile{
+								{
+									Path: "uid",
+									FieldRef: &v1.ObjectFieldSelector{
+										APIVersion: "v1",
+										FieldPath:  "metadata.uid",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
 		},
 	}
 }
@@ -232,10 +266,11 @@ func getCoreSiblingList(cpuRes int64) string {
 }
 
 type cpuManagerKubeletArguments struct {
-	policyName              string
-	enableCPUManagerOptions bool
-	reservedSystemCPUs      cpuset.CPUSet
-	options                 map[string]string
+	policyName                       string
+	enableCPUManagerOptions          bool
+	disableCPUQuotaWithExclusiveCPUs bool
+	reservedSystemCPUs               cpuset.CPUSet
+	options                          map[string]string
 }
 
 func configureCPUManagerInKubelet(oldCfg *kubeletconfig.KubeletConfiguration, kubeletArguments *cpuManagerKubeletArguments) *kubeletconfig.KubeletConfiguration {
@@ -247,6 +282,7 @@ func configureCPUManagerInKubelet(oldCfg *kubeletconfig.KubeletConfiguration, ku
 	newCfg.FeatureGates["CPUManagerPolicyOptions"] = kubeletArguments.enableCPUManagerOptions
 	newCfg.FeatureGates["CPUManagerPolicyBetaOptions"] = kubeletArguments.enableCPUManagerOptions
 	newCfg.FeatureGates["CPUManagerPolicyAlphaOptions"] = kubeletArguments.enableCPUManagerOptions
+	newCfg.FeatureGates["DisableCPUQuotaWithExclusiveCPUs"] = kubeletArguments.disableCPUQuotaWithExclusiveCPUs
 
 	newCfg.CPUManagerPolicy = kubeletArguments.policyName
 	newCfg.CPUManagerReconcilePeriod = metav1.Duration{Duration: 1 * time.Second}
@@ -556,6 +592,178 @@ func runMultipleCPUContainersGuPod(ctx context.Context, f *framework.Framework) 
 	waitForContainerRemoval(ctx, pod.Spec.Containers[1].Name, pod.Name, pod.Namespace)
 }
 
+func runCfsQuotaGuPods(ctx context.Context, f *framework.Framework, disabledCPUQuotaWithExclusiveCPUs bool) {
+	var err error
+	var ctnAttrs []ctnAttribute
+	var pod1, pod2, pod3 *v1.Pod
+	var cleanupPods []*v1.Pod
+	ginkgo.DeferCleanup(func() {
+		// waitForContainerRemoval takes "long" to complete; if we use the parent ctx we get a
+		// 'deadline expired' message and the cleanup aborts, which we don't want.
+		ctx2 := context.TODO()
+		ginkgo.By("by deleting the pods and waiting for container removal")
+		for _, cleanupPod := range cleanupPods {
+			framework.Logf("deleting pod: %s/%s", cleanupPod.Namespace, cleanupPod.Name)
+			deletePodSyncByName(ctx2, f, cleanupPod.Name)
+			waitForContainerRemoval(ctx2, cleanupPod.Spec.Containers[0].Name, cleanupPod.Name, cleanupPod.Namespace)
+			framework.Logf("deleted pod: %s/%s", cleanupPod.Namespace, cleanupPod.Name)
+		}
+	})
+
+	cfsCheckCommand := []string{"sh", "-c", "cat /sys/fs/cgroup/cpu.max && sleep 1d"}
+	defaultPeriod := "100000"
+
+	ctnAttrs = []ctnAttribute{
+		{
+			ctnName:    "gu-container-cfsquota-disabled",
+			cpuRequest: "1",
+			cpuLimit:   "1",
+		},
+	}
+	pod1 = makeCPUManagerPod("gu-pod1", ctnAttrs)
+	pod1.Spec.Containers[0].Command = cfsCheckCommand
+	pod1 = e2epod.NewPodClient(f).CreateSync(ctx, pod1)
+	cleanupPods = append(cleanupPods, pod1)
+
+	ginkgo.By("checking if the expected cfs quota was assigned (GU pod, exclusive CPUs, unlimited)")
+
+	expectedQuota := "100000"
+	if disabledCPUQuotaWithExclusiveCPUs {
+		expectedQuota = "max"
+	}
+	expCFSQuotaRegex := fmt.Sprintf("^%s %s\n$", expectedQuota, defaultPeriod)
+	err = e2epod.NewPodClient(f).MatchContainerOutput(ctx, pod1.Name, pod1.Spec.Containers[0].Name, expCFSQuotaRegex)
+	framework.ExpectNoError(err, "expected log not found in container [%s] of pod [%s]",
+		pod1.Spec.Containers[0].Name, pod1.Name)
+
+	ctnAttrs = []ctnAttribute{
+		{
+			ctnName:    "gu-container-cfsquota-enabled",
+			cpuRequest: "500m",
+			cpuLimit:   "500m",
+		},
+	}
+	pod2 = makeCPUManagerPod("gu-pod2", ctnAttrs)
+	pod2.Spec.Containers[0].Command = cfsCheckCommand
+	pod2 = e2epod.NewPodClient(f).CreateSync(ctx, pod2)
+	cleanupPods = append(cleanupPods, pod2)
+
+	ginkgo.By("checking if the expected cfs quota was assigned (GU pod, limited)")
+
+	expectedQuota = "50000"
+	expCFSQuotaRegex = fmt.Sprintf("^%s %s\n$", expectedQuota, defaultPeriod)
+	err = e2epod.NewPodClient(f).MatchContainerOutput(ctx, pod2.Name, pod2.Spec.Containers[0].Name, expCFSQuotaRegex)
+	framework.ExpectNoError(err, "expected log not found in container [%s] of pod [%s]",
+		pod2.Spec.Containers[0].Name, pod2.Name)
+
+	ctnAttrs = []ctnAttribute{
+		{
+			ctnName:    "non-gu-container",
+			cpuRequest: "100m",
+			cpuLimit:   "500m",
+		},
+	}
+	pod3 = makeCPUManagerPod("non-gu-pod3", ctnAttrs)
+	pod3.Spec.Containers[0].Command = cfsCheckCommand
+	pod3 = e2epod.NewPodClient(f).CreateSync(ctx, pod3)
+	cleanupPods = append(cleanupPods, pod3)
+
+	ginkgo.By("checking if the expected cfs quota was assigned (BU pod, limited)")
+
+	expectedQuota = "50000"
+	expCFSQuotaRegex = fmt.Sprintf("^%s %s\n$", expectedQuota, defaultPeriod)
+	err = e2epod.NewPodClient(f).MatchContainerOutput(ctx, pod3.Name, pod3.Spec.Containers[0].Name, expCFSQuotaRegex)
+	framework.ExpectNoError(err, "expected log not found in container [%s] of pod [%s]",
+		pod3.Spec.Containers[0].Name, pod3.Name)
+
+	ctnAttrs = []ctnAttribute{
+		{
+			ctnName:    "gu-container-non-int-values",
+			cpuRequest: "500m",
+			cpuLimit:   "500m",
+		},
+		{
+			ctnName:    "gu-container-int-values",
+			cpuRequest: "1",
+			cpuLimit:   "1",
+		},
+	}
+	pod4 := makeCPUManagerPod("gu-pod4", ctnAttrs)
+	pod4.Spec.Containers[0].Command = cfsCheckCommand
+	pod4.Spec.Containers[1].Command = cfsCheckCommand
+	pod4 = e2epod.NewPodClient(f).CreateSync(ctx, pod4)
+	cleanupPods = append(cleanupPods, pod4)
+
+	ginkgo.By("checking if the expected cfs quota was assigned (GU pod, container 0 exclusive CPUs unlimited, container 1 limited)")
+
+	expectedQuota = "50000"
+	expCFSQuotaRegex = fmt.Sprintf("^%s %s\n$", expectedQuota, defaultPeriod)
+	err = e2epod.NewPodClient(f).MatchContainerOutput(ctx, pod4.Name, pod4.Spec.Containers[0].Name, expCFSQuotaRegex)
+	framework.ExpectNoError(err, "expected log not found in container [%s] of pod [%s]",
+		pod4.Spec.Containers[0].Name, pod4.Name)
+	expectedQuota = "100000"
+	if disabledCPUQuotaWithExclusiveCPUs {
+		expectedQuota = "max"
+	}
+	expCFSQuotaRegex = fmt.Sprintf("^%s %s\n$", expectedQuota, defaultPeriod)
+	err = e2epod.NewPodClient(f).MatchContainerOutput(ctx, pod4.Name, pod4.Spec.Containers[1].Name, expCFSQuotaRegex)
+	framework.ExpectNoError(err, "expected log not found in container [%s] of pod [%s]",
+		pod4.Spec.Containers[1].Name, pod4.Name)
+
+	ctnAttrs = []ctnAttribute{
+		{
+			ctnName:    "gu-container-non-int-values",
+			cpuRequest: "500m",
+			cpuLimit:   "500m",
+		},
+		{
+			ctnName:    "gu-container-int-values",
+			cpuRequest: "1",
+			cpuLimit:   "1",
+		},
+	}
+
+	podCFSCheckCommand := []string{"sh", "-c", `cat $(find /sysfscgroup | grep "$(cat /podinfo/uid | sed 's/-/_/g').slice/cpu.max$") && sleep 1d`}
+
+	pod5 := makeCPUManagerPod("gu-pod5", ctnAttrs)
+	pod5.Spec.Containers[0].Command = podCFSCheckCommand
+	pod5 = e2epod.NewPodClient(f).CreateSync(ctx, pod5)
+	cleanupPods = append(cleanupPods, pod5)
+	ginkgo.By("checking if the expected cfs quota was assigned to pod (GU pod, unlimited)")
+
+	expectedQuota = "150000"
+
+	if disabledCPUQuotaWithExclusiveCPUs {
+		expectedQuota = "max"
+	}
+
+	expCFSQuotaRegex = fmt.Sprintf("^%s %s\n$", expectedQuota, defaultPeriod)
+
+	err = e2epod.NewPodClient(f).MatchContainerOutput(ctx, pod5.Name, pod5.Spec.Containers[0].Name, expCFSQuotaRegex)
+	framework.ExpectNoError(err, "expected log not found in container [%s] of pod [%s]", pod5.Spec.Containers[0].Name, pod5.Name)
+
+	ctnAttrs = []ctnAttribute{
+		{
+			ctnName:    "gu-container",
+			cpuRequest: "100m",
+			cpuLimit:   "100m",
+		},
+	}
+
+	pod6 := makeCPUManagerPod("gu-pod6", ctnAttrs)
+	pod6.Spec.Containers[0].Command = podCFSCheckCommand
+	pod6 = e2epod.NewPodClient(f).CreateSync(ctx, pod6)
+	cleanupPods = append(cleanupPods, pod6)
+
+	ginkgo.By("checking if the expected cfs quota was assigned to pod (GU pod, limited)")
+
+	expectedQuota = "10000"
+	expCFSQuotaRegex = fmt.Sprintf("^%s %s\n$", expectedQuota, defaultPeriod)
+	err = e2epod.NewPodClient(f).MatchContainerOutput(ctx, pod6.Name, pod6.Spec.Containers[0].Name, expCFSQuotaRegex)
+	framework.ExpectNoError(err, "expected log not found in container [%s] of pod [%s]", pod6.Spec.Containers[0].Name, pod6.Name)
+
+}
+
 func runMultipleGuPods(ctx context.Context, f *framework.Framework) {
 	var expAllowedCPUsListRegex string
 	var cpuList []int
@@ -707,6 +915,37 @@ func runCPUManagerTests(f *framework.Framework) {
 		// the order between negative and positive doesn't really matter
 		runSMTAlignmentNegativeTests(ctx, f)
 		runSMTAlignmentPositiveTests(ctx, f, smtLevel)
+	})
+
+	ginkgo.It("should not enforce CFS quota for containers with static CPUs assigned", func(ctx context.Context) {
+		if !IsCgroup2UnifiedMode() {
+			e2eskipper.Skipf("Skipping since CgroupV2 not used")
+		}
+		newCfg := configureCPUManagerInKubelet(oldCfg,
+			&cpuManagerKubeletArguments{
+				policyName:                       string(cpumanager.PolicyStatic),
+				reservedSystemCPUs:               cpuset.New(0),
+				disableCPUQuotaWithExclusiveCPUs: true,
+			},
+		)
+		updateKubeletConfig(ctx, f, newCfg, true)
+		runCfsQuotaGuPods(ctx, f, true)
+	})
+
+	ginkgo.It("should keep enforcing the CFS quota for containers with static CPUs assigned and feature gate disabled", func(ctx context.Context) {
+		if !IsCgroup2UnifiedMode() {
+			e2eskipper.Skipf("Skipping since CgroupV2 not used")
+		}
+		newCfg := configureCPUManagerInKubelet(oldCfg,
+			&cpuManagerKubeletArguments{
+				policyName:                       string(cpumanager.PolicyStatic),
+				reservedSystemCPUs:               cpuset.New(0),
+				disableCPUQuotaWithExclusiveCPUs: false,
+			},
+		)
+
+		updateKubeletConfig(ctx, f, newCfg, true)
+		runCfsQuotaGuPods(ctx, f, false)
 	})
 
 	f.It("should not reuse CPUs of restartable init containers", feature.SidecarContainers, func(ctx context.Context) {
