@@ -49,9 +49,11 @@ var (
 	createPausePod               = testutils.CreatePausePod
 	deletePod                    = testutils.DeletePod
 	getPod                       = testutils.GetPod
+	runPausePod                  = testutils.RunPausePod
 	initPausePod                 = testutils.InitPausePod
 	initTest                     = testutils.InitTestSchedulerWithNS
 	podScheduledIn               = testutils.PodScheduledIn
+	podScheduled                 = testutils.PodScheduled
 	podUnschedulable             = testutils.PodUnschedulable
 	waitForPodUnschedulable      = testutils.WaitForPodUnschedulable
 )
@@ -1817,6 +1819,129 @@ func TestPodTopologySpreadFilter(t *testing.T) {
 			}
 			if err != nil {
 				t.Errorf("Test Failed: %v", err)
+			}
+		})
+	}
+}
+
+func TestNodePortsFilter(t *testing.T) {
+	pause := imageutils.GetPauseImageName()
+	tests := []struct {
+		name         string
+		existingPods []*v1.Pod
+		incomingPod  *v1.Pod
+		fit          bool
+	}{
+		{
+			name: "Port Conflict on Node",
+			existingPods: []*v1.Pod{
+				st.MakePod().Name("test-1").
+					Containers([]v1.Container{st.MakeContainer().Name("test-1-container").Image(pause).
+						ContainerPort([]v1.ContainerPort{
+							{
+								HostIP:        "127.0.0.1",
+								ContainerPort: 8081,
+								HostPort:      8081,
+								Protocol:      "TCP",
+							},
+							{
+								HostIP:        "127.0.0.1",
+								ContainerPort: 8082,
+								HostPort:      8082,
+								Protocol:      "TCP",
+							},
+						}).Obj()}).
+					Obj(),
+			},
+			incomingPod: st.MakePod().Name("test-2").
+				Containers([]v1.Container{st.MakeContainer().Name("test-2-container").Image(pause).
+					ContainerPort([]v1.ContainerPort{
+						{
+							HostIP:        "127.0.0.1",
+							ContainerPort: 8081,
+							HostPort:      8081,
+							Protocol:      "TCP",
+						},
+					}).Obj()}).
+				Obj(),
+			fit: false,
+		},
+		{
+			name: "No Port Conflict on Node",
+			existingPods: []*v1.Pod{
+				st.MakePod().Name("test-1").
+					Containers([]v1.Container{st.MakeContainer().Name("test-1-container").Image(pause).
+						ContainerPort([]v1.ContainerPort{
+							{
+								HostIP:        "127.0.0.1",
+								HostPort:      8081,
+								ContainerPort: 8081,
+								Protocol:      "TCP",
+							},
+							{
+								HostIP:        "127.0.0.1",
+								HostPort:      8082,
+								ContainerPort: 8082,
+								Protocol:      "TCP",
+							},
+						}).Obj()}).
+					Obj(),
+			},
+			incomingPod: st.MakePod().Name("test-2").
+				Containers([]v1.Container{st.MakeContainer().Name("test-2-container").Image(pause).
+					ContainerPort([]v1.ContainerPort{
+						{
+							HostIP:        "127.0.0.1",
+							HostPort:      8080,
+							ContainerPort: 8080,
+							Protocol:      "TCP",
+						},
+					}).Obj()}).
+				Obj(),
+			fit: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testCtx := initTest(t, "node-ports-filter")
+			cs := testCtx.ClientSet
+			ns := testCtx.NS.Name
+
+			if _, err := createNode(cs, st.MakeNode().Name("node-0").Obj()); err != nil {
+				t.Fatalf("Cannot create node: %v", err)
+			}
+
+			// set namespace to pods
+			tt.incomingPod.SetNamespace(ns)
+			for i := range tt.existingPods {
+				tt.existingPods[i].SetNamespace(ns)
+			}
+			allPods := append([]*v1.Pod{tt.incomingPod}, tt.existingPods...)
+			defer testutils.CleanupPods(testCtx.Ctx, cs, t, allPods)
+
+			for _, pod := range tt.existingPods {
+				if _, err := runPausePod(testCtx.ClientSet, pod); err != nil {
+					t.Fatalf("failed to create existing pod: %v", err)
+				}
+			}
+
+			testPod, err := cs.CoreV1().Pods(tt.incomingPod.Namespace).Create(testCtx.Ctx, tt.incomingPod, metav1.CreateOptions{})
+			if err != nil {
+				t.Fatalf("Error while creating pod during test: %v", err)
+			}
+
+			if tt.fit {
+				err = wait.PollUntilContextTimeout(testCtx.Ctx, pollInterval, wait.ForeverTestTimeout, false,
+					podScheduled(cs, testPod.Namespace, testPod.Name))
+				if err != nil {
+					t.Errorf("Test Failed: Expected pod %s/%s to be scheduled but got error: %v", testPod.Namespace, testPod.Name, err)
+				}
+			} else {
+				err = wait.PollUntilContextTimeout(testCtx.Ctx, pollInterval, wait.ForeverTestTimeout, false,
+					podUnschedulable(cs, testPod.Namespace, testPod.Name))
+				if err != nil {
+					t.Errorf("Test Failed: Expected pod %s/%s to be unschedulable but got error: %v", testPod.Namespace, testPod.Name, err)
+				}
 			}
 		})
 	}
