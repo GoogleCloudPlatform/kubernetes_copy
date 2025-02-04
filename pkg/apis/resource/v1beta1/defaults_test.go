@@ -64,6 +64,72 @@ func TestSetDefaultAllocationMode(t *testing.T) {
 	assert.Equal(t, nonDefaultCount, output.Spec.Devices.Requests[0].Count)
 }
 
+func TestSetDefaultAllocationModeWithSubRequests(t *testing.T) {
+	claim := &v1beta1.ResourceClaim{
+		Spec: v1beta1.ResourceClaimSpec{
+			Devices: v1beta1.DeviceClaim{
+				Requests: []v1beta1.DeviceRequest{
+					{
+						Name: "req-1",
+						FirstAvailable: []v1beta1.DeviceSubRequest{
+							{
+								Name: "subReq-1",
+							},
+							{
+								Name: "subReq-2",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	nilValueMode := v1beta1.DeviceAllocationMode("")
+	nilValueCount := int64(0)
+	defaultMode := v1beta1.DeviceAllocationModeExactCount
+	defaultCount := int64(1)
+	output := roundTrip(t, runtime.Object(claim)).(*v1beta1.ResourceClaim)
+	// fields on the top-level DeviceRequest should not change
+	assert.Equal(t, nilValueMode, output.Spec.Devices.Requests[0].AllocationMode)
+	assert.Equal(t, nilValueCount, output.Spec.Devices.Requests[0].Count)
+	// fields on the subRequests should be defaulted.
+	assert.Equal(t, defaultMode, output.Spec.Devices.Requests[0].FirstAvailable[0].AllocationMode)
+	assert.Equal(t, defaultCount, output.Spec.Devices.Requests[0].FirstAvailable[0].Count)
+	assert.Equal(t, defaultMode, output.Spec.Devices.Requests[0].FirstAvailable[1].AllocationMode)
+	assert.Equal(t, defaultCount, output.Spec.Devices.Requests[0].FirstAvailable[1].Count)
+
+	// field should not change
+	nonDefaultMode := v1beta1.DeviceAllocationModeExactCount
+	nonDefaultCount := int64(10)
+	claim = &v1beta1.ResourceClaim{
+		Spec: v1beta1.ResourceClaimSpec{
+			Devices: v1beta1.DeviceClaim{
+				Requests: []v1beta1.DeviceRequest{{
+					Name: "req-1",
+					FirstAvailable: []v1beta1.DeviceSubRequest{
+						{
+							Name:           "subReq-1",
+							AllocationMode: nonDefaultMode,
+							Count:          nonDefaultCount,
+						},
+						{
+							Name:           "subReq-2",
+							AllocationMode: nonDefaultMode,
+							Count:          nonDefaultCount,
+						},
+					},
+				}},
+			},
+		},
+	}
+	output = roundTrip(t, runtime.Object(claim)).(*v1beta1.ResourceClaim)
+	assert.Equal(t, nonDefaultMode, output.Spec.Devices.Requests[0].FirstAvailable[0].AllocationMode)
+	assert.Equal(t, nonDefaultCount, output.Spec.Devices.Requests[0].FirstAvailable[0].Count)
+	assert.Equal(t, nonDefaultMode, output.Spec.Devices.Requests[0].FirstAvailable[1].AllocationMode)
+	assert.Equal(t, nonDefaultCount, output.Spec.Devices.Requests[0].FirstAvailable[1].Count)
+}
+
 func roundTrip(t *testing.T, obj runtime.Object) runtime.Object {
 	codec := legacyscheme.Codecs.LegacyCodec(v1beta1.SchemeGroupVersion)
 	data, err := runtime.Encode(codec, obj)
