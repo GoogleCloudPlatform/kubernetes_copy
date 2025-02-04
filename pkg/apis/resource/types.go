@@ -141,6 +141,10 @@ type ResourceSliceSpec struct {
 	Devices []Device
 }
 
+// DriverNameMaxLength is the maximum valid length of a driver name in the
+// ResourceSliceSpec and other places. It's the same as for CSI driver names.
+const DriverNameMaxLength = 63
+
 // ResourcePool describes the pool that ResourceSlices belong to.
 type ResourcePool struct {
 	// Name is used to identify the pool. For node-local devices, this

@@ -43,6 +43,8 @@ func NewCache(maxCacheEntries int) *Cache {
 // GetOrCompile checks whether the cache already has a compilation result
 // and returns that if available. Otherwise it compiles, stores successful
 // results and returns the new result.
+//
+// Cost estimation is disabled.
 func (c *Cache) GetOrCompile(expression string) CompilationResult {
 	// Compiling a CEL expression is expensive enough that it is cheaper
 	// to lock a mutex than doing it several times in parallel.
@@ -55,7 +57,7 @@ func (c *Cache) GetOrCompile(expression string) CompilationResult {
 		return *cached
 	}
 
-	expr := GetCompiler().CompileCELExpression(expression, Options{})
+	expr := GetCompiler().CompileCELExpression(expression, Options{DisableCostEstimation: true})
 	if expr.Error == nil {
 		c.add(expression, &expr)
 	}

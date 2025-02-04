@@ -18,6 +18,7 @@ package cel
 
 import (
 	"fmt"
+	"math"
 	"sync"
 	"testing"
 
@@ -72,6 +73,11 @@ func TestCacheSemantic(t *testing.T) {
 	resultFalseAgain = cache.GetOrCompile("false")
 	if resultFalse == resultFalseAgain {
 		t.Fatal("result of compiling `false` should have been evicted from the cache")
+	}
+
+	// Cost estimation must be off (not needed by scheduler).
+	if resultFalseAgain.MaxCost != math.MaxUint64 {
+		t.Error("cost estimation should have been disabled, was enabled")
 	}
 }
 
