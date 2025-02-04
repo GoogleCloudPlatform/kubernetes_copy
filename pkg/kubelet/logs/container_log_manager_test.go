@@ -164,7 +164,7 @@ func TestRotateLogs(t *testing.T) {
 	// Push the items into the queue for before starting the worker to avoid issue with the queue being empty.
 	require.NoError(t, c.rotateLogs(ctx))
 
-	// Start a routine that can monitor the queue and shutdown the queue to trigger the retrun from the processQueueItems
+	// Start a routine that can monitor the queue and shutdown the queue to trigger the return from the processQueueItems
 	// Keeping the monitor duration smaller in order to keep the unwanted delay in the test to a minimal.
 	go func() {
 		pollTimeoutCtx, cancel := context.WithTimeout(ctx, 10*time.Second)

@@ -30,7 +30,7 @@ import (
 	"k8s.io/kubernetes/pkg/kubelet/server/stats"
 )
 
-// defaultNetworkInterfaceName is used for collectng network stats.
+// defaultNetworkInterfaceName is used for collecting network stats.
 // This logic relies on knowledge of the container runtime implementation and
 // is not reliable.
 const defaultNetworkInterfaceName = "eth0"
@@ -484,7 +484,7 @@ func makePodStorageStats(s *statsapi.PodStats, rootFsInfo *cadvisorapiv2.FsInfo,
 		// If people do in-place upgrade, there might be pods still using
 		// the old log path. For those pods, no pod log stats is returned.
 		// We should continue generating other stats in that case.
-		// calcEphemeralStorage tolerants logStats == nil.
+		// calcEphemeralStorage tolerates logStats == nil.
 	}
 	etcHostsStats, err := hostStatsProvider.getPodEtcHostsStats(podUID, rootFsInfo)
 	if err != nil {

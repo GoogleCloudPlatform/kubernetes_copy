@@ -120,7 +120,7 @@ func (m *kubeGenericRuntimeManager) ListImages(ctx context.Context) ([]kubeconta
 
 	for _, img := range allImages {
 		// Container runtimes may choose not to implement changes needed for KEP 4216. If
-		// the changes are not implemented by a container runtime, the exisiting behavior
+		// the changes are not implemented by a container runtime, the existing behavior
 		// of not populating the runtimeHandler CRI field in ImageSpec struct is preserved.
 		// Therefore, when RuntimeClassInImageCriAPI feature gate is set, check to see if this
 		// field is empty and log a warning message.

@@ -126,7 +126,7 @@ func TestMergeProcessStats(t *testing.T) {
 			expected: &statsapi.ProcessStats{ProcessCount: ptr.To[uint64](100)},
 		},
 		{
-			desc:     "both non nill",
+			desc:     "both non nil",
 			first:    &statsapi.ProcessStats{ProcessCount: ptr.To[uint64](100)},
 			second:   &statsapi.ProcessStats{ProcessCount: ptr.To[uint64](100)},
 			expected: &statsapi.ProcessStats{ProcessCount: ptr.To[uint64](200)},

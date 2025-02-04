@@ -108,7 +108,7 @@ func TestUserNsManagerAllocate(t *testing.T) {
 	// verify that re-adding the same pod with the same settings won't fail
 	err = m.record("two", allocated2, length2)
 	assert.NoError(t, err)
-	// but it fails if anyting is different
+	// but it fails if anything is different
 	err = m.record("two", allocated2+1, length2)
 	assert.Error(t, err)
 

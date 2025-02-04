@@ -302,7 +302,7 @@ func (kl *Kubelet) GetNodeConfig() cm.NodeConfig {
 	return kl.containerManager.GetNodeConfig()
 }
 
-// GetPodCgroupRoot returns the listeral cgroupfs value for the cgroup containing all pods
+// GetPodCgroupRoot returns the literal cgroupfs value for the cgroup containing all pods
 func (kl *Kubelet) GetPodCgroupRoot() string {
 	return kl.containerManager.GetPodCgroupRoot()
 }

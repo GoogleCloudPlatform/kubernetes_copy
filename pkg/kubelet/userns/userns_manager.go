@@ -60,7 +60,7 @@ type UsernsManager struct {
 	len int
 
 	kl userNsPodsManager
-	// This protects all members except for kl.anager
+	// This protects all members except for kl.manager
 	lock sync.Mutex
 }
 
@@ -463,7 +463,7 @@ func (m *UsernsManager) GetOrCreateUserNamespaceMappings(pod *v1.Pod, runtimeHan
 	}, nil
 }
 
-// CleanupOrphanedPodUsernsAllocations reconciliates the state of user namespace
+// CleanupOrphanedPodUsernsAllocations reconciles the state of user namespace
 // allocations with the pods actually running. It frees any user namespace
 // allocation for orphaned pods.
 func (m *UsernsManager) CleanupOrphanedPodUsernsAllocations(pods []*v1.Pod, runningPods []*kubecontainer.Pod) error {

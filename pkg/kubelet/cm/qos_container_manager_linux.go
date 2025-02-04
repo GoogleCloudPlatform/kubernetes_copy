@@ -260,7 +260,7 @@ func (m *qosContainerManagerImpl) setMemoryReserve(configs map[v1.PodQOSClass]*C
 // that was attempted to be set in the first Update() and adjusts
 // their memory limit to the usage to prevent further growth.
 func (m *qosContainerManagerImpl) retrySetMemoryReserve(configs map[v1.PodQOSClass]*CgroupConfig, percentReserve int64) {
-	// Unreclaimable memory usage may already exceeded the desired limit
+	// Unreclaimable memory usage may already exceed the desired limit
 	// Attempt to set the limit near the current usage to put pressure
 	// on the cgroup and prevent further growth.
 	for qos, config := range configs {

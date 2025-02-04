@@ -32,7 +32,7 @@ func TestImagePullDurationMetric(t *testing.T) {
 
 		// Pairs of image size in bytes and pull duration in seconds
 		dataPoints := [][]float64{
-			// 0 byets, 0 seconds
+			// 0 bytes, 0 seconds
 			{0, 0},
 			// 5MB, 10 seconds
 			{5 * 1024 * 1024, 10},

@@ -33,7 +33,7 @@ func TestGetStatWindows(t *testing.T) {
 	fiExpected, errExpected := os.Stat(event.Name)
 	// TODO: This is a workaround for Windows 20H2 issue for os.Stat(). Please see
 	// microsoft/Windows-Containers#97 for details.
-	// Once the issue is resvolved, the following os.Lstat() is not needed.
+	// Once the issue is resolved, the following os.Lstat() is not needed.
 	if errExpected != nil {
 		fiExpected, errExpected = os.Lstat(event.Name)
 	}

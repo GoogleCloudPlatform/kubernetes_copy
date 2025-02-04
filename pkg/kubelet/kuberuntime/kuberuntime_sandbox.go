@@ -323,7 +323,7 @@ func (m *kubeGenericRuntimeManager) determinePodSandboxIPs(podNamespace, podName
 	// pick primary IP
 	if len(podSandbox.Network.Ip) != 0 {
 		if netutils.ParseIPSloppy(podSandbox.Network.Ip) == nil {
-			klog.InfoS("Pod Sandbox reported an unparseable primary IP", "pod", klog.KRef(podNamespace, podName), "IP", podSandbox.Network.Ip)
+			klog.InfoS("Pod Sandbox reported an unparsable primary IP", "pod", klog.KRef(podNamespace, podName), "IP", podSandbox.Network.Ip)
 			return nil
 		}
 		podIPs = append(podIPs, podSandbox.Network.Ip)
@@ -332,7 +332,7 @@ func (m *kubeGenericRuntimeManager) determinePodSandboxIPs(podNamespace, podName
 	// pick additional ips, if cri reported them
 	for _, podIP := range podSandbox.Network.AdditionalIps {
 		if nil == netutils.ParseIPSloppy(podIP.Ip) {
-			klog.InfoS("Pod Sandbox reported an unparseable additional IP", "pod", klog.KRef(podNamespace, podName), "IP", podIP.Ip)
+			klog.InfoS("Pod Sandbox reported an unparsable additional IP", "pod", klog.KRef(podNamespace, podName), "IP", podIP.Ip)
 			return nil
 		}
 		podIPs = append(podIPs, podIP.Ip)

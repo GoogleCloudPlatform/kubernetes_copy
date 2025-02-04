@@ -248,7 +248,7 @@ func (dswp *desiredStateOfWorldPopulator) findAndRemoveDeletedPods() {
 		dswp.deleteProcessedPod(volumeToMount.PodName)
 	}
 
-	// Cleanup orphanded entries from processedPods
+	// Cleanup orphaned entries from processedPods
 	dswp.pods.Lock()
 	orphanedPods := make([]volumetypes.UniquePodName, 0, len(dswp.pods.processedPods))
 	for k := range dswp.pods.processedPods {
@@ -392,7 +392,7 @@ func (dswp *desiredStateOfWorldPopulator) markPodProcessingFailed(
 	dswp.pods.Unlock()
 }
 
-// podHasBeenSeenOnce returns true if the pod has been seen by the popoulator
+// podHasBeenSeenOnce returns true if the pod has been seen by the populator
 // at least once.
 func (dswp *desiredStateOfWorldPopulator) podHasBeenSeenOnce(
 	podName volumetypes.UniquePodName) bool {

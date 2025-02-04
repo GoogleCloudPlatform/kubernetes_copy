@@ -242,7 +242,7 @@ func (a admissionRequirementList) toString() string {
 // can be preempted by preemptor pod.
 func sortPodsByQOS(preemptor *v1.Pod, pods []*v1.Pod) (bestEffort, burstable, guaranteed []*v1.Pod) {
 	for _, pod := range pods {
-		if kubetypes.Preemptable(preemptor, pod) {
+		if kubetypes.Preemptible(preemptor, pod) {
 			switch v1qos.GetPodQOS(pod) {
 			case v1.PodQOSBestEffort:
 				bestEffort = append(bestEffort, pod)

@@ -304,7 +304,7 @@ func Test_Run_Positive_ReRegister(t *testing.T) {
 
 	// Add the plugin again to update the timestamp
 	dsw.AddOrUpdatePlugin(socketPath)
-	// This should trigger a deregistration and a regitration
+	// This should trigger a deregistration and a registration
 	// The process of unregistration and reregistration can happen so fast that
 	// we are not able to catch it with waitForUnregistration, so here we are checking
 	// the plugin has an updated timestamp.

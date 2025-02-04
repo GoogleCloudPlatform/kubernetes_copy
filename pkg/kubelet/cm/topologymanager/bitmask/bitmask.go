@@ -176,7 +176,7 @@ func (s *bitMask) Count() int {
 	return bits.OnesCount64(uint64(*s))
 }
 
-// Getbits returns each bit number with bits set to one
+// GetBits returns each bit number with bits set to one
 func (s *bitMask) GetBits() []int {
 	var bits []int
 	for i := uint64(0); i < 64; i++ {

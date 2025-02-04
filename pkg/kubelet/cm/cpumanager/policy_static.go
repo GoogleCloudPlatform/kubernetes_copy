@@ -343,7 +343,7 @@ func (p *staticPolicy) Allocate(s state.State, pod *v1.Pod, container *v1.Contai
 			// and the scheduler is responsible for ensuring that the workload goes to a node that has enough CPUs,
 			// the pod would be placed on a node where there are enough physical cores available to be allocated.
 			// Just like the behaviour in case of static policy, takeByTopology will try to first allocate CPUs from the same socket
-			// and only in case the request cannot be sattisfied on a single socket, CPU allocation is done for a workload to occupy all
+			// and only in case the request cannot be satisfied on a single socket, CPU allocation is done for a workload to occupy all
 			// CPUs on a physical core. Allocation of individual threads would never have to occur.
 			return SMTAlignmentError{
 				RequestedCPUs:        numCPUs,
@@ -709,7 +709,7 @@ func (p *staticPolicy) isHintSocketAligned(hint topologymanager.TopologyHint, mi
 	if numaNodesPerSocket == 0 {
 		return false
 	}
-	// minSockets refers to minimum number of socket required to satify allocation.
+	// minSockets refers to minimum number of socket required to satisfy allocation.
 	// A hint is considered socket aligned if sockets across which numa nodes span is equal to minSockets
 	minSockets := (minAffinitySize + numaNodesPerSocket - 1) / numaNodesPerSocket
 	return p.topology.CPUDetails.SocketsInNUMANodes(numaNodesBitMask...).Size() == minSockets

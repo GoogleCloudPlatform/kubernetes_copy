@@ -1353,7 +1353,7 @@ func TestStaticPodExclusion(t *testing.T) {
 	if e, a := map[string]types.UID{"pod1_test1": "6-static"}, podWorkers.startedStaticPodsByFullname; !reflect.DeepEqual(e, a) {
 		t.Fatalf("unexpected started static pods: %s", cmp.Diff(e, a))
 	}
-	// no static pods shoud be waiting
+	// no static pods should be waiting
 	if e, a := map[string][]types.UID{}, podWorkers.waitingToStartStaticPodsByFullname; !reflect.DeepEqual(e, a) {
 		t.Fatalf("unexpected waiting static pods: %s", cmp.Diff(e, a))
 	}

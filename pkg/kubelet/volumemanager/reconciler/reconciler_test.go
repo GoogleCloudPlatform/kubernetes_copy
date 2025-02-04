@@ -387,7 +387,7 @@ func Test_Run_Positive_VolumeMountControllerAttachEnabled(t *testing.T) {
 
 // Populates desiredStateOfWorld cache with one volume/pod.
 // Enables controllerAttachDetachEnabled.
-// volume is not repored-in-use
+// volume is not reported-in-use
 // Calls Run()
 // Verifies that there is not wait-for-mount call
 // Verifies that there is no exponential-backoff triggered

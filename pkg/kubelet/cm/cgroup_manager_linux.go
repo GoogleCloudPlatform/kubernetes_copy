@@ -56,7 +56,7 @@ var RootCgroupName = CgroupName([]string{})
 // This function does some basic check for invalid characters at the name.
 func NewCgroupName(base CgroupName, components ...string) CgroupName {
 	for _, component := range components {
-		// Forbit using "_" in internal names. When remapping internal
+		// Forbid using "_" in internal names. When remapping internal
 		// names to systemd cgroup driver, we want to remap "-" => "_",
 		// so we forbid "_" so that we can always reverse the mapping.
 		if strings.Contains(component, "/") || strings.Contains(component, "_") {

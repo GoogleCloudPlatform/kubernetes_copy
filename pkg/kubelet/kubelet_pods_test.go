@@ -5140,7 +5140,7 @@ func TestConvertToAPIContainerStatusesForUser(t *testing.T) {
 			ContainerStatuses: []v1.ContainerStatus{testContainerStatus},
 		},
 	}
-	testPodStaus := func(user *kubecontainer.ContainerUser) *kubecontainer.PodStatus {
+	testPodStatus := func(user *kubecontainer.ContainerUser) *kubecontainer.PodStatus {
 		testKubeContainerStatus := kubecontainer.Status{
 			Name:      testContainerName,
 			ID:        testContainerID,
@@ -5178,17 +5178,17 @@ func TestConvertToAPIContainerStatusesForUser(t *testing.T) {
 		expectedContainerStatus []v1.ContainerStatus
 	}{
 		"nil user, SupplementalGroupsPolicy is disabled": {
-			testPodStaus(nil),
+			testPodStatus(nil),
 			false,
 			expectedContainerStatuses(nil),
 		},
 		"empty user, SupplementalGroupsPolicy is disabled": {
-			testPodStaus(&kubecontainer.ContainerUser{}),
+			testPodStatus(&kubecontainer.ContainerUser{}),
 			false,
 			expectedContainerStatuses(nil),
 		},
 		"linux user, SupplementalGroupsPolicy is disabled": {
-			testPodStaus(&kubecontainer.ContainerUser{
+			testPodStatus(&kubecontainer.ContainerUser{
 				Linux: &kubecontainer.LinuxContainerUser{
 					UID:                0,
 					GID:                0,
@@ -5199,17 +5199,17 @@ func TestConvertToAPIContainerStatusesForUser(t *testing.T) {
 			expectedContainerStatuses(nil),
 		},
 		"nil user, SupplementalGroupsPolicy is enabled": {
-			testPodStaus(nil),
+			testPodStatus(nil),
 			true,
 			expectedContainerStatuses(nil),
 		},
 		"empty user, SupplementalGroupsPolicy is enabled": {
-			testPodStaus(&kubecontainer.ContainerUser{}),
+			testPodStatus(&kubecontainer.ContainerUser{}),
 			true,
 			expectedContainerStatuses(&v1.ContainerUser{}),
 		},
 		"linux user, SupplementalGroupsPolicy is enabled": {
-			testPodStaus(&kubecontainer.ContainerUser{
+			testPodStatus(&kubecontainer.ContainerUser{
 				Linux: &kubecontainer.LinuxContainerUser{
 					UID:                0,
 					GID:                0,

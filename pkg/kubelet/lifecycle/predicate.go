@@ -340,7 +340,7 @@ func (e *PredicateFailureError) GetReason() string {
 	return e.PredicateDesc
 }
 
-// generalFilter checks a group of filterings that the kubelet cares about.
+// generalFilter checks a group of filters that the kubelet cares about.
 func generalFilter(pod *v1.Pod, nodeInfo *schedulerframework.NodeInfo) []PredicateFailureReason {
 	admissionResults := scheduler.AdmissionCheck(pod, nodeInfo, true)
 	var reasons []PredicateFailureReason

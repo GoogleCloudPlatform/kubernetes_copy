@@ -293,8 +293,8 @@ func TestCadvisorListPodStats(t *testing.T) {
 	con := indexCon[cName00]
 	assert.EqualValues(t, testTime(creationTime, seedPod0Container0).Unix(), con.StartTime.Time.Unix())
 	checkCPUStats(t, "Pod0Container0", seedPod0Container0, con.CPU)
-	checkMemoryStats(t, "Pod0Conainer0", seedPod0Container0, infos["/pod0-c0"], con.Memory)
-	checkSwapStats(t, "Pod0Conainer0", seedPod0Container0, infos["/pod0-c0"], con.Swap)
+	checkMemoryStats(t, "Pod0Container0", seedPod0Container0, infos["/pod0-c0"], con.Memory)
+	checkSwapStats(t, "Pod0Container0", seedPod0Container0, infos["/pod0-c0"], con.Swap)
 
 	con = indexCon[cName01]
 	assert.EqualValues(t, testTime(creationTime, seedPod0Container1).Unix(), con.StartTime.Time.Unix())
@@ -466,7 +466,7 @@ func TestCadvisorListPodCPUAndMemoryStats(t *testing.T) {
 	con := indexCon[cName00]
 	assert.EqualValues(t, testTime(creationTime, seedPod0Container0).Unix(), con.StartTime.Time.Unix())
 	checkCPUStats(t, "Pod0Container0", seedPod0Container0, con.CPU)
-	checkMemoryStats(t, "Pod0Conainer0", seedPod0Container0, infos["/pod0-c0"], con.Memory)
+	checkMemoryStats(t, "Pod0Container0", seedPod0Container0, infos["/pod0-c0"], con.Memory)
 	assert.Nil(t, con.Rootfs)
 	assert.Nil(t, con.Logs)
 	assert.Nil(t, con.Accelerators)

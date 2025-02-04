@@ -73,12 +73,12 @@ func CheckPolicyOptionAvailable(option string) error {
 type StaticPolicyOptions struct {
 	// flag to enable extra allocation restrictions to avoid
 	// different containers to possibly end up on the same core.
-	// we consider "core" and "physical CPU" synonim here, leaning
-	// towards the terminoloy k8s hints. We acknowledge this is confusing.
+	// we consider "core" and "physical CPU" synonym here, leaning
+	// towards the terminology k8s hints. We acknowledge this is confusing.
 	//
 	// looking at https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/,
 	// any possible naming scheme will lead to ambiguity to some extent.
-	// We picked "pcpu" because it the established docs hints at vCPU already.
+	// We picked "pcpu" because the established docs hints at vCPU already.
 	FullPhysicalCPUsOnly bool
 	// Flag to evenly distribute CPUs across NUMA nodes in cases where more
 	// than one NUMA node is required to satisfy the allocation.
@@ -174,11 +174,11 @@ func ValidateStaticPolicyOptions(opts StaticPolicyOptions, topology *topology.CP
 	if opts.AlignBySocket {
 		// Not compatible with topology manager single-numa-node policy option.
 		if topologyManager.GetPolicy().Name() == topologymanager.PolicySingleNumaNode {
-			return fmt.Errorf("Topolgy manager %s policy is incompatible with CPUManager %s policy option", topologymanager.PolicySingleNumaNode, AlignBySocketOption)
+			return fmt.Errorf("topology manager %s policy is incompatible with CPUManager %s policy option", topologymanager.PolicySingleNumaNode, AlignBySocketOption)
 		}
 		// Not compatible with topology when number of sockets are more than number of NUMA nodes.
 		if topology.NumSockets > topology.NumNUMANodes {
-			return fmt.Errorf("Align by socket is not compatible with hardware where number of sockets are more than number of NUMA")
+			return fmt.Errorf("align by socket is not compatible with hardware where number of sockets are more than number of NUMA")
 		}
 	}
 	return nil

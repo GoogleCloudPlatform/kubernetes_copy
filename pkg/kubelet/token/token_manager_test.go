@@ -516,7 +516,7 @@ func TestKeyFunc(t *testing.T) {
 				tr: &authenticationv1.TokenRequest{
 					Spec: authenticationv1.TokenRequestSpec{
 						Audiences: []string{"foo1", "foo2"},
-						//everthing is same besides ExpirationSeconds
+						// everything is same besides ExpirationSeconds
 						ExpirationSeconds: getInt64Point(2001),
 						BoundObjectRef: &authenticationv1.BoundObjectReference{
 							Kind: "pod",
@@ -556,7 +556,7 @@ func TestKeyFunc(t *testing.T) {
 						ExpirationSeconds: getInt64Point(2000),
 						BoundObjectRef: &authenticationv1.BoundObjectReference{
 							Kind: "pod",
-							//everthing is same besides BoundObjectRef.Name
+							// everything is same besides BoundObjectRef.Name
 							Name: "diff-pod",
 							UID:  "foo-uid",
 						},
@@ -574,7 +574,7 @@ func TestKeyFunc(t *testing.T) {
 			for _, tru := range c.trus {
 				mgr.set(getKeyFunc(tru), &authenticationv1.TokenRequest{
 					Status: authenticationv1.TokenRequestStatus{
-						//make sure the token cache would not be cleaned by token manager clenaup func
+						// make sure the token cache would not be cleaned by token manager cleanup func
 						ExpirationTimestamp: metav1.Time{Time: mgr.clock.Now().Add(50 * time.Minute)},
 					},
 				})

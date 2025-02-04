@@ -41,7 +41,7 @@ var (
 	ErrKillContainer = errors.New("KillContainerError")
 	// ErrCreatePodSandbox returned when runtime failed to create a sandbox for pod.
 	ErrCreatePodSandbox = errors.New("CreatePodSandboxError")
-	// ErrConfigPodSandbox returned when runetime failed to get pod sandbox config from pod.
+	// ErrConfigPodSandbox returned when runtime failed to get pod sandbox config from pod.
 	ErrConfigPodSandbox = errors.New("ConfigPodSandboxError")
 	// ErrKillPodSandbox returned when runtime failed to stop pod's sandbox.
 	ErrKillPodSandbox = errors.New("KillPodSandboxError")

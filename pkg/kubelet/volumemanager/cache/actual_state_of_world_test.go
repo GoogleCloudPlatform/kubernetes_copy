@@ -1348,8 +1348,8 @@ func verifyVolumeSpecNameInVolumeAsw(
 }
 
 func verifyVolumeFoundInReconstruction(t *testing.T, podToCheck volumetypes.UniquePodName, volumeToCheck v1.UniqueVolumeName, asw ActualStateOfWorld) {
-	isRecontructed := asw.IsVolumeReconstructed(volumeToCheck, podToCheck)
-	if !isRecontructed {
+	isReconstructed := asw.IsVolumeReconstructed(volumeToCheck, podToCheck)
+	if !isReconstructed {
 		t.Fatalf("ASW IsVolumeReconstructed result invalid. expected <true> Actual <false>")
 	}
 }

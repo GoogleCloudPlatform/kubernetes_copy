@@ -240,7 +240,7 @@ type PodWorkers interface {
 	IsPodForMirrorPodTerminatingByFullName(podFullname string) bool
 }
 
-// podSyncer describes the core lifecyle operations of the pod state machine. A pod is first
+// podSyncer describes the core lifecycle operations of the pod state machine. A pod is first
 // synced until it naturally reaches termination (true is returned) or an external agent decides
 // the pod should be terminated. Once a pod should be terminating, SyncTerminatingPod is invoked
 // until it returns no error. Then the SyncTerminatedPod method is invoked until it exits without
@@ -741,7 +741,7 @@ func (p *podWorkers) UpdatePod(options UpdatePodOptions) {
 	var name, ns string
 	if runningPod := options.RunningPod; runningPod != nil {
 		if options.Pod == nil {
-			// the sythetic pod created here is used only as a placeholder and not tracked
+			// the synthetic pod created here is used only as a placeholder and not tracked
 			if options.UpdateType != kubetypes.SyncPodKill {
 				klog.InfoS("Pod update is ignored, runtime pods can only be killed", "pod", klog.KRef(runningPod.Namespace, runningPod.Name), "podUID", runningPod.ID, "updateType", options.UpdateType)
 				return

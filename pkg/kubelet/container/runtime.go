@@ -212,7 +212,7 @@ type PodPair struct {
 type ContainerID struct {
 	// The type of the container runtime. e.g. 'docker'.
 	Type string
-	// The identification of the container, this is comsumable by
+	// The identification of the container, this is consumable by
 	// the underlying container runtime. (Note that the container
 	// runtime interface still takes the whole struct as input).
 	ID string
@@ -330,7 +330,7 @@ type ContainerResources struct {
 	CPURequest *resource.Quantity
 	// CPU limit enforced on the container
 	CPULimit *resource.Quantity
-	// Memory capaacity reserved for the container
+	// Memory capacity reserved for the container
 	MemoryRequest *resource.Quantity
 	// Memory limit enforced on the container
 	MemoryLimit *resource.Quantity

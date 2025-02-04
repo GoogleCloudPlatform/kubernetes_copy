@@ -234,7 +234,7 @@ func TestCheckpointManager(t *testing.T) {
 	// Test RemoveCheckpoints
 	err = manager.RemoveCheckpoint("key1")
 	assert.NoError(t, err)
-	// Test Remove Nonexisted Checkpoints
+	// Test Remove Nonexistent Checkpoints
 	err = manager.RemoveCheckpoint("key1")
 	assert.NoError(t, err)
 
@@ -243,7 +243,7 @@ func TestCheckpointManager(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"key2"}, keys)
 
-	// Test Get NonExisted Checkpoint
+	// Test Get Nonexistent Checkpoint
 	checkpointNE := newFakeCheckpointV1("NE", nil, false)
 	err = manager.GetCheckpoint("key1", checkpointNE)
 	assert.Error(t, err)

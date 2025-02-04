@@ -502,13 +502,13 @@ func testLifeCycleHook(t *testing.T, testPod *v1.Pod, testContainer *v1.Containe
 		}, nil
 	})
 
-	lcHanlder := lifecycle.NewHandlerRunner(
+	lcHandler := lifecycle.NewHandlerRunner(
 		fakeHTTP,
 		fakeRunner,
 		fakePodStatusProvider,
 		nil)
 
-	m.runner = lcHanlder
+	m.runner = lcHandler
 
 	// Configured and works as expected
 	t.Run("PreStop-CMDExec", func(t *testing.T) {

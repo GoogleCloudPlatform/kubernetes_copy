@@ -335,7 +335,7 @@ func regenerateHints(pod *v1.Pod, ctn *v1.Container, ctnBlocks []state.Block, re
 }
 
 func getPodRequestedResources(pod *v1.Pod) (map[v1.ResourceName]uint64, error) {
-	// Maximun resources requested by init containers at any given time.
+	// Maximum resources requested by init containers at any given time.
 	reqRsrcsByInitCtrs := make(map[v1.ResourceName]uint64)
 	// Total resources requested by restartable init containers.
 	reqRsrcsByRestartableInitCtrs := make(map[v1.ResourceName]uint64)

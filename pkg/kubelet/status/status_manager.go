@@ -209,7 +209,7 @@ func (m *manager) Start() {
 	if utilfeature.DefaultFeatureGate.Enabled(features.InPlacePodVerticalScaling) {
 		stateImpl, err := state.NewStateCheckpoint(m.stateFileDirectory, podStatusManagerStateFile)
 		if err != nil {
-			// This is a crictical, non-recoverable failure.
+			// This is a critical, non-recoverable failure.
 			klog.ErrorS(err, "Could not initialize pod allocation checkpoint manager, please drain node and remove policy state file")
 			panic(err)
 		}
@@ -987,7 +987,7 @@ func (m *manager) canBeDeleted(pod *v1.Pod, status v1.PodStatus, podIsFinished b
 // needsReconcile compares the given status with the status in the pod manager (which
 // in fact comes from apiserver), returns whether the status needs to be reconciled with
 // the apiserver. Now when pod status is inconsistent between apiserver and kubelet,
-// kubelet should forcibly send an update to reconcile the inconsistence, because kubelet
+// kubelet should forcibly send an update to reconcile the inconsistency, because kubelet
 // should be the source of truth of pod status.
 // NOTE(random-liu): It's simpler to pass in mirror pod uid and get mirror pod by uid, but
 // now the pod manager only supports getting mirror pod by static pod, so we have to pass
@@ -1129,7 +1129,7 @@ func mergePodStatus(oldPodStatus, newPodStatus v1.PodStatus, couldHaveRunningCon
 	// pod reuses an exclusive resource (unmount -> free -> mount), which means we do not
 	// need wait for those resources to be detached by the Kubelet. In general, resources
 	// the Kubelet exclusively owns must be released prior to a pod being reported terminal,
-	// while resources that have participanting components above the API use the pod's
+	// while resources that have participating components above the API use the pod's
 	// transition to a terminal phase (or full deletion) to release those resources.
 	if transitioningToTerminalPhase {
 		if couldHaveRunningContainers {

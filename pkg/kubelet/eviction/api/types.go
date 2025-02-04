@@ -34,11 +34,11 @@ const (
 	SignalNodeFsInodesFree Signal = "nodefs.inodesFree"
 	// SignalImageFsAvailable is amount of storage available on filesystem that container runtime uses for storing images layers.
 	// If the container filesystem and image filesystem are not separate,
-	// than imagefs can store both image layers and writeable layers.
+	// then imagefs can store both image layers and writeable layers.
 	SignalImageFsAvailable Signal = "imagefs.available"
 	// SignalImageFsInodesFree is amount of inodes available on filesystem that container runtime uses for storing images layers.
 	// If the container filesystem and image filesystem are not separate,
-	// than imagefs can store both image layers and writeable layers.
+	// then imagefs can store both image layers and writeable layers.
 	SignalImageFsInodesFree Signal = "imagefs.inodesFree"
 	// SignalContainerFsAvailable is amount of storage available on filesystem that container runtime uses for container writable layers.
 	// In case of a single filesystem, containerfs=nodefs.

@@ -292,7 +292,7 @@ func TestFindAndAddNewPods_FindAndRemoveDeletedPods(t *testing.T) {
 
 	// findAndRemoveDeletedPods() above must detect orphaned pod and delete it from the map
 	if _, ok := dswp.pods.processedPods[podName]; ok {
-		t.Fatalf("Failed to remove orphanded pods from internal map")
+		t.Fatalf("Failed to remove orphaned pods from internal map")
 	}
 
 	volumeExists := dswp.desiredStateOfWorld.VolumeExists(expectedVolumeName, "" /* SELinuxContext */)

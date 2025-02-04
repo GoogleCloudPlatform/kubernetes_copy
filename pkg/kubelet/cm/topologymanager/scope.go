@@ -43,7 +43,7 @@ type Scope interface {
 	GetPolicy() Policy
 	Admit(pod *v1.Pod) lifecycle.PodAdmitResult
 	// AddHintProvider adds a hint provider to manager to indicate the hint provider
-	// wants to be consoluted with when making topology hints
+	// wants to be consulted with when making topology hints
 	AddHintProvider(h HintProvider)
 	// AddContainer adds pod to Manager for tracking
 	AddContainer(pod *v1.Pod, container *v1.Container, containerID string)

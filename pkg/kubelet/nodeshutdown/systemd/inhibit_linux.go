@@ -80,7 +80,7 @@ func (bus *DBusCon) CurrentInhibitDelay() (time.Duration, error) {
 	return duration, nil
 }
 
-// InhibitShutdown creates an systemd inhibitor by calling logind's Inhibt() and returns the inhibitor lock
+// InhibitShutdown creates an systemd inhibitor by calling logind's Inhibit() and returns the inhibitor lock
 // see https://www.freedesktop.org/wiki/Software/systemd/inhibit/ for more details.
 func (bus *DBusCon) InhibitShutdown() (InhibitLock, error) {
 	obj := bus.SystemBus.Object(logindService, logindObject)

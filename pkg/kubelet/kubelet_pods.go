@@ -685,7 +685,7 @@ func (kl *Kubelet) getServiceEnvVarMap(ns string, enableServiceLinks bool) (map[
 		}
 		serviceName := service.Name
 
-		// We always want to add environment variabled for master services
+		// We always want to add environment variables for master services
 		// from the default namespace, even if enableServiceLinks is false.
 		// We also add environment variables for other services in the same
 		// namespace, if enableServiceLinks is true.
@@ -989,7 +989,7 @@ func (kl *Kubelet) killPod(ctx context.Context, pod *v1.Pod, p kubecontainer.Pod
 	return nil
 }
 
-// makePodDataDirs creates the dirs for the pod datas.
+// makePodDataDirs creates the dirs for the pod data.
 func (kl *Kubelet) makePodDataDirs(pod *v1.Pod) error {
 	uid := pod.UID
 	if err := os.MkdirAll(kl.getPodDir(uid), 0750); err != nil && !os.IsExist(err) {
@@ -1907,7 +1907,7 @@ func (kl *Kubelet) generateAPIPodStatus(pod *v1.Pod, podStatus *kubecontainer.Po
 	}
 
 	// copy over the pod disruption conditions from state which is already
-	// updated during the eviciton (due to either node resource pressure or
+	// updated during the eviction (due to either node resource pressure or
 	// node graceful shutdown). We do not re-generate the conditions based
 	// on the container statuses as they are added based on one-time events.
 	cType := v1.DisruptionTarget

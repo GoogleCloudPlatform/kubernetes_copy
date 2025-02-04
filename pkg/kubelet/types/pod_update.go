@@ -55,7 +55,7 @@ const (
 
 // These constants identify the sources of pods.
 const (
-	// Filesource idenitified updates from a file.
+	// FileSource identifies updates from a file.
 	FileSource = "file"
 	// HTTPSource identifies updates from querying a web page.
 	HTTPSource = "http"
@@ -170,9 +170,9 @@ func IsCriticalPod(pod *v1.Pod) bool {
 	return false
 }
 
-// Preemptable returns true if preemptor pod can preempt preemptee pod
+// Preemptible returns true if preemptor pod can preempt preemptee pod
 // if preemptee is not critical or if preemptor's priority is greater than preemptee's priority
-func Preemptable(preemptor, preemptee *v1.Pod) bool {
+func Preemptible(preemptor, preemptee *v1.Pod) bool {
 	if IsCriticalPod(preemptor) && !IsCriticalPod(preemptee) {
 		return true
 	}

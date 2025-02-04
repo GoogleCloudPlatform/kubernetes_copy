@@ -1696,7 +1696,7 @@ func TestMetricMethodBuckets(t *testing.T) {
 }
 
 func TestDebuggingDisabledHandlers(t *testing.T) {
-	// for backward compatibility even if enablesystemLogHandler or enableProfilingHandler is set but not
+	// for backward compatibility even if enableSystemLogHandler or enableProfilingHandler is set but not
 	// enableDebuggingHandler then /logs, /pprof and /flags shouldn't be served.
 	kubeCfg := &kubeletconfiginternal.KubeletConfiguration{
 		EnableDebuggingHandlers: false,

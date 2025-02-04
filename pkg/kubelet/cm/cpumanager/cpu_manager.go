@@ -110,7 +110,7 @@ type manager struct {
 	// representation of state for the system to inspect and reconcile.
 	state state.State
 
-	// lastUpdatedstate holds state for each container from the last time it was updated.
+	// lastUpdateState holds state for each container from the last time it was updated.
 	lastUpdateState state.State
 
 	// containerRuntime is the container runtime service interface needed

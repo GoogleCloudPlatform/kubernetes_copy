@@ -424,7 +424,7 @@ func TestCacheInvalidation(t *testing.T) {
 	assert.Len(t, actions, 2, "unexpected actions")
 	fakeClient.ClearActions()
 
-	// Create a new pod that is refencing the first three secrets - those should
+	// Create a new pod that is referencing the first three secrets - those should
 	// be invalidated.
 	manager.RegisterPod(podWithSecrets("ns1", "name2", s1))
 	store.Get("ns1", "s1")

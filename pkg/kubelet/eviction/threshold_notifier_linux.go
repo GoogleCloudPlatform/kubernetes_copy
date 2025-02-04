@@ -193,7 +193,7 @@ func (n *linuxCgroupNotifier) Stop() {
 	close(n.stop)
 }
 
-// disabledThresholdNotifier is a fake diasbled threshold notifier that performs no-ops.
+// disabledThresholdNotifier is a fake disabled threshold notifier that performs no-ops.
 type disabledThresholdNotifier struct{}
 
 func (*disabledThresholdNotifier) Start(_ chan<- struct{}) {}

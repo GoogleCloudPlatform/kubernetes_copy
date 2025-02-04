@@ -280,7 +280,7 @@ func TestIsCriticalPod(t *testing.T) {
 	}
 }
 
-func TestPreemptable(t *testing.T) {
+func TestPreemptible(t *testing.T) {
 	tests := []struct {
 		name      string
 		preemptor *v1.Pod
@@ -326,7 +326,7 @@ func TestPreemptable(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			isPreemtable := Preemptable(test.preemptor, test.preemptee)
+			isPreemtable := Preemptible(test.preemptor, test.preemptee)
 			assert.Equal(t, test.expected, isPreemtable)
 		})
 	}

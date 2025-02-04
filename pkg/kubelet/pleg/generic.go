@@ -42,7 +42,7 @@ import (
 //
 // Note that GenericPLEG assumes that a container would not be created,
 // terminated, and garbage collected within one relist period. If such an
-// incident happens, GenenricPLEG would miss all events regarding this
+// incident happens, GenericPLEG would miss all events regarding this
 // container. In the case of relisting failure, the window may become longer.
 // Note that this assumption is not unique -- many kubelet internal components
 // rely on terminated containers as tombstones for bookkeeping purposes. The

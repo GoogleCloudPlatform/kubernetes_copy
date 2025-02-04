@@ -848,7 +848,7 @@ func TestGarbageCollectImageMaxAgeDisabled(t *testing.T) {
 	assert.Len(images, 1)
 	assert.Len(fakeRuntime.ImageList, 2)
 
-	// Move clock by a lot, and the images should continue to not be garbage colleced
+	// Move clock by a lot, and the images should continue to not be garbage collected
 	// See https://stackoverflow.com/questions/25065055/what-is-the-maximum-time-time-in-go
 	fakeClock.SetTime(time.Unix(1<<63-62135596801, 999999999))
 	images, err = manager.freeOldImages(ctx, images, fakeClock.Now(), oldStartTime)

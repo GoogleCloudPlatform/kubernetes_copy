@@ -208,7 +208,7 @@ func (m *manager) Start(activePods ActivePodsFunc, sourcesReady config.SourcesRe
 	return nil
 }
 
-// AddContainer saves the value of requested memory for the guaranteed pod under the state and set memory affinity according to the topolgy manager
+// AddContainer saves the value of requested memory for the guaranteed pod under the state and set memory affinity according to the topology manager
 func (m *manager) AddContainer(pod *v1.Pod, container *v1.Container, containerID string) {
 	m.Lock()
 	defer m.Unlock()

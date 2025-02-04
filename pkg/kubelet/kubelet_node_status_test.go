@@ -522,7 +522,7 @@ func TestUpdateExistingNodeStatus(t *testing.T) {
 
 	for i, cond := range updatedNode.Status.Conditions {
 		old := metav1.Date(2012, 1, 1, 0, 0, 0, 0, time.UTC).Time
-		// Expect LastHearbeat to be updated to Now, while LastTransitionTime to be the same.
+		// Expect LastHeartbeat to be updated to Now, while LastTransitionTime to be the same.
 		assert.NotEqual(t, old, cond.LastHeartbeatTime.Rfc3339Copy().UTC(), "LastHeartbeatTime for condition %v", cond.Type)
 		assert.EqualValues(t, old, cond.LastTransitionTime.Rfc3339Copy().UTC(), "LastTransitionTime for condition %v", cond.Type)
 
@@ -1034,7 +1034,7 @@ func TestUpdateNodeStatusWithLease(t *testing.T) {
 
 	now = metav1.NewTime(clock.Now()).Rfc3339Copy()
 	for _, cond := range updatedNode.Status.Conditions {
-		// Expect LastHearbeat updated, while LastTransitionTime unchanged.
+		// Expect LastHeartbeat updated, while LastTransitionTime unchanged.
 		assert.Equal(t, now, cond.LastHeartbeatTime.Rfc3339Copy(),
 			"LastHeartbeatTime for condition %v", cond.Type)
 		assert.Equal(t, now, metav1.NewTime(cond.LastTransitionTime.Time.Add(time.Minute+20*time.Second)).Rfc3339Copy(),
@@ -2791,7 +2791,7 @@ func TestNodeStatusHasChanged(t *testing.T) {
 		LastHeartbeatTime:  fakeNow,
 		LastTransitionTime: fakeNow,
 	}
-	readyConditionAtDiffHearbeatTime := v1.NodeCondition{
+	readyConditionAtDiffHeartbeatTime := v1.NodeCondition{
 		Type:               v1.NodeReady,
 		Status:             v1.ConditionTrue,
 		LastHeartbeatTime:  fakeFuture,
@@ -2869,7 +2869,7 @@ func TestNodeStatusHasChanged(t *testing.T) {
 				Conditions: []v1.NodeCondition{readyCondition, memoryPressureCondition},
 			},
 			status: &v1.NodeStatus{
-				Conditions: []v1.NodeCondition{readyConditionAtDiffHearbeatTime, memoryPressureCondition},
+				Conditions: []v1.NodeCondition{readyConditionAtDiffHeartbeatTime, memoryPressureCondition},
 			},
 			expectChange: false,
 		},
@@ -2879,7 +2879,7 @@ func TestNodeStatusHasChanged(t *testing.T) {
 				Conditions: []v1.NodeCondition{readyCondition, memoryPressureCondition},
 			},
 			status: &v1.NodeStatus{
-				Conditions: []v1.NodeCondition{memoryPressureCondition, readyConditionAtDiffHearbeatTime},
+				Conditions: []v1.NodeCondition{memoryPressureCondition, readyConditionAtDiffHeartbeatTime},
 			},
 			expectChange: false,
 		},
