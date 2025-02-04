@@ -61,10 +61,16 @@ const (
 	// storageWatchListPageSize is the cacher's request chunk size of
 	// initial and resync watch lists to storage.
 	storageWatchListPageSize = int64(10000)
+
+	// DefaultEventFreshDuration is the default time duration of events
+	// we want to keep.
+	// We set it to defaultBookmarkFrequency plus epsilon to maximize
+	// chances that last bookmark was sent within kept history, at the
+	// same time, minimizing the needed memory usage.
+	DefaultEventFreshDuration = defaultBookmarkFrequency + 15*time.Second
+
 	// defaultBookmarkFrequency defines how frequently watch bookmarks should be send
 	// in addition to sending a bookmark right before watch deadline.
-	//
-	// NOTE: Update `eventFreshDuration` when changing this value.
 	defaultBookmarkFrequency = time.Minute
 )
 
@@ -79,6 +85,10 @@ type Config struct {
 	// The GroupResource the cacher is caching. Used for disambiguating *unstructured.Unstructured (CRDs) in logging
 	// and metrics.
 	GroupResource schema.GroupResource
+
+	// EventsHistoryWindow specifies minimum history duration that storage is keeping.
+	// If lower than DefaultEventFreshDuration, the cache creation will fail.
+	EventsHistoryWindow time.Duration
 
 	// The Cache will be caching objects of a given Type and assumes that they
 	// are all stored under ResourcePrefix directory in the underlying database.
@@ -409,9 +419,15 @@ func NewCacherFromConfig(config Config) (*Cacher, error) {
 		contextMetadata = metadata.New(map[string]string{"source": "cache"})
 	}
 
+	eventFreshDuration := config.EventsHistoryWindow
+	if eventFreshDuration < DefaultEventFreshDuration {
+		return nil, fmt.Errorf("config.EventsHistoryWindow (%v) must not be below %v", eventFreshDuration, DefaultEventFreshDuration)
+	}
+
 	progressRequester := newConditionalProgressRequester(config.Storage.RequestWatchProgress, config.Clock, contextMetadata)
 	watchCache := newWatchCache(
-		config.KeyFunc, cacher.processEvent, config.GetAttrsFunc, config.Versioner, config.Indexers, config.Clock, config.GroupResource, progressRequester)
+		config.KeyFunc, cacher.processEvent, config.GetAttrsFunc, config.Versioner, config.Indexers,
+		config.Clock, eventFreshDuration, config.GroupResource, progressRequester)
 	listerWatcher := NewListerWatcher(config.Storage, config.ResourcePrefix, config.NewListFunc, contextMetadata)
 	reflectorName := "storage/cacher.go:" + config.ResourcePrefix
 

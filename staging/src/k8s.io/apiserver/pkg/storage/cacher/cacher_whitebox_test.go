@@ -61,11 +61,12 @@ import (
 func newTestCacherWithoutSyncing(s storage.Interface) (*Cacher, storage.Versioner, error) {
 	prefix := "pods"
 	config := Config{
-		Storage:        s,
-		Versioner:      storage.APIObjectVersioner{},
-		GroupResource:  schema.GroupResource{Resource: "pods"},
-		ResourcePrefix: prefix,
-		KeyFunc:        func(obj runtime.Object) (string, error) { return storage.NamespaceKeyFunc(prefix, obj) },
+		Storage:             s,
+		Versioner:           storage.APIObjectVersioner{},
+		GroupResource:       schema.GroupResource{Resource: "pods"},
+		EventsHistoryWindow: DefaultEventFreshDuration,
+		ResourcePrefix:      prefix,
+		KeyFunc:             func(obj runtime.Object) (string, error) { return storage.NamespaceKeyFunc(prefix, obj) },
 		GetAttrsFunc: func(obj runtime.Object) (labels.Set, fields.Set, error) {
 			pod, ok := obj.(*example.Pod)
 			if !ok {
@@ -2616,17 +2617,18 @@ func TestWatchStreamSeparation(t *testing.T) {
 	setupOpts := &setupOptions{}
 	withDefaults(setupOpts)
 	config := Config{
-		Storage:        etcdStorage,
-		Versioner:      storage.APIObjectVersioner{},
-		GroupResource:  schema.GroupResource{Resource: "pods"},
-		ResourcePrefix: setupOpts.resourcePrefix,
-		KeyFunc:        setupOpts.keyFunc,
-		GetAttrsFunc:   GetPodAttrs,
-		NewFunc:        newPod,
-		NewListFunc:    newPodList,
-		IndexerFuncs:   setupOpts.indexerFuncs,
-		Codec:          codecs.LegacyCodec(examplev1.SchemeGroupVersion),
-		Clock:          setupOpts.clock,
+		Storage:             etcdStorage,
+		Versioner:           storage.APIObjectVersioner{},
+		GroupResource:       schema.GroupResource{Resource: "pods"},
+		EventsHistoryWindow: DefaultEventFreshDuration,
+		ResourcePrefix:      setupOpts.resourcePrefix,
+		KeyFunc:             setupOpts.keyFunc,
+		GetAttrsFunc:        GetPodAttrs,
+		NewFunc:             newPod,
+		NewListFunc:         newPodList,
+		IndexerFuncs:        setupOpts.indexerFuncs,
+		Codec:               codecs.LegacyCodec(examplev1.SchemeGroupVersion),
+		Clock:               setupOpts.clock,
 	}
 	tcs := []struct {
 		name                         string

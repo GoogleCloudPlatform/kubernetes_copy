@@ -286,7 +286,7 @@ func TestCacheIntervalNextFromWatchCache(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			wc := newTestWatchCache(capacity, &cache.Indexers{})
+			wc := newTestWatchCache(capacity, DefaultEventFreshDuration, &cache.Indexers{})
 			defer wc.Stop()
 			for i := 0; i < c.eventsAddedToWatchcache; i++ {
 				wc.Add(makeTestPod(fmt.Sprintf("pod%d", i), uint64(i)))

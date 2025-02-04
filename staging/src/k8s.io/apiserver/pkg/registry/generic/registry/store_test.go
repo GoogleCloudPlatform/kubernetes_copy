@@ -2432,15 +2432,16 @@ func newTestGenericStoreRegistry(t *testing.T, scheme *runtime.Scheme, hasCacheE
 	}
 	if hasCacheEnabled {
 		config := cacherstorage.Config{
-			Storage:        s,
-			Versioner:      storage.APIObjectVersioner{},
-			GroupResource:  schema.GroupResource{Resource: "pods"},
-			ResourcePrefix: podPrefix,
-			KeyFunc:        func(obj runtime.Object) (string, error) { return storage.NoNamespaceKeyFunc(podPrefix, obj) },
-			GetAttrsFunc:   getPodAttrs,
-			NewFunc:        newFunc,
-			NewListFunc:    newListFunc,
-			Codec:          sc.Codec,
+			Storage:             s,
+			Versioner:           storage.APIObjectVersioner{},
+			GroupResource:       schema.GroupResource{Resource: "pods"},
+			EventsHistoryWindow: cacherstorage.DefaultEventFreshDuration,
+			ResourcePrefix:      podPrefix,
+			KeyFunc:             func(obj runtime.Object) (string, error) { return storage.NoNamespaceKeyFunc(podPrefix, obj) },
+			GetAttrsFunc:        getPodAttrs,
+			NewFunc:             newFunc,
+			NewListFunc:         newListFunc,
+			Codec:               sc.Codec,
 		}
 		cacher, err := cacherstorage.NewCacherFromConfig(config)
 		if err != nil {

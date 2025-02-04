@@ -54,17 +54,18 @@ func StorageWithCacher() generic.StorageDecorator {
 		}
 
 		cacherConfig := cacherstorage.Config{
-			Storage:        s,
-			Versioner:      storage.APIObjectVersioner{},
-			GroupResource:  storageConfig.GroupResource,
-			ResourcePrefix: resourcePrefix,
-			KeyFunc:        keyFunc,
-			NewFunc:        newFunc,
-			NewListFunc:    newListFunc,
-			GetAttrsFunc:   getAttrsFunc,
-			IndexerFuncs:   triggerFuncs,
-			Indexers:       indexers,
-			Codec:          storageConfig.Codec,
+			Storage:             s,
+			Versioner:           storage.APIObjectVersioner{},
+			GroupResource:       storageConfig.GroupResource,
+			EventsHistoryWindow: storageConfig.EventsHistoryWindow,
+			ResourcePrefix:      resourcePrefix,
+			KeyFunc:             keyFunc,
+			NewFunc:             newFunc,
+			NewListFunc:         newListFunc,
+			GetAttrsFunc:        getAttrsFunc,
+			IndexerFuncs:        triggerFuncs,
+			Indexers:            indexers,
+			Codec:               storageConfig.Codec,
 		}
 		cacher, err := cacherstorage.NewCacherFromConfig(cacherConfig)
 		if err != nil {

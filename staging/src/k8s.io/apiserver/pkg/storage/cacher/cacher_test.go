@@ -444,6 +444,7 @@ func testSetupWithEtcdServer(t *testing.T, opts ...setupOption) (context.Context
 		Storage:        wrappedStorage,
 		Versioner:      storage.APIObjectVersioner{},
 		GroupResource:  schema.GroupResource{Resource: "pods"},
+		EventsHistoryWindow: DefaultEventFreshDuration,
 		ResourcePrefix: setupOpts.resourcePrefix,
 		KeyFunc:        setupOpts.keyFunc,
 		GetAttrsFunc:   GetPodAttrs,

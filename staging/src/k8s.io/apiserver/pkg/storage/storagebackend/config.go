@@ -37,6 +37,7 @@ const (
 
 	DefaultCompactInterval      = 5 * time.Minute
 	DefaultDBMetricPollInterval = 30 * time.Second
+	DefaultEventsHistoryWindow  = 75 * time.Second
 	DefaultHealthcheckTimeout   = 2 * time.Second
 	DefaultReadinessTimeout     = 2 * time.Second
 )
@@ -80,6 +81,8 @@ type Config struct {
 	CountMetricPollPeriod time.Duration
 	// DBMetricPollInterval specifies how often should storage backend metric be updated.
 	DBMetricPollInterval time.Duration
+	// EventsHistoryWindow specifies minimum history duration that storage is keeping.
+	EventsHistoryWindow time.Duration
 	// HealthcheckTimeout specifies the timeout used when checking health
 	HealthcheckTimeout time.Duration
 	// ReadycheckTimeout specifies the timeout used when checking readiness
@@ -115,6 +118,7 @@ func NewDefaultConfig(prefix string, codec runtime.Codec) *Config {
 		Codec:                codec,
 		CompactionInterval:   DefaultCompactInterval,
 		DBMetricPollInterval: DefaultDBMetricPollInterval,
+		EventsHistoryWindow:  DefaultEventsHistoryWindow,
 		HealthcheckTimeout:   DefaultHealthcheckTimeout,
 		ReadycheckTimeout:    DefaultReadinessTimeout,
 		LeaseManagerConfig:   etcd3.NewDefaultLeaseManagerConfig(),

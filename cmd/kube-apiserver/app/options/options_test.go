@@ -175,6 +175,7 @@ func TestAddFlags(t *testing.T) {
 					CompactionInterval:    storagebackend.DefaultCompactInterval,
 					CountMetricPollPeriod: time.Minute,
 					DBMetricPollInterval:  storagebackend.DefaultDBMetricPollInterval,
+					EventsHistoryWindow:   storagebackend.DefaultEventsHistoryWindow,
 					HealthcheckTimeout:    storagebackend.DefaultHealthcheckTimeout,
 					ReadycheckTimeout:     storagebackend.DefaultReadinessTimeout,
 					LeaseManagerConfig: etcd3.LeaseManagerConfig{

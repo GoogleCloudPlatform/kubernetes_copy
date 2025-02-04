@@ -215,6 +215,16 @@ func (o *Options) Complete(alternateDNS []string, alternateIPs []net.IP) (Comple
 		return CompletedOptions{}, fmt.Errorf("error creating self-signed certificates: %v", err)
 	}
 
+	if o.GenericServerRunOptions.RequestTimeout > 0 {
+		// Setting the EventsHistoryWindow as a maximum of the value set in the
+		// watchcache-specific options and the value of the request timeout plus
+		// some epsilon.
+		// This is done to make sure that the list+watch pattern can still be
+		// usable in large clusters with the elevated request timeout where the
+		// initial list can take a considerable amount of time.
+		completed.Etcd.StorageConfig.EventsHistoryWindow = max(completed.Etcd.StorageConfig.EventsHistoryWindow, completed.GenericServerRunOptions.RequestTimeout+15*time.Second)
+	}
+
 	if len(completed.GenericServerRunOptions.ExternalHost) == 0 {
 		if len(completed.GenericServerRunOptions.AdvertiseAddress) > 0 {
 			completed.GenericServerRunOptions.ExternalHost = completed.GenericServerRunOptions.AdvertiseAddress.String()
