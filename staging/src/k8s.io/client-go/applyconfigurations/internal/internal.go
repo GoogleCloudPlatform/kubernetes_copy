@@ -6500,6 +6500,9 @@ var schemaYAML = typed.YAMLObject(`types:
       type:
         scalar: string
       default: ""
+    - name: swapInfo
+      type:
+        namedType: io.k8s.api.core.v1.SwapInfo
     - name: systemUUID
       type:
         scalar: string
@@ -8236,6 +8239,12 @@ var schemaYAML = typed.YAMLObject(`types:
     - name: volumeNamespace
       type:
         scalar: string
+- name: io.k8s.api.core.v1.SwapInfo
+  map:
+    fields:
+    - name: capacity
+      type:
+        scalar: numeric
 - name: io.k8s.api.core.v1.Sysctl
   map:
     fields:

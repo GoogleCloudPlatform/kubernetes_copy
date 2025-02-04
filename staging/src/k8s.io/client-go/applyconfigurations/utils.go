@@ -1000,6 +1000,8 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &applyconfigurationscorev1.StorageOSPersistentVolumeSourceApplyConfiguration{}
 	case corev1.SchemeGroupVersion.WithKind("StorageOSVolumeSource"):
 		return &applyconfigurationscorev1.StorageOSVolumeSourceApplyConfiguration{}
+	case corev1.SchemeGroupVersion.WithKind("SwapInfo"):
+		return &applyconfigurationscorev1.SwapInfoApplyConfiguration{}
 	case corev1.SchemeGroupVersion.WithKind("Sysctl"):
 		return &applyconfigurationscorev1.SysctlApplyConfiguration{}
 	case corev1.SchemeGroupVersion.WithKind("Taint"):
