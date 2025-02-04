@@ -2,7 +2,9 @@
 
 module k8s.io/cli-runtime
 
-go 1.22.0
+go 1.23.0
+
+godebug default=go1.22
 
 require (
 	github.com/google/gnostic-models v0.6.8

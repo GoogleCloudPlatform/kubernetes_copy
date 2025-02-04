@@ -1,6 +1,8 @@
 // This is a hack, but it prevents go from climbing further and trying to
 // reconcile the various deps across the "real" modules and this one.
 
-go 1.22.0
+go 1.23.0
+
+godebug default=go1.22
 
 use .

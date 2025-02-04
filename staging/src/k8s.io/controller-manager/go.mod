@@ -2,7 +2,9 @@
 
 module k8s.io/controller-manager
 
-go 1.22.0
+go 1.23.0
+
+godebug default=go1.22
 
 require (
 	github.com/spf13/pflag v1.0.5

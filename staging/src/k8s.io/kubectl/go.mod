@@ -2,7 +2,9 @@
 
 module k8s.io/kubectl
 
-go 1.22.0
+go 1.23.0
+
+godebug default=go1.22
 
 require (
 	github.com/MakeNowJust/heredoc v1.0.0

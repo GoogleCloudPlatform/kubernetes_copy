@@ -1,6 +1,8 @@
 module k8s.io/kubernetes/hack/tools
 
-go 1.22.1
+go 1.23.0
+
+godebug default=go1.22
 
 require (
 	github.com/aojea/sloppy-netparser v0.0.0-20210819225411-1b3bd8b3b975

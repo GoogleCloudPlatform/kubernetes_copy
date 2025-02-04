@@ -2,7 +2,9 @@
 
 module k8s.io/pod-security-admission
 
-go 1.22.0
+go 1.23.0
+
+godebug default=go1.22
 
 require (
 	github.com/blang/semver/v4 v4.0.0

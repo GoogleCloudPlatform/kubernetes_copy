@@ -2,7 +2,9 @@
 
 module k8s.io/kube-aggregator
 
-go 1.22.0
+go 1.23.0
+
+godebug default=go1.22
 
 require (
 	github.com/emicklei/go-restful/v3 v3.11.0

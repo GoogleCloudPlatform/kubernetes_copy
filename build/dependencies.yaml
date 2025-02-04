@@ -116,7 +116,7 @@ dependencies:
 
   # Golang
   - name: "golang: upstream version"
-    version: 1.22.10
+    version: 1.23.4
     refPaths:
     - path: .go-version
     - path: build/build-image/cross/VERSION
@@ -131,7 +131,7 @@ dependencies:
   # This entry is a stub of the major version to allow dependency checks to
   # pass when building Kubernetes using a pre-release of Golang.
   - name: "golang: 1.<major>"
-    version: 1.22
+    version: 1.23
     refPaths:
     - path: build/build-image/cross/VERSION
     - path: hack/lib/golang.sh
