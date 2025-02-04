@@ -650,7 +650,7 @@ func TestCSILimits(t *testing.T) {
 			}
 			if gotPreFilterStatus.Code() != framework.Skip {
 				gotStatus := p.Filter(ctx, nil, test.newPod, node)
-				if diff := cmp.Diff(gotStatus, test.wantStatus, cmpOpts...); diff != "" {
+				if diff := cmp.Diff(test.wantStatus, gotStatus, cmpOpts...); diff != "" {
 					t.Errorf("Filter status does not match (-want, +got):\n%s", diff)
 				}
 			}

@@ -92,7 +92,7 @@ func TestNodeUnschedulable(t *testing.T) {
 			t.Fatalf("creating plugin: %v", err)
 		}
 		gotStatus := p.(framework.FilterPlugin).Filter(ctx, nil, test.pod, nodeInfo)
-		if diff := cmp.Diff(gotStatus, test.wantStatus, cmpOpts...); diff != "" {
+		if diff := cmp.Diff(test.wantStatus, gotStatus, cmpOpts...); diff != "" {
 			t.Errorf("status does not match (-want,+got):\n%s", diff)
 		}
 	}

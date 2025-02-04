@@ -1003,7 +1003,7 @@ func TestSchedulerNoPhantomPodAfterDelete(t *testing.T) {
 			Target:     v1.ObjectReference{Kind: "Node", Name: node.Name},
 		}
 		if diff := cmp.Diff(expectBinding, b); diff != "" {
-			t.Errorf("binding want=%v, get=%v", expectBinding, b)
+			t.Errorf("unexpected binding (-want,+got):\n%s", diff)
 		}
 	case <-time.After(wait.ForeverTestTimeout):
 		t.Fatalf("timeout in binding after %v", wait.ForeverTestTimeout)
@@ -2674,7 +2674,7 @@ func TestSchedulerSchedulePod(t *testing.T) {
 						t.Errorf("Unexpected fitErr for map (-want, +got):\n%s", diff)
 					}
 					if diff := nodeToStatusDiff(wantFitErr.Diagnosis.NodeToStatus, gotFitErr.Diagnosis.NodeToStatus); diff != "" {
-						t.Errorf("Unexpected nodeToStatus within fitErr for map: (-want, +got): %s", diff)
+						t.Errorf("Unexpected nodeToStatus within fitErr for map: (-want, +got):\n%s", diff)
 					}
 				}
 			}
@@ -2728,11 +2728,11 @@ func TestFindFitAllError(t *testing.T) {
 		}, framework.NewStatus(framework.UnschedulableAndUnresolvable)),
 		UnschedulablePlugins: sets.New("MatchFilter"),
 	}
-	if diff := cmp.Diff(diagnosis, expected, schedulerCmpOpts...); diff != "" {
+	if diff := cmp.Diff(expected, diagnosis, schedulerCmpOpts...); diff != "" {
 		t.Errorf("Unexpected diagnosis (-want, +got):\n%s", diff)
 	}
-	if diff := nodeToStatusDiff(diagnosis.NodeToStatus, expected.NodeToStatus); diff != "" {
-		t.Errorf("Unexpected nodeToStatus within diagnosis: (-want, +got): %s", diff)
+	if diff := nodeToStatusDiff(expected.NodeToStatus, diagnosis.NodeToStatus); diff != "" {
+		t.Errorf("Unexpected nodeToStatus within diagnosis: (-want, +got):\n%s", diff)
 	}
 }
 
@@ -2770,7 +2770,7 @@ func TestFindFitSomeError(t *testing.T) {
 	}
 
 	if diff := cmp.Diff(sets.New("MatchFilter"), diagnosis.UnschedulablePlugins); diff != "" {
-		t.Errorf("Unexpected unschedulablePlugins: (-want, +got): %s", diagnosis.UnschedulablePlugins)
+		t.Errorf("Unexpected unschedulablePlugins: (-want, +got): \n%s", diff)
 	}
 
 	for _, node := range nodes {

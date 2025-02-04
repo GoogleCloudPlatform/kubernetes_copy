@@ -1871,7 +1871,7 @@ func TestPodInfoCalculateResources(t *testing.T) {
 			}
 			res := podInfo.calculateResource()
 			if diff := cmp.Diff(tc.expectedResource, res, cmpOpts...); diff != "" {
-				t.Errorf("Unexpected resource (-want,+got):%s\n", diff)
+				t.Errorf("Unexpected resource (-want,+got):\n%s", diff)
 			}
 		})
 	}

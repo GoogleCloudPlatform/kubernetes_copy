@@ -593,12 +593,12 @@ func TestEnoughRequests(t *testing.T) {
 			}
 
 			gotStatus := p.(framework.FilterPlugin).Filter(ctx, cycleState, test.pod, test.nodeInfo)
-			if diff := cmp.Diff(gotStatus, test.wantStatus, cmpOpts...); diff != "" {
+			if diff := cmp.Diff(test.wantStatus, gotStatus, cmpOpts...); diff != "" {
 				t.Errorf("status does not match (-want,+got):\n%s", diff)
 			}
 
 			gotInsufficientResources := fitsRequest(computePodResourceRequest(test.pod, ResourceRequestsOptions{EnablePodLevelResources: test.podLevelResourcesEnabled}), test.nodeInfo, p.(*Fit).ignoredResources, p.(*Fit).ignoredResourceGroups)
-			if diff := cmp.Diff(gotInsufficientResources, test.wantInsufficientResources, cmpOpts...); diff != "" {
+			if diff := cmp.Diff(test.wantInsufficientResources, gotInsufficientResources, cmpOpts...); diff != "" {
 				t.Errorf("insufficient resources do not match (-want,+got):\n%s", diff)
 			}
 		})
@@ -620,7 +620,7 @@ func TestPreFilterDisabled(t *testing.T) {
 	cycleState := framework.NewCycleState()
 	gotStatus := p.(framework.FilterPlugin).Filter(ctx, cycleState, pod, nodeInfo)
 	wantStatus := framework.AsStatus(fmt.Errorf(`error reading "PreFilterNodeResourcesFit" from cycleState: %w`, framework.ErrNotFound))
-	if diff := cmp.Diff(gotStatus, wantStatus, cmpOpts...); diff != "" {
+	if diff := cmp.Diff(wantStatus, gotStatus, cmpOpts...); diff != "" {
 		t.Errorf("status does not match (-want,+got):\n%s", diff)
 	}
 }
@@ -677,7 +677,7 @@ func TestNotEnoughRequests(t *testing.T) {
 			}
 
 			gotStatus := p.(framework.FilterPlugin).Filter(ctx, cycleState, test.pod, test.nodeInfo)
-			if diff := cmp.Diff(gotStatus, test.wantStatus, cmpOpts...); diff != "" {
+			if diff := cmp.Diff(test.wantStatus, gotStatus, cmpOpts...); diff != "" {
 				t.Errorf("status does not match (-want,+got):\n%s", diff)
 			}
 		})
@@ -738,7 +738,7 @@ func TestStorageRequests(t *testing.T) {
 			}
 
 			gotStatus := p.(framework.FilterPlugin).Filter(ctx, cycleState, test.pod, test.nodeInfo)
-			if diff := cmp.Diff(gotStatus, test.wantStatus, cmpOpts...); diff != "" {
+			if diff := cmp.Diff(test.wantStatus, gotStatus, cmpOpts...); diff != "" {
 				t.Errorf("status does not match (-want,+got):\n%s", diff)
 			}
 		})

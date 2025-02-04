@@ -371,7 +371,7 @@ func TestSchedulerWithExtenders(t *testing.T) {
 					return
 				}
 
-				if diff := cmp.Diff(result, test.expectedResult, scheduleResultCmpOpts...); diff != "" {
+				if diff := cmp.Diff(test.expectedResult, result, scheduleResultCmpOpts...); diff != "" {
 					t.Errorf("Unexpected result: (-want, +got):\n%s", diff)
 				}
 			}
@@ -487,7 +487,7 @@ func TestConvertToMetaVictims(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := convertToMetaVictims(tt.nodeNameToVictims)
-			if diff := cmp.Diff(got, tt.want); diff != "" {
+			if diff := cmp.Diff(tt.want, got); diff != "" {
 				t.Errorf("Unexpected convertToMetaVictims(): (-want, +got):\n%s", diff)
 			}
 		})
@@ -569,7 +569,7 @@ func TestConvertToVictims(t *testing.T) {
 				t.Errorf("convertToVictims() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if diff := cmp.Diff(got, tt.want); diff != "" {
+			if diff := cmp.Diff(tt.want, got); diff != "" {
 				t.Errorf("Unexpected convertToVictims(): (-want, +got):\n%s", diff)
 			}
 		})
