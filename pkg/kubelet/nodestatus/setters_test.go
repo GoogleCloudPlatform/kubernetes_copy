@@ -49,6 +49,7 @@ import (
 	"k8s.io/kubernetes/pkg/kubelet/events"
 	"k8s.io/kubernetes/pkg/kubelet/util/sliceutils"
 	netutils "k8s.io/utils/net"
+	"k8s.io/utils/ptr"
 )
 
 const (
@@ -1327,6 +1328,32 @@ func TestMachineInfo(t *testing.T) {
 					eventType: v1.EventTypeWarning,
 					event:     events.NodeRebooted,
 					message:   fmt.Sprintf("Node %s has been rebooted, boot id: %s", nodeName, "bar"),
+				},
+			},
+		},
+		{
+			desc: "with swap info",
+			node: &v1.Node{},
+			machineInfo: &cadvisorapiv1.MachineInfo{
+				SwapCapacity: uint64(20 * 1024 * 1024 * 1024),
+			},
+			expectNode: &v1.Node{
+				Status: v1.NodeStatus{
+					NodeInfo: v1.NodeSystemInfo{
+						SwapInfo: &v1.SwapInfo{
+							Capacity: ptr.To(int64(20 * 1024 * 1024 * 1024)),
+						},
+					},
+					Capacity: v1.ResourceList{
+						v1.ResourceCPU:    *resource.NewMilliQuantity(0, resource.DecimalSI),
+						v1.ResourceMemory: *resource.NewQuantity(0, resource.BinarySI),
+						v1.ResourcePods:   *resource.NewQuantity(0, resource.DecimalSI),
+					},
+					Allocatable: v1.ResourceList{
+						v1.ResourceCPU:    *resource.NewMilliQuantity(0, resource.DecimalSI),
+						v1.ResourceMemory: *resource.NewQuantity(0, resource.BinarySI),
+						v1.ResourcePods:   *resource.NewQuantity(0, resource.DecimalSI),
+					},
 				},
 			},
 		},
