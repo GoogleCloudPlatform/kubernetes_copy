@@ -74,6 +74,9 @@ type Controller struct {
 	// adminAccessEnabled matches the DRAAdminAccess feature gate state.
 	adminAccessEnabled bool
 
+	// prioritizedListEnabled matchs the DRAPrioritizedList feature gate state.
+	prioritizedListEnabled bool
+
 	// kubeClient is the kube API client used to communicate with the API
 	// server.
 	kubeClient clientset.Interface
@@ -118,25 +121,32 @@ const (
 	podKeyPrefix   = "pod:"
 )
 
+// Features defines which features should be enabled in the controller.
+type Features struct {
+	AdminAccess     bool
+	PrioritizedList bool
+}
+
 // NewController creates a ResourceClaim controller.
 func NewController(
 	logger klog.Logger,
-	adminAccessEnabled bool,
+	features Features,
 	kubeClient clientset.Interface,
 	podInformer v1informers.PodInformer,
 	claimInformer resourceinformers.ResourceClaimInformer,
 	templateInformer resourceinformers.ResourceClaimTemplateInformer) (*Controller, error) {
 
 	ec := &Controller{
-		adminAccessEnabled: adminAccessEnabled,
-		kubeClient:         kubeClient,
-		podLister:          podInformer.Lister(),
-		podIndexer:         podInformer.Informer().GetIndexer(),
-		podSynced:          podInformer.Informer().HasSynced,
-		claimLister:        claimInformer.Lister(),
-		claimsSynced:       claimInformer.Informer().HasSynced,
-		templateLister:     templateInformer.Lister(),
-		templatesSynced:    templateInformer.Informer().HasSynced,
+		adminAccessEnabled:     features.AdminAccess,
+		prioritizedListEnabled: features.PrioritizedList,
+		kubeClient:             kubeClient,
+		podLister:              podInformer.Lister(),
+		podIndexer:             podInformer.Informer().GetIndexer(),
+		podSynced:              podInformer.Informer().HasSynced,
+		claimLister:            claimInformer.Lister(),
+		claimsSynced:           claimInformer.Informer().HasSynced,
+		templateLister:         templateInformer.Lister(),
+		templatesSynced:        templateInformer.Informer().HasSynced,
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
 			workqueue.DefaultTypedControllerRateLimiter[string](),
 			workqueue.TypedRateLimitingQueueConfig[string]{Name: "resource_claim"},
@@ -621,6 +631,10 @@ func (ec *Controller) handleClaim(ctx context.Context, pod *v1.Pod, podClaim v1.
 			return errors.New("admin access is requested, but the feature is disabled")
 		}
 
+		if !ec.prioritizedListEnabled && hasPrioritizedList(template) {
+			return errors.New("template includes a prioritized list of subrequests, but the feature is disabled")
+		}
+
 		// Create the ResourceClaim with pod as owner, with a generated name that uses
 		// <pod>-<claim name> as base.
 		isTrue := true
@@ -682,6 +696,15 @@ func (ec *Controller) handleClaim(ctx context.Context, pod *v1.Pod, podClaim v1.
 func needsAdminAccess(claimTemplate *resourceapi.ResourceClaimTemplate) bool {
 	for _, request := range claimTemplate.Spec.Spec.Devices.Requests {
 		if ptr.Deref(request.AdminAccess, false) {
+			return true
+		}
+	}
+	return false
+}
+
+func hasPrioritizedList(claimTemplate *resourceapi.ResourceClaimTemplate) bool {
+	for _, request := range claimTemplate.Spec.Spec.Devices.Requests {
+		if len(request.FirstAvailable) > 0 {
 			return true
 		}
 	}
