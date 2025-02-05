@@ -17,10 +17,12 @@ limitations under the License.
 package websocket
 
 import (
+	"context"
 	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -74,6 +76,10 @@ type RoundTripper struct {
 	// If Proxy is nil or returns a nil *URL, no proxy is used.
 	Proxier func(req *http.Request) (*url.URL, error)
 
+	// Dial specifies a function to use to dial TCP connections.
+	// If not specified, net.Dial is used.
+	Dial func(context.Context, string, string) (net.Conn, error)
+
 	// Conn holds the WebSocket connection after a round trip.
 	Conn *gwebsocket.Conn
 }
@@ -111,6 +117,7 @@ func (rt *RoundTripper) RoundTrip(request *http.Request) (retResp *http.Response
 	delete(request.Header, wsstream.WebSocketProtocolHeader)
 
 	dialer := gwebsocket.Dialer{
+		NetDialContext:  rt.Dial,
 		Proxy:           rt.Proxier,
 		TLSClientConfig: rt.TLSConfig,
 		Subprotocols:    protocolVersions,
@@ -195,6 +202,7 @@ func RoundTripperFor(config *restclient.Config) (http.RoundTripper, ConnectionHo
 	}
 
 	upgradeRoundTripper := &RoundTripper{
+		Dial:      config.Dial,
 		TLSConfig: tlsConfig,
 		Proxier:   proxy,
 	}
