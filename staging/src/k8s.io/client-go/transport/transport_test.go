@@ -367,15 +367,16 @@ func TestNew(t *testing.T) {
 				return
 			}
 
+			delegateRT := rt.(*debuggingRoundTripper).delegatedRoundTripper
 			switch {
-			case testCase.Default && rt != http.DefaultTransport:
+			case testCase.Default && delegateRT != http.DefaultTransport:
 				t.Fatalf("got %#v, expected the default transport", rt)
-			case !testCase.Default && rt == http.DefaultTransport:
+			case !testCase.Default && delegateRT == http.DefaultTransport:
 				t.Fatalf("got %#v, expected non-default transport", rt)
 			}
 
 			// We only know how to check TLSConfig on http.Transports
-			transport := rt.(*http.Transport)
+			transport := rt.(*debuggingRoundTripper).delegatedRoundTripper.(*http.Transport)
 			switch {
 			case testCase.TLS && transport.TLSClientConfig == nil:
 				t.Fatalf("got %#v, expected TLSClientConfig", transport)

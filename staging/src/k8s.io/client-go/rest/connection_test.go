@@ -364,7 +364,24 @@ func TestRestClientTimeout(t *testing.T) {
 	if err == nil {
 		t.Fatalf("timeout error expected")
 	}
-	if !strings.Contains(err.Error(), "deadline exceeded") {
+	// Two errors are possible:
+	//
+	// error(*net/url.Error) *{
+	//   Op: "Get",
+	//   URL: "http://127.0.0.1:34051/?timeout=1s",
+	//   Err: error(context.deadlineExceededError) {},
+	// }
+	//
+	// If CancelRequest is active (see https://cs.opensource.google/go/go/+/master:src/net/http/client.go;l=358-367),
+	// then we can also get:
+	// error(*net/url.Error) *{
+	//   Op: "Get",
+	//   URL: "http://127.0.0.1:36249/?timeout=1s",
+	//   Err: error(*net/http.timeoutError) *{
+	//     err: "net/http: request canceled (Client.Timeout exceeded while awaiting headers)",
+	// }}
+	if !strings.Contains(err.Error(), "deadline exceeded") &&
+		!strings.Contains(err.Error(), "request canceled") {
 		t.Fatalf("timeout error expected, received %v", err)
 	}
 }

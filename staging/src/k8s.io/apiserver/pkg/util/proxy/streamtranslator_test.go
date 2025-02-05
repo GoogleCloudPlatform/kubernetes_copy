@@ -948,7 +948,7 @@ func v4WriteStatusFunc(stream io.Writer) func(status *apierrors.StatusError) err
 	}
 }
 
-func fakeTransport() (*http.Transport, error) {
+func fakeTransport() (http.RoundTripper, error) {
 	cfg := &transport.Config{
 		TLS: transport.TLSConfig{
 			Insecure: true,
@@ -959,9 +959,5 @@ func fakeTransport() (*http.Transport, error) {
 	if err != nil {
 		return nil, err
 	}
-	t, ok := rt.(*http.Transport)
-	if !ok {
-		return nil, fmt.Errorf("unknown transport type: %T", rt)
-	}
-	return t, nil
+	return rt, nil
 }

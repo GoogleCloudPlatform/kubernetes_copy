@@ -70,17 +70,11 @@ func HTTPWrappersForConfig(config *Config, rt http.RoundTripper) (http.RoundTrip
 	return rt, nil
 }
 
-// DebugWrappers potentially wraps a round tripper with a wrapper that logs
-// based on the log level in the context of each individual request.
-//
-// At the moment, wrapping depends on the global log verbosity and is done
-// if that verbosity is >= 6. This may change in the future.
+// DebugWrappers always wraps a round tripper
+// and then logs based on the log level in the context of each individual
+// request.
 func DebugWrappers(rt http.RoundTripper) http.RoundTripper {
-	//nolint:logcheck // The actual logging is done with a different logger, so only checking here is okay.
-	if klog.V(6).Enabled() {
-		rt = NewDebuggingRoundTripper(rt, DebugByContext)
-	}
-	return rt
+	return NewDebuggingRoundTripper(rt, DebugByContext)
 }
 
 type authProxyRoundTripper struct {
@@ -492,6 +486,13 @@ func (rt *debuggingRoundTripper) RoundTrip(req *http.Request) (*http.Response, e
 	// and a hard-coded mapping of verbosity to debug details. Otherwise all messages
 	// are logged as V(0).
 	if levels&(1<<DebugByContext) != 0 {
+		loggerV6 := logger.V(6)
+		loggerV6Enabled := loggerV6.Enabled()
+		if levels == (1<<DebugByContext) && !loggerV6Enabled {
+			// Fast path: no extra logging at level < 6.
+			return rt.delegatedRoundTripper.RoundTrip(req)
+		}
+
 		if loggerV := logger.V(9); loggerV.Enabled() {
 			logger = loggerV
 			// The curl command replaces logging of the URL.
@@ -502,8 +503,8 @@ func (rt *debuggingRoundTripper) RoundTrip(req *http.Request) (*http.Response, e
 		} else if loggerV := logger.V(7); loggerV.Enabled() {
 			logger = loggerV
 			levels |= levelsV7
-		} else if loggerV := logger.V(6); loggerV.Enabled() {
-			logger = loggerV
+		} else if loggerV6Enabled {
+			logger = loggerV6
 			levels |= levelsV6
 		}
 	}
