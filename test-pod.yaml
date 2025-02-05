@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: memory-test-pod
+spec:
+  terminationGracePeriodSeconds: 30
+  containers:
+  - name: memory-test-container
+    image: nginx
+    resources:
+      requests:
+        memory: "64Mi"
+      limits:
+        memory: "128Mi"
