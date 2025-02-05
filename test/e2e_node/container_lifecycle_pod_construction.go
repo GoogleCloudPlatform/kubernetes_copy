@@ -48,6 +48,8 @@ type execCommand struct {
 	// ContainerName is the name of the container to append the log. If empty,
 	// the name specified in ExecCommand will be used.
 	ContainerName string
+	// LoopPeriod is the time interval for executing the loop.
+	LoopPeriod float32
 }
 
 // ExecCommand returns the command to execute in the container that implements
@@ -88,8 +90,13 @@ func ExecCommand(name string, c execCommand) []string {
 	if c.Delay != 0 {
 		fmt.Fprint(&cmd, sleepCommand(c.Delay))
 	}
+
+	loopPeriod := float32(1)
+	if c.LoopPeriod != 0 {
+		loopPeriod = c.LoopPeriod
+	}
 	if c.LoopForever {
-		fmt.Fprintf(&cmd, "while true; do echo %s '%s Looping' | tee -a %s >> /proc/1/fd/1 ; sleep 1 ; done; ", timeCmd, name, containerLog)
+		fmt.Fprintf(&cmd, "while true; do echo %s '%s Looping' | tee -a %s >> /proc/1/fd/1 ; sleep %f ; done; ", timeCmd, name, containerLog, loopPeriod)
 	}
 	fmt.Fprintf(&cmd, "echo %s '%s Exiting'  | tee -a %s >> /proc/1/fd/1; ", timeCmd, name, containerLog)
 	fmt.Fprintf(&cmd, "exit %d", c.ExitCode)
