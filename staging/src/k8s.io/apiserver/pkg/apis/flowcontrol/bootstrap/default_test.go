@@ -30,7 +30,7 @@ func TestBootstrapPriorityLevelConfigurationWithBorrowing(t *testing.T) {
 	}{
 		{
 			name:                    "leader-election",
-			nominalSharesExpected:   10,
+			nominalSharesExpected:   40,
 			lendablePercentexpected: 0,
 		},
 		{
