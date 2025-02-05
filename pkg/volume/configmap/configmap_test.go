@@ -18,7 +18,6 @@ package configmap
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -292,18 +291,13 @@ func TestMakePayload(t *testing.T) {
 }
 
 func newTestHost(t *testing.T, clientset clientset.Interface) (string, volume.VolumeHost) {
-	tempDir, err := ioutil.TempDir("", "configmap_volume_test.")
-	if err != nil {
-		t.Fatalf("can't make a temp rootdir: %v", err)
-	}
-
+	tempDir := t.TempDir()
 	return tempDir, volumetest.NewFakeVolumeHost(t, tempDir, clientset, emptydir.ProbeVolumePlugins())
 }
 
 func TestCanSupport(t *testing.T) {
 	pluginMgr := volume.VolumePluginMgr{}
-	tempDir, host := newTestHost(t, nil)
-	defer os.RemoveAll(tempDir)
+	_, host := newTestHost(t, nil)
 	pluginMgr.InitPlugins(ProbeVolumePlugins(), nil /* prober */, host)
 
 	plugin, err := pluginMgr.FindPluginByName(configMapPluginName)
@@ -328,14 +322,13 @@ func TestPlugin(t *testing.T) {
 		testNamespace  = "test_configmap_namespace"
 		testName       = "test_configmap_name"
 
-		volumeSpec    = volumeSpec(testVolumeName, testName, 0644)
-		configMap     = configMap(testNamespace, testName)
-		client        = fake.NewSimpleClientset(&configMap)
-		pluginMgr     = volume.VolumePluginMgr{}
-		tempDir, host = newTestHost(t, client)
+		volumeSpec = volumeSpec(testVolumeName, testName, 0644)
+		configMap  = configMap(testNamespace, testName)
+		client     = fake.NewSimpleClientset(&configMap)
+		pluginMgr  = volume.VolumePluginMgr{}
+		_, host    = newTestHost(t, client)
 	)
 
-	defer os.RemoveAll(tempDir)
 	pluginMgr.InitPlugins(ProbeVolumePlugins(), nil /* prober */, host)
 
 	plugin, err := pluginMgr.FindPluginByName(configMapPluginName)
@@ -401,7 +394,6 @@ func TestPluginReboot(t *testing.T) {
 		rootDir, host = newTestHost(t, client)
 	)
 
-	defer os.RemoveAll(rootDir)
 	pluginMgr.InitPlugins(ProbeVolumePlugins(), nil /* prober */, host)
 
 	plugin, err := pluginMgr.FindPluginByName(configMapPluginName)
@@ -452,14 +444,13 @@ func TestPluginOptional(t *testing.T) {
 		testName       = "test_configmap_name"
 		trueVal        = true
 
-		volumeSpec    = volumeSpec(testVolumeName, testName, 0644)
-		client        = fake.NewSimpleClientset()
-		pluginMgr     = volume.VolumePluginMgr{}
-		tempDir, host = newTestHost(t, client)
+		volumeSpec = volumeSpec(testVolumeName, testName, 0644)
+		client     = fake.NewSimpleClientset()
+		pluginMgr  = volume.VolumePluginMgr{}
+		_, host    = newTestHost(t, client)
 	)
 	volumeSpec.VolumeSource.ConfigMap.Optional = &trueVal
 
-	defer os.RemoveAll(tempDir)
 	pluginMgr.InitPlugins(ProbeVolumePlugins(), nil /* prober */, host)
 
 	plugin, err := pluginMgr.FindPluginByName(configMapPluginName)
@@ -513,7 +504,7 @@ func TestPluginOptional(t *testing.T) {
 	}
 	datadirPath := filepath.Join(volumePath, datadir)
 
-	infos, err := ioutil.ReadDir(volumePath)
+	infos, err := os.ReadDir(volumePath)
 	if err != nil {
 		t.Fatalf("couldn't find volume path, %s", volumePath)
 	}
@@ -525,7 +516,7 @@ func TestPluginOptional(t *testing.T) {
 		}
 	}
 
-	infos, err = ioutil.ReadDir(datadirPath)
+	infos, err = os.ReadDir(datadirPath)
 	if err != nil {
 		t.Fatalf("couldn't find volume data path, %s", datadirPath)
 	}
@@ -544,11 +535,11 @@ func TestPluginKeysOptional(t *testing.T) {
 		testName       = "test_configmap_name"
 		trueVal        = true
 
-		volumeSpec    = volumeSpec(testVolumeName, testName, 0644)
-		configMap     = configMap(testNamespace, testName)
-		client        = fake.NewSimpleClientset(&configMap)
-		pluginMgr     = volume.VolumePluginMgr{}
-		tempDir, host = newTestHost(t, client)
+		volumeSpec = volumeSpec(testVolumeName, testName, 0644)
+		configMap  = configMap(testNamespace, testName)
+		client     = fake.NewSimpleClientset(&configMap)
+		pluginMgr  = volume.VolumePluginMgr{}
+		_, host    = newTestHost(t, client)
 	)
 	volumeSpec.VolumeSource.ConfigMap.Items = []v1.KeyToPath{
 		{Key: "data-1", Path: "data-1"},
@@ -558,7 +549,6 @@ func TestPluginKeysOptional(t *testing.T) {
 	}
 	volumeSpec.VolumeSource.ConfigMap.Optional = &trueVal
 
-	defer os.RemoveAll(tempDir)
 	pluginMgr.InitPlugins(ProbeVolumePlugins(), nil /* prober */, host)
 
 	plugin, err := pluginMgr.FindPluginByName(configMapPluginName)
@@ -628,17 +618,16 @@ func TestInvalidConfigMapSetup(t *testing.T) {
 		testNamespace  = "test_configmap_namespace"
 		testName       = "test_configmap_name"
 
-		volumeSpec    = volumeSpec(testVolumeName, testName, 0644)
-		configMap     = configMap(testNamespace, testName)
-		client        = fake.NewSimpleClientset(&configMap)
-		pluginMgr     = volume.VolumePluginMgr{}
-		tempDir, host = newTestHost(t, client)
+		volumeSpec = volumeSpec(testVolumeName, testName, 0644)
+		configMap  = configMap(testNamespace, testName)
+		client     = fake.NewSimpleClientset(&configMap)
+		pluginMgr  = volume.VolumePluginMgr{}
+		_, host    = newTestHost(t, client)
 	)
 	volumeSpec.VolumeSource.ConfigMap.Items = []v1.KeyToPath{
 		{Key: "missing", Path: "missing"},
 	}
 
-	defer os.RemoveAll(tempDir)
 	pluginMgr.InitPlugins(ProbeVolumePlugins(), nil /* prober */, host)
 
 	plugin, err := pluginMgr.FindPluginByName(configMapPluginName)
@@ -703,7 +692,7 @@ func doTestConfigMapDataInVolume(volumePath string, configMap v1.ConfigMap, t *t
 		if _, err := os.Stat(configMapDataHostPath); err != nil {
 			t.Fatalf("SetUp() failed, couldn't find configMap data on disk: %v", configMapDataHostPath)
 		} else {
-			actualValue, err := ioutil.ReadFile(configMapDataHostPath)
+			actualValue, err := os.ReadFile(configMapDataHostPath)
 			if err != nil {
 				t.Fatalf("Couldn't read configMap data from: %v", configMapDataHostPath)
 			}
