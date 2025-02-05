@@ -120,6 +120,7 @@ func (e *EventedPLEG) Relist() {
 
 // Start starts the Evented PLEG
 func (e *EventedPLEG) Start() {
+	e.logger.V(4).Info("Evented PLEG started")
 	e.runningMu.Lock()
 	defer e.runningMu.Unlock()
 	if isEventedPLEGInUse() {
@@ -134,6 +135,7 @@ func (e *EventedPLEG) Start() {
 
 // Stop stops the Evented PLEG
 func (e *EventedPLEG) Stop() {
+	e.logger.V(4).Info("Evented PLEG stopped")
 	e.runningMu.Lock()
 	defer e.runningMu.Unlock()
 	if !isEventedPLEGInUse() {
@@ -184,6 +186,7 @@ func (e *EventedPLEG) watchEventsChannel() {
 	go func() {
 		numAttempts := 0
 		for {
+			e.logger.V(4).Info("watchEventsChannel")
 			if numAttempts >= e.eventedPlegMaxStreamRetries {
 				if isEventedPLEGInUse() {
 					// Fall back to Generic PLEG relisting since Evented PLEG is not working.
@@ -196,6 +199,7 @@ func (e *EventedPLEG) watchEventsChannel() {
 				}
 			}
 
+			e.logger.V(4).Info("GetContainerEvents")
 			err := e.runtimeService.GetContainerEvents(context.Background(), containerEventsResponseCh, func(runtimeapi.RuntimeService_GetContainerEventsClient) {
 				metrics.EventedPLEGConn.Inc()
 			})
@@ -209,12 +213,14 @@ func (e *EventedPLEG) watchEventsChannel() {
 	}()
 
 	if isEventedPLEGInUse() {
+		e.logger.V(4).Info("processCRIEvents")
 		e.processCRIEvents(containerEventsResponseCh)
 	}
 }
 
 func (e *EventedPLEG) processCRIEvents(containerEventsResponseCh chan *runtimeapi.ContainerEventResponse) {
 	for event := range containerEventsResponseCh {
+		e.logger.V(4).Info("processCRIEvents event", "event", event, "type", event.ContainerEventType)
 		// Ignore the event if PodSandboxStatus is nil.
 		// This might happen under some race condition where the podSandbox has
 		// been deleted, and therefore container runtime couldn't find the

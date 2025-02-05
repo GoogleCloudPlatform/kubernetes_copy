@@ -29,6 +29,7 @@ import (
 	internalapi "k8s.io/cri-api/pkg/apis"
 	runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1"
 	"k8s.io/cri-client/pkg/util"
+	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/test/e2e/framework"
 	utilexec "k8s.io/utils/exec"
 )
@@ -470,17 +471,21 @@ func (p *RemoteRuntime) GetContainerEvents(req *runtimeapi.GetEventsRequest, ces
 	containerEventsResponseCh := make(chan *runtimeapi.ContainerEventResponse, plegChannelCapacity)
 	defer close(containerEventsResponseCh)
 
-	if err := p.runtimeService.GetContainerEvents(context.Background(), containerEventsResponseCh, nil); err != nil {
-		return err
-	}
-
-	for event := range containerEventsResponseCh {
-		if err := ces.Send(event); err != nil {
-			return status.Errorf(codes.Unknown, "Failed to send event: %v", err)
+	for {
+		if err := p.runtimeService.GetContainerEvents(ces.Context(), containerEventsResponseCh, nil); err != nil {
+			return err
 		}
+		klog.V(2).InfoS("GetContainerEvents responsed")
+		framework.Logf("GetContainerEvents responsed")
+	
+		for event := range containerEventsResponseCh {
+			framework.Logf("GetContainerEvents event %s type %s", event.ContainerId, event.ContainerEventType)
+			klog.V(2).InfoS("GetContainerEvents", "event", event, "type", event.ContainerEventType)
+			if err := ces.Send(event); err != nil {
+				return status.Errorf(codes.Unknown, "Failed to send event: %v", err)
+			}
+		}	
 	}
-
-	return nil
 }
 
 // ListMetricDescriptors gets the descriptors for the metrics that will be returned in ListPodSandboxMetrics.
