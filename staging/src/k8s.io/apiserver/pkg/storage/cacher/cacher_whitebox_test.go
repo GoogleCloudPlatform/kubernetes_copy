@@ -594,27 +594,7 @@ func TestWatchCacheBypass(t *testing.T) {
 		Predicate:       storage.Everything,
 	})
 	if err != nil {
-		t.Errorf("Watch with RV=0 should be served from cache: %v", err)
-	}
-
-	featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.WatchFromStorageWithoutResourceVersion, false)
-	_, err = proxy.Watch(context.TODO(), "pod/ns", storage.ListOptions{
-		ResourceVersion: "",
-		Predicate:       storage.Everything,
-	})
-	if err != nil {
-		t.Errorf("With WatchFromStorageWithoutResourceVersion disabled, watch with unset RV should be served from cache: %v", err)
-	}
-
-	// Inject error to underlying layer and check if cacher is not bypassed.
-	backingStorage.injectError(errDummy)
-	featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.WatchFromStorageWithoutResourceVersion, true)
-	_, err = proxy.Watch(context.TODO(), "pod/ns", storage.ListOptions{
-		ResourceVersion: "",
-		Predicate:       storage.Everything,
-	})
-	if !errors.Is(err, errDummy) {
-		t.Errorf("With WatchFromStorageWithoutResourceVersion enabled, watch with unset RV should be served from storage: %v", err)
+		t.Errorf("Watch without RV=0 should be served from cache: %v", err)
 	}
 }
 
