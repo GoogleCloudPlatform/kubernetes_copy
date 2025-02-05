@@ -25,6 +25,7 @@ import (
 	"github.com/onsi/gomega"
 
 	v1 "k8s.io/api/core/v1"
+	storagev1 "k8s.io/api/storage/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
@@ -107,6 +108,66 @@ var _ = utils.SIGDescribe("CSI Mock volume attach", func() {
 			})
 
 		}
+	})
+
+	ginkgo.Context("When CSIDriver AttachRequired changes from true to false", func() {
+		f.It("should cleanup VolumeAttachment properly", f.WithSlow(), func(ctx context.Context) {
+			var err error
+			m.init(ctx, testParameters{registerDriver: true, disableAttach: false})
+			ginkgo.DeferCleanup(m.cleanup)
+
+			driverName := m.config.GetUniqueDriverName()
+			csiDriver, err := m.cs.StorageV1().CSIDrivers().Get(ctx, driverName, metav1.GetOptions{})
+			framework.ExpectNoError(err, "Failed to get CSIDriver: %v", err)
+			driver := csiDriver.DeepCopy()
+
+			_, claim, pod := m.createPod(ctx, pvcReference)
+			if pod == nil {
+				return
+			}
+			testConfig := storageframework.ConvertTestConfig(m.config)
+			attachmentName := e2evolume.GetVolumeAttachmentName(ctx, m.cs, testConfig, m.provisioner, claim.Name, claim.Namespace)
+			ginkgo.DeferCleanup(func(ctx context.Context) {
+				_, err := m.cs.StorageV1().VolumeAttachments().Get(ctx, attachmentName, metav1.GetOptions{})
+				if err == nil {
+					err := m.cs.StorageV1().VolumeAttachments().Delete(ctx, attachmentName, metav1.DeleteOptions{})
+					framework.ExpectNoError(err, "Failed to delete VolumeAttachment: %v", err)
+				} else if !apierrors.IsNotFound(err) {
+					framework.ExpectNoError(err, "Failed to get VolumeAttachment")
+				}
+			})
+
+			// Use a short interval to quickly detect VolumeAttachment creation and immediately recreate the CSIDriver
+			interval := 200 * time.Millisecond
+			ginkgo.By("Checking if VolumeAttachment was created for the pod")
+			err = e2evolume.WaitForVolumeAttachmentCreated(ctx, attachmentName, m.cs, interval, csiVolumeAttachmentTimeout)
+			framework.ExpectNoError(err, "Failed to wait for VolumeAttachment %s to be created: %v", attachmentName, err)
+			ginkgo.By("Delete CSIDriver object")
+			err = m.cs.StorageV1().CSIDrivers().Delete(ctx, driverName, metav1.DeleteOptions{})
+			framework.ExpectNoError(err, "Failed to delete CSIDriver: %v", err)
+			err = waitForCSIDriverDeleted(ctx, m.cs, driverName, interval, csiDriverTimeout)
+			framework.ExpectNoError(err, "Failed to delete CSIDriver: %v", err)
+
+			attachRequired := false
+			driver.Spec.AttachRequired = &attachRequired
+			newDriver := &storagev1.CSIDriver{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: driverName,
+				},
+				Spec: driver.Spec,
+			}
+			ginkgo.By("Recreating CSIDriver with AttachRequired=false")
+			_, err = m.cs.StorageV1().CSIDrivers().Create(ctx, newDriver, metav1.CreateOptions{})
+			framework.ExpectNoError(err, "Failed to create CSIDriver: %v", err)
+			err = waitForCSIDriver(m.cs, driverName)
+			framework.ExpectNoError(err, "Failed to get CSIDriver: %v", err)
+
+			ginkgo.By("Wait for the volumeattachment to be deleted")
+			err = e2evolume.WaitForVolumeAttachmentTerminated(ctx, attachmentName, m.cs, csiVolumeAttachmentTimeout)
+			framework.ExpectNoError(err, "Failed to delete VolumeAttachment: %v", err)
+			err = e2epod.WaitForPodNameRunningInNamespace(ctx, m.cs, pod.Name, pod.Namespace)
+			framework.ExpectNoError(err, "Failed to start pod: %v", err)
+		})
 	})
 
 	ginkgo.Context("CSI CSIDriver deployment after pod creation using non-attachable mock driver", func() {
