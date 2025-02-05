@@ -57,7 +57,7 @@ var (
 		Name:           QueueLatencyKey,
 		StabilityLevel: k8smetrics.ALPHA,
 		Help:           "How long in seconds an item stays in workqueue before being requested.",
-		Buckets:        k8smetrics.ExponentialBuckets(10e-9, 10, 10),
+		Buckets:        k8smetrics.ExponentialBuckets(10e-7, 10, 10),
 	}, []string{"name"})
 
 	workDuration = k8smetrics.NewHistogramVec(&k8smetrics.HistogramOpts{
@@ -65,7 +65,7 @@ var (
 		Name:           WorkDurationKey,
 		StabilityLevel: k8smetrics.ALPHA,
 		Help:           "How long in seconds processing an item from workqueue takes.",
-		Buckets:        k8smetrics.ExponentialBuckets(10e-9, 10, 10),
+		Buckets:        k8smetrics.ExponentialBuckets(10e-7, 10, 10),
 	}, []string{"name"})
 
 	unfinished = k8smetrics.NewGaugeVec(&k8smetrics.GaugeOpts{
