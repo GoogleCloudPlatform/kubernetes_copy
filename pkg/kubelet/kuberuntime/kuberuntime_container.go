@@ -52,6 +52,7 @@ import (
 	kubelettypes "k8s.io/kubelet/pkg/types"
 	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
 	"k8s.io/kubernetes/pkg/features"
+	"k8s.io/kubernetes/pkg/kubelet/config"
 	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
 	"k8s.io/kubernetes/pkg/kubelet/events"
 	proberesults "k8s.io/kubernetes/pkg/kubelet/prober/results"
@@ -1344,9 +1345,29 @@ func (m *kubeGenericRuntimeManager) removeContainerLog(ctx context.Context, cont
 	if status == nil {
 		return remote.ErrContainerStatusNil
 	}
+	// Remove file used for termination log
+	labeledInfo := getContainerInfoFromLabels(status.Labels)
+
+	if utilfeature.DefaultFeatureGate.Enabled(features.TerminationLogFileCleanup) {
+		containerPath, ok := status.Annotations[containerTerminationMessagePathLabel]
+		if ok {
+			subHostPath := filepath.Join(config.DefaultKubeletPodsDirName, string(labeledInfo.PodUID), config.DefaultKubeletContainersDirName, labeledInfo.ContainerName)
+			for _, mount := range status.Mounts {
+				// newContainerAnnotations function in pkg/kubelet/kuberuntime/labels.go generates containerTerminationMessagePathLabel annotation
+				// and assign it with path value in container. makeMounts method of kubeGenericRuntimeManager in pkg/kubelet/kuberuntime/kuberuntime_container.go bind the host path with
+				// container path. The prefix of this host path is same with subHostPath variable. So we can use these information to recognize the termination log file location in host.
+				if mount.ContainerPath == containerPath && strings.Contains(mount.HostPath, subHostPath) {
+					err := m.osInterface.Remove(mount.HostPath)
+					if err != nil && !os.IsNotExist(err) {
+						klog.ErrorS(err, "Failed to remove file used for termination log", "terminationMessagePath", mount.ContainerPath, "hostPath", mount.HostPath)
+					}
+					break
+				}
+			}
+		}
+	}
 	// Remove the legacy container log symlink.
 	// TODO(random-liu): Remove this after cluster logging supports CRI container log path.
-	labeledInfo := getContainerInfoFromLabels(status.Labels)
 	legacySymlink := legacyLogSymlink(containerID, labeledInfo.ContainerName, labeledInfo.PodName,
 		labeledInfo.PodNamespace)
 	if err := m.osInterface.Remove(legacySymlink); err != nil && !os.IsNotExist(err) {
