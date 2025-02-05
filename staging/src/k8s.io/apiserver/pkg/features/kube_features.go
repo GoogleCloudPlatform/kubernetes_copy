@@ -68,7 +68,7 @@ const (
 	// resources using the Kubernetes API only.
 	AllowUnsafeMalformedObjectDeletion featuregate.Feature = "AllowUnsafeMalformedObjectDeletion"
 
-	// owner: @ilackams
+	// owner: @ilackarms
 	//
 	// Enables compression of REST responses (GET and LIST only)
 	APIResponseCompression featuregate.Feature = "APIResponseCompression"
@@ -285,6 +285,7 @@ var defaultVersionedKubernetesFeatureGates = map[featuregate.Feature]featuregate
 	APIResponseCompression: {
 		{Version: version.MustParse("1.8"), Default: false, PreRelease: featuregate.Alpha},
 		{Version: version.MustParse("1.16"), Default: true, PreRelease: featuregate.Beta},
+		{Version: version.MustParse("1.33"), Default: true, PreRelease: featuregate.GA, LockToDefault: true},
 	},
 
 	APIServerIdentity: {

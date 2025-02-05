@@ -112,6 +112,10 @@
     lockToDefault: false
     preRelease: Beta
     version: "1.16"
+  - default: true
+    lockToDefault: true
+    preRelease: GA
+    version: "1.33"
 - name: APIServerIdentity
   versionedSpecs:
   - default: false
