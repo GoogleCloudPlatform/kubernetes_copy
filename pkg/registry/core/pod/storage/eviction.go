@@ -267,6 +267,18 @@ func (r *EvictionREST) Create(ctx context.Context, name string, obj runtime.Obje
 			// raise an error marked as a 429.
 			if err = r.checkAndDecrement(pod.Namespace, pod.Name, *pdb, dryrun.IsDryRun(originalDeleteOptions.DryRun)); err != nil {
 				refresh = true
+				if errors.IsForbidden(err) { //need a feature gate?
+					getLatestPod := latestPodFactory(originalDeleteOptions) //is this right deletion options?
+
+					podUpdatedObjectInfo := rest.DefaultUpdatedObjectInfo(nil, getLatestPod, appendCondition("EvictionBlocked", "Eviction API: evicting")) // order important
+					//do we need to give this context a timeout so we still 429 even if this fails
+					_, _, updateErr := r.store.Update(ctx, pod.Name, podUpdatedObjectInfo, rest.ValidateAllObjectFunc, rest.ValidateAllObjectUpdateFunc, false, &metav1.UpdateOptions{})
+					if updateErr != nil {
+						//just log here? or actually mutate err to append details?
+						statusErr := err.(*errors.StatusError)
+						statusErr.ErrStatus.Message = fmt.Sprintf("%s and failed to updated pod conditon: %s", statusErr.ErrStatus.Message, err.Error())
+					}
+				}
 				return err
 			}
 			return nil
@@ -314,43 +326,48 @@ func (r *EvictionREST) Create(ctx context.Context, name string, obj runtime.Obje
 	return &metav1.Status{Status: metav1.StatusSuccess}, nil
 }
 
+func latestPodFactory(options *metav1.DeleteOptions) rest.TransformFunc {
+	// Throwaway the newObj. We care only about the latest pod obtained from etcd (oldObj).
+	// So we can add DisruptionTarget condition in conditionAppender without conflicts.
+	return func(_ context.Context, _, oldObj runtime.Object) (runtime.Object, error) {
+		latestPod := oldObj.(*api.Pod).DeepCopy()
+		if options.Preconditions != nil {
+			if uid := options.Preconditions.UID; uid != nil && len(*uid) > 0 && *uid != latestPod.UID {
+				return nil, errors.NewConflict(
+					schema.GroupResource{Group: "", Resource: "Pod"},
+					latestPod.Name,
+					fmt.Errorf("the UID in the precondition (%s) does not match the UID in record (%s). The object might have been deleted and then recreated", *uid, latestPod.UID),
+				)
+			}
+			if rv := options.Preconditions.ResourceVersion; rv != nil && len(*rv) > 0 && *rv != latestPod.ResourceVersion {
+				return nil, errors.NewConflict(
+					schema.GroupResource{Group: "", Resource: "Pod"},
+					latestPod.Name,
+					fmt.Errorf("the ResourceVersion in the precondition (%s) does not match the ResourceVersion in record (%s). The object might have been modified", *rv, latestPod.ResourceVersion),
+				)
+			}
+		}
+		return latestPod, nil
+	}
+}
+
+func appendCondition(reason, msg string) rest.TransformFunc {
+	return func(_ context.Context, newObj, _ runtime.Object) (runtime.Object, error) {
+		podObj := newObj.(*api.Pod)
+		podutil.UpdatePodCondition(&podObj.Status, &api.PodCondition{
+			Type:    api.DisruptionTarget,
+			Status:  api.ConditionTrue,
+			Reason:  reason,
+			Message: msg,
+		})
+		return podObj, nil
+	}
+}
+
 func addConditionAndDeletePod(r *EvictionREST, ctx context.Context, name string, validation rest.ValidateObjectFunc, options *metav1.DeleteOptions) error {
 	if !dryrun.IsDryRun(options.DryRun) {
-		getLatestPod := func(_ context.Context, _, oldObj runtime.Object) (runtime.Object, error) {
-			// Throwaway the newObj. We care only about the latest pod obtained from etcd (oldObj).
-			// So we can add DisruptionTarget condition in conditionAppender without conflicts.
-			latestPod := oldObj.(*api.Pod).DeepCopy()
-			if options.Preconditions != nil {
-				if uid := options.Preconditions.UID; uid != nil && len(*uid) > 0 && *uid != latestPod.UID {
-					return nil, errors.NewConflict(
-						schema.GroupResource{Group: "", Resource: "Pod"},
-						latestPod.Name,
-						fmt.Errorf("the UID in the precondition (%s) does not match the UID in record (%s). The object might have been deleted and then recreated", *uid, latestPod.UID),
-					)
-				}
-				if rv := options.Preconditions.ResourceVersion; rv != nil && len(*rv) > 0 && *rv != latestPod.ResourceVersion {
-					return nil, errors.NewConflict(
-						schema.GroupResource{Group: "", Resource: "Pod"},
-						latestPod.Name,
-						fmt.Errorf("the ResourceVersion in the precondition (%s) does not match the ResourceVersion in record (%s). The object might have been modified", *rv, latestPod.ResourceVersion),
-					)
-				}
-			}
-			return latestPod, nil
-		}
-
-		conditionAppender := func(_ context.Context, newObj, _ runtime.Object) (runtime.Object, error) {
-			podObj := newObj.(*api.Pod)
-			podutil.UpdatePodCondition(&podObj.Status, &api.PodCondition{
-				Type:    api.DisruptionTarget,
-				Status:  api.ConditionTrue,
-				Reason:  "EvictionByEvictionAPI",
-				Message: "Eviction API: evicting",
-			})
-			return podObj, nil
-		}
-
-		podUpdatedObjectInfo := rest.DefaultUpdatedObjectInfo(nil, getLatestPod, conditionAppender) // order important
+		getLatestPod := latestPodFactory(options)
+		podUpdatedObjectInfo := rest.DefaultUpdatedObjectInfo(nil, getLatestPod, appendCondition("EvictionByEvictionAPI", "Eviction API: evicting")) // order important
 
 		updatedPodObject, _, err := r.store.Update(ctx, name, podUpdatedObjectInfo, rest.ValidateAllObjectFunc, rest.ValidateAllObjectUpdateFunc, false, &metav1.UpdateOptions{})
 		if err != nil {
@@ -421,6 +438,7 @@ func createTooManyRequestsError(name string) error {
 }
 
 // checkAndDecrement checks if the provided PodDisruptionBudget allows any disruption.
+// getting a bit long
 func (r *EvictionREST) checkAndDecrement(namespace string, podName string, pdb policyv1.PodDisruptionBudget, dryRun bool) error {
 	if pdb.Status.ObservedGeneration < pdb.Generation {
 
@@ -433,6 +451,7 @@ func (r *EvictionREST) checkAndDecrement(namespace string, podName string, pdb p
 		return errors.NewForbidden(policy.Resource("poddisruptionbudget"), pdb.Name, fmt.Errorf("DisruptedPods map too big - too many evictions not confirmed by PDB controller"))
 	}
 	if pdb.Status.DisruptionsAllowed == 0 {
+		//would it be good if this included  the pdb name?
 		err := errors.NewTooManyRequests("Cannot evict pod as it would violate the pod's disruption budget.", 0)
 		err.ErrStatus.Details.Causes = append(err.ErrStatus.Details.Causes, metav1.StatusCause{Type: policyv1.DisruptionBudgetCause, Message: fmt.Sprintf("The disruption budget %s needs %d healthy pods and has %d currently", pdb.Name, pdb.Status.DesiredHealthy, pdb.Status.CurrentHealthy)})
 		return err
