@@ -24,6 +24,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	goruntime "runtime"
 	"sort"
 	"strconv"
@@ -2583,6 +2584,9 @@ func TestPodResourceAllocationReset(t *testing.T) {
 }
 
 func TestHandlePodResourcesResize(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("InPlacePodVerticalScaling not supported on Windows")
+	}
 	featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.InPlacePodVerticalScaling, true)
 	testKubelet := newTestKubelet(t, false)
 	defer testKubelet.Cleanup()
@@ -2682,7 +2686,7 @@ func TestHandlePodResourcesResize(t *testing.T) {
 		expectedAllocatedLims v1.ResourceList
 		expectedResize        v1.PodResizeStatus
 		expectBackoffReset    bool
-		goos                  string
+		annotations           map[string]string
 	}{
 		{
 			name:                  "Request CPU and memory decrease - expect InProgress",
@@ -2752,12 +2756,12 @@ func TestHandlePodResourcesResize(t *testing.T) {
 			expectedResize:        "",
 		},
 		{
-			name:                  "windows node, expect Infeasible",
+			name:                  "static pod, expect Infeasible",
 			originalRequests:      v1.ResourceList{v1.ResourceCPU: cpu1000m, v1.ResourceMemory: mem1000M},
 			newRequests:           v1.ResourceList{v1.ResourceCPU: cpu500m, v1.ResourceMemory: mem500M},
 			expectedAllocatedReqs: v1.ResourceList{v1.ResourceCPU: cpu1000m, v1.ResourceMemory: mem1000M},
 			expectedResize:        v1.PodResizeStatusInfeasible,
-			goos:                  "windows",
+			annotations:           map[string]string{kubetypes.ConfigSourceAnnotationKey: kubetypes.FileSource},
 		},
 		{
 			name:                  "Increase CPU from min shares",
@@ -2843,14 +2847,10 @@ func TestHandlePodResourcesResize(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			oldGOOS := goos
-			defer func() { goos = oldGOOS }()
-			if tt.goos != "" {
-				goos = tt.goos
-			}
 			kubelet.statusManager = status.NewFakeManager()
 
 			originalPod := testPod1.DeepCopy()
+			originalPod.Annotations = tt.annotations
 			originalPod.Spec.Containers[0].Resources.Requests = tt.originalRequests
 			originalPod.Spec.Containers[0].Resources.Limits = tt.originalLimits
 			kubelet.podManager.UpdatePod(originalPod)

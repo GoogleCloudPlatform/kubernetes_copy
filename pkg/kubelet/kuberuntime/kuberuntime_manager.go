@@ -550,19 +550,13 @@ func containerSucceeded(c *v1.Container, podStatus *kubecontainer.PodStatus) boo
 	return cStatus.State == kubecontainer.ContainerStateExited && cStatus.ExitCode == 0
 }
 
-func IsInPlacePodVerticalScalingAllowed(pod *v1.Pod) bool {
-	if !utilfeature.DefaultFeatureGate.Enabled(features.InPlacePodVerticalScaling) {
-		return false
-	}
-	if types.IsStaticPod(pod) {
-		return false
-	}
-	return true
-}
-
 // computePodResizeAction determines the actions required (if any) to resize the given container.
 // Returns whether to keep (true) or restart (false) the container.
 func (m *kubeGenericRuntimeManager) computePodResizeAction(pod *v1.Pod, containerIdx int, kubeContainerStatus *kubecontainer.Status, changes *podActions) (keepContainer bool) {
+	if resizable, _ := IsInPlacePodVerticalScalingAllowed(pod); !resizable {
+		return true
+	}
+
 	container := pod.Spec.Containers[containerIdx]
 
 	// Determine if the *running* container needs resource update by comparing v1.Spec.Resources (desired)
@@ -1017,7 +1011,7 @@ func (m *kubeGenericRuntimeManager) computePodActions(ctx context.Context, pod *
 		}
 	}
 
-	if IsInPlacePodVerticalScalingAllowed(pod) {
+	if resizable, _ := IsInPlacePodVerticalScalingAllowed(pod); resizable {
 		changes.ContainersToUpdate = make(map[v1.ResourceName][]containerToUpdateInfo)
 	}
 
@@ -1075,7 +1069,7 @@ func (m *kubeGenericRuntimeManager) computePodActions(ctx context.Context, pod *
 			// If the container failed the startup probe, we should kill it.
 			message = fmt.Sprintf("Container %s failed startup probe", container.Name)
 			reason = reasonStartupProbe
-		} else if IsInPlacePodVerticalScalingAllowed(pod) && !m.computePodResizeAction(pod, idx, containerStatus, &changes) {
+		} else if !m.computePodResizeAction(pod, idx, containerStatus, &changes) {
 			// computePodResizeAction updates 'changes' if resize policy requires restarting this container
 			continue
 		} else {
@@ -1396,7 +1390,7 @@ func (m *kubeGenericRuntimeManager) SyncPod(ctx context.Context, pod *v1.Pod, po
 	}
 
 	// Step 7: For containers in podContainerChanges.ContainersToUpdate[CPU,Memory] list, invoke UpdateContainerResources
-	if IsInPlacePodVerticalScalingAllowed(pod) {
+	if resizable, _ := IsInPlacePodVerticalScalingAllowed(pod); resizable {
 		if len(podContainerChanges.ContainersToUpdate) > 0 || podContainerChanges.UpdatePodResources {
 			m.doPodResizeAction(pod, podContainerChanges, &result)
 		}

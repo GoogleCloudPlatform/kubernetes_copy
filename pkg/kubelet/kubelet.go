@@ -1884,7 +1884,7 @@ func (kl *Kubelet) SyncPod(ctx context.Context, updateType kubetypes.SyncPodType
 	// handlePodResourcesResize updates the pod to use the allocated resources. This should come
 	// before the main business logic of SyncPod, so that a consistent view of the pod is used
 	// across the sync loop.
-	if kuberuntime.IsInPlacePodVerticalScalingAllowed(pod) {
+	if utilfeature.DefaultFeatureGate.Enabled(features.InPlacePodVerticalScaling) {
 		// Handle pod resize here instead of doing it in HandlePodUpdates because
 		// this conveniently retries any Deferred resize requests
 		// TODO(vinaykul,InPlacePodVerticalScaling): Investigate doing this in HandlePodUpdates + periodic SyncLoop scan
@@ -2840,10 +2840,6 @@ func isPodResizeInProgress(pod *v1.Pod, podStatus *kubecontainer.PodStatus) bool
 // pod should hold the desired (pre-allocated) spec.
 // Returns true if the resize can proceed.
 func (kl *Kubelet) canResizePod(pod *v1.Pod) (bool, v1.PodResizeStatus, string) {
-	if goos == "windows" {
-		return false, v1.PodResizeStatusInfeasible, "Resizing Windows pods is not supported"
-	}
-
 	if v1qos.GetPodQOS(pod) == v1.PodQOSGuaranteed && !utilfeature.DefaultFeatureGate.Enabled(features.InPlacePodVerticalScalingExclusiveCPUs) {
 		if utilfeature.DefaultFeatureGate.Enabled(features.CPUManager) {
 			if kl.containerManager.GetNodeConfig().CPUManagerPolicy == "static" {
@@ -2901,6 +2897,16 @@ func (kl *Kubelet) canResizePod(pod *v1.Pod) (bool, v1.PodResizeStatus, string) 
 // the allocation decision and pod status.
 func (kl *Kubelet) handlePodResourcesResize(pod *v1.Pod, podStatus *kubecontainer.PodStatus) (*v1.Pod, error) {
 	allocatedPod, updated := kl.statusManager.UpdatePodFromAllocation(pod)
+	if resizable, msg := kuberuntime.IsInPlacePodVerticalScalingAllowed(pod); !resizable {
+		if updated {
+			kl.recorder.Eventf(pod, v1.EventTypeWarning, events.ResizeInfeasible, msg)
+			kl.statusManager.SetPodResizeStatus(pod.UID, v1.PodResizeStatusInfeasible)
+		} else {
+			kl.statusManager.SetPodResizeStatus(pod.UID, "")
+		}
+		return allocatedPod, nil
+	}
+
 	if !updated {
 		// Desired resources == allocated resources. Check whether a resize is in progress.
 		resizeInProgress := !allocatedResourcesMatchStatus(allocatedPod, podStatus)
