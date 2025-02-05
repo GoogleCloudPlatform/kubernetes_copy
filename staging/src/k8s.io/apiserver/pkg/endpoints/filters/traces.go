@@ -20,8 +20,10 @@ import (
 	"net/http"
 
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel/attribute"
 	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
 	"go.opentelemetry.io/otel/trace"
+	"k8s.io/apiserver/pkg/audit"
 	"k8s.io/apiserver/pkg/endpoints/request"
 
 	tracing "k8s.io/component-base/tracing"
@@ -45,9 +47,12 @@ func WithTracing(handler http.Handler, tp trace.TracerProvider) http.Handler {
 	wrappedHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Add the http.target attribute to the otelhttp span
 		// Workaround for https://github.com/open-telemetry/opentelemetry-go-contrib/issues/3743
+		span := trace.SpanFromContext(r.Context())
 		if r.URL != nil {
-			trace.SpanFromContext(r.Context()).SetAttributes(semconv.HTTPTarget(r.URL.RequestURI()))
+			span.SetAttributes(semconv.HTTPTarget(r.URL.RequestURI()))
 		}
+		// Add auditID attribute if available. This helps us connect traces to audit log entries
+		span.SetAttributes(attribute.String("audit-id", audit.GetAuditIDTruncated(r.Context())))
 		handler.ServeHTTP(w, r)
 	})
 	// With Noop TracerProvider, the otelhttp still handles context propagation.
