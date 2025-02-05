@@ -62,9 +62,6 @@ const (
 	AnyVolumeDataSource featuregate.Feature = "AnyVolumeDataSource"
 
 	// owner: @tallclair
-	AppArmor featuregate.Feature = "AppArmor"
-
-	// owner: @tallclair
 	AppArmorFields featuregate.Feature = "AppArmorFields"
 
 	// owner: @liggitt

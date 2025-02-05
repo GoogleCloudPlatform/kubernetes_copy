@@ -18,7 +18,6 @@ package test
 
 import (
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/component-base/featuregate"
 	"k8s.io/pod-security-admission/api"
 )
 
@@ -55,7 +54,6 @@ func init() {
 				}),
 			}
 		},
-		failRequiresFeatures: []featuregate.Feature{"AppArmor"},
 	}
 
 	registerFixtureGenerator(
