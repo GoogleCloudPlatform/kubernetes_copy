@@ -533,3 +533,19 @@ __EOF__
   set +o nounset
   set +o errexit
 }
+
+run_kubectl_proxy_url_tests() {
+  set -o nounset
+
+  kube::log::status "Testing kubectl --proxy-url=socks5://127.0.0.1:12345"
+
+  # Port 12345 is unreachable so the command will fail.
+  output_message=$(kubectl --proxy-url=socks5://127.0.0.1:12345 get pods --v=9 2>&1 )
+
+  set -o errexit
+
+  kube::test::if_has_string "${output_message}" "Dial to tcp:127.0.0.1:12345"
+
+  set +o nounset
+  set +o errexit
+}

@@ -58,6 +58,7 @@ const (
 	flagTimeout            = "request-timeout"
 	flagCacheDir           = "cache-dir"
 	flagDisableCompression = "disable-compression"
+	flagProxyURL           = "proxy-url"
 )
 
 // RESTClientGetter is an interface that the ConfigFlags describe to provide an easier way to mock for commands
@@ -101,6 +102,7 @@ type ConfigFlags struct {
 	Password           *string
 	Timeout            *string
 	DisableCompression *bool
+	ProxyURL           *string
 	// If non-nil, wrap config function can transform the Config
 	// before it is returned in ToRESTConfig function.
 	WrapConfigFn func(*rest.Config) *rest.Config
@@ -232,6 +234,11 @@ func (f *ConfigFlags) toRawKubeConfigLoader() clientcmd.ClientConfig {
 	if f.Password == nil {
 		return &clientConfig{clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, overrides)}
 	}
+
+	if f.ProxyURL != nil {
+		overrides.ClusterInfo.ProxyURL = *f.ProxyURL
+	}
+
 	return &clientConfig{clientcmd.NewInteractiveDeferredLoadingClientConfig(loadingRules, overrides, os.Stdin)}
 }
 
@@ -410,6 +417,9 @@ func (f *ConfigFlags) AddFlags(flags *pflag.FlagSet) {
 	if f.DisableCompression != nil {
 		flags.BoolVar(f.DisableCompression, flagDisableCompression, *f.DisableCompression, "If true, opt-out of response compression for all requests to the server")
 	}
+	if f.ProxyURL != nil {
+		flags.StringVar(f.ProxyURL, flagProxyURL, *f.ProxyURL, "If provided, this URL will be used to connect via proxy")
+	}
 }
 
 // WithDeprecatedPasswordFlag enables the username and password config flags
@@ -467,6 +477,7 @@ func NewConfigFlags(usePersistentConfig bool) *ConfigFlags {
 		BearerToken:        utilpointer.String(""),
 		Impersonate:        utilpointer.String(""),
 		ImpersonateUID:     utilpointer.String(""),
+		ProxyURL:           utilpointer.String(""),
 		ImpersonateGroup:   &impersonateGroup,
 		DisableCompression: &disableCompression,
 
