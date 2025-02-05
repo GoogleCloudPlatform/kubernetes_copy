@@ -89,7 +89,11 @@ var _ = framework.SIGDescribe("node")("DRA", feature.DynamicResourceAllocation, 
 	f := framework.NewDefaultFramework("dra-node")
 	f.NamespacePodSecurityLevel = admissionapi.LevelBaseline
 
-	ginkgo.BeforeEach(func() {
+	ginkgo.BeforeEach(func(ctx context.Context) {
+		gomega.Eventually(ctx, func(ctx context.Context) bool {
+			return false
+		}).WithTimeout(2*time.Hour).Should(gomega.BeFalse(), "intentional timeout")
+
 		ginkgo.DeferCleanup(func(ctx context.Context) {
 			// When plugin and kubelet get killed at the end of the tests, they leave ResourceSlices behind.
 			// Perhaps garbage collection would eventually remove them (not sure how the node instance
