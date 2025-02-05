@@ -20,7 +20,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"regexp"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
@@ -50,6 +49,25 @@ import (
 func init() {
 	registerMetrics()
 }
+
+type labelsKeys map[string]struct{}
+
+var (
+	instanceTypeKeys = map[string]struct{}{
+		v1.LabelInstanceType:       {},
+		v1.LabelInstanceTypeStable: {},
+	}
+
+	zoneKeys = map[string]struct{}{
+		v1.LabelFailureDomainBetaZone: {},
+		v1.LabelTopologyZone:          {},
+	}
+
+	regionKeys = map[string]struct{}{
+		v1.LabelFailureDomainBetaRegion: {},
+		v1.LabelTopologyRegion:          {},
+	}
+)
 
 // labelReconcileInfo lists Node labels to reconcile, and how to reconcile them.
 // primaryKey and secondaryKey are keys of labels to reconcile.
@@ -280,13 +298,43 @@ func (cnc *CloudNodeController) UpdateNodeStatus(ctx context.Context) error {
 			return
 		}
 
-		instanceMetadata, err := cnc.getInstanceNodeAddresses(ctx, node)
+		instanceMetadata, err := cnc.getInstanceMetadata(ctx, node)
 		if err != nil {
-			klog.Errorf("Error getting instance metadata for node addresses: %v", err)
+			klog.Errorf("failed to get instance metadata for node %s: %v", node.Name, err)
+			return
+		}
+		if instanceMetadata == nil {
+			// do nothing when external cloud providers provide nil instanceMetadata
+			klog.Infof("Skip sync node %s because cloud provided nil metadata", node.Name)
 			return
 		}
 
 		cnc.updateNodeAddress(ctx, node, instanceMetadata)
+
+		// Get Cloud Provider modifiers (for labels)
+		nodeModifiers := cnc.getLableModifiers(ctx, node, instanceMetadata)
+		if err := clientretry.RetryOnConflict(UpdateNodeSpecBackoff, func() error {
+			curNode, err := cnc.nodesLister.Get(node.Name)
+			if err != nil {
+
+				return err
+			}
+
+			newNode := curNode.DeepCopy()
+			for _, modify := range nodeModifiers {
+				modify(newNode)
+			}
+
+			_, err = cnc.kubeClient.CoreV1().Nodes().Update(ctx, newNode, metav1.UpdateOptions{})
+			if err != nil {
+				return err
+			}
+
+			return nil
+		}); err != nil {
+			klog.Errorf("Error syncing node labels for node %q, err: %v", node.Name, err)
+			return
+		}
 	}
 
 	workqueue.ParallelizeUntil(ctx, int(cnc.workerCount), len(nodes), updateNodeFunc)
@@ -508,66 +556,55 @@ func (cnc *CloudNodeController) getNodeModifiersFromCloudProvider(
 		return nil, fmt.Errorf("provided node ip for node %q is not valid: %w", node.Name, err)
 	}
 
+	nodeModifiers = append(nodeModifiers, cnc.getLableModifiers(ctx, node, instanceMeta)...)
+
+	return nodeModifiers, nil
+}
+
+func (cnc *CloudNodeController) getLableModifiers(
+	ctx context.Context,
+	node *v1.Node,
+	instanceMeta *cloudprovider.InstanceMetadata,
+) []nodeModifier {
+	var nodeModifiers []nodeModifier
+
+	labelsToAdd := make(map[string]string)
 	if instanceMeta.InstanceType != "" {
-		klog.V(2).Infof("Adding node label from cloud provider: %s=%s", v1.LabelInstanceType, instanceMeta.InstanceType)
-		klog.V(2).Infof("Adding node label from cloud provider: %s=%s", v1.LabelInstanceTypeStable, instanceMeta.InstanceType)
-		nodeModifiers = append(nodeModifiers, func(n *v1.Node) {
-			if n.Labels == nil {
-				n.Labels = map[string]string{}
-			}
-			n.Labels[v1.LabelInstanceType] = instanceMeta.InstanceType
-			n.Labels[v1.LabelInstanceTypeStable] = instanceMeta.InstanceType
-		})
+		addProviderLabels(instanceTypeKeys, labelsToAdd, instanceMeta.InstanceType)
 	}
 
 	if instanceMeta.Zone != "" {
-		klog.V(2).Infof("Adding node label from cloud provider: %s=%s", v1.LabelFailureDomainBetaZone, instanceMeta.Zone)
-		klog.V(2).Infof("Adding node label from cloud provider: %s=%s", v1.LabelTopologyZone, instanceMeta.Zone)
-		nodeModifiers = append(nodeModifiers, func(n *v1.Node) {
-			if n.Labels == nil {
-				n.Labels = map[string]string{}
-			}
-			n.Labels[v1.LabelFailureDomainBetaZone] = instanceMeta.Zone
-			n.Labels[v1.LabelTopologyZone] = instanceMeta.Zone
-		})
+		addProviderLabels(zoneKeys, labelsToAdd, instanceMeta.Zone)
 	}
+
 	if instanceMeta.Region != "" {
-		klog.V(2).Infof("Adding node label from cloud provider: %s=%s", v1.LabelFailureDomainBetaRegion, instanceMeta.Region)
-		klog.V(2).Infof("Adding node label from cloud provider: %s=%s", v1.LabelTopologyRegion, instanceMeta.Region)
-		nodeModifiers = append(nodeModifiers, func(n *v1.Node) {
-			if n.Labels == nil {
-				n.Labels = map[string]string{}
-			}
-			n.Labels[v1.LabelFailureDomainBetaRegion] = instanceMeta.Region
-			n.Labels[v1.LabelTopologyRegion] = instanceMeta.Region
-		})
+		addProviderLabels(regionKeys, labelsToAdd, instanceMeta.Region)
 	}
 
-	if len(instanceMeta.AdditionalLabels) > 0 {
-		klog.V(2).Infof("Adding additional node label(s) from cloud provider: %v", instanceMeta.AdditionalLabels)
-		nodeModifiers = append(nodeModifiers, func(n *v1.Node) {
-			if n.Labels == nil {
-				n.Labels = map[string]string{}
+	nodeModifiers = append(nodeModifiers, func(n *v1.Node) {
+		if n.Labels == nil {
+			n.Labels = map[string]string{}
+		}
+
+		for k, v := range labelsToAdd {
+			// If node has that lable with same value - skip it
+			if originalVal, ok := n.Labels[k]; ok && originalVal == v {
+				klog.Warningf("Discarding node label %s that is already present", k)
+				continue
 			}
 
-			k8sNamespaceRegex := regexp.MustCompile(`(^|\.)(kubernetes|k8s)\.io/`)
-			for k, v := range instanceMeta.AdditionalLabels {
-				// Cloud provider should not be using kubernetes namespaces in labels
-				if isK8sNamespace := k8sNamespaceRegex.MatchString(k); isK8sNamespace {
-					klog.Warningf("Discarding node label %s with kubernetes namespace", k)
-					continue
-				} else if originalVal, ok := n.Labels[k]; ok {
-					if originalVal != v {
-						klog.Warningf("Discarding node label %s that is already present", k)
-					}
-					continue
-				}
-				n.Labels[k] = v
-			}
-		})
+			n.Labels[k] = v
+		}
+	})
+
+	return nodeModifiers
+}
+
+func addProviderLabels(keys labelsKeys, lables map[string]string, v string) {
+	for k := range keys {
+		klog.V(2).Infof("Adding node label from cloud provider: %s=%s", k, v)
+		lables[k] = v
 	}
-
-	return nodeModifiers, nil
 }
 
 // getInstanceMetadata get providerdID, instance type and nodeAddresses, use Instances if InstancesV2 is off.
