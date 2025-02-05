@@ -359,7 +359,11 @@ func getPodSandboxState(podStatus *kubecontainer.PodStatus) kubecontainer.State 
 func (e *EventedPLEG) updateRunningPodMetric(podStatus *kubecontainer.PodStatus) {
 	cachedPodStatus, err := e.cache.Get(podStatus.ID)
 	if err != nil {
-		e.logger.Error(err, "Evented PLEG: Get cache", "podID", podStatus.ID)
+		// The cachedPodStatus may be set to nil when use generic pleg relisting sometimes.
+		// Here just skip for the evented pleg cannot get the real state of the pod.
+		// The pod metric will be updated when everything come back to normal.
+		e.logger.Error(err, "Evented PLEG: Get cache error, skip update pod metric", "podID", podStatus.ID)
+		return
 	}
 	// cache miss condition: The pod status object will have empty state if missed in cache
 	if len(cachedPodStatus.SandboxStatuses) < 1 {
@@ -390,7 +394,11 @@ func getContainerStateCount(podStatus *kubecontainer.PodStatus) map[kubecontaine
 func (e *EventedPLEG) updateRunningContainerMetric(podStatus *kubecontainer.PodStatus) {
 	cachedPodStatus, err := e.cache.Get(podStatus.ID)
 	if err != nil {
-		e.logger.Error(err, "Evented PLEG: Get cache", "podID", podStatus.ID)
+		// The cachedPodStatus may be set to nil when use generic pleg relisting sometimes.
+		// Here just skip for the evented pleg cannot get the real state of the pod.
+		// The container metric will be updated when everything come back to normal.
+		e.logger.Error(err, "Evented PLEG: Get cache error, skip update container metric", "podID", podStatus.ID)
+		return
 	}
 
 	// cache miss condition: The pod status object will have empty state if missed in cache
