@@ -37,10 +37,11 @@ var (
 type kubeTypesMap map[string]kruntime.Pair
 
 func main() {
+	logger := klog.Background()
 	flag.Parse()
 
 	if *typeSrc == "" {
-		klog.Fatalf("Please define -s flag as it is the api type file")
+		logger.Error(nil, "Please define -s flag as it is the api type file")
 	}
 
 	docsForTypes := kruntime.ParseDocumentationFrom(*typeSrc)
