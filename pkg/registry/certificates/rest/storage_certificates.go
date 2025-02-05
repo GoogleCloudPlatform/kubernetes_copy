@@ -19,6 +19,7 @@ package rest
 import (
 	certificatesapiv1 "k8s.io/api/certificates/v1"
 	certificatesapiv1alpha1 "k8s.io/api/certificates/v1alpha1"
+	certificatesapiv1beta1 "k8s.io/api/certificates/v1beta1"
 	"k8s.io/apiserver/pkg/registry/generic"
 	"k8s.io/apiserver/pkg/registry/rest"
 	genericapiserver "k8s.io/apiserver/pkg/server"
@@ -45,6 +46,12 @@ func (p RESTStorageProvider) NewRESTStorage(apiResourceConfigSource serverstorag
 		apiGroupInfo.VersionedResourcesStorageMap[certificatesapiv1.SchemeGroupVersion.Version] = storageMap
 	}
 
+	if storageMap, err := p.v1beta1Storage(apiResourceConfigSource, restOptionsGetter); err != nil {
+		return genericapiserver.APIGroupInfo{}, err
+	} else if len(storageMap) > 0 {
+		apiGroupInfo.VersionedResourcesStorageMap[certificatesapiv1beta1.SchemeGroupVersion.Version] = storageMap
+	}
+
 	if storageMap, err := p.v1alpha1Storage(apiResourceConfigSource, restOptionsGetter); err != nil {
 		return genericapiserver.APIGroupInfo{}, err
 	} else if len(storageMap) > 0 {
@@ -65,6 +72,24 @@ func (p RESTStorageProvider) v1Storage(apiResourceConfigSource serverstorage.API
 		storage[resource] = csrStorage
 		storage[resource+"/status"] = csrStatusStorage
 		storage[resource+"/approval"] = csrApprovalStorage
+	}
+
+	return storage, nil
+}
+
+func (p RESTStorageProvider) v1beta1Storage(apiResourceConfigSource serverstorage.APIResourceConfigSource, restOptionsGetter generic.RESTOptionsGetter) (map[string]rest.Storage, error) {
+	storage := map[string]rest.Storage{}
+
+	if resource := "clustertrustbundles"; apiResourceConfigSource.ResourceEnabled(certificatesapiv1beta1.SchemeGroupVersion.WithResource(resource)) {
+		if utilfeature.DefaultFeatureGate.Enabled(features.ClusterTrustBundle) {
+			bundleStorage, err := clustertrustbundlestore.NewREST(restOptionsGetter)
+			if err != nil {
+				return nil, err
+			}
+			storage[resource] = bundleStorage
+		} else {
+			klog.Warning("ClusterTrustBundle storage is disabled because the ClusterTrustBundle feature gate is disabled")
+		}
 	}
 
 	return storage, nil

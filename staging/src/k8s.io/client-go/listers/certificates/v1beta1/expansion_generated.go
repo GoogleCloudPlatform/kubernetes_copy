@@ -21,3 +21,7 @@ package v1beta1
 // CertificateSigningRequestListerExpansion allows custom methods to be added to
 // CertificateSigningRequestLister.
 type CertificateSigningRequestListerExpansion interface{}
+
+// ClusterTrustBundleListerExpansion allows custom methods to be added to
+// ClusterTrustBundleLister.
+type ClusterTrustBundleListerExpansion interface{}

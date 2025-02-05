@@ -32,7 +32,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	authenticationv1 "k8s.io/api/authentication/v1"
-	certificatesv1alpha1 "k8s.io/api/certificates/v1alpha1"
+	certificatesv1beta1 "k8s.io/api/certificates/v1beta1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -912,11 +912,11 @@ func TestCollectDataWithClusterTrustBundle(t *testing.T) {
 				DefaultMode: utilptr.Int32(0644),
 			},
 			bundles: []runtime.Object{
-				&certificatesv1alpha1.ClusterTrustBundle{
+				&certificatesv1beta1.ClusterTrustBundle{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "foo",
 					},
-					Spec: certificatesv1alpha1.ClusterTrustBundleSpec{
+					Spec: certificatesv1beta1.ClusterTrustBundleSpec{
 						TrustBundle: string(goodCert1),
 					},
 				},
@@ -947,14 +947,14 @@ func TestCollectDataWithClusterTrustBundle(t *testing.T) {
 				DefaultMode: utilptr.Int32(0644),
 			},
 			bundles: []runtime.Object{
-				&certificatesv1alpha1.ClusterTrustBundle{
+				&certificatesv1beta1.ClusterTrustBundle{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "foo:example:bar",
 						Labels: map[string]string{
 							"key": "value",
 						},
 					},
-					Spec: certificatesv1alpha1.ClusterTrustBundleSpec{
+					Spec: certificatesv1beta1.ClusterTrustBundleSpec{
 						SignerName:  "foo.example/bar",
 						TrustBundle: string(goodCert1),
 					},
@@ -981,11 +981,11 @@ func TestCollectDataWithClusterTrustBundle(t *testing.T) {
 				DefaultMode: utilptr.Int32(0600),
 			},
 			bundles: []runtime.Object{
-				&certificatesv1alpha1.ClusterTrustBundle{
+				&certificatesv1beta1.ClusterTrustBundle{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "foo",
 					},
-					Spec: certificatesv1alpha1.ClusterTrustBundleSpec{
+					Spec: certificatesv1beta1.ClusterTrustBundleSpec{
 						TrustBundle: string(goodCert1),
 					},
 				},

@@ -23,7 +23,7 @@ import (
 	"testing"
 	"time"
 
-	certificatesv1alpha1 "k8s.io/api/certificates/v1alpha1"
+	certificatesv1beta1 "k8s.io/api/certificates/v1beta1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/component-base/metrics/legacyregistry"
 	"k8s.io/component-base/metrics/testutil"
@@ -50,7 +50,7 @@ clustertrustbundle_publisher_sync_total{code="200"} 1
 		},
 		{
 			desc: "kube api error",
-			err:  apierrors.NewNotFound(certificatesv1alpha1.Resource("clustertrustbundle"), "test.test:testSigner:something"),
+			err:  apierrors.NewNotFound(certificatesv1beta1.Resource("clustertrustbundle"), "test.test:testSigner:something"),
 			metrics: []string{
 				"clustertrustbundle_publisher_sync_total",
 			},

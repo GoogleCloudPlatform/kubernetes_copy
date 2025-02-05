@@ -23,7 +23,7 @@ import (
 	"math/big"
 	"testing"
 
-	certsv1alpha1 "k8s.io/api/certificates/v1alpha1"
+	certsv1beta1 "k8s.io/api/certificates/v1beta1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -91,11 +91,11 @@ func TestCTBAttestPlugin(t *testing.T) {
 			testUserConfig.Impersonate = rest.ImpersonationConfig{UserName: "test-user"}
 			testUserClient := kubernetes.NewForConfigOrDie(testUserConfig)
 
-			bundle := &certsv1alpha1.ClusterTrustBundle{
+			bundle := &certsv1beta1.ClusterTrustBundle{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: tc.trustBundleName,
 				},
-				Spec: certsv1alpha1.ClusterTrustBundleSpec{
+				Spec: certsv1beta1.ClusterTrustBundleSpec{
 					SignerName: tc.targetSignerName,
 					TrustBundle: mustMakePEMBlock("CERTIFICATE", nil, mustMakeCertificate(t, &x509.Certificate{
 						SerialNumber: big.NewInt(0),
@@ -107,7 +107,7 @@ func TestCTBAttestPlugin(t *testing.T) {
 					})),
 				},
 			}
-			_, err := testUserClient.CertificatesV1alpha1().ClusterTrustBundles().Create(ctx, bundle, metav1.CreateOptions{})
+			_, err := testUserClient.CertificatesV1beta1().ClusterTrustBundles().Create(ctx, bundle, metav1.CreateOptions{})
 			if err != nil && err.Error() != tc.wantError {
 				t.Fatalf("Bad error while creating ClusterTrustBundle; got %q want %q", err.Error(), tc.wantError)
 			} else if err == nil && tc.wantError != "" {

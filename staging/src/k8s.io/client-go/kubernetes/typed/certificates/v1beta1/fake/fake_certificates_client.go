@@ -32,6 +32,10 @@ func (c *FakeCertificatesV1beta1) CertificateSigningRequests() v1beta1.Certifica
 	return newFakeCertificateSigningRequests(c)
 }
 
+func (c *FakeCertificatesV1beta1) ClusterTrustBundles() v1beta1.ClusterTrustBundleInterface {
+	return newFakeClusterTrustBundles(c)
+}
+
 // RESTClient returns a RESTClient that is used to communicate
 // with API server by this client implementation.
 func (c *FakeCertificatesV1beta1) RESTClient() rest.Interface {

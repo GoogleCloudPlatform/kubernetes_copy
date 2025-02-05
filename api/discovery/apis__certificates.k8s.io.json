@@ -12,6 +12,10 @@
       "version": "v1"
     },
     {
+      "groupVersion": "certificates.k8s.io/v1beta1",
+      "version": "v1beta1"
+    },
+    {
       "groupVersion": "certificates.k8s.io/v1alpha1",
       "version": "v1alpha1"
     }

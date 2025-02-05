@@ -23,7 +23,7 @@ import (
 	"math/big"
 	"testing"
 
-	certsv1alpha1 "k8s.io/api/certificates/v1alpha1"
+	certsv1beta1 "k8s.io/api/certificates/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	kubeapiservertesting "k8s.io/kubernetes/cmd/kube-apiserver/app/testing"
@@ -42,11 +42,11 @@ func TestCTBSignerNameFieldSelector(t *testing.T) {
 
 	client := kubernetes.NewForConfigOrDie(server.ClientConfig)
 
-	bundle1 := &certsv1alpha1.ClusterTrustBundle{
+	bundle1 := &certsv1beta1.ClusterTrustBundle{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "foo.com:bar:v1",
 		},
-		Spec: certsv1alpha1.ClusterTrustBundleSpec{
+		Spec: certsv1beta1.ClusterTrustBundleSpec{
 			SignerName: "foo.com/bar",
 			TrustBundle: mustMakePEMBlock("CERTIFICATE", nil, mustMakeCertificate(t, &x509.Certificate{
 				SerialNumber: big.NewInt(0),
@@ -58,15 +58,15 @@ func TestCTBSignerNameFieldSelector(t *testing.T) {
 			})),
 		},
 	}
-	if _, err := client.CertificatesV1alpha1().ClusterTrustBundles().Create(ctx, bundle1, metav1.CreateOptions{}); err != nil {
+	if _, err := client.CertificatesV1beta1().ClusterTrustBundles().Create(ctx, bundle1, metav1.CreateOptions{}); err != nil {
 		t.Fatalf("Error while creating bundle1: %v", err)
 	}
 
-	bundle2 := &certsv1alpha1.ClusterTrustBundle{
+	bundle2 := &certsv1beta1.ClusterTrustBundle{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "foo.com:bar:v2",
 		},
-		Spec: certsv1alpha1.ClusterTrustBundleSpec{
+		Spec: certsv1beta1.ClusterTrustBundleSpec{
 			SignerName: "foo.com/bar",
 			TrustBundle: mustMakePEMBlock("CERTIFICATE", nil, mustMakeCertificate(t, &x509.Certificate{
 				SerialNumber: big.NewInt(0),
@@ -78,15 +78,15 @@ func TestCTBSignerNameFieldSelector(t *testing.T) {
 			})),
 		},
 	}
-	if _, err := client.CertificatesV1alpha1().ClusterTrustBundles().Create(ctx, bundle2, metav1.CreateOptions{}); err != nil {
+	if _, err := client.CertificatesV1beta1().ClusterTrustBundles().Create(ctx, bundle2, metav1.CreateOptions{}); err != nil {
 		t.Fatalf("Error while creating bundle2: %v", err)
 	}
 
-	bundle3 := &certsv1alpha1.ClusterTrustBundle{
+	bundle3 := &certsv1beta1.ClusterTrustBundle{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "baz.com:bar:v1",
 		},
-		Spec: certsv1alpha1.ClusterTrustBundleSpec{
+		Spec: certsv1beta1.ClusterTrustBundleSpec{
 			SignerName: "baz.com/bar",
 			TrustBundle: mustMakePEMBlock("CERTIFICATE", nil, mustMakeCertificate(t, &x509.Certificate{
 				SerialNumber: big.NewInt(0),
@@ -98,11 +98,11 @@ func TestCTBSignerNameFieldSelector(t *testing.T) {
 			})),
 		},
 	}
-	if _, err := client.CertificatesV1alpha1().ClusterTrustBundles().Create(ctx, bundle3, metav1.CreateOptions{}); err != nil {
+	if _, err := client.CertificatesV1beta1().ClusterTrustBundles().Create(ctx, bundle3, metav1.CreateOptions{}); err != nil {
 		t.Fatalf("Error while creating bundle3: %v", err)
 	}
 
-	fooList, err := client.CertificatesV1alpha1().ClusterTrustBundles().List(ctx, metav1.ListOptions{FieldSelector: "spec.signerName=foo.com/bar"})
+	fooList, err := client.CertificatesV1beta1().ClusterTrustBundles().List(ctx, metav1.ListOptions{FieldSelector: "spec.signerName=foo.com/bar"})
 	if err != nil {
 		t.Fatalf("Unable to list ClusterTrustBundles with spec.signerName=foo.com/bar")
 	}
@@ -126,7 +126,7 @@ func TestCTBSignerNameFieldSelector(t *testing.T) {
 		t.Errorf("Didn't find foo.com:bar:v2 in the list when listing for foo.com/bar")
 	}
 
-	bazList, err := client.CertificatesV1alpha1().ClusterTrustBundles().List(ctx, metav1.ListOptions{FieldSelector: "spec.signerName=baz.com/bar"})
+	bazList, err := client.CertificatesV1beta1().ClusterTrustBundles().List(ctx, metav1.ListOptions{FieldSelector: "spec.signerName=baz.com/bar"})
 	if err != nil {
 		t.Fatalf("Unable to list ClusterTrustBundles with spec.signerName=baz.com/bar")
 	}
