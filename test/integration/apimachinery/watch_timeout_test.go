@@ -288,7 +288,13 @@ func testWatchClientTimeout(t *testing.T, config *restclient.Config, timeout, ti
 			return client.CoreV1().ConfigMaps(metav1.NamespaceAll).Watch(context.TODO(), options)
 		},
 	}
-	_, informer := cache.NewIndexerInformer(listWatch, &corev1.ConfigMap{}, 30*time.Minute, cache.ResourceEventHandlerFuncs{}, cache.Indexers{})
+	_, informer := cache.NewInformerWithOptions(cache.InformerOptions{
+		ListerWatcher: listWatch,
+		ObjectType:    &corev1.ConfigMap{},
+		ResyncPeriod:  30 * time.Minute,
+		Handler:       cache.ResourceEventHandlerFuncs{},
+		Indexers:      cache.Indexers{},
+	})
 	informer.Run(stopCh)
 	select {
 	case <-stopCh:
