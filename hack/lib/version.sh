@@ -93,7 +93,7 @@ kube::version::get_version_vars() {
         # so use our idea of "dirty" from git status instead.
         KUBE_GIT_VERSION+="-dirty"
       fi
-
+      KUBE_GIT_VERSION=$(echo "${KUBE_GIT_VERSION}" | sed 's/alpha/beta/g')
 
       # Try to match the "git describe" output to a regex to try to extract
       # the "major" and "minor" versions and whether this is the exact tagged
