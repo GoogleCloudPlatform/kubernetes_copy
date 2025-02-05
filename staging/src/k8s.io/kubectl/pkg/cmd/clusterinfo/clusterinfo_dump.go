@@ -37,6 +37,7 @@ import (
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
 	"k8s.io/kubectl/pkg/polymorphichelpers"
 	"k8s.io/kubectl/pkg/scheme"
+	"k8s.io/kubectl/pkg/util"
 	"k8s.io/kubectl/pkg/util/i18n"
 	"k8s.io/kubectl/pkg/util/templates"
 )
@@ -49,10 +50,15 @@ const (
 type ClusterInfoDumpOptions struct {
 	PrintFlags *genericclioptions.PrintFlags
 	PrintObj   printers.ResourcePrinterFunc
+	Options    *corev1.PodLogOptions
 
 	OutputDir     string
 	AllNamespaces bool
 	Namespaces    []string
+
+	// PodLogOptions
+	SinceTime    string
+	SinceSeconds time.Duration
 
 	Timeout          time.Duration
 	AppsClient       appsv1client.AppsV1Interface
@@ -84,6 +90,8 @@ func NewCmdClusterInfoDump(restClientGetter genericclioptions.RESTClientGetter, 
 
 	o.PrintFlags.AddFlags(cmd)
 
+	cmd.Flags().StringVar(&o.SinceTime, "since-time", o.SinceTime, i18n.T("Only return logs after a specific date (RFC3339). Defaults to all logs. Only one of since-time / since may be used."))
+	cmd.Flags().DurationVar(&o.SinceSeconds, "since", o.SinceSeconds, "Only return logs newer than a relative duration like 5s, 2m, or 3h. Defaults to all logs. Only one of since-time / since may be used.")
 	cmd.Flags().StringVar(&o.OutputDir, "output-directory", o.OutputDir, i18n.T("Where to output the files.  If empty or '-' uses stdout, otherwise creates a directory hierarchy in that directory"))
 	cmd.Flags().StringSliceVar(&o.Namespaces, "namespaces", o.Namespaces, "A comma separated list of namespaces to dump.")
 	cmd.Flags().BoolVarP(&o.AllNamespaces, "all-namespaces", "A", o.AllNamespaces, "If true, dump all namespaces.  If true, --namespaces is ignored.")
@@ -128,6 +136,27 @@ func setupOutputWriter(dir string, defaultWriter io.Writer, filename string, fil
 	return file
 }
 
+func (o *ClusterInfoDumpOptions) ToLogOptions() (*corev1.PodLogOptions, error) {
+	logOptions := &corev1.PodLogOptions{}
+
+	if len(o.SinceTime) > 0 {
+		t, err := util.ParseRFC3339(o.SinceTime, metav1.Now)
+		if err != nil {
+			return nil, err
+		}
+
+		logOptions.SinceTime = &t
+	}
+
+	if o.SinceSeconds != 0 {
+		// round up to the nearest second
+		sec := int64(o.SinceSeconds.Round(time.Second).Seconds())
+		logOptions.SinceSeconds = &sec
+	}
+
+	return logOptions, nil
+}
+
 func (o *ClusterInfoDumpOptions) Complete(restClientGetter genericclioptions.RESTClientGetter, cmd *cobra.Command) error {
 	printer, err := o.PrintFlags.ToPrinter()
 	if err != nil {
@@ -157,6 +186,11 @@ func (o *ClusterInfoDumpOptions) Complete(restClientGetter genericclioptions.RES
 	}
 
 	o.Namespace, _, err = restClientGetter.ToRawKubeConfigLoader().Namespace()
+	if err != nil {
+		return err
+	}
+
+	o.Options, err = o.ToLogOptions()
 	if err != nil {
 		return err
 	}
@@ -266,11 +300,11 @@ func (o *ClusterInfoDumpOptions) Run() error {
 			return err
 		}
 
-		printContainer := func(writer io.Writer, container corev1.Container, pod *corev1.Pod) {
+		printContainer := func(writer io.Writer, container corev1.Container, pod *corev1.Pod, options *corev1.PodLogOptions) {
 			writer.Write([]byte(fmt.Sprintf("==== START logs for container %s of pod %s/%s ====\n", container.Name, pod.Namespace, pod.Name)))
 			defer writer.Write([]byte(fmt.Sprintf("==== END logs for container %s of pod %s/%s ====\n", container.Name, pod.Namespace, pod.Name)))
 
-			requests, err := o.LogsForObject(o.RESTClientGetter, pod, &corev1.PodLogOptions{Container: container.Name}, timeout, false)
+			requests, err := o.LogsForObject(o.RESTClientGetter, pod, options, timeout, false)
 			if err != nil {
 				// Print error and return.
 				writer.Write([]byte(fmt.Sprintf("Create log request error: %s\n", err.Error())))
@@ -295,10 +329,14 @@ func (o *ClusterInfoDumpOptions) Run() error {
 			writer := setupOutputWriter(o.OutputDir, o.Out, path.Join(namespace, pod.Name, "logs"), ".txt")
 
 			for i := range initcontainers {
-				printContainer(writer, initcontainers[i], pod)
+				var options = o.Options.DeepCopy()
+				options.Container = initcontainers[i].Name
+				printContainer(writer, initcontainers[i], pod, options)
 			}
 			for i := range containers {
-				printContainer(writer, containers[i], pod)
+				var options = o.Options.DeepCopy()
+				options.Container = containers[i].Name
+				printContainer(writer, containers[i], pod, options)
 			}
 		}
 	}
