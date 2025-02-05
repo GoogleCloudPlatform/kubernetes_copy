@@ -61,6 +61,7 @@ func TestDefaultWithPriorityLevelConfiguration(t *testing.T) {
 						LimitResponse: flowcontrolv1.LimitResponse{
 							Type: flowcontrolv1.LimitResponseTypeReject,
 						},
+						Weight: ptr.To(int32(42)),
 					},
 				},
 			},
@@ -73,6 +74,34 @@ func TestDefaultWithPriorityLevelConfiguration(t *testing.T) {
 						LimitResponse: flowcontrolv1.LimitResponse{
 							Type: flowcontrolv1.LimitResponseTypeReject,
 						},
+						Weight: ptr.To(int32(42)),
+					},
+				},
+			},
+		},
+		{
+			name: "Weight is not specified in Limited, should get default value",
+			original: &flowcontrolv1.PriorityLevelConfiguration{
+				Spec: flowcontrolv1.PriorityLevelConfigurationSpec{
+					Type: flowcontrolv1.PriorityLevelEnablementLimited,
+					Limited: &flowcontrolv1.LimitedPriorityLevelConfiguration{
+						NominalConcurrencyShares: ptr.To(int32(5)),
+						LimitResponse: flowcontrolv1.LimitResponse{
+							Type: flowcontrolv1.LimitResponseTypeReject,
+						},
+					},
+				},
+			},
+			expected: &flowcontrolv1.PriorityLevelConfiguration{
+				Spec: flowcontrolv1.PriorityLevelConfigurationSpec{
+					Type: flowcontrolv1.PriorityLevelEnablementLimited,
+					Limited: &flowcontrolv1.LimitedPriorityLevelConfiguration{
+						NominalConcurrencyShares: ptr.To(int32(5)),
+						LendablePercent:          ptr.To(int32(0)),
+						LimitResponse: flowcontrolv1.LimitResponse{
+							Type: flowcontrolv1.LimitResponseTypeReject,
+						},
+						Weight: ptr.To(LimitedPriorityLevelConfigurationDefaultWeight),
 					},
 				},
 			},
@@ -87,6 +116,7 @@ func TestDefaultWithPriorityLevelConfiguration(t *testing.T) {
 						LimitResponse: flowcontrolv1.LimitResponse{
 							Type: flowcontrolv1.LimitResponseTypeReject,
 						},
+						Weight: ptr.To(int32(42)),
 					},
 				},
 			},
@@ -99,6 +129,7 @@ func TestDefaultWithPriorityLevelConfiguration(t *testing.T) {
 						LimitResponse: flowcontrolv1.LimitResponse{
 							Type: flowcontrolv1.LimitResponseTypeReject,
 						},
+						Weight: ptr.To(int32(42)),
 					},
 				},
 			},
@@ -113,6 +144,7 @@ func TestDefaultWithPriorityLevelConfiguration(t *testing.T) {
 						LimitResponse: flowcontrolv1.LimitResponse{
 							Type: flowcontrolv1.LimitResponseTypeReject,
 						},
+						Weight: ptr.To(int32(42)),
 					},
 				},
 			},
@@ -125,6 +157,7 @@ func TestDefaultWithPriorityLevelConfiguration(t *testing.T) {
 						LimitResponse: flowcontrolv1.LimitResponse{
 							Type: flowcontrolv1.LimitResponseTypeReject,
 						},
+						Weight: ptr.To(int32(42)),
 					},
 				},
 			},

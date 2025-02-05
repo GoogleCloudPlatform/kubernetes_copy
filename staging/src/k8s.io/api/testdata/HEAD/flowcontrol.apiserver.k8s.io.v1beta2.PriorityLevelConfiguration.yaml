@@ -46,6 +46,7 @@ spec:
         queueLengthLimit: 3
         queues: 1
       type: typeValue
+    weight: 5
   type: typeValue
 status:
   conditions:

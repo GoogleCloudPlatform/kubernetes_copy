@@ -246,6 +246,14 @@ message LimitedPriorityLevelConfiguration {
   // When this field is left `nil`, the limit is effectively infinite.
   // +optional
   optional int32 borrowingLimitPercent = 4;
+
+  // `weight` gives this priority level more or less priority in the borrowing
+  // of concurrency.
+  // The default configuration objects use values in the range 10--100.
+  // Must be in the range 1--1000.
+  // The default value is 30.
+  // +optional
+  optional int32 weight = 5;
 }
 
 // NonResourcePolicyRule is a predicate that matches non-resource requests according to their verb and the

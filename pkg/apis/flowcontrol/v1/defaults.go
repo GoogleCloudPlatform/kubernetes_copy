@@ -32,6 +32,7 @@ const (
 	PriorityLevelConfigurationDefaultQueues                   int32 = 64
 	PriorityLevelConfigurationDefaultQueueLengthLimit         int32 = 50
 	PriorityLevelConfigurationDefaultNominalConcurrencyShares int32 = 30
+	LimitedPriorityLevelConfigurationDefaultWeight            int32 = 30
 )
 
 // SetDefaults_FlowSchema sets default values for flow schema
@@ -59,6 +60,9 @@ func SetDefaults_LimitedPriorityLevelConfiguration(lplc *v1.LimitedPriorityLevel
 	if lplc.LendablePercent == nil {
 		lplc.LendablePercent = new(int32)
 		*lplc.LendablePercent = 0
+	}
+	if lplc.Weight == nil {
+		lplc.Weight = ptr.To(LimitedPriorityLevelConfigurationDefaultWeight)
 	}
 }
 

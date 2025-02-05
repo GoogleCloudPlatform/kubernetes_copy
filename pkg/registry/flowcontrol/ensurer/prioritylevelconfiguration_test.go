@@ -59,18 +59,32 @@ func TestEnsurePriorityLevel(t *testing.T) {
 			expected:  newPLConfiguration("pl1").WithLimited(10).Object(),
 		},
 		{
-			name:      "suggested priority level configuration exists, auto update is enabled, spec does not match - current object should be updated",
+			name:      "suggested priority level configuration exists, auto update is enabled, NominalConcurrencyShares does not match - current object should be updated",
 			strategy:  NewSuggestedEnsureStrategy[*flowcontrolv1.PriorityLevelConfiguration],
 			bootstrap: newPLConfiguration("pl1").WithLimited(20).Object(),
 			current:   newPLConfiguration("pl1").WithAutoUpdateAnnotation("true").WithLimited(10).Object(),
 			expected:  newPLConfiguration("pl1").WithAutoUpdateAnnotation("true").WithLimited(20).Object(),
 		},
 		{
-			name:      "suggested priority level configuration exists, auto update is disabled, spec does not match - current object should not be updated",
+			name:      "suggested priority level configuration exists, auto update is enabled, Weight does not match - current object should be updated",
+			strategy:  NewSuggestedEnsureStrategy[*flowcontrolv1.PriorityLevelConfiguration],
+			bootstrap: newPLConfiguration("pl1").WithLimited(20).Object(),
+			current:   newPLConfiguration("pl1").WithAutoUpdateAnnotation("true").WithLimited(20).WithWeight(13).Object(),
+			expected:  newPLConfiguration("pl1").WithAutoUpdateAnnotation("true").WithLimited(20).Object(),
+		},
+		{
+			name:      "suggested priority level configuration exists, auto update is disabled, NominalConcurrencyShares does not match - current object should not be updated",
 			strategy:  NewSuggestedEnsureStrategy[*flowcontrolv1.PriorityLevelConfiguration],
 			bootstrap: newPLConfiguration("pl1").WithLimited(20).Object(),
 			current:   newPLConfiguration("pl1").WithAutoUpdateAnnotation("false").WithLimited(10).Object(),
 			expected:  newPLConfiguration("pl1").WithAutoUpdateAnnotation("false").WithLimited(10).Object(),
+		},
+		{
+			name:      "suggested priority level configuration exists, auto update is disabled, Weight does not match - current object should not be updated",
+			strategy:  NewSuggestedEnsureStrategy[*flowcontrolv1.PriorityLevelConfiguration],
+			bootstrap: newPLConfiguration("pl1").WithLimited(20).WithWeight(13).Object(),
+			current:   newPLConfiguration("pl1").WithAutoUpdateAnnotation("false").WithLimited(20).Object(),
+			expected:  newPLConfiguration("pl1").WithAutoUpdateAnnotation("false").WithLimited(20).Object(),
 		},
 
 		// for mandatory configurations
@@ -89,10 +103,17 @@ func TestEnsurePriorityLevel(t *testing.T) {
 			expected:  newPLConfiguration("pl1").WithAutoUpdateAnnotation("true").WithLimited(20).Object(),
 		},
 		{
-			name:      "mandatory priority level configuration exists, auto update is disabled, spec does not match - current object should be updated",
+			name:      "mandatory priority level configuration exists, auto update is disabled, NominalConcurrencyShares does not match - current object should be updated",
 			strategy:  NewMandatoryEnsureStrategy[*flowcontrolv1.PriorityLevelConfiguration],
 			bootstrap: newPLConfiguration("pl1").WithLimited(20).Object(),
 			current:   newPLConfiguration("pl1").WithAutoUpdateAnnotation("false").WithLimited(10).Object(),
+			expected:  newPLConfiguration("pl1").WithAutoUpdateAnnotation("true").WithLimited(20).Object(),
+		},
+		{
+			name:      "mandatory priority level configuration exists, auto update is disabled, Weight does not match - current object should be updated",
+			strategy:  NewMandatoryEnsureStrategy[*flowcontrolv1.PriorityLevelConfiguration],
+			bootstrap: newPLConfiguration("pl1").WithLimited(20).Object(),
+			current:   newPLConfiguration("pl1").WithAutoUpdateAnnotation("false").WithLimited(20).WithWeight(13).Object(),
 			expected:  newPLConfiguration("pl1").WithAutoUpdateAnnotation("true").WithLimited(20).Object(),
 		},
 		{
@@ -278,6 +299,7 @@ func TestPriorityLevelSpecChanged(t *testing.T) {
 				LimitResponse: flowcontrolv1.LimitResponse{
 					Type: flowcontrolv1.LimitResponseTypeReject,
 				},
+				Weight: ptr.To(flowcontrolapisv1.LimitedPriorityLevelConfigurationDefaultWeight),
 			},
 		},
 	}
@@ -491,7 +513,13 @@ func (b *plBuilder) WithLimited(nominalConcurrencyShares int32) *plBuilder {
 		LimitResponse: flowcontrolv1.LimitResponse{
 			Type: flowcontrolv1.LimitResponseTypeReject,
 		},
+		Weight: ptr.To(flowcontrolapisv1.LimitedPriorityLevelConfigurationDefaultWeight),
 	}
+	return b
+}
+
+func (b *plBuilder) WithWeight(weight int32) *plBuilder {
+	b.object.Spec.Limited.Weight = ptr.To(weight)
 	return b
 }
 
