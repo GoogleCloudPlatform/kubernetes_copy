@@ -380,7 +380,8 @@ func groupPods(pods []*v1.Pod, metrics metricsclient.PodMetricsInfo, resource v1
 	unreadyPods = sets.New[string]()
 	ignoredPods = sets.New[string]()
 	for _, pod := range pods {
-		if pod.DeletionTimestamp != nil || pod.Status.Phase == v1.PodFailed {
+		podTerminated := pod.Status.Phase == v1.PodFailed || pod.Status.Phase == v1.PodSucceeded
+		if pod.DeletionTimestamp != nil || podTerminated {
 			ignoredPods.Insert(pod.Name)
 			continue
 		}

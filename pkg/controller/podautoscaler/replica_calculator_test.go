@@ -573,12 +573,12 @@ func TestReplicaCalcScaleHotCpuNoScale(t *testing.T) {
 	tc.runTest(t)
 }
 
-func TestReplicaCalcScaleUpIgnoresFailedPods(t *testing.T) {
+func TestReplicaCalcScaleUpIgnoresTerminatedPods(t *testing.T) {
 	tc := replicaCalcTestCase{
 		currentReplicas:  2,
 		expectedReplicas: 4,
 		podReadiness:     []v1.ConditionStatus{v1.ConditionTrue, v1.ConditionTrue, v1.ConditionFalse, v1.ConditionFalse},
-		podPhase:         []v1.PodPhase{v1.PodRunning, v1.PodRunning, v1.PodFailed, v1.PodFailed},
+		podPhase:         []v1.PodPhase{v1.PodRunning, v1.PodRunning, v1.PodFailed, v1.PodSucceeded},
 		resource: &resourceInfo{
 			name:     v1.ResourceCPU,
 			requests: []resource.Quantity{resource.MustParse("1.0"), resource.MustParse("1.0"), resource.MustParse("1.0"), resource.MustParse("1.0")},
