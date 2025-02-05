@@ -2538,9 +2538,18 @@ func servedAPIVersions(crd *apiextensionsv1.CustomResourceDefinition) []string {
 	return ret
 }
 
+const azureAdmissionEnforcerLabel = "admissions.enforcer/disabled"
+
 // createValidatingWebhookConfiguration ensures the webhook config scopes object or namespace selection
 // to avoid interfering with other tests, then creates the config.
 func createValidatingWebhookConfiguration(ctx context.Context, f *framework.Framework, config *admissionregistrationv1.ValidatingWebhookConfiguration) (*admissionregistrationv1.ValidatingWebhookConfiguration, error) {
+	if framework.ProviderIs("azure") {
+		if config.Labels == nil {
+			config.Labels = make(map[string]string)
+		}
+		config.Labels[azureAdmissionEnforcerLabel] = "true"
+	}
+
 	for _, webhook := range config.Webhooks {
 		if webhook.NamespaceSelector != nil && webhook.NamespaceSelector.MatchLabels[f.UniqueName] == "true" {
 			continue
@@ -2556,6 +2565,13 @@ func createValidatingWebhookConfiguration(ctx context.Context, f *framework.Fram
 // createMutatingWebhookConfiguration ensures the webhook config scopes object or namespace selection
 // to avoid interfering with other tests, then creates the config.
 func createMutatingWebhookConfiguration(ctx context.Context, f *framework.Framework, config *admissionregistrationv1.MutatingWebhookConfiguration) (*admissionregistrationv1.MutatingWebhookConfiguration, error) {
+	if framework.ProviderIs("azure") {
+		if config.Labels == nil {
+			config.Labels = make(map[string]string)
+		}
+		config.Labels[azureAdmissionEnforcerLabel] = "true"
+	}
+
 	for _, webhook := range config.Webhooks {
 		if webhook.NamespaceSelector != nil && webhook.NamespaceSelector.MatchLabels[f.UniqueName] == "true" {
 			continue
