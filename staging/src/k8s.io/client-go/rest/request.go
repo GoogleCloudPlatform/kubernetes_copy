@@ -1610,21 +1610,29 @@ func (r Result) ContentType(contentType *string) Result {
 // If the returned object is of type Status and has .Status != StatusSuccess, the
 // additional information in Status will be used to enrich the error.
 func (r Result) Into(obj runtime.Object) error {
+	_, err := r.UpdateObjectAndGetGVK(obj)
+	return err
+}
+
+// UpdateObjectAndGetGVK stores the result into obj, if possible and returns gvk.
+// Because of the codec convention while using dynamic-client, it removes GVK from the object.
+// To restore GVK into the object it returns GVK.
+func (r Result) UpdateObjectAndGetGVK(obj runtime.Object) (*schema.GroupVersionKind, error) {
 	if r.err != nil {
 		// Check whether the result has a Status object in the body and prefer that.
-		return r.Error()
+		return nil, r.Error()
 	}
 	if r.decoder == nil {
-		return fmt.Errorf("serializer for %s doesn't exist", r.contentType)
+		return nil, fmt.Errorf("serializer for %s doesn't exist", r.contentType)
 	}
 	if len(r.body) == 0 {
-		return fmt.Errorf("0-length response with status code: %d and content type: %s",
+		return nil, fmt.Errorf("0-length response with status code: %d and content type: %s",
 			r.statusCode, r.contentType)
 	}
 
-	out, _, err := r.decoder.Decode(r.body, nil, obj)
+	out, gvk, err := r.decoder.Decode(r.body, nil, obj)
 	if err != nil || out == obj {
-		return err
+		return gvk, err
 	}
 	// if a different object is returned, see if it is Status and avoid double decoding
 	// the object.
@@ -1632,10 +1640,10 @@ func (r Result) Into(obj runtime.Object) error {
 	case *metav1.Status:
 		// any status besides StatusSuccess is considered an error.
 		if t.Status != metav1.StatusSuccess {
-			return errors.FromObject(t)
+			return gvk, errors.FromObject(t)
 		}
 	}
-	return nil
+	return gvk, nil
 }
 
 // WasCreated updates the provided bool pointer to whether the server returned
