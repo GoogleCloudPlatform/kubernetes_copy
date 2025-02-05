@@ -335,7 +335,7 @@ func (a *mutatingDispatcher) callAttrMutatingHook(ctx context.Context, h *admiss
 	}
 	patchObj, err := jsonpatch.DecodePatch(result.Patch)
 	if err != nil {
-		return false, apierrors.NewInternalError(err)
+		return false, &webhookutil.ErrCallingWebhook{WebhookName: h.Name, Reason: fmt.Errorf("received undecodable patch in webhook response: %w", err), Status: apierrors.NewServiceUnavailable("error decoding patch in webhook response")}
 	}
 
 	if len(patchObj) == 0 {
