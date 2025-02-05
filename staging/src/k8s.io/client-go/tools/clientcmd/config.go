@@ -492,6 +492,7 @@ func getConfigFromFile(filename string) (*clientcmdapi.Config, error) {
 func GetConfigFromFileOrDie(filename string) *clientcmdapi.Config {
 	config, err := getConfigFromFile(filename)
 	if err != nil {
+		//nolint:logcheck // A helper function like this should not log. But this is probably part of the the established client-go API and not worth changing.
 		klog.FatalDepth(1, err)
 	}
 
