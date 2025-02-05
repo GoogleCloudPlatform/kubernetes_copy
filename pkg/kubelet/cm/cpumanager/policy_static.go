@@ -327,8 +327,9 @@ func (p *staticPolicy) Allocate(s state.State, pod *v1.Pod, container *v1.Contai
 			metrics.CPUManagerPinningErrorsTotal.Inc()
 			return
 		}
-		if !p.options.FullPhysicalCPUsOnly {
+		if !p.options.FullPhysicalCPUsOnly && p.cpuGroupSize != 1 {
 			// increment only if we know we allocate aligned resources
+			// exception: in non-SMT environments, there's one logical CPU per physical core
 			return
 		}
 		metrics.ContainerAlignedComputeResources.WithLabelValues(metrics.AlignScopeContainer, metrics.AlignedPhysicalCPU).Inc()
