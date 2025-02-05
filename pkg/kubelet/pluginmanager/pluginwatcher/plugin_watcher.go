@@ -18,15 +18,16 @@ package pluginwatcher
 
 import (
 	"fmt"
-	"os"
-	"strings"
-
 	"github.com/fsnotify/fsnotify"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
-
 	"k8s.io/kubernetes/pkg/kubelet/pluginmanager/cache"
 	"k8s.io/kubernetes/pkg/kubelet/util"
 	utilfs "k8s.io/kubernetes/pkg/util/filesystem"
+	"os"
+	"strings"
+	"time"
 )
 
 // Watcher is the plugin watcher
@@ -35,6 +36,7 @@ type Watcher struct {
 	fs                  utilfs.Filesystem
 	fsWatcher           *fsnotify.Watcher
 	desiredStateOfWorld cache.DesiredStateOfWorld
+	eventQueue          workqueue.TypedRateLimitingInterface[fsnotify.Event]
 }
 
 // NewWatcher provides a new watcher for socket registration
@@ -43,11 +45,14 @@ func NewWatcher(sockDir string, desiredStateOfWorld cache.DesiredStateOfWorld) *
 		path:                sockDir,
 		fs:                  &utilfs.DefaultFs{},
 		desiredStateOfWorld: desiredStateOfWorld,
+		eventQueue:          workqueue.NewTypedRateLimitingQueue[fsnotify.Event](workqueue.NewTypedItemExponentialFailureRateLimiter[fsnotify.Event](time.Second*2, time.Minute*2)),
 	}
 }
 
 // Start watches for the creation and deletion of plugin sockets at the path
 func (w *Watcher) Start(stopCh <-chan struct{}) error {
+	defer w.eventQueue.ShutDown()
+
 	klog.V(2).InfoS("Plugin Watcher Start", "path", w.path)
 
 	// Creating the directory to be watched if it doesn't exist yet,
@@ -66,20 +71,11 @@ func (w *Watcher) Start(stopCh <-chan struct{}) error {
 	if err := w.traversePluginDir(w.path); err != nil {
 		klog.ErrorS(err, "Failed to traverse plugin socket path", "path", w.path)
 	}
-
 	go func(fsWatcher *fsnotify.Watcher) {
 		for {
 			select {
 			case event := <-fsWatcher.Events:
-				//TODO: Handle errors by taking corrective measures
-				if event.Has(fsnotify.Create) {
-					err := w.handleCreateEvent(event)
-					if err != nil {
-						klog.ErrorS(err, "Error when handling create event", "event", event)
-					}
-				} else if event.Has(fsnotify.Remove) {
-					w.handleDeleteEvent(event)
-				}
+				w.eventQueue.Add(event)
 				continue
 			case err := <-fsWatcher.Errors:
 				if err != nil {
@@ -93,7 +89,35 @@ func (w *Watcher) Start(stopCh <-chan struct{}) error {
 		}
 	}(fsWatcher)
 
+	go wait.Until(w.handlerPluginEvent, time.Second, stopCh)
 	return nil
+}
+
+func (w *Watcher) handlerPluginEvent() {
+	for w.processPluginEvent() {
+	}
+}
+
+func (w *Watcher) processPluginEvent() bool {
+	event, shutDown := w.eventQueue.Get()
+	defer w.eventQueue.Done(event)
+	if shutDown {
+		return false
+	}
+	if event.Has(fsnotify.Create) {
+		shouldRetry, err := w.handleCreateEvent(event)
+		if err != nil {
+			klog.ErrorS(err, "Error when handling create event", "event", event)
+			if shouldRetry {
+				w.eventQueue.AddRateLimited(event)
+			}
+		} else {
+			w.eventQueue.Forget(event)
+		}
+	} else if event.Has(fsnotify.Remove) {
+		w.handleDeleteEvent(event)
+	}
+	return true
 }
 
 func (w *Watcher) init() error {
@@ -140,10 +164,7 @@ func (w *Watcher) traversePluginDir(dir string) error {
 				Name: path,
 				Op:   fsnotify.Create,
 			}
-			//TODO: Handle errors by taking corrective measures
-			if err := w.handleCreateEvent(event); err != nil {
-				klog.ErrorS(err, "Error when handling create", "event", event)
-			}
+			w.fsWatcher.Events <- event
 		} else {
 			klog.V(5).InfoS("Ignoring file", "path", path, "mode", mode)
 		}
@@ -155,33 +176,33 @@ func (w *Watcher) traversePluginDir(dir string) error {
 // Handle filesystem notify event.
 // Files names:
 // - MUST NOT start with a '.'
-func (w *Watcher) handleCreateEvent(event fsnotify.Event) error {
+func (w *Watcher) handleCreateEvent(event fsnotify.Event) (bool, error) {
 	klog.V(6).InfoS("Handling create event", "event", event)
 
 	fi, err := getStat(event)
 	if err != nil {
-		return fmt.Errorf("stat file %s failed: %v", event.Name, err)
+		return true, fmt.Errorf("stat file %s failed: %v", event.Name, err)
 	}
 
 	if strings.HasPrefix(fi.Name(), ".") {
 		klog.V(5).InfoS("Ignoring file (starts with '.')", "path", fi.Name())
-		return nil
+		return false, nil
 	}
 
 	if !fi.IsDir() {
 		isSocket, err := util.IsUnixDomainSocket(util.NormalizePath(event.Name))
 		if err != nil {
-			return fmt.Errorf("failed to determine if file: %s is a unix domain socket: %v", event.Name, err)
+			return true, fmt.Errorf("failed to determine if file: %s is a unix domain socket: %v", event.Name, err)
 		}
 		if !isSocket {
 			klog.V(5).InfoS("Ignoring non socket file", "path", fi.Name())
-			return nil
+			return false, nil
 		}
 
-		return w.handlePluginRegistration(event.Name)
+		return true, w.handlePluginRegistration(event.Name)
 	}
 
-	return w.traversePluginDir(event.Name)
+	return false, w.traversePluginDir(event.Name)
 }
 
 func (w *Watcher) handlePluginRegistration(socketPath string) error {

@@ -123,6 +123,8 @@ func (og *operationGenerator) GenerateRegisterPluginFunc(
 			klog.ErrorS(err, "RegisterPlugin error -- failed to add plugin", "path", socketPath)
 		}
 		if err := handler.RegisterPlugin(infoResp.Name, infoResp.Endpoint, infoResp.SupportedVersions, nil); err != nil {
+			// delete plugin from actual state of world cache after register failed, then reconcile mechanism can only be re-registered after doing this.
+			actualStateOfWorldUpdater.RemovePlugin(socketPath)
 			return og.notifyPlugin(client, false, fmt.Sprintf("RegisterPlugin error -- plugin registration failed with err: %v", err))
 		}
 
