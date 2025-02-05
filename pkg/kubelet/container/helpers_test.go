@@ -989,3 +989,56 @@ func TestHashContainerWithoutResources(t *testing.T) {
 		})
 	}
 }
+
+func TestPendingInitContainers(t *testing.T) {
+	type testCase struct {
+		name                   string
+		pod                    *v1.Pod
+		expectedInitContainers []string
+	}
+
+	tests := []testCase{
+		{
+			name: "Pod not yet start",
+			pod: &v1.Pod{
+				Spec: v1.PodSpec{
+					InitContainers: []v1.Container{
+						{Name: "init-container"},
+						{Name: "init-container-1"},
+					},
+				},
+			},
+			expectedInitContainers: []string{"init-container", "init-container-1"},
+		},
+		{
+			name: "Pod is already started",
+			pod: &v1.Pod{
+				Spec: v1.PodSpec{
+					InitContainers: []v1.Container{
+						{Name: "init-container"},
+						{Name: "init-container-running"},
+					},
+				},
+				Status: v1.PodStatus{
+					InitContainerStatuses: []v1.ContainerStatus{
+						{Name: "init-container-running", State: v1.ContainerState{
+							Running: &v1.ContainerStateRunning{},
+						}},
+					},
+				},
+			},
+			expectedInitContainers: []string{"init-container"},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			podCopy := tc.pod.DeepCopy()
+			initContainers := GetPendingInitContainers(podCopy)
+			containerNames := []string{}
+			for _, initContainer := range initContainers {
+				containerNames = append(containerNames, initContainer.Name)
+			}
+			assert.Equal(t, tc.expectedInitContainers, containerNames, "[%s]", tc.name)
+		})
+	}
+}

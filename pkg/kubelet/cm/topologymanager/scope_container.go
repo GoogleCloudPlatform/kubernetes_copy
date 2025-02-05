@@ -21,6 +21,7 @@ import (
 	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/kubelet/cm/admission"
 	"k8s.io/kubernetes/pkg/kubelet/cm/containermap"
+	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
 	"k8s.io/kubernetes/pkg/kubelet/lifecycle"
 	"k8s.io/kubernetes/pkg/kubelet/metrics"
 )
@@ -45,7 +46,7 @@ func NewContainerScope(policy Policy) Scope {
 }
 
 func (s *containerScope) Admit(pod *v1.Pod) lifecycle.PodAdmitResult {
-	for _, container := range append(pod.Spec.InitContainers, pod.Spec.Containers...) {
+	for _, container := range append(kubecontainer.GetPendingInitContainers(pod), pod.Spec.Containers...) {
 		bestHint, admit := s.calculateAffinity(pod, &container)
 		klog.InfoS("Best TopologyHint", "bestHint", bestHint, "pod", klog.KObj(pod), "containerName", container.Name)
 

@@ -33,6 +33,7 @@ import (
 	"k8s.io/kubernetes/pkg/kubelet/cm/memorymanager/state"
 	"k8s.io/kubernetes/pkg/kubelet/cm/topologymanager"
 	"k8s.io/kubernetes/pkg/kubelet/cm/topologymanager/bitmask"
+	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
 	"k8s.io/kubernetes/pkg/kubelet/metrics"
 )
 
@@ -400,7 +401,7 @@ func (p *staticPolicy) GetPodTopologyHints(s state.State, pod *v1.Pod) map[strin
 		return nil
 	}
 
-	for _, ctn := range append(pod.Spec.InitContainers, pod.Spec.Containers...) {
+	for _, ctn := range append(kubecontainer.GetPendingInitContainers(pod), pod.Spec.Containers...) {
 		containerBlocks := s.GetMemoryBlocks(string(pod.UID), ctn.Name)
 		// Short circuit to regenerate the same hints if there are already
 		// memory allocated for the container. This might happen after a

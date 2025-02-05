@@ -29,6 +29,7 @@ import (
 	"k8s.io/kubernetes/pkg/kubelet/cm/cpumanager/topology"
 	"k8s.io/kubernetes/pkg/kubelet/cm/topologymanager"
 	"k8s.io/kubernetes/pkg/kubelet/cm/topologymanager/bitmask"
+	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
 	"k8s.io/kubernetes/pkg/kubelet/metrics"
 	"k8s.io/utils/cpuset"
 )
@@ -588,7 +589,7 @@ func (p *staticPolicy) GetPodTopologyHints(s state.State, pod *v1.Pod) map[strin
 	}
 
 	assignedCPUs := cpuset.New()
-	for _, container := range append(pod.Spec.InitContainers, pod.Spec.Containers...) {
+	for _, container := range append(kubecontainer.GetPendingInitContainers(pod), pod.Spec.Containers...) {
 		requestedByContainer := p.guaranteedCPUs(pod, &container)
 		// Short circuit to regenerate the same hints if there are already
 		// guaranteed CPUs allocated to the Container. This might happen after a
