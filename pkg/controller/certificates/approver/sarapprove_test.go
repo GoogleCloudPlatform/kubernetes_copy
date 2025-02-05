@@ -173,10 +173,10 @@ func TestRecognizers(t *testing.T) {
 	testRecognizer(t, badCases, isNodeClientCert, false)
 	testRecognizer(t, badCases, isSelfNodeClientCert, false)
 
-	// cn different then requestor
+	// cn different then requester
 	differentCN := []func(b *csrBuilder){
 		func(b *csrBuilder) {
-			b.requestor = "joe"
+			b.requester = "joe"
 		},
 		func(b *csrBuilder) {
 			b.cn = "system:node:bar"
@@ -193,7 +193,7 @@ func testRecognizer(t *testing.T, cases []func(b *csrBuilder), recognizeFunc fun
 			signerName: capi.KubeAPIServerClientKubeletSignerName,
 			cn:         "system:node:foo",
 			orgs:       []string{"system:nodes"},
-			requestor:  "system:node:foo",
+			requester:  "system:node:foo",
 			usages: []capi.KeyUsage{
 				capi.UsageKeyEncipherment,
 				capi.UsageDigitalSignature,
@@ -216,7 +216,7 @@ func testRecognizer(t *testing.T, cases []func(b *csrBuilder), recognizeFunc fun
 			signerName: capi.KubeAPIServerClientKubeletSignerName,
 			cn:         "system:node:foo",
 			orgs:       []string{"system:nodes"},
-			requestor:  "system:node:foo",
+			requester:  "system:node:foo",
 			usages: []capi.KeyUsage{
 				capi.UsageDigitalSignature,
 				capi.UsageClientAuth,
@@ -247,7 +247,7 @@ func makeTestCsr() *capi.CertificateSigningRequest {
 type csrBuilder struct {
 	cn         string
 	orgs       []string
-	requestor  string
+	requester  string
 	usages     []capi.KeyUsage
 	dns        []string
 	emails     []string
@@ -274,7 +274,7 @@ func makeFancyTestCsr(b csrBuilder) *capi.CertificateSigningRequest {
 	}
 	return &capi.CertificateSigningRequest{
 		Spec: capi.CertificateSigningRequestSpec{
-			Username:   b.requestor,
+			Username:   b.requester,
 			Usages:     b.usages,
 			SignerName: b.signerName,
 			Request:    pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csrb}),

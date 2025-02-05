@@ -734,7 +734,7 @@ func (dc *DisruptionController) trySync(ctx context.Context, pdb *policy.PodDisr
 		dc.recorder.Eventf(pdb, v1.EventTypeWarning, "CalculateExpectedPodCountFailed", "Failed to calculate the number of expected pods: %v", err)
 		return err
 	}
-	// We have unmamanged pods, instead of erroring and hotlooping in disruption controller, log and continue.
+	// We have unmanaged pods, instead of erroring and hotlooping in disruption controller, log and continue.
 	if len(unmanagedPods) > 0 {
 		logger.V(4).Info("Found unmanaged pods associated with this PDB", "pods", unmanagedPods)
 		dc.recorder.Eventf(pdb, v1.EventTypeWarning, "UnmanagedPods", "Pods selected by this PodDisruptionBudget (selector: %v) were found "+

@@ -794,7 +794,7 @@ func Test_SetVolumesMountedByNode_Positive_UnsetWithInitialSetAddVolumeNodeNotRe
 // Calls RemoveVolumeFromReportAsAttached() once on volume/node entry.
 // Calls SetVolumesMountedByNode() twice, first setting mounted to true then false.
 // Verifies mountedByNode is false and detachRequestedTime is NOT zero.
-func Test_SetVolumesMountedByNode_Positive_UnsetWithInitialSetVerifyDetachRequestedTimePerserved(t *testing.T) {
+func Test_SetVolumesMountedByNode_Positive_UnsetWithInitialSetVerifyDetachRequestedTimePreserved(t *testing.T) {
 	// Arrange
 	volumePluginMgr, _ := volumetesting.GetTestVolumePluginMgr(t)
 	asw := NewActualStateOfWorld(volumePluginMgr)

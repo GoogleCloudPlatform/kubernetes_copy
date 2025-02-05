@@ -395,8 +395,8 @@ func (jm *ControllerV2) updateCronJob(logger klog.Logger, old interface{}, curr 
 		if err != nil {
 			// this is likely a user error in defining the spec value
 			// we should log the error and not reconcile this cronjob until an update to spec
-			logger.V(2).Info("Unparseable schedule for cronjob", "cronjob", klog.KObj(newCJ), "schedule", newCJ.Spec.Schedule, "err", err)
-			jm.recorder.Eventf(newCJ, corev1.EventTypeWarning, "UnParseableCronJobSchedule", "unparseable schedule for cronjob: %s", newCJ.Spec.Schedule)
+			logger.V(2).Info("Unparsable schedule for cronjob", "cronjob", klog.KObj(newCJ), "schedule", newCJ.Spec.Schedule, "err", err)
+			jm.recorder.Eventf(newCJ, corev1.EventTypeWarning, "UnParseableCronJobSchedule", "unparsable schedule for cronjob: %s", newCJ.Spec.Schedule)
 			return
 		}
 		now := jm.now()
@@ -515,8 +515,8 @@ func (jm *ControllerV2) syncCronJob(
 	if err != nil {
 		// this is likely a user error in defining the spec value
 		// we should log the error and not reconcile this cronjob until an update to spec
-		logger.V(2).Info("Unparseable schedule", "cronjob", klog.KObj(cronJob), "schedule", cronJob.Spec.Schedule, "err", err)
-		jm.recorder.Eventf(cronJob, corev1.EventTypeWarning, "UnparseableSchedule", "unparseable schedule: %q : %s", cronJob.Spec.Schedule, err)
+		logger.V(2).Info("Unparsable schedule", "cronjob", klog.KObj(cronJob), "schedule", cronJob.Spec.Schedule, "err", err)
+		jm.recorder.Eventf(cronJob, corev1.EventTypeWarning, "UnparsableSchedule", "unparsable schedule: %q : %s", cronJob.Spec.Schedule, err)
 		return nil, updateStatus, nil
 	}
 

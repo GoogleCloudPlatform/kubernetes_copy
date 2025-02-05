@@ -319,7 +319,7 @@ func (qm *QuotaMonitor) Run(ctx context.Context) {
 	qm.StartMonitors(ctx)
 
 	// The following workers are hanging forever until the queue is
-	// shutted down, so we need to shut it down in a separate goroutine.
+	// shut down, so we need to shut it down in a separate goroutine.
 	go func() {
 		defer utilruntime.HandleCrash()
 		defer qm.resourceChanges.ShutDown()

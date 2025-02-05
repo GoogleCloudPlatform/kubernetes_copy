@@ -251,7 +251,7 @@ func (ssc *defaultStatefulSetControl) getStatefulSetRevisions(
 			return nil, nil, collisionCount, err
 		}
 	} else {
-		//if there is no equivalent revision we create a new one
+		// if there is no equivalent revision we create a new one
 		updateRevision, err = ssc.controllerHistory.CreateControllerRevision(set, updateRevision, &collisionCount)
 		if err != nil {
 			return nil, nil, collisionCount, err

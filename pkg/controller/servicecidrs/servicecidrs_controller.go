@@ -59,7 +59,7 @@ const (
 	ServiceCIDRProtectionFinalizer = "networking.k8s.io/service-cidr-finalizer"
 
 	// deletionGracePeriod is the time in seconds to wait to remove the finalizer from a ServiceCIDR to ensure the
-	// deletion informations has been propagated to the apiserver allocators to avoid allocating any IP address
+	// deletion information has been propagated to the apiserver allocators to avoid allocating any IP address
 	// before we complete delete the ServiceCIDR
 	deletionGracePeriod = 10 * time.Second
 )
@@ -300,7 +300,7 @@ func (c *Controller) sync(ctx context.Context, key string) error {
 		}
 		if !ok {
 			// update the status to indicate why the ServiceCIDR can not be deleted,
-			// it will be reevaludated by an event on any ServiceCIDR or IPAddress related object
+			// it will be reevaluated by an event on any ServiceCIDR or IPAddress related object
 			// that may remove this condition.
 			svcApplyStatus := networkingapiv1apply.ServiceCIDRStatus().WithConditions(
 				metav1apply.Condition().

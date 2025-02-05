@@ -220,11 +220,11 @@ func (rc *reconciler) reconcile(ctx context.Context) {
 
 			// Force detach volumes from unhealthy nodes after maxWaitForUnmountDuration if force detach is enabled
 			// Ensure that the timeout condition checks this correctly so that the correct metric is updated below
-			forceDetatchTimeoutExpired := maxWaitForUnmountDurationExpired && !rc.disableForceDetachOnTimeout
+			forceDetachTimeoutExpired := maxWaitForUnmountDurationExpired && !rc.disableForceDetachOnTimeout
 			if maxWaitForUnmountDurationExpired && rc.disableForceDetachOnTimeout {
 				logger.V(5).Info("Drain timeout expired for volume but disableForceDetachOnTimeout was set", "node", klog.KRef("", string(attachedVolume.NodeName)), "volumeName", attachedVolume.VolumeName)
 			}
-			forceDetach := !isHealthy && forceDetatchTimeoutExpired
+			forceDetach := !isHealthy && forceDetachTimeoutExpired
 
 			hasOutOfServiceTaint, err := rc.hasOutOfServiceTaint(attachedVolume.NodeName)
 			if err != nil {
@@ -262,19 +262,19 @@ func (rc *reconciler) reconcile(ctx context.Context) {
 			}
 
 			// Trigger detach volume which requires verifying safe to detach step
-			// If forceDetatchTimeoutExpired is true, skip verifySafeToDetach check
+			// If forceDetachTimeoutExpired is true, skip verifySafeToDetach check
 			// If the node has node.kubernetes.io/out-of-service taint with NoExecute effect, skip verifySafeToDetach check
 			logger.V(5).Info("Starting attacherDetacher.DetachVolume", "node", klog.KRef("", string(attachedVolume.NodeName)), "volumeName", attachedVolume.VolumeName)
 			if hasOutOfServiceTaint {
 				logger.V(4).Info("node has out-of-service taint", "node", klog.KRef("", string(attachedVolume.NodeName)))
 			}
-			verifySafeToDetach := !(forceDetatchTimeoutExpired || hasOutOfServiceTaint)
+			verifySafeToDetach := !(forceDetachTimeoutExpired || hasOutOfServiceTaint)
 			err = rc.attacherDetacher.DetachVolume(logger, attachedVolume.AttachedVolume, verifySafeToDetach, rc.actualStateOfWorld)
 			if err == nil {
 				if verifySafeToDetach { // normal detach
 					logger.Info("attacherDetacher.DetachVolume started", "node", klog.KRef("", string(attachedVolume.NodeName)), "volumeName", attachedVolume.VolumeName)
 				} else { // force detach
-					if forceDetatchTimeoutExpired {
+					if forceDetachTimeoutExpired {
 						metrics.RecordForcedDetachMetric(metrics.ForceDetachReasonTimeout)
 						logger.Info("attacherDetacher.DetachVolume started: this volume is not safe to detach, but maxWaitForUnmountDuration expired, force detaching",
 							"duration", rc.maxWaitForUnmountDuration,
@@ -290,7 +290,7 @@ func (rc *reconciler) reconcile(ctx context.Context) {
 			}
 			if err != nil {
 				// Add volume back to ReportAsAttached if DetachVolume call failed so that node status updater will add it back to VolumeAttached list.
-				// This function is also called during executing the volume detach operation in operation_generoator.
+				// This function is also called during executing the volume detach operation in operation_generator.
 				// It is needed here too because DetachVolume call might fail before executing the actual operation in operation_executor (e.g., cannot find volume plugin etc.)
 				rc.actualStateOfWorld.AddVolumeToReportAsAttached(logger, attachedVolume.VolumeName, attachedVolume.NodeName)
 

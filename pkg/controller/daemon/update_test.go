@@ -91,7 +91,7 @@ func TestDaemonSetUpdatesPodsWithMaxSurge(t *testing.T) {
 	expectSyncDaemonSets(t, manager, ds, podControl, 5, 0, 0)
 	markPodsReady(podControl.podStore)
 
-	// surge is thhe controlling amount
+	// surge is the controlling amount
 	maxSurge := 2
 	ds.Spec.Template.Spec.Containers[0].Image = "foo2/bar2"
 	ds.Spec.UpdateStrategy = newUpdateSurge(intstr.FromInt32(int32(maxSurge)))

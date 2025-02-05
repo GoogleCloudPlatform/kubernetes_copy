@@ -527,7 +527,7 @@ func TestPVCProtectionController(t *testing.T) {
 			case *v1.Pod:
 				podInformer.Informer().GetStore().Add(obj)
 			default:
-				t.Fatalf("Unknown initalObject type: %+v", obj)
+				t.Fatalf("Unknown initialObject type: %+v", obj)
 			}
 		}
 

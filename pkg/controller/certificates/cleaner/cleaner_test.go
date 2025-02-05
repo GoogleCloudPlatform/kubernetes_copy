@@ -196,7 +196,7 @@ func TestCleanerWithApprovedExpiredCSR(t *testing.T) {
 			[]string{"delete"},
 		},
 		{
-			"delete approved passed deadline unparseable",
+			"delete approved passed deadline unparsable",
 			metav1.NewTime(time.Now().Add(-1 * time.Minute)),
 			[]byte(`garbage`),
 			[]capi.CertificateSigningRequestCondition{

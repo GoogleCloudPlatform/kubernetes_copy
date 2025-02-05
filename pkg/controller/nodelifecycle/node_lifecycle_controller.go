@@ -421,7 +421,7 @@ func NewNodeLifecycleController(
 	nc.nodeLister = nodeInformer.Lister()
 
 	if !utilfeature.DefaultFeatureGate.Enabled(features.SeparateTaintEvictionController) {
-		logger.Info("Running TaintEvictionController as part of NodeLifecyleController")
+		logger.Info("Running TaintEvictionController as part of NodeLifecycleController")
 		tm, err := tainteviction.New(ctx, kubeClient, podInformer, nodeInformer, taintEvictionController)
 		if err != nil {
 			return nil, err
@@ -595,7 +595,7 @@ func (nc *Controller) doNoScheduleTaintingPass(ctx context.Context, nodeName str
 func (nc *Controller) doNoExecuteTaintingPass(ctx context.Context) {
 	// Extract out the keys of the map in order to not hold
 	// the evictorLock for the entire function and hold it
-	// only when nescessary.
+	// only when necessary.
 	var zoneNoExecuteTainterKeys []string
 	func() {
 		nc.evictorLock.Lock()

@@ -39,7 +39,7 @@ func newDeploymentStatus(replicas, updatedReplicas, availableReplicas int32) app
 	}
 }
 
-// assumes the retuned deployment is always observed - not needed to be tested here.
+// assumes the returned deployment is always observed - not needed to be tested here.
 func currentDeployment(pds *int32, replicas, statusReplicas, updatedReplicas, availableReplicas int32, conditions []apps.DeploymentCondition) *apps.Deployment {
 	d := &apps.Deployment{
 		ObjectMeta: metav1.ObjectMeta{

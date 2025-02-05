@@ -1120,7 +1120,7 @@ func TestRSSyncExpectations(t *testing.T) {
 
 	manager.expectations = controller.NewUIDTrackingControllerExpectations(FakeRSExpectations{
 		controller.NewControllerExpectations(), true, func() {
-			// If we check active pods before checking expectataions, the
+			// If we check active pods before checking expectations, the
 			// ReplicaSet will create a new replica because it doesn't see
 			// this pod, but has fulfilled its expectations.
 			informers.Core().V1().Pods().Informer().GetIndexer().Add(&postExpectationsPod)

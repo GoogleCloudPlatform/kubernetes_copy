@@ -329,7 +329,7 @@ func (r *rangeAllocator) AllocateOrOccupyCIDR(ctx context.Context, node *v1.Node
 		allocatedCIDRs[idx] = podCIDR
 	}
 
-	//queue the assignment
+	// queue the assignment
 	logger.V(4).Info("Putting node with CIDR into the work queue", "node", klog.KObj(node), "CIDRs", allocatedCIDRs)
 	return r.updateCIDRsAllocation(ctx, node.Name, allocatedCIDRs)
 }

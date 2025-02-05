@@ -396,7 +396,7 @@ func TestSync(t *testing.T) {
 		{
 			// syncClaim with claim pre-bound to a PV that exists and is
 			// unbound, but its size is smaller than requested.
-			//Check that the claim status is reset to Pending
+			// Check that the claim status is reset to Pending
 			name:            "2-9 - claim prebound to unbound volume that size is smaller than requested",
 			initialVolumes:  newVolumeArray("volume2-9", "1Gi", "", "", v1.VolumeAvailable, v1.PersistentVolumeReclaimRetain, classEmpty),
 			expectedVolumes: newVolumeArray("volume2-9", "1Gi", "", "", v1.VolumeAvailable, v1.PersistentVolumeReclaimRetain, classEmpty),

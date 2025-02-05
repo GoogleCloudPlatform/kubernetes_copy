@@ -91,7 +91,7 @@ func TestMatchPodFailurePolicy(t *testing.T) {
 			podFailurePolicy: &batch.PodFailurePolicy{
 				Rules: []batch.PodFailurePolicyRule{
 					{
-						Action: "UnkonwnAction",
+						Action: "UnknownAction",
 						OnPodConditions: []batch.PodFailurePolicyOnPodConditionsPattern{
 							{
 								Type:   v1.DisruptionTarget,
@@ -315,7 +315,7 @@ func TestMatchPodFailurePolicy(t *testing.T) {
 							},
 						},
 						{
-							Name: "suppport-container",
+							Name: "support-container",
 							State: v1.ContainerState{
 								Terminated: &v1.ContainerStateTerminated{
 									ExitCode: 0,
@@ -416,7 +416,7 @@ func TestMatchPodFailurePolicy(t *testing.T) {
 							},
 						},
 						{
-							Name: "suppport-container",
+							Name: "support-container",
 							State: v1.ContainerState{
 								Terminated: &v1.ContainerStateTerminated{
 									ExitCode: 0,

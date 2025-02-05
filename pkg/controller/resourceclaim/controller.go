@@ -253,11 +253,11 @@ func (ec *Controller) enqueuePod(logger klog.Logger, obj interface{}, deleted bo
 
 	needsWork, reason := ec.podNeedsWork(pod)
 	if needsWork {
-		logger.V(6).Info("enqueing pod", "pod", klog.KObj(pod), "reason", reason)
+		logger.V(6).Info("enqueuing pod", "pod", klog.KObj(pod), "reason", reason)
 		ec.queue.Add(podKeyPrefix + pod.Namespace + "/" + pod.Name)
 		return
 	}
-	logger.V(6).Info("not enqueing pod", "pod", klog.KObj(pod), "reason", reason)
+	logger.V(6).Info("not enqueuing pod", "pod", klog.KObj(pod), "reason", reason)
 }
 
 func podNeedsClaims(pod *v1.Pod, deleted bool) (bool, string) {
@@ -378,10 +378,10 @@ func (ec *Controller) enqueueResourceClaim(logger klog.Logger, oldObj, newObj in
 		// stale pods in ReservedFor. During an update, a pod might get added
 		// that already no longer exists.
 		key := claimKeyPrefix + claim.Namespace + "/" + claim.Name
-		logger.V(6).Info("enqueing new or updated claim", "claim", klog.KObj(claim), "key", key)
+		logger.V(6).Info("enqueuing new or updated claim", "claim", klog.KObj(claim), "key", key)
 		ec.queue.Add(key)
 	} else {
-		logger.V(6).Info("not enqueing deleted claim", "claim", klog.KObj(claim))
+		logger.V(6).Info("not enqueuing deleted claim", "claim", klog.KObj(claim))
 	}
 
 	// Also check whether this causes work for any of the currently

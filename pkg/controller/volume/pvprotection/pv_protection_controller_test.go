@@ -235,7 +235,7 @@ func TestPVProtectionController(t *testing.T) {
 			}
 			currentActionCount := len(client.Actions())
 			if currentActionCount < len(test.expectedActions) {
-				// Do not log evey wait, only when the action count changes.
+				// Do not log every wait, only when the action count changes.
 				if lastReportedActionCount < currentActionCount {
 					logger.V(5).Info("Waiting for the remaining actions", "test", test.name, "currentActionCount", currentActionCount, "expectedActionCount", len(test.expectedActions))
 					lastReportedActionCount = currentActionCount

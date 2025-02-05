@@ -566,7 +566,7 @@ func TestAllocateOrOccupyCIDRSuccess(t *testing.T) {
 			if len(updatedNode.Spec.PodCIDRs) == 0 {
 				continue // not assigned yet
 			}
-			//match
+			// match
 			for podCIDRIdx, expectedPodCIDR := range tc.expectedAllocatedCIDR {
 				if updatedNode.Spec.PodCIDRs[podCIDRIdx] != expectedPodCIDR {
 					t.Errorf("%v: Unable to find allocated CIDR %v, found updated Nodes with CIDRs: %v", tc.description, expectedPodCIDR, updatedNode.Spec.PodCIDRs)
@@ -655,7 +655,7 @@ func TestAllocateOrOccupyCIDRFailure(t *testing.T) {
 			if len(updatedNode.Spec.PodCIDRs) == 0 {
 				continue // not assigned yet
 			}
-			//match
+			// match
 			for podCIDRIdx, expectedPodCIDR := range tc.expectedAllocatedCIDR {
 				if updatedNode.Spec.PodCIDRs[podCIDRIdx] == expectedPodCIDR {
 					t.Errorf("%v: found cidr %v that should not be allocated on node with CIDRs:%v", tc.description, expectedPodCIDR, updatedNode.Spec.PodCIDRs)
@@ -827,7 +827,7 @@ func TestReleaseCIDRSuccess(t *testing.T) {
 			if len(updatedNode.Spec.PodCIDRs) == 0 {
 				continue // not assigned yet
 			}
-			//match
+			// match
 			for podCIDRIdx, expectedPodCIDR := range tc.expectedAllocatedCIDRSecondRound {
 				if updatedNode.Spec.PodCIDRs[podCIDRIdx] != expectedPodCIDR {
 					t.Errorf("%v: found cidr %v that should not be allocated on node with CIDRs:%v", tc.description, expectedPodCIDR, updatedNode.Spec.PodCIDRs)

@@ -1226,7 +1226,7 @@ func TestNonController(t *testing.T) {
 	testCases := []struct {
 		name string
 		refs []metav1.OwnerReference
-		// The set and pod objets will be created with names "set" and "pod", respectively.
+		// The set and pod objects will be created with names "set" and "pod", respectively.
 		setUID        types.UID
 		podUID        types.UID
 		nonController bool

@@ -503,7 +503,7 @@ func TestStatefulPodControlDeleteFailure(t *testing.T) {
 	}
 }
 
-func TestStatefulPodControlClaimsMatchDeletionPolcy(t *testing.T) {
+func TestStatefulPodControlClaimsMatchDeletionPolicy(t *testing.T) {
 	// The isClaimOwnerUpToDate is tested exhaustively in stateful_set_utils_test; this
 	// test is for the wiring to the method tested there.
 	_, ctx := ktesting.NewTestContext(t)

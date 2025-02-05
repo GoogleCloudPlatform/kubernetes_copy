@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package bootstrap provides automatic processes necessary for bootstraping.
+// Package bootstrap provides automatic processes necessary for bootstrapping.
 // This includes managing and expiring tokens along with signing well known
 // configmaps with those tokens.
 package bootstrap

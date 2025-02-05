@@ -1468,7 +1468,7 @@ func TestConflictingData(t *testing.T) {
 					pendingAttemptToDelete: []*node{makeNode(pod1ns1, withOwners(deployment1extensions))},
 				}),
 				// 11,12: process attemptToDelete for child
-				// final state: child with unresolveable ownerRef remains, queued in pendingAttemptToDelete
+				// final state: child with unresolvable ownerRef remains, queued in pendingAttemptToDelete
 				processAttemptToDelete(1),
 				assertState(state{
 					clientActions: []string{

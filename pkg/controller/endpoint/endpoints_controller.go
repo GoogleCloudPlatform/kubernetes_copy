@@ -689,7 +689,7 @@ func truncateEndpoints(endpoints *v1.Endpoints) bool {
 			numInSubset = len(subset.NotReadyAddresses)
 		}
 
-		// The number of endpoints per subset will be based on the propotion of endpoints
+		// The number of endpoints per subset will be based on the proportion of endpoints
 		// in this subset versus the total number of endpoints. The proportion of endpoints
 		// will be rounded up which most likely will lead to the last subset having less
 		// endpoints than the expected proportion.

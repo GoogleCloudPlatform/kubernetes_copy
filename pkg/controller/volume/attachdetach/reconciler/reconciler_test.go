@@ -910,7 +910,7 @@ func Test_Run_OneVolumeDetachOnOutOfServiceTaintedNode(t *testing.T) {
 	waitForDetachCallCount(t, 0 /* expectedDetachCallCount */, fakePlugin)
 
 	// Delete the pod and the volume will be detached only after the maxLongWaitForUnmountDuration expires as volume is
-	//not unmounted. Here maxLongWaitForUnmountDuration is used to mimic that node is out of service.
+	// not unmounted. Here maxLongWaitForUnmountDuration is used to mimic that node is out of service.
 	// But in this case the node has the node.kubernetes.io/out-of-service taint and hence it will not wait for
 	// maxLongWaitForUnmountDuration and will progress to detach immediately.
 	dsw.DeletePod(types.UniquePodName(podName1), generatedVolumeName, nodeName1)

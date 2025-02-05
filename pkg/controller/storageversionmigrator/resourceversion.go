@@ -233,7 +233,7 @@ func (rv *ResourceVersionController) getLatestResourceVersion(gvr schema.GroupVe
 
 	var randomList *metav1.PartialObjectMetadataList
 	if isResourceNamespaceScoped {
-		// get list resourceVersion from random non-existent namesapce for the given GVR
+		// get list resourceVersion from random non-existent namespace for the given GVR
 		randomList, err = rv.metadataClient.Resource(gvr).
 			Namespace(fakeSVMNamespaceName).
 			List(ctx, metav1.ListOptions{

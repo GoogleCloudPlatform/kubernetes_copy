@@ -229,7 +229,7 @@ func TestProvisionSync(t *testing.T) {
 			expectedClaims:  newClaimArray("claim11-6", "uid11-6", "1Gi", "volume11-6", v1.ClaimBound, &classGold, volume.AnnBoundByController, volume.AnnBindCompleted),
 			expectedEvents:  noevents,
 			errors:          noerrors,
-			// No provisioning plugin confingure - makes the test fail when
+			// No provisioning plugin configured - makes the test fail when
 			// the controller erroneously tries to provision something
 			test: wrapTestWithProvisionCalls([]provisionCall{provision1Success}, testSyncClaim),
 		},
@@ -246,7 +246,7 @@ func TestProvisionSync(t *testing.T) {
 			errors:         noerrors,
 			test: wrapTestWithInjectedOperation(ctx, wrapTestWithProvisionCalls([]provisionCall{}, testSyncClaim), func(ctrl *PersistentVolumeController, reactor *pvtesting.VolumeReactor) {
 				// Create a volume before provisionClaimOperation starts.
-				// This similates a parallel controller provisioning the volume.
+				// This simulates a parallel controller provisioning the volume.
 				volume := newVolume("pvc-uid11-7", "1Gi", "uid11-7", "claim11-7", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classGold, volume.AnnBoundByController, volume.AnnDynamicallyProvisioned)
 				reactor.AddVolume(volume)
 			}),
@@ -368,7 +368,7 @@ func TestProvisionSync(t *testing.T) {
 				[]error{ // delete calls
 					errors.New("Mock deletion error1"),
 					nil,
-				}, //  provison calls
+				}, //  provision calls
 				[]provisionCall{provision1Success},
 				testSyncClaim,
 			),

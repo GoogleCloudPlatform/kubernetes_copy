@@ -374,7 +374,7 @@ func (ctrl *PersistentVolumeController) updateVolumeMigrationAnnotationsAndFinal
 // modifyDeletionFinalizers updates the finalizers based on the reclaim policy and if it is a in-tree volume or not.
 // The in-tree PV deletion protection finalizer is only added if the reclaimPolicy associated with the PV is `Delete`.
 // The in-tree PV deletion protection finalizer is removed if the reclaimPolicy associated with the PV is `Retain` or
-// `Recycle`, removing the finalizer is necessary to reflect the recalimPolicy updates on the PV.
+// `Recycle`, removing the finalizer is necessary to reflect the reclaimPolicy updates on the PV.
 // The method also removes any external PV Deletion Protection finalizers added on the PV, this represents CSI migration
 // rollback/disable scenarios.
 func modifyDeletionFinalizers(logger klog.Logger, cmpm CSIMigratedPluginManager, volume *v1.PersistentVolume) ([]string, bool) {
@@ -450,7 +450,7 @@ func updateMigrationAnnotations(logger klog.Logger, cmpm CSIMigratedPluginManage
 	provisioner, ok := ann[provisionerKey]
 	if !ok {
 		if claim {
-			// Also check beta AnnStorageProvisioner annontation to make sure
+			// Also check beta AnnStorageProvisioner annotation to make sure
 			provisioner, ok = ann[storagehelpers.AnnBetaStorageProvisioner]
 			if !ok {
 				return false

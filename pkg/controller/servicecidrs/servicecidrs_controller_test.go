@@ -238,7 +238,7 @@ func TestControllerSync(t *testing.T) {
 			tCtx := ktesting.Init(t)
 			client, controller := newController(tCtx, t, tc.cidrs, tc.ips)
 			// server side apply does not play well with fake client go
-			// so we skup the errors and only assert on the actions
+			// so we skip the errors and only assert on the actions
 			// https://github.com/kubernetes/kubernetes/issues/99953
 			_ = controller.sync(tCtx, tc.cidrSynced)
 			expectAction(t, client.Actions(), tc.actions)

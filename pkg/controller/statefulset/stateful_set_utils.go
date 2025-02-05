@@ -316,7 +316,7 @@ func updateClaimOwnerRefForSetAndPod(logger klog.Logger, claim *v1.PersistentVol
 	})
 
 	if unexpectedController {
-		// Leave ownerRefs to our set & pod scrubed and return without creating new ones.
+		// Leave ownerRefs to our set & pod scrubbed and return without creating new ones.
 		claim.SetOwnerReferences(refs)
 		return
 	}

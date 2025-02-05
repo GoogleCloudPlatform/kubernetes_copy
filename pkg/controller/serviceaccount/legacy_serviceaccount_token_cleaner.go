@@ -118,7 +118,7 @@ func (tc *LegacySATokenCleaner) evaluateSATokens(ctx context.Context) {
 	now := tc.clock.Now().UTC()
 	trackedSince, err := tc.latestPossibleTrackedSinceTime(ctx)
 	if err != nil {
-		logger.Error(err, "Getting lastest possible tracked_since time")
+		logger.Error(err, "Getting latest possible tracked_since time")
 		return
 	}
 

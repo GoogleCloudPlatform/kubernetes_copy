@@ -1168,7 +1168,7 @@ func expectEndpointSlices(t *testing.T, num, maxEndpointsPerSubset int, endpoint
 	}
 
 	// canonicalize endpoints to match the expected endpoints, otherwise the test
-	// that creates more endpoints than allowed fail becaused the list of final
+	// that creates more endpoints than allowed fail because the list of final
 	// endpoints doesn't match.
 	for _, epSubset := range endpointsv1.RepackSubsets(endpoints.Subsets) {
 		if len(epSubset.Addresses) == 0 && len(epSubset.NotReadyAddresses) == 0 {

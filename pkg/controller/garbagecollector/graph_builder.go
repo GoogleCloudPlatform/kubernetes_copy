@@ -848,7 +848,7 @@ func (gb *GraphBuilder) processGraphChanges(logger klog.Logger) bool {
 				if !found || !ownerNode.isDeletingDependents() {
 					continue
 				}
-				// this is to let attempToDeleteItem check if all the owner's
+				// this is to let attemptToDeleteItem check if all the owner's
 				// dependents are deleted, if so, the owner will be deleted.
 				gb.attemptToDelete.Add(ownerNode)
 			}

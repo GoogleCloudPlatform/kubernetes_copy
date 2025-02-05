@@ -3708,7 +3708,7 @@ func TestAvoidUnnecessaryUpdates(t *testing.T) {
 									Type: autoscalingv2.UtilizationMetricType,
 									// TODO: Change this to &tc.CPUTarget and the expected ScaleLimited
 									//       condition to False. This test incorrectly leaves the v1
-									//       HPA field TargetCPUUtilizization field blank and the
+									//       HPA field TargetCPUUtilization field blank and the
 									//       controller defaults to a target of 80. So the test relies
 									//       on downscale stabilization to prevent a scale change.
 									AverageUtilization: &eighty,
@@ -4270,7 +4270,7 @@ func TestScalingWithRules(t *testing.T) {
 		},
 		{
 			// corner case for calculating the scaleUpLimit, when we changed pod policy after a lot of scaleUp events
-			// in this case we shouldn't allow scale up, though, the naive formula will suggest that scaleUplimit is less then CurrentReplicas (100-15+5 < 100)
+			// in this case we shouldn't allow scale up, though, the naive formula will suggest that scaleUpLimit is less than CurrentReplicas (100-15+5 < 100)
 			name:                         "scaleUp with currentReplicas limitation with rate.PeriodSeconds with a lot of recent scale up events",
 			scaleUpEvents:                generateEventsUniformDistribution([]int{1, 5, 9}, 120),
 			specMinReplicas:              1,
@@ -4395,7 +4395,7 @@ func TestScalingWithRules(t *testing.T) {
 		},
 		{
 			// corner case for calculating the scaleDownLimit, when we changed pod or percent policy after a lot of scaleDown events
-			// in this case we shouldn't allow scale down, though, the naive formula will suggest that scaleDownlimit is more then CurrentReplicas (100+30-10% > 100)
+			// in this case we shouldn't allow scale down, though, the naive formula will suggest that scaleDownLimit is more than CurrentReplicas (100+30-10% > 100)
 			name:                         "scaleDown with previous events preventing further scale down",
 			scaleDownEvents:              generateEventsUniformDistribution([]int{10, 10, 10}, 120),
 			specMinReplicas:              1,
@@ -4403,7 +4403,7 @@ func TestScalingWithRules(t *testing.T) {
 			scaleDownRules:               generateScalingRules(0, 0, 10, 120, 300),
 			currentReplicas:              100,
 			prenormalizedDesiredReplicas: 0,
-			expectedReplicas:             100, // (100 + 30) - 10% = 117 is more then 100 (currentReplicas), keep 100
+			expectedReplicas:             100, // (100 + 30) - 10% = 117 is more than 100 (currentReplicas), keep 100
 			expectedCondition:            "ScaleDownLimit",
 		},
 		{
@@ -4415,7 +4415,7 @@ func TestScalingWithRules(t *testing.T) {
 			scaleDownRules:               generateScalingRules(0, 0, 1000, 120, 300),
 			currentReplicas:              10,
 			prenormalizedDesiredReplicas: 5,
-			expectedReplicas:             5, // (10 + 30) - 1000% = -360 is less than 0 and less then 5 (desired by metrics), set 5
+			expectedReplicas:             5, // (10 + 30) - 1000% = -360 is less than 0 and less than 5 (desired by metrics), set 5
 			expectedCondition:            "DesiredWithinRange",
 		},
 		{

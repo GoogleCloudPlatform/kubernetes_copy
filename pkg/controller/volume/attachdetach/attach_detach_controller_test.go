@@ -253,15 +253,15 @@ func Test_AttachDetachControllerRecovery(t *testing.T) {
 			testName: "No extra pods",
 		},
 		{
-			testName:   "Add a new pod between ASW and DSW ppoulators",
+			testName:   "Add a new pod between ASW and DSW populators",
 			extraPods1: []*v1.Pod{controllervolumetesting.NewPodWithVolume("newpod-1", "volumeName2", "mynode-1")},
 		},
 		{
-			testName:   "Add a new pod between DSW ppoulator and reconciler run",
+			testName:   "Add a new pod between DSW populator and reconciler run",
 			extraPods2: []*v1.Pod{controllervolumetesting.NewPodWithVolume("newpod-1", "volumeName2", "mynode-1")},
 		},
 		{
-			testName: "Add a new pod between ASW and DSW ppoulators and another between DSW ppoulator and reconciler run",
+			testName: "Add a new pod between ASW and DSW populators and another between DSW populator and reconciler run",
 			// All the pods share the same underlying volume, including pre-existing pods. It means that the volume
 			// will be translated to the same persistent volume name. But each "extra pods" is running on a different node.
 			// So the expected attached volumes should be 1+extraPodsNum.
@@ -399,7 +399,7 @@ func attachDetachRecoveryTestCase(t *testing.T, extraPods1 []*v1.Pod, extraPods2
 	}
 
 	for _, newPod := range extraPods1 {
-		// Add a new pod between ASW and DSW ppoulators
+		// Add a new pod between ASW and DSW populators
 		_, err = adc.kubeClient.CoreV1().Pods(newPod.ObjectMeta.Namespace).Create(tCtx, newPod, metav1.CreateOptions{})
 		if err != nil {
 			t.Fatalf("Run failed with error. Failed to create a new pod: <%v>", err)
@@ -416,7 +416,7 @@ func attachDetachRecoveryTestCase(t *testing.T, extraPods1 []*v1.Pod, extraPods2
 	}
 
 	for _, newPod := range extraPods2 {
-		// Add a new pod between DSW ppoulator and reconciler run
+		// Add a new pod between DSW populator and reconciler run
 		_, err = adc.kubeClient.CoreV1().Pods(newPod.ObjectMeta.Namespace).Create(tCtx, newPod, metav1.CreateOptions{})
 		if err != nil {
 			t.Fatalf("Run failed with error. Failed to create a new pod: <%v>", err)

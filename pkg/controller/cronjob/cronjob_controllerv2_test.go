@@ -1942,7 +1942,7 @@ func TestControllerV2JobAlreadyExistsButNotInActiveStatus(t *testing.T) {
 	}
 }
 
-// TestControllerV2JobAlreadyExistsButDifferentOwnner validates that an already created job
+// TestControllerV2JobAlreadyExistsButDifferentOwner validates that an already created job
 // not owned by the cronjob controller is ignored.
 func TestControllerV2JobAlreadyExistsButDifferentOwner(t *testing.T) {
 	_, ctx := ktesting.NewTestContext(t)

@@ -1454,7 +1454,7 @@ func checkIndexedJobPods(t *testing.T, control *controller.FakePodControl, wantI
 	}
 }
 
-func TestGetNewFinshedPods(t *testing.T) {
+func TestGetNewFinishedPods(t *testing.T) {
 	cases := map[string]struct {
 		job                  batch.Job
 		pods                 []*v1.Pod
