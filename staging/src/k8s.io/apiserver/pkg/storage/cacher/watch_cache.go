@@ -278,6 +278,12 @@ func (w *watchCache) processEvent(event watch.Event, resourceVersion uint64, upd
 		wcEvent.PrevObjFields = previousElem.Fields
 	}
 
+	if wcEvent.Type != watch.Bookmark {
+		internalEvent := *wcEvent
+		setCachingObjects(&internalEvent, w.versioner)
+		wcEvent = &internalEvent
+	}
+
 	if err := func() error {
 		w.Lock()
 		defer w.Unlock()

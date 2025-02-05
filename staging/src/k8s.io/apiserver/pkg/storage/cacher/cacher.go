@@ -1015,9 +1015,11 @@ func (c *Cacher) dispatchEvent(event *watchCacheEvent) {
 		// it unconditionally to ensure safety and reduce deep-copying.
 		//
 		// Make a shallow copy to allow overwriting Object and PrevObject.
-		wcEvent := *event
-		setCachingObjects(&wcEvent, c.versioner)
-		event = &wcEvent
+		if _, ok := event.Object.(*cachingObject); !ok {
+			wcEvent := *event
+			setCachingObjects(&wcEvent, c.versioner)
+			event = &wcEvent
+		}
 
 		c.blockedWatchers = c.blockedWatchers[:0]
 		for _, watcher := range c.watchersBuffer {
