@@ -802,17 +802,24 @@ func validateNetworkDeviceData(networkDeviceData *resource.NetworkDeviceData, fl
 
 	allErrs = append(allErrs, validateSet(networkDeviceData.IPs, maxIPs,
 		func(address string, fldPath *field.Path) field.ErrorList {
-			return validation.IsValidCIDR(fldPath, address)
-		},
-		func(address string) (string, string) {
 			// reformat CIDR to handle different ways IPs can be written
 			// (e.g. 2001:db8::1/64 == 2001:0db8::1/64)
 			ip, ipNet, err := netutils.ParseCIDRSloppy(address)
 			if err != nil {
-				return "", "" // will fail at IsValidCIDR
+				// must fail
+				return validation.IsValidCIDR(fldPath, address)
 			}
 			maskSize, _ := ipNet.Mask.Size()
-			return fmt.Sprintf("%s/%d", ip.String(), maskSize), ""
+			canonical := fmt.Sprintf("%s/%d", ip.String(), maskSize)
+			if address != canonical {
+				return field.ErrorList{
+					field.Invalid(fldPath, address, fmt.Sprintf("not in canonical format (%s)", canonical)),
+				}
+			}
+			return nil
+		},
+		func(address string) (string, string) {
+			return address, ""
 		},
 		fldPath.Child("ips"))...)
 	return allErrs
