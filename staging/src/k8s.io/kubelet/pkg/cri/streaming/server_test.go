@@ -465,5 +465,5 @@ func readExpected(t *testing.T, streamName string, r io.Reader, expected string)
 func writeExpected(t *testing.T, streamName string, w io.Writer, data string) {
 	n, err := io.WriteString(w, data)
 	assert.NoError(t, err, "stream %s", streamName)
-	assert.Equal(t, len(data), n, "stream %s", streamName)
+	assert.Len(t, data, n, "stream %s", streamName)
 }
