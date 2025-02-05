@@ -100,7 +100,35 @@ func toSelectableFields(template *resource.ResourceClaimTemplate) fields.Set {
 }
 
 func dropDisabledFields(newClaimTemplate, oldClaimTemplate *resource.ResourceClaimTemplate) {
+	dropDisabledDRAPrioritizedListFields(newClaimTemplate, oldClaimTemplate)
 	dropDisabledDRAAdminAccessFields(newClaimTemplate, oldClaimTemplate)
+}
+
+func dropDisabledDRAPrioritizedListFields(newClaimTemplate, oldClaimTemplate *resource.ResourceClaimTemplate) {
+	if utilfeature.DefaultFeatureGate.Enabled(features.DRAPrioritizedList) {
+		return
+	}
+	if draPrioritizedListFeatureInUse(oldClaimTemplate) {
+		return
+	}
+
+	for i := range newClaimTemplate.Spec.Spec.Devices.Requests {
+		newClaimTemplate.Spec.Spec.Devices.Requests[i].FirstAvailable = nil
+	}
+}
+
+func draPrioritizedListFeatureInUse(claimTemplate *resource.ResourceClaimTemplate) bool {
+	if claimTemplate == nil {
+		return false
+	}
+
+	for _, request := range claimTemplate.Spec.Spec.Devices.Requests {
+		if len(request.FirstAvailable) > 0 {
+			return true
+		}
+	}
+
+	return false
 }
 
 func dropDisabledDRAAdminAccessFields(newClaimTemplate, oldClaimTemplate *resource.ResourceClaimTemplate) {

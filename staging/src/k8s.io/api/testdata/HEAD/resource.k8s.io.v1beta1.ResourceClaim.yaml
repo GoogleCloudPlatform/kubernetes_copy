@@ -55,6 +55,14 @@ spec:
       allocationMode: allocationModeValue
       count: 5
       deviceClassName: deviceClassNameValue
+      firstAvailable:
+      - allocationMode: allocationModeValue
+        count: 5
+        deviceClassName: deviceClassNameValue
+        name: nameValue
+        selectors:
+        - cel:
+            expression: expressionValue
       name: nameValue
       selectors:
       - cel:

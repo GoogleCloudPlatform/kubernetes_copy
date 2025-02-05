@@ -133,6 +133,30 @@ var objWithAdminAccessStatus = &resource.ResourceClaim{
 	},
 }
 
+var objWithPrioritizedList = &resource.ResourceClaim{
+	ObjectMeta: metav1.ObjectMeta{
+		Name:      "valid-claim",
+		Namespace: "default",
+	},
+	Spec: resource.ResourceClaimSpec{
+		Devices: resource.DeviceClaim{
+			Requests: []resource.DeviceRequest{
+				{
+					Name: "req-0",
+					FirstAvailable: []resource.DeviceSubRequest{
+						{
+							Name:            "subreq-0",
+							DeviceClassName: "class",
+							AllocationMode:  resource.DeviceAllocationModeExactCount,
+							Count:           1,
+						},
+					},
+				},
+			},
+		},
+	},
+}
+
 const (
 	testRequest = "test-request"
 	testDriver  = "test-driver"
@@ -155,6 +179,7 @@ func TestStrategyCreate(t *testing.T) {
 	testcases := map[string]struct {
 		obj                   *resource.ResourceClaim
 		adminAccess           bool
+		prioritizedList       bool
 		expectValidationError bool
 		expectObj             *resource.ResourceClaim
 	}{
@@ -180,11 +205,22 @@ func TestStrategyCreate(t *testing.T) {
 			adminAccess: true,
 			expectObj:   objWithAdminAccess,
 		},
+		"drop-fields-prioritized-list": {
+			obj:                   objWithPrioritizedList,
+			prioritizedList:       false,
+			expectValidationError: true,
+		},
+		"keep-fields-prioritized-list": {
+			obj:             objWithPrioritizedList,
+			prioritizedList: true,
+			expectObj:       objWithPrioritizedList,
+		},
 	}
 
 	for name, tc := range testcases {
 		t.Run(name, func(t *testing.T) {
 			featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.DRAAdminAccess, tc.adminAccess)
+			featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.DRAPrioritizedList, tc.prioritizedList)
 
 			obj := tc.obj.DeepCopy()
 			Strategy.PrepareForCreate(ctx, obj)
@@ -212,6 +248,7 @@ func TestStrategyUpdate(t *testing.T) {
 		oldObj                *resource.ResourceClaim
 		newObj                *resource.ResourceClaim
 		adminAccess           bool
+		prioritizedList       bool
 		expectValidationError bool
 		expectObj             *resource.ResourceClaim
 	}{
@@ -247,11 +284,36 @@ func TestStrategyUpdate(t *testing.T) {
 			adminAccess: true,
 			expectObj:   objWithAdminAccess,
 		},
+		"drop-fields-prioritized-list": {
+			oldObj:                obj,
+			newObj:                objWithPrioritizedList,
+			prioritizedList:       false,
+			expectValidationError: true,
+		},
+		"keep-fields-prioritized-list": {
+			oldObj:                obj,
+			newObj:                objWithPrioritizedList,
+			prioritizedList:       true,
+			expectValidationError: true, // Spec is immutable.
+		},
+		"keep-existing-fields-prioritized-list": {
+			oldObj:          objWithPrioritizedList,
+			newObj:          objWithPrioritizedList,
+			prioritizedList: true,
+			expectObj:       objWithPrioritizedList,
+		},
+		"keep-existing-fields-prioritized-list-disabled-feature": {
+			oldObj:          objWithPrioritizedList,
+			newObj:          objWithPrioritizedList,
+			prioritizedList: false,
+			expectObj:       objWithPrioritizedList,
+		},
 	}
 
 	for name, tc := range testcases {
 		t.Run(name, func(t *testing.T) {
 			featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.DRAAdminAccess, tc.adminAccess)
+			featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.DRAPrioritizedList, tc.prioritizedList)
 
 			oldObj := tc.oldObj.DeepCopy()
 			newObj := tc.newObj.DeepCopy()

@@ -132,7 +132,11 @@ func CreateResourceClaimController(ctx context.Context, tb ktesting.TB, clientSe
 	podInformer := informerFactory.Core().V1().Pods()
 	claimInformer := informerFactory.Resource().V1beta1().ResourceClaims()
 	claimTemplateInformer := informerFactory.Resource().V1beta1().ResourceClaimTemplates()
-	claimController, err := resourceclaim.NewController(klog.FromContext(ctx), true /* admin access */, clientSet, podInformer, claimInformer, claimTemplateInformer)
+	features := resourceclaim.Features{
+		AdminAccess:     true,
+		PrioritizedList: true,
+	}
+	claimController, err := resourceclaim.NewController(klog.FromContext(ctx), features, clientSet, podInformer, claimInformer, claimTemplateInformer)
 	if err != nil {
 		tb.Fatalf("Error creating claim controller: %v", err)
 	}

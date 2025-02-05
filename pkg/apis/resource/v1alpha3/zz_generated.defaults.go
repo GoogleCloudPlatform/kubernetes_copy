@@ -45,6 +45,10 @@ func SetObjectDefaults_ResourceClaim(in *resourcev1alpha3.ResourceClaim) {
 	for i := range in.Spec.Devices.Requests {
 		a := &in.Spec.Devices.Requests[i]
 		SetDefaults_DeviceRequest(a)
+		for j := range a.FirstAvailable {
+			b := &a.FirstAvailable[j]
+			SetDefaults_DeviceSubRequest(b)
+		}
 	}
 }
 
@@ -59,6 +63,10 @@ func SetObjectDefaults_ResourceClaimTemplate(in *resourcev1alpha3.ResourceClaimT
 	for i := range in.Spec.Spec.Devices.Requests {
 		a := &in.Spec.Spec.Devices.Requests[i]
 		SetDefaults_DeviceRequest(a)
+		for j := range a.FirstAvailable {
+			b := &a.FirstAvailable[j]
+			SetDefaults_DeviceSubRequest(b)
+		}
 	}
 }
 

@@ -101,7 +101,22 @@
             ],
             "allocationMode": "allocationModeValue",
             "count": 5,
-            "adminAccess": true
+            "adminAccess": true,
+            "firstAvailable": [
+              {
+                "name": "nameValue",
+                "deviceClassName": "deviceClassNameValue",
+                "selectors": [
+                  {
+                    "cel": {
+                      "expression": "expressionValue"
+                    }
+                  }
+                ],
+                "allocationMode": "allocationModeValue",
+                "count": 5
+              }
+            ]
           }
         ],
         "constraints": [

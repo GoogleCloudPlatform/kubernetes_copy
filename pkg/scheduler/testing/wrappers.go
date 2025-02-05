@@ -1104,6 +1104,28 @@ func (wrapper *ResourceClaimWrapper) Request(deviceClassName string) *ResourceCl
 	return wrapper
 }
 
+// RequestWithPrioritizedList adds one device request with one subrequest
+// per provided deviceClassName.
+func (wrapper *ResourceClaimWrapper) RequestWithPrioritizedList(deviceClassNames ...string) *ResourceClaimWrapper {
+	var prioritizedList []resourceapi.DeviceSubRequest
+	for i, deviceClassName := range deviceClassNames {
+		prioritizedList = append(prioritizedList, resourceapi.DeviceSubRequest{
+			Name:            fmt.Sprintf("subreq-%d", i),
+			AllocationMode:  resourceapi.DeviceAllocationModeExactCount,
+			Count:           1,
+			DeviceClassName: deviceClassName,
+		})
+	}
+
+	wrapper.Spec.Devices.Requests = append(wrapper.Spec.Devices.Requests,
+		resourceapi.DeviceRequest{
+			Name:           fmt.Sprintf("req-%d", len(wrapper.Spec.Devices.Requests)+1),
+			FirstAvailable: prioritizedList,
+		},
+	)
+	return wrapper
+}
+
 // Allocation sets the allocation of the inner object.
 func (wrapper *ResourceClaimWrapper) Allocation(allocation *resourceapi.AllocationResult) *ResourceClaimWrapper {
 	if !slices.Contains(wrapper.ResourceClaim.Finalizers, resourceapi.Finalizer) {

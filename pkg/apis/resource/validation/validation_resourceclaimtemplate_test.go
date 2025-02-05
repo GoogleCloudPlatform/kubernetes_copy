@@ -185,6 +185,26 @@ func TestValidateClaimTemplate(t *testing.T) {
 				return template
 			}(),
 		},
+		"prioritized-list": {
+			wantFailures: nil,
+			template:     testClaimTemplate(goodName, goodNS, validClaimSpecWithFirstAvailable),
+		},
+		"proritized-list-class-name-on-parent": {
+			wantFailures: field.ErrorList{field.Invalid(field.NewPath("spec", "spec", "devices", "requests").Index(0).Child("deviceClassName"), goodName, "must not be specified when firstAvailable is set")},
+			template: func() *resource.ResourceClaimTemplate {
+				template := testClaimTemplate(goodName, goodNS, validClaimSpecWithFirstAvailable)
+				template.Spec.Spec.Devices.Requests[0].DeviceClassName = goodName
+				return template
+			}(),
+		},
+		"prioritized-list-bad-class-name-on-subrequest": {
+			wantFailures: field.ErrorList{field.Invalid(field.NewPath("spec", "spec", "devices", "requests").Index(0).Child("firstAvailable").Index(0).Child("deviceClassName"), badName, "a lowercase RFC 1123 subdomain must consist of lower case alphanumeric characters, '-' or '.', and must start and end with an alphanumeric character (e.g. 'example.com', regex used for validation is '[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*')")},
+			template: func() *resource.ResourceClaimTemplate {
+				template := testClaimTemplate(goodName, goodNS, validClaimSpecWithFirstAvailable)
+				template.Spec.Spec.Devices.Requests[0].FirstAvailable[0].DeviceClassName = badName
+				return template
+			}(),
+		},
 	}
 
 	for name, scenario := range scenarios {
@@ -216,6 +236,18 @@ func TestValidateClaimTemplateUpdate(t *testing.T) {
 			oldClaimTemplate: validClaimTemplate,
 			update: func(template *resource.ResourceClaimTemplate) *resource.ResourceClaimTemplate {
 				template.Spec.Spec.Devices.Requests[0].DeviceClassName += "2"
+				return template
+			},
+		},
+		"prioritized-listinvalid-update-class": {
+			wantFailures: field.ErrorList{field.Invalid(field.NewPath("spec"), func() resource.ResourceClaimTemplateSpec {
+				template := testClaimTemplate(goodName, goodNS, validClaimSpecWithFirstAvailable)
+				template.Spec.Spec.Devices.Requests[0].FirstAvailable[0].DeviceClassName += "2"
+				return template.Spec
+			}(), "field is immutable")},
+			oldClaimTemplate: testClaimTemplate(goodName, goodNS, validClaimSpecWithFirstAvailable),
+			update: func(template *resource.ResourceClaimTemplate) *resource.ResourceClaimTemplate {
+				template.Spec.Spec.Devices.Requests[0].FirstAvailable[0].DeviceClassName += "2"
 				return template
 			},
 		},

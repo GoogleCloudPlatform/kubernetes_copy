@@ -14860,7 +14860,7 @@
           "description": "Opaque provides driver-specific configuration parameters."
         },
         "requests": {
-          "description": "Requests lists the names of requests where the configuration applies. If empty, its applies to all requests.",
+          "description": "Requests lists the names of requests where the configuration applies. If empty, its applies to all requests.\n\nReferences to subrequests must include the name of both the main request and the subrequest using the format <main request>/<subrequest>. If just the main request is given, the configuration applies to all subrequests.",
           "items": {
             "type": "string"
           },
@@ -14960,7 +14960,7 @@
           "description": "Opaque provides driver-specific configuration parameters."
         },
         "requests": {
-          "description": "Requests lists the names of requests where the configuration applies. If empty, it applies to all requests.",
+          "description": "Requests lists the names of requests where the configuration applies. If empty, it applies to all requests.\n\nReferences to subrequests must include the name of both the main request and the subrequest using the format <main request>/<subrequest>. If just the main request is given, the configuration applies to all subrequests.",
           "items": {
             "type": "string"
           },
@@ -15077,7 +15077,7 @@
           "type": "string"
         },
         "requests": {
-          "description": "Requests is a list of the one or more requests in this claim which must co-satisfy this constraint. If a request is fulfilled by multiple devices, then all of the devices must satisfy the constraint. If this is not specified, this constraint applies to all requests in this claim.",
+          "description": "Requests is a list of the one or more requests in this claim which must co-satisfy this constraint. If a request is fulfilled by multiple devices, then all of the devices must satisfy the constraint. If this is not specified, this constraint applies to all requests in this claim.\n\nReferences to subrequests must include the name of both the main request and the subrequest using the format <main request>/<subrequest>. If just the main request is given, the constraint applies to all subrequests.",
           "items": {
             "type": "string"
           },
@@ -15088,7 +15088,7 @@
       "type": "object"
     },
     "io.k8s.api.resource.v1alpha3.DeviceRequest": {
-      "description": "DeviceRequest is a request for devices required for a claim. This is typically a request for a single resource like a device, but can also ask for several identical devices.\n\nA DeviceClassName is currently required. Clients must check that it is indeed set. It's absence indicates that something changed in a way that is not supported by the client yet, in which case it must refuse to handle the request.",
+      "description": "DeviceRequest is a request for devices required for a claim. This is typically a request for a single resource like a device, but can also ask for several identical devices.",
       "properties": {
         "adminAccess": {
           "description": "AdminAccess indicates that this is a claim for administrative access to the device(s). Claims with AdminAccess are expected to be used for monitoring or other management services for a device.  They ignore all ordinary claims to the device with respect to access modes and any resource allocations.\n\nThis is an alpha field and requires enabling the DRAAdminAccess feature gate. Admin access is disabled if this field is unset or set to false, otherwise it is enabled.",
@@ -15104,8 +15104,16 @@
           "type": "integer"
         },
         "deviceClassName": {
-          "description": "DeviceClassName references a specific DeviceClass, which can define additional configuration and selectors to be inherited by this request.\n\nA class is required. Which classes are available depends on the cluster.\n\nAdministrators may use this to restrict which devices may get requested by only installing classes with selectors for permitted devices. If users are free to request anything without restrictions, then administrators can create an empty DeviceClass for users to reference.",
+          "description": "DeviceClassName references a specific DeviceClass, which can define additional configuration and selectors to be inherited by this request.\n\nA class is required if no subrequests are specified in the firstAvailable list. Which classes are available depends on the cluster.\n\nAdministrators may use this to restrict which devices may get requested by only installing classes with selectors for permitted devices. If users are free to request anything without restrictions, then administrators can create an empty DeviceClass for users to reference.",
           "type": "string"
+        },
+        "firstAvailable": {
+          "description": "FirstAvailable contains subrequests, of which exactly one will be satisfied by the scheduler to satisfy this request. It tries to satisfy them in the order in which they are listed here. So if there are two entries in the list, the schduler will only check the second one if it determines that the first one can not be used.\n\nThis field may only be set in the entries of DeviceClaim.Requests.\n\nDRA does not yet implement scoring, so the scheduler will select the first set of devices that satisfies all the requests in the claim. And if the requirements can be satisfied on more than one node, other scheduling features will determine which node is chosen. This means that the set of devices allocated to a claim might not be the optimal set available to the cluster. Scoring will be implemented later.",
+          "items": {
+            "$ref": "#/definitions/io.k8s.api.resource.v1alpha3.DeviceSubRequest"
+          },
+          "type": "array",
+          "x-kubernetes-list-type": "atomic"
         },
         "name": {
           "description": "Name can be used to reference this request in a pod.spec.containers[].resources.claims entry and in a constraint of the claim.\n\nMust be a DNS label.",
@@ -15121,8 +15129,7 @@
         }
       },
       "required": [
-        "name",
-        "deviceClassName"
+        "name"
       ],
       "type": "object"
     },
@@ -15146,7 +15153,7 @@
           "type": "string"
         },
         "request": {
-          "description": "Request is the name of the request in the claim which caused this device to be allocated. Multiple devices may have been allocated per request.",
+          "description": "Request is the name of the request in the claim which caused this device to be allocated. If it references a subrequest in the firstAvailable list on a DeviceRequest, this field must include both the name of the main request and the subrequest using the format <main request>/<subrequest>.\n\nMultiple devices may have been allocated per request.",
           "type": "string"
         }
       },
@@ -15166,6 +15173,41 @@
           "description": "CEL contains a CEL expression for selecting a device."
         }
       },
+      "type": "object"
+    },
+    "io.k8s.api.resource.v1alpha3.DeviceSubRequest": {
+      "description": "DeviceSubRequest describes a request for device provided in the claim.spec.devices.requests[].firstAvailable array. Each is typically a request for a single resource like a device, but can also ask for several identical devices.\n\nDeviceSubRequest is similar to Request, but doesn't expose the AdminAccess (not supported) or FirstAvailable (recursion not supported) fields, as those can only be set on the top-level request.",
+      "properties": {
+        "allocationMode": {
+          "description": "AllocationMode and its related fields define how devices are allocated to satisfy this request. Supported values are:\n\n- ExactCount: This request is for a specific number of devices.\n  This is the default. The exact number is provided in the\n  count field.\n\n- All: This request is for all of the matching devices in a pool.\n  Allocation will fail if some devices are already allocated,\n  unless adminAccess is requested.\n\nIf AlloctionMode is not specified, the default mode is ExactCount. If the mode is ExactCount and count is not specified, the default count is one. Any other requests must specify this field.\n\nMore modes may get added in the future. Clients must refuse to handle requests with unknown modes.",
+          "type": "string"
+        },
+        "count": {
+          "description": "Count is used only when the count mode is \"ExactCount\". Must be greater than zero. If AllocationMode is ExactCount and this field is not specified, the default is one.",
+          "format": "int64",
+          "type": "integer"
+        },
+        "deviceClassName": {
+          "description": "DeviceClassName references a specific DeviceClass, which can define additional configuration and selectors to be inherited by this subrequest.\n\nA class is required. Which classes are available depends on the cluster.\n\nAdministrators may use this to restrict which devices may get requested by only installing classes with selectors for permitted devices. If users are free to request anything without restrictions, then administrators can create an empty DeviceClass for users to reference.",
+          "type": "string"
+        },
+        "name": {
+          "description": "Name can be used to reference this subrequest in the list of constraints or the list of configurations for the claim. References must use the format <main request>/<subrequest>.\n\nMust be a DNS label.",
+          "type": "string"
+        },
+        "selectors": {
+          "description": "Selectors define criteria which must be satisfied by a specific device in order for that device to be considered for this request. All selectors must be satisfied for a device to be considered.",
+          "items": {
+            "$ref": "#/definitions/io.k8s.api.resource.v1alpha3.DeviceSelector"
+          },
+          "type": "array",
+          "x-kubernetes-list-type": "atomic"
+        }
+      },
+      "required": [
+        "name",
+        "deviceClassName"
+      ],
       "type": "object"
     },
     "io.k8s.api.resource.v1alpha3.NetworkDeviceData": {
@@ -15680,7 +15722,7 @@
           "description": "Opaque provides driver-specific configuration parameters."
         },
         "requests": {
-          "description": "Requests lists the names of requests where the configuration applies. If empty, its applies to all requests.",
+          "description": "Requests lists the names of requests where the configuration applies. If empty, its applies to all requests.\n\nReferences to subrequests must include the name of both the main request and the subrequest using the format <main request>/<subrequest>. If just the main request is given, the configuration applies to all subrequests.",
           "items": {
             "type": "string"
           },
@@ -15793,7 +15835,7 @@
           "description": "Opaque provides driver-specific configuration parameters."
         },
         "requests": {
-          "description": "Requests lists the names of requests where the configuration applies. If empty, it applies to all requests.",
+          "description": "Requests lists the names of requests where the configuration applies. If empty, it applies to all requests.\n\nReferences to subrequests must include the name of both the main request and the subrequest using the format <main request>/<subrequest>. if just the main request is given, the configuration applies to all subrequests.",
           "items": {
             "type": "string"
           },
@@ -15910,7 +15952,7 @@
           "type": "string"
         },
         "requests": {
-          "description": "Requests is a list of the one or more requests in this claim which must co-satisfy this constraint. If a request is fulfilled by multiple devices, then all of the devices must satisfy the constraint. If this is not specified, this constraint applies to all requests in this claim.",
+          "description": "Requests is a list of the one or more requests in this claim which must co-satisfy this constraint. If a request is fulfilled by multiple devices, then all of the devices must satisfy the constraint. If this is not specified, this constraint applies to all requests in this claim.\n\nReferences to subrequests must include the name of both the main request and the subrequest using the format <main request>/<subrequest>. If just the main request is given, the constraint applies to all subrequests.",
           "items": {
             "type": "string"
           },
@@ -15921,7 +15963,7 @@
       "type": "object"
     },
     "io.k8s.api.resource.v1beta1.DeviceRequest": {
-      "description": "DeviceRequest is a request for devices required for a claim. This is typically a request for a single resource like a device, but can also ask for several identical devices.\n\nA DeviceClassName is currently required. Clients must check that it is indeed set. It's absence indicates that something changed in a way that is not supported by the client yet, in which case it must refuse to handle the request.",
+      "description": "DeviceRequest is a request for devices required for a claim. This is typically a request for a single resource like a device, but can also ask for several identical devices.",
       "properties": {
         "adminAccess": {
           "description": "AdminAccess indicates that this is a claim for administrative access to the device(s). Claims with AdminAccess are expected to be used for monitoring or other management services for a device.  They ignore all ordinary claims to the device with respect to access modes and any resource allocations.\n\nThis is an alpha field and requires enabling the DRAAdminAccess feature gate. Admin access is disabled if this field is unset or set to false, otherwise it is enabled.",
@@ -15937,11 +15979,19 @@
           "type": "integer"
         },
         "deviceClassName": {
-          "description": "DeviceClassName references a specific DeviceClass, which can define additional configuration and selectors to be inherited by this request.\n\nA class is required. Which classes are available depends on the cluster.\n\nAdministrators may use this to restrict which devices may get requested by only installing classes with selectors for permitted devices. If users are free to request anything without restrictions, then administrators can create an empty DeviceClass for users to reference.",
+          "description": "DeviceClassName references a specific DeviceClass, which can define additional configuration and selectors to be inherited by this request.\n\nA class is required if no subrequests are specified in the firstAvailable list. Which classes are available depends on the cluster.\n\nAdministrators may use this to restrict which devices may get requested by only installing classes with selectors for permitted devices. If users are free to request anything without restrictions, then administrators can create an empty DeviceClass for users to reference.",
           "type": "string"
         },
+        "firstAvailable": {
+          "description": "FirstAvailable contains subrequests, of which exactly one will be satisfied by the scheduler to satisfy this request. It tries to satisfy them in the order in which they are listed here. So if there are two entries in the list, the schduler will only check the second one if it determines that the first one can not be used.\n\nThis field may only be set in the entries of DeviceClaim.Requests.\n\nDRA does not yet implement scoring, so the scheduler will select the first set of devices that satisfies all the requests in the claim. And if the requirements can be satisfied on more than one node, other scheduling features will determine which node is chosen. This means that the set of devices allocated to a claim might not be the optimal set available to the cluster. Scoring will be implemented later.",
+          "items": {
+            "$ref": "#/definitions/io.k8s.api.resource.v1beta1.DeviceSubRequest"
+          },
+          "type": "array",
+          "x-kubernetes-list-type": "atomic"
+        },
         "name": {
-          "description": "Name can be used to reference this request in a pod.spec.containers[].resources.claims entry and in a constraint of the claim.\n\nMust be a DNS label.",
+          "description": "Name can be used to reference this request in a pod.spec.containers[].resources.claims entry and in a constraint of the claim.\n\nMust be a DNS label and unique among all DeviceRequests in a ResourceClaim.",
           "type": "string"
         },
         "selectors": {
@@ -15954,8 +16004,7 @@
         }
       },
       "required": [
-        "name",
-        "deviceClassName"
+        "name"
       ],
       "type": "object"
     },
@@ -15979,7 +16028,7 @@
           "type": "string"
         },
         "request": {
-          "description": "Request is the name of the request in the claim which caused this device to be allocated. Multiple devices may have been allocated per request.",
+          "description": "Request is the name of the request in the claim which caused this device to be allocated. If it references a subrequest in the firstAvailable list on a DeviceRequest, this field must include both the name of the main request and the subrequest using the format <main request>/<subrequest>.\n\nMultiple devices may have been allocated per request.",
           "type": "string"
         }
       },
@@ -15999,6 +16048,41 @@
           "description": "CEL contains a CEL expression for selecting a device."
         }
       },
+      "type": "object"
+    },
+    "io.k8s.api.resource.v1beta1.DeviceSubRequest": {
+      "description": "DeviceSubRequest describes a request for device provided in the claim.spec.devices.requests[].firstAvailable array. Each is typically a request for a single resource like a device, but can also ask for several identical devices.\n\nDeviceSubRequest is similar to Request, but doesn't expose the AdminAccess (not supported) or FirstAvailable (recursion not supported) fields, as those can only be set on the top-level request.",
+      "properties": {
+        "allocationMode": {
+          "description": "AllocationMode and its related fields define how devices are allocated to satisfy this subrequest. Supported values are:\n\n- ExactCount: This request is for a specific number of devices.\n  This is the default. The exact number is provided in the\n  count field.\n\n- All: This subrequest is for all of the matching devices in a pool.\n  Allocation will fail if some devices are already allocated,\n  unless adminAccess is requested.\n\nIf AlloctionMode is not specified, the default mode is ExactCount. If the mode is ExactCount and count is not specified, the default count is one. Any other subrequests must specify this field.\n\nMore modes may get added in the future. Clients must refuse to handle requests with unknown modes.",
+          "type": "string"
+        },
+        "count": {
+          "description": "Count is used only when the count mode is \"ExactCount\". Must be greater than zero. If AllocationMode is ExactCount and this field is not specified, the default is one.",
+          "format": "int64",
+          "type": "integer"
+        },
+        "deviceClassName": {
+          "description": "DeviceClassName references a specific DeviceClass, which can define additional configuration and selectors to be inherited by this subrequest.\n\nA class is required. Which classes are available depends on the cluster.\n\nAdministrators may use this to restrict which devices may get requested by only installing classes with selectors for permitted devices. If users are free to request anything without restrictions, then administrators can create an empty DeviceClass for users to reference.",
+          "type": "string"
+        },
+        "name": {
+          "description": "Name can be used to reference this subrequest in the list of constraints or the list of configurations for the claim. References must use the format <main request>/<subrequest>.\n\nMust be a DNS label.",
+          "type": "string"
+        },
+        "selectors": {
+          "description": "Selectors define criteria which must be satisfied by a specific device in order for that device to be considered for this subrequest. All selectors must be satisfied for a device to be considered.",
+          "items": {
+            "$ref": "#/definitions/io.k8s.api.resource.v1beta1.DeviceSelector"
+          },
+          "type": "array",
+          "x-kubernetes-list-type": "atomic"
+        }
+      },
+      "required": [
+        "name",
+        "deviceClassName"
+      ],
       "type": "object"
     },
     "io.k8s.api.resource.v1beta1.NetworkDeviceData": {

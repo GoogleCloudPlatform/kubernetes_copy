@@ -183,8 +183,36 @@ func toSelectableFields(claim *resource.ResourceClaim) fields.Set {
 
 // dropDisabledFields removes fields which are covered by a feature gate.
 func dropDisabledFields(newClaim, oldClaim *resource.ResourceClaim) {
+	dropDisabledDRAPrioritizedListFields(newClaim, oldClaim)
 	dropDisabledDRAAdminAccessFields(newClaim, oldClaim)
 	dropDisabledDRAResourceClaimDeviceStatusFields(newClaim, oldClaim)
+}
+
+func dropDisabledDRAPrioritizedListFields(newClaim, oldClaim *resource.ResourceClaim) {
+	if utilfeature.DefaultFeatureGate.Enabled(features.DRAPrioritizedList) {
+		return
+	}
+	if draPrioritizedListFeatureInUse(oldClaim) {
+		return
+	}
+
+	for i := range newClaim.Spec.Devices.Requests {
+		newClaim.Spec.Devices.Requests[i].FirstAvailable = nil
+	}
+}
+
+func draPrioritizedListFeatureInUse(claim *resource.ResourceClaim) bool {
+	if claim == nil {
+		return false
+	}
+
+	for _, request := range claim.Spec.Devices.Requests {
+		if len(request.FirstAvailable) > 0 {
+			return true
+		}
+	}
+
+	return false
 }
 
 func dropDisabledDRAAdminAccessFields(newClaim, oldClaim *resource.ResourceClaim) {
