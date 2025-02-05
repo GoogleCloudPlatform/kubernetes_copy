@@ -105,7 +105,7 @@ func (pdev *podDevices) podDevices(podUID, resource string) sets.Set[string] {
 
 	ret := sets.New[string]()
 	for contName := range pdev.devs[podUID] {
-		ret = ret.Union(pdev.containerDevices(podUID, contName, resource))
+		ret = ret.Union(pdev.listContainerDevicesUnlocked(podUID, contName, resource))
 	}
 	return ret
 }
@@ -115,6 +115,13 @@ func (pdev *podDevices) podDevices(podUID, resource string) sets.Set[string] {
 func (pdev *podDevices) containerDevices(podUID, contName, resource string) sets.Set[string] {
 	pdev.RLock()
 	defer pdev.RUnlock()
+	return pdev.listContainerDevicesUnlocked(podUID, contName, resource)
+}
+
+// Returns list of device Ids allocated to the given container for the given resource without RLock.
+// Returns nil if we don't have cached state for the given <podUID, contName, resource>.
+// This function is used as a helper function for internal calls.
+func (pdev *podDevices) listContainerDevicesUnlocked(podUID, contName, resource string) sets.Set[string] {
 	if _, podExists := pdev.devs[podUID]; !podExists {
 		return nil
 	}

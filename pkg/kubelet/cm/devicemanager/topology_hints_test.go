@@ -18,9 +18,13 @@ package devicemanager
 
 import (
 	"fmt"
+	"math/rand"
 	"reflect"
 	"sort"
+	"sync"
 	"testing"
+
+	"k8s.io/apimachinery/pkg/types"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -973,12 +977,263 @@ func TestGetPodTopologyHints(t *testing.T) {
 	}
 }
 
+func TestGetPodTopologyHintsRacy(t *testing.T) {
+	concurrency := 1000
+	generators := getTopologyHintTestCaseGenerators()
+	tcases := make([]topologyHintTestCase, 0, concurrency)
+	podUIDPrefix := "fakePod"
+	resourcePrefix := "testdevice"
+	for i := 0; i < concurrency; i++ {
+		// Randomly select a generator to generate test cases
+		g := generators[rand.Intn(len(generators))]
+		podUID := fmt.Sprintf("%s%d", podUIDPrefix, i)
+		resourceName := fmt.Sprintf("%s%d", resourcePrefix, i)
+		tcases = append(tcases, g(podUID, resourceName, resourceName, resourceName))
+	}
+
+	m := ManagerImpl{
+		allDevices:       NewResourceDeviceInstances(),
+		healthyDevices:   make(map[string]sets.Set[string]),
+		allocatedDevices: make(map[string]sets.Set[string]),
+		podDevices:       newPodDevices(),
+		sourcesReady:     &sourcesReadyStub{},
+		numaNodes:        []int{0, 1},
+	}
+
+	activePods := []*v1.Pod{}
+	// init devices for manager
+	for _, tc := range tcases {
+		activePods = append(activePods, tc.pod)
+		for r := range tc.devices {
+			m.allDevices[r] = make(DeviceInstances)
+			m.healthyDevices[r] = sets.New[string]()
+			for _, d := range tc.devices[r] {
+				// add `pluginapi.Device` with Topology
+				m.allDevices[r][d.ID] = d
+				m.healthyDevices[r].Insert(d.ID)
+			}
+		}
+	}
+
+	m.activePods = func() []*v1.Pod {
+		return activePods
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(len(tcases))
+	for _, tc := range tcases {
+		go func() {
+			defer wg.Done()
+			for p := range tc.allocatedDevices {
+				for c := range tc.allocatedDevices[p] {
+					for r, devices := range tc.allocatedDevices[p][c] {
+						m.podDevices.insert(p, c, r, constructDevices(devices), nil)
+						m.mutex.Lock()
+						m.allocatedDevices = m.podDevices.devices()
+						m.mutex.Unlock()
+					}
+				}
+			}
+
+			hints := m.GetPodTopologyHints(tc.pod)
+
+			for r := range tc.expectedHints {
+				sort.SliceStable(hints[r], func(i, j int) bool {
+					return hints[r][i].LessThan(hints[r][j])
+				})
+				sort.SliceStable(tc.expectedHints[r], func(i, j int) bool {
+					return tc.expectedHints[r][i].LessThan(tc.expectedHints[r][j])
+				})
+				if !reflect.DeepEqual(hints[r], tc.expectedHints[r]) {
+					t.Errorf("%v: Expected result to be %v, got %v", tc.description, tc.expectedHints[r], hints[r])
+				}
+			}
+		}()
+	}
+	wg.Wait()
+}
+
 type topologyHintTestCase struct {
 	description      string
 	pod              *v1.Pod
 	devices          map[string][]pluginapi.Device
 	allocatedDevices map[string]map[string]map[string][]string
 	expectedHints    map[string][]topologymanager.TopologyHint
+}
+
+type topologyHintTestCaseGenerator func(podUid, specResource, deviceResource, hintsResource string) topologyHintTestCase
+
+func getTopologyHintTestCaseGenerators() []topologyHintTestCaseGenerator {
+	return []topologyHintTestCaseGenerator{
+		func(podUid, specResource, deviceResource, hintsResource string) topologyHintTestCase {
+			return topologyHintTestCase{
+				description: "Single Request, no alignment",
+				pod: &v1.Pod{
+					ObjectMeta: metav1.ObjectMeta{
+						UID: types.UID(podUid),
+					},
+					Spec: v1.PodSpec{
+						Containers: []v1.Container{
+							{
+								Name: "fakeContainer",
+								Resources: v1.ResourceRequirements{
+									Limits: v1.ResourceList{
+										v1.ResourceName(specResource): resource.MustParse("1"),
+									},
+								},
+							},
+						},
+					},
+				},
+				devices: map[string][]pluginapi.Device{
+					deviceResource: {
+						{ID: "Dev1"},
+						{ID: "Dev2"},
+						{ID: "Dev3", Topology: &pluginapi.TopologyInfo{Nodes: []*pluginapi.NUMANode{}}},
+						{ID: "Dev4", Topology: &pluginapi.TopologyInfo{Nodes: nil}},
+					},
+				},
+				expectedHints: map[string][]topologymanager.TopologyHint{
+					hintsResource: nil,
+				},
+			}
+		},
+		func(podUid, specResource, deviceResource, hintsResource string) topologyHintTestCase {
+			return topologyHintTestCase{
+				description: "Request for 2, 2 devices per socket",
+				pod: &v1.Pod{
+					ObjectMeta: metav1.ObjectMeta{
+						UID: types.UID(podUid),
+					},
+					Spec: v1.PodSpec{
+						Containers: []v1.Container{
+							{
+								Name: "fakeContainer",
+								Resources: v1.ResourceRequirements{
+									Limits: v1.ResourceList{
+										v1.ResourceName(specResource): resource.MustParse("2"),
+									},
+								},
+							},
+						},
+					},
+				},
+				devices: map[string][]pluginapi.Device{
+					deviceResource: {
+						makeNUMADevice("Dev1", 0),
+						makeNUMADevice("Dev2", 1),
+						makeNUMADevice("Dev3", 0),
+						makeNUMADevice("Dev4", 1),
+					},
+				},
+				expectedHints: map[string][]topologymanager.TopologyHint{
+					hintsResource: {
+						{
+							NUMANodeAffinity: makeSocketMask(0),
+							Preferred:        true,
+						},
+						{
+							NUMANodeAffinity: makeSocketMask(1),
+							Preferred:        true,
+						},
+						{
+							NUMANodeAffinity: makeSocketMask(0, 1),
+							Preferred:        false,
+						},
+					},
+				},
+			}
+		},
+		func(podUid, specResource, deviceResource, hintsResource string) topologyHintTestCase {
+			return topologyHintTestCase{
+				description: "Single Request, one device per socket",
+				pod: &v1.Pod{
+					ObjectMeta: metav1.ObjectMeta{
+						UID: types.UID(podUid),
+					},
+					Spec: v1.PodSpec{
+						Containers: []v1.Container{
+							{
+								Name: "fakeContainer",
+								Resources: v1.ResourceRequirements{
+									Limits: v1.ResourceList{
+										v1.ResourceName(specResource): resource.MustParse("1"),
+									},
+								},
+							},
+						},
+					},
+				},
+				devices: map[string][]pluginapi.Device{
+					deviceResource: {
+						makeNUMADevice("Dev1", 0),
+						makeNUMADevice("Dev2", 1),
+					},
+				},
+				expectedHints: map[string][]topologymanager.TopologyHint{
+					hintsResource: {
+						{
+							NUMANodeAffinity: makeSocketMask(0),
+							Preferred:        true,
+						},
+						{
+							NUMANodeAffinity: makeSocketMask(1),
+							Preferred:        true,
+						},
+						{
+							NUMANodeAffinity: makeSocketMask(0, 1),
+							Preferred:        false,
+						},
+					},
+				},
+			}
+		},
+		func(podUid, specResource, deviceResource, hintsResource string) topologyHintTestCase {
+			return topologyHintTestCase{
+				description: "Request for 2, optimal on 1 NUMA node, forced cross-NUMA",
+				pod: &v1.Pod{
+					ObjectMeta: metav1.ObjectMeta{
+						UID: types.UID(podUid),
+					},
+					Spec: v1.PodSpec{
+						Containers: []v1.Container{
+							{
+								Name: "fakeContainer",
+								Resources: v1.ResourceRequirements{
+									Limits: v1.ResourceList{
+										v1.ResourceName(specResource): resource.MustParse("2"),
+									},
+								},
+							},
+						},
+					},
+				},
+				devices: map[string][]pluginapi.Device{
+					deviceResource: {
+						makeNUMADevice("Dev1", 0),
+						makeNUMADevice("Dev2", 1),
+						makeNUMADevice("Dev3", 0),
+						makeNUMADevice("Dev4", 1),
+					},
+				},
+				allocatedDevices: map[string]map[string]map[string][]string{
+					podUid: {
+						"fakeOtherContainer": {
+							specResource: {"Dev1", "Dev2"},
+						},
+					},
+				},
+				expectedHints: map[string][]topologymanager.TopologyHint{
+					hintsResource: {
+						{
+							NUMANodeAffinity: makeSocketMask(0, 1),
+							Preferred:        false,
+						},
+					},
+				},
+			}
+		},
+	}
 }
 
 func getCommonTestCases() []topologyHintTestCase {
