@@ -292,7 +292,7 @@ func TestCounterWithLabelValueAllowList(t *testing.T) {
 }
 
 func TestCounterWithExemplar(t *testing.T) {
-	// Set exemplar.
+	// Create context.
 	fn := func(offset int) []byte {
 		arr := make([]byte, 16)
 		for i := 0; i < 16; i++ {
@@ -313,8 +313,7 @@ func TestCounterWithExemplar(t *testing.T) {
 	counter := NewCounter(&CounterOpts{
 		Name: "metric_exemplar_test",
 		Help: "helpless",
-	})
-	_ = counter.WithContext(ctxForSpanCtx)
+	}).WithContext(ctxForSpanCtx)
 
 	// Register counter.
 	registry := newKubeRegistry(apimachineryversion.Info{
@@ -380,5 +379,254 @@ func TestCounterWithExemplar(t *testing.T) {
 		default:
 			t.Fatalf("Got unexpected label %s", *l.Name)
 		}
+	}
+
+	// Verify that all contextual counter calls are exclusive.
+	contextualCounter := NewCounter(&CounterOpts{
+		Name: "contextual_counter",
+		Help: "helpless",
+	})
+	spanIDa := trace.SpanID(fn(3))
+	traceIDa := trace.TraceID(fn(4))
+	contextualCounterA := contextualCounter.WithContext(trace.ContextWithSpanContext(context.Background(),
+		trace.NewSpanContext(trace.SpanContextConfig{
+			SpanID:     spanIDa,
+			TraceID:    traceIDa,
+			TraceFlags: trace.FlagsSampled,
+		}),
+	))
+	spanIDb := trace.SpanID(fn(5))
+	traceIDb := trace.TraceID(fn(6))
+	contextualCounterB := contextualCounter.WithContext(trace.ContextWithSpanContext(context.Background(),
+		trace.NewSpanContext(trace.SpanContextConfig{
+			SpanID:     spanIDb,
+			TraceID:    traceIDb,
+			TraceFlags: trace.FlagsSampled,
+		}),
+	))
+
+	runs := []struct {
+		spanID            trace.SpanID
+		traceID           trace.TraceID
+		contextualCounter *CounterWithContext
+	}{
+		{
+			spanID:            spanIDa,
+			traceID:           traceIDa,
+			contextualCounter: contextualCounterA,
+		},
+		{
+			spanID:            spanIDb,
+			traceID:           traceIDb,
+			contextualCounter: contextualCounterB,
+		},
+	}
+	for _, run := range runs {
+		registry.MustRegister(run.contextualCounter)
+		run.contextualCounter.Inc()
+
+		mfs, err = registry.Gather()
+		if err != nil {
+			t.Fatalf("Gather failed %v", err)
+		}
+		if len(mfs) != 2 {
+			t.Fatalf("Got %v metric families, Want: 2 metric families", len(mfs))
+		}
+
+		dtoMetric := mfs[0].GetMetric()[0]
+		if dtoMetric.GetCounter().GetExemplar() == nil {
+			t.Fatalf("Got nil exemplar, wanted an exemplar")
+		}
+		dtoMetricLabels := dtoMetric.GetCounter().GetExemplar().GetLabel()
+		if len(dtoMetricLabels) != 2 {
+			t.Fatalf("Got %v exemplar labels, wanted 2 exemplar labels", len(dtoMetricLabels))
+		}
+		for _, l := range dtoMetricLabels {
+			switch *l.Name {
+			case "trace_id":
+				if *l.Value != run.traceID.String() {
+					t.Fatalf("Got %s as traceID, wanted %s", *l.Value, run.traceID.String())
+				}
+			case "span_id":
+				if *l.Value != run.spanID.String() {
+					t.Fatalf("Got %s as spanID, wanted %s", *l.Value, run.spanID.String())
+				}
+			default:
+				t.Fatalf("Got unexpected label %s", *l.Name)
+			}
+		}
+
+		registry.Unregister(run.contextualCounter)
+	}
+}
+
+func TestCounterVecWithExemplar(t *testing.T) {
+	// Create context.
+	fn := func(offset int) []byte {
+		arr := make([]byte, 16)
+		for i := 0; i < 16; i++ {
+			arr[i] = byte(2<<7 - i - offset)
+		}
+		return arr
+	}
+	traceID := trace.TraceID(fn(1))
+	spanID := trace.SpanID(fn(2))
+	ctxForSpanCtx := trace.ContextWithSpanContext(context.Background(),
+		trace.NewSpanContext(trace.SpanContextConfig{
+			SpanID:     spanID,
+			TraceID:    traceID,
+			TraceFlags: trace.FlagsSampled,
+		}),
+	)
+	toAdd := float64(40)
+
+	// Create contextual counter.
+	counter := NewCounterVec(&CounterOpts{
+		Name: "metricvec_exemplar_test",
+		Help: "helpless",
+	}, []string{"label_a"}).WithContext(ctxForSpanCtx)
+
+	// Register counter.
+	registry := newKubeRegistry(apimachineryversion.Info{
+		Major:      "1",
+		Minor:      "15",
+		GitVersion: "v1.15.0-alpha-1.12345",
+	})
+	registry.MustRegister(counter)
+
+	// Call underlying exemplar methods.
+	counter.WithLabelValues("a").Add(toAdd)
+	counter.WithLabelValues("a").Inc()
+	counter.WithLabelValues("a").Inc()
+
+	// Gather.
+	mfs, err := registry.Gather()
+	if err != nil {
+		t.Fatalf("Gather failed %v", err)
+	}
+	if len(mfs) != 1 {
+		t.Fatalf("Got %v metric families, Want: 1 metric family", len(mfs))
+	}
+
+	// Verify metric type.
+	mf := mfs[0]
+	var m *dto.Metric
+	switch mf.GetType() {
+	case dto.MetricType_COUNTER:
+		m = mfs[0].GetMetric()[0]
+	default:
+		t.Fatalf("Got %v metric type, Want: %v metric type", mf.GetType(), dto.MetricType_COUNTER)
+	}
+
+	// Verify value.
+	want := toAdd + 2
+	got := m.GetCounter().GetValue()
+	if got != want {
+		t.Fatalf("Got %f, wanted %f as the count", got, want)
+	}
+
+	// Verify exemplars.
+	e := m.GetCounter().GetExemplar()
+	if e == nil {
+		t.Fatalf("Got nil exemplar, wanted an exemplar")
+	}
+	eLabels := e.GetLabel()
+	if eLabels == nil {
+		t.Fatalf("Got nil exemplar label, wanted an exemplar label")
+	}
+	if len(eLabels) != 2 {
+		t.Fatalf("Got %v exemplar labels, wanted 2 exemplar labels", len(eLabels))
+	}
+	for _, l := range eLabels {
+		switch *l.Name {
+		case "trace_id":
+			if *l.Value != traceID.String() {
+				t.Fatalf("Got %s as traceID, wanted %s", *l.Value, traceID.String())
+			}
+		case "span_id":
+			if *l.Value != spanID.String() {
+				t.Fatalf("Got %s as spanID, wanted %s", *l.Value, spanID.String())
+			}
+		default:
+			t.Fatalf("Got unexpected label %s", *l.Name)
+		}
+	}
+
+	// Verify that all contextual counter calls are exclusive.
+	contextualCounterVec := NewCounterVec(&CounterOpts{
+		Name: "contextual_counter",
+		Help: "helpless",
+	}, []string{"label_a"})
+	spanIDa := trace.SpanID(fn(3))
+	traceIDa := trace.TraceID(fn(4))
+	contextualCounterVecA := contextualCounterVec.WithContext(trace.ContextWithSpanContext(context.Background(),
+		trace.NewSpanContext(trace.SpanContextConfig{
+			SpanID:     spanIDa,
+			TraceID:    traceIDa,
+			TraceFlags: trace.FlagsSampled,
+		}),
+	))
+	spanIDb := trace.SpanID(fn(5))
+	traceIDb := trace.TraceID(fn(6))
+	contextualCounterVecB := contextualCounterVec.WithContext(trace.ContextWithSpanContext(context.Background(),
+		trace.NewSpanContext(trace.SpanContextConfig{
+			SpanID:     spanIDb,
+			TraceID:    traceIDb,
+			TraceFlags: trace.FlagsSampled,
+		}),
+	))
+
+	runs := []struct {
+		spanID            trace.SpanID
+		traceID           trace.TraceID
+		contextualCounter *CounterVecWithContext
+	}{
+		{
+			spanID:            spanIDa,
+			traceID:           traceIDa,
+			contextualCounter: contextualCounterVecA,
+		},
+		{
+			spanID:            spanIDb,
+			traceID:           traceIDb,
+			contextualCounter: contextualCounterVecB,
+		},
+	}
+	for _, run := range runs {
+		registry.MustRegister(run.contextualCounter)
+		run.contextualCounter.WithLabelValues("a").Inc()
+
+		mfs, err = registry.Gather()
+		if err != nil {
+			t.Fatalf("Gather failed %v", err)
+		}
+		if len(mfs) != 2 {
+			t.Fatalf("Got %v metric families, Want: 2 metric families", len(mfs))
+		}
+
+		dtoMetric := mfs[0].GetMetric()[0]
+		if dtoMetric.GetCounter().GetExemplar() == nil {
+			t.Fatalf("Got nil exemplar, wanted an exemplar")
+		}
+		dtoMetricLabels := dtoMetric.GetCounter().GetExemplar().GetLabel()
+		if len(dtoMetricLabels) != 2 {
+			t.Fatalf("Got %v exemplar labels, wanted 2 exemplar labels", len(dtoMetricLabels))
+		}
+		for _, l := range dtoMetricLabels {
+			switch *l.Name {
+			case "trace_id":
+				if *l.Value != run.traceID.String() {
+					t.Fatalf("Got %s as traceID, wanted %s", *l.Value, run.traceID.String())
+				}
+			case "span_id":
+				if *l.Value != run.spanID.String() {
+					t.Fatalf("Got %s as spanID, wanted %s", *l.Value, run.spanID.String())
+				}
+			default:
+				t.Fatalf("Got unexpected label %s", *l.Name)
+			}
+		}
+
+		registry.Unregister(run.contextualCounter)
 	}
 }
