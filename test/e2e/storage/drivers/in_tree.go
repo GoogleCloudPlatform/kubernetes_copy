@@ -1367,26 +1367,10 @@ func (l *localDriver) GetPersistentVolumeSource(readOnly bool, fsType string, e2
 	}, l.nodeAffinityForNode(lv.ltr.Node)
 }
 
-// cleanUpVolumeServer is a wrapper of cleanup function for volume server without secret created by specific CreateStorageServer function.
+// cleanUpVolumeServer is a wrapper of cleanup function for volume server.
 func cleanUpVolumeServer(ctx context.Context, f *framework.Framework, serverPod *v1.Pod) {
-	cleanUpVolumeServerWithSecret(ctx, f, serverPod, nil)
-}
-
-// cleanUpVolumeServerWithSecret is a wrapper of cleanup function for volume server with secret created by specific CreateStorageServer function.
-func cleanUpVolumeServerWithSecret(ctx context.Context, f *framework.Framework, serverPod *v1.Pod, secret *v1.Secret) {
-	cs := f.ClientSet
-	ns := f.Namespace
-
-	if secret != nil {
-		framework.Logf("Deleting server secret %q...", secret.Name)
-		err := cs.CoreV1().Secrets(ns.Name).Delete(ctx, secret.Name, metav1.DeleteOptions{})
-		if err != nil {
-			framework.Logf("Delete secret failed: %v", err)
-		}
-	}
-
 	framework.Logf("Deleting server pod %q...", serverPod.Name)
-	err := e2epod.DeletePodWithWait(ctx, cs, serverPod)
+	err := e2epod.DeletePodWithWait(ctx, f.ClientSet, serverPod)
 	if err != nil {
 		framework.Logf("Server pod delete failed: %v", err)
 	}
