@@ -2924,6 +2924,9 @@ func ValidateVolumeMounts(mounts []core.VolumeMount, voldevices map[string]strin
 		if len(mnt.MountPath) == 0 {
 			allErrs = append(allErrs, field.Required(idxPath.Child("mountPath"), ""))
 		}
+		if strings.HasSuffix(mnt.MountPath, ":ro") || strings.HasSuffix(mnt.MountPath, ":rw") {
+			allErrs = append(allErrs, field.Invalid(idxPath.Child("mountPath"), mnt.MountPath, "must not contain ':ro' or ':rw' "))
+		}
 		if mountpoints.Has(mnt.MountPath) {
 			allErrs = append(allErrs, field.Invalid(idxPath.Child("mountPath"), mnt.MountPath, "must be unique"))
 		}
