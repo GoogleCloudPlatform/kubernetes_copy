@@ -227,6 +227,18 @@ func Test_Run_Positive_OneDesiredVolumeAttachThenDetachWithMountedVolume(t *test
 	registerMetrics.Do(func() {
 		legacyregistry.MustRegister(metrics.ForceDetachMetricCounter)
 	})
+
+	// NOTE: This value is being pulled from a global variable, so it won't necessarily be 0 at the start of the test
+	initialForceDetachCountTimeout, err := metricstestutil.GetCounterMetricValue(metrics.ForceDetachMetricCounter.WithLabelValues(metrics.ForceDetachReasonTimeout))
+	if err != nil {
+		t.Errorf("Error getting initialForceDetachCountTimeout")
+	}
+
+	initialForceDetachCountOutOfService, err := metricstestutil.GetCounterMetricValue(metrics.ForceDetachMetricCounter.WithLabelValues(metrics.ForceDetachReasonOutOfService))
+	if err != nil {
+		t.Errorf("Error getting initialForceDetachCountOutOfService")
+	}
+
 	// Arrange
 	volumePluginMgr, fakePlugin := volumetesting.GetTestVolumePluginMgr(t)
 	dsw := cache.NewDesiredStateOfWorld(volumePluginMgr)
@@ -295,7 +307,9 @@ func Test_Run_Positive_OneDesiredVolumeAttachThenDetachWithMountedVolume(t *test
 	waitForDetachCallCount(t, 1 /* expectedDetachCallCount */, fakePlugin)
 
 	// Force detach metric due to timeout
-	testForceDetachMetric(t, 1, metrics.ForceDetachReasonTimeout)
+	testForceDetachMetric(t, int(initialForceDetachCountTimeout)+1, metrics.ForceDetachReasonTimeout)
+	// We shouldn't see any additional force detaches, so only consider the initial count
+	testForceDetachMetric(t, int(initialForceDetachCountOutOfService), metrics.ForceDetachReasonOutOfService)
 }
 
 // Populates desiredStateOfWorld cache with one node/volume/pod tuple.
@@ -852,6 +866,18 @@ func Test_Run_OneVolumeDetachOnOutOfServiceTaintedNode(t *testing.T) {
 	registerMetrics.Do(func() {
 		legacyregistry.MustRegister(metrics.ForceDetachMetricCounter)
 	})
+
+	// NOTE: This value is being pulled from a global variable, so it won't necessarily be 0 at the start of the test
+	initialForceDetachCountOutOfService, err := metricstestutil.GetCounterMetricValue(metrics.ForceDetachMetricCounter.WithLabelValues(metrics.ForceDetachReasonOutOfService))
+	if err != nil {
+		t.Errorf("Error getting initialForceDetachCountOutOfService")
+	}
+
+	initialForceDetachCountTimeout, err := metricstestutil.GetCounterMetricValue(metrics.ForceDetachMetricCounter.WithLabelValues(metrics.ForceDetachReasonTimeout))
+	if err != nil {
+		t.Errorf("Error getting initialForceDetachCountTimeout")
+	}
+
 	// Arrange
 	volumePluginMgr, fakePlugin := volumetesting.GetTestVolumePluginMgr(t)
 	dsw := cache.NewDesiredStateOfWorld(volumePluginMgr)
@@ -922,7 +948,9 @@ func Test_Run_OneVolumeDetachOnOutOfServiceTaintedNode(t *testing.T) {
 	waitForDetachCallCount(t, 1 /* expectedDetachCallCount */, fakePlugin)
 
 	// Force detach metric due to out-of-service taint
-	testForceDetachMetric(t, 1, metrics.ForceDetachReasonOutOfService)
+	testForceDetachMetric(t, int(initialForceDetachCountOutOfService)+1, metrics.ForceDetachReasonOutOfService)
+	// We shouldn't see any additional force detaches, so only consider the initial count
+	testForceDetachMetric(t, int(initialForceDetachCountTimeout), metrics.ForceDetachReasonTimeout)
 }
 
 // Populates desiredStateOfWorld cache with one node/volume/pod tuple.
@@ -1119,10 +1147,14 @@ func Test_Run_OneVolumeDetachOnUnhealthyNodeWithForceDetachOnUnmountDisabled(t *
 		legacyregistry.MustRegister(metrics.ForceDetachMetricCounter)
 	})
 	// NOTE: This value is being pulled from a global variable, so it won't necessarily be 0 at the start of the test
-	// For example, if Test_Run_OneVolumeDetachOnOutOfServiceTaintedNode runs before this test, then it will be 1
-	initialForceDetachCount, err := metricstestutil.GetCounterMetricValue(metrics.ForceDetachMetricCounter.WithLabelValues(metrics.ForceDetachReasonOutOfService))
+	initialForceDetachCountOutOfService, err := metricstestutil.GetCounterMetricValue(metrics.ForceDetachMetricCounter.WithLabelValues(metrics.ForceDetachReasonOutOfService))
 	if err != nil {
-		t.Errorf("Error getting initialForceDetachCount")
+		t.Errorf("Error getting initialForceDetachCountOutOfService")
+	}
+
+	initialForceDetachCountTimeout, err := metricstestutil.GetCounterMetricValue(metrics.ForceDetachMetricCounter.WithLabelValues(metrics.ForceDetachReasonTimeout))
+	if err != nil {
+		t.Errorf("Error getting initialForceDetachCountTimeout")
 	}
 
 	// Arrange
@@ -1219,7 +1251,8 @@ func Test_Run_OneVolumeDetachOnUnhealthyNodeWithForceDetachOnUnmountDisabled(t *
 
 	// Force detach metric due to out-of-service taint
 	// We shouldn't see any additional force detaches, so only consider the initial count
-	testForceDetachMetric(t, int(initialForceDetachCount), metrics.ForceDetachReasonOutOfService)
+	testForceDetachMetric(t, int(initialForceDetachCountOutOfService), metrics.ForceDetachReasonOutOfService)
+	testForceDetachMetric(t, int(initialForceDetachCountTimeout), metrics.ForceDetachReasonTimeout)
 
 	// Act
 	// Taint the node
@@ -1238,7 +1271,9 @@ func Test_Run_OneVolumeDetachOnUnhealthyNodeWithForceDetachOnUnmountDisabled(t *
 
 	// Force detach metric due to out-of-service taint
 	// We should see one more force detach, so consider the initial count + 1
-	testForceDetachMetric(t, int(initialForceDetachCount)+1, metrics.ForceDetachReasonOutOfService)
+	testForceDetachMetric(t, int(initialForceDetachCountOutOfService)+1, metrics.ForceDetachReasonOutOfService)
+	// We shouldn't see any additional force detaches, so only consider the initial count
+	testForceDetachMetric(t, int(initialForceDetachCountTimeout), metrics.ForceDetachReasonTimeout)
 }
 
 func Test_ReportMultiAttachError(t *testing.T) {
