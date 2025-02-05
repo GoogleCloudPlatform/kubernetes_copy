@@ -135,6 +135,12 @@ func SetDefaults_KubeProxyConfiguration(obj *kubeproxyconfigv1alpha1.KubeProxyCo
 	if obj.FeatureGates == nil {
 		obj.FeatureGates = make(map[string]bool)
 	}
+	if obj.IPVS.IPSet.HashSize == nil {
+		obj.IPVS.IPSet.HashSize = ptr.To[int32](1024)
+	}
+	if obj.IPVS.IPSet.MaxElements == nil {
+		obj.IPVS.IPSet.MaxElements = ptr.To[int32](65536)
+	}
 	// Use the Default LoggingConfiguration option
 	logsapi.SetRecommendedLoggingConfiguration(&obj.Logging)
 }

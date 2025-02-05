@@ -274,7 +274,8 @@ func (e *Entry) checkIP(set *IPSet) bool {
 }
 
 type runner struct {
-	exec utilexec.Interface
+	exec     utilexec.Interface
+	settings *Settings
 }
 
 // New returns a new Interface which will exec ipset.
@@ -284,8 +285,32 @@ func New(exec utilexec.Interface) Interface {
 	}
 }
 
+// NewWithSettings returns a new Interface which will exec ipset with custom settings
+func NewWithSettings(exec utilexec.Interface, settings *Settings) Interface {
+	if settings == nil {
+		return New(exec)
+	}
+	return &runner{
+		exec:     exec,
+		settings: settings,
+	}
+}
+
+// applySettings applies the settings to the IPSet if they are not already set.
+func (runner *runner) applySettings(set *IPSet) {
+	if runner.settings != nil {
+		if runner.settings.HashSize > 0 && set.HashSize == 0 {
+			set.HashSize = runner.settings.HashSize
+		}
+		if runner.settings.MaxElem > 0 && set.MaxElem == 0 {
+			set.MaxElem = runner.settings.MaxElem
+		}
+	}
+}
+
 // CreateSet creates a new set, it will ignore error when the set already exists if ignoreExistErr=true.
 func (runner *runner) CreateSet(set *IPSet, ignoreExistErr bool) error {
+	runner.applySettings(set)
 	// sets some IPSet fields if not present to their default values.
 	set.setIPSetDefaults()
 
@@ -535,3 +560,9 @@ func parsePortRange(portRange string) (beginPort int, endPort int, err error) {
 }
 
 var _ = Interface(&runner{})
+
+// Settings stores the ipset configuration parameters
+type Settings struct {
+	HashSize int
+	MaxElem  int
+}

@@ -94,6 +94,8 @@ func Funcs(codecs runtimeserializer.CodecFactory) []interface{} {
 			obj.HealthzBindAddress = fmt.Sprintf("%d.%d.%d.%d:%d", c.Intn(256), c.Intn(256), c.Intn(256), c.Intn(256), c.Intn(65536))
 			obj.IPTables.MasqueradeBit = ptr.To(c.Int31())
 			obj.IPTables.LocalhostNodePorts = ptr.To(c.RandBool())
+			obj.IPVS.IPSet.HashSize = ptr.To(c.Int31())
+			obj.IPVS.IPSet.MaxElements = ptr.To(c.Int31())
 			obj.NFTables.MasqueradeBit = ptr.To(c.Int31())
 			obj.MetricsBindAddress = fmt.Sprintf("%d.%d.%d.%d:%d", c.Intn(256), c.Intn(256), c.Intn(256), c.Intn(256), c.Intn(65536))
 			obj.Linux.OOMScoreAdj = ptr.To(c.Int31())

@@ -252,6 +252,25 @@ func TestValidateKubeProxyIPVSConfiguration(t *testing.T) {
 				field.Invalid(newPath.Child("KubeIPVSConfiguration.TCPFinTimeout"), metav1.Duration{Duration: -1 * time.Second}, "must be greater than or equal to 0"),
 				field.Invalid(newPath.Child("KubeIPVSConfiguration.UDPTimeout"), metav1.Duration{Duration: -1 * time.Second}, "must be greater than or equal to 0")},
 		},
+		"IPVS IPSet HashSize, MaxElem > 0": {
+			config: kubeproxyconfig.KubeProxyIPVSConfiguration{
+				IPSet: kubeproxyconfig.KubeProxyIPSetConfiguration{
+					HashSize:    ptr.To[int32](1),
+					MaxElements: ptr.To[int32](1),
+				},
+			},
+			expectedErrs: field.ErrorList{},
+		},
+		"IPVS IPSet HashSize, MaxElem < 0": {
+			config: kubeproxyconfig.KubeProxyIPVSConfiguration{
+				IPSet: kubeproxyconfig.KubeProxyIPSetConfiguration{
+					HashSize:    ptr.To[int32](-1),
+					MaxElements: ptr.To[int32](-2),
+				},
+			},
+			expectedErrs: field.ErrorList{field.Invalid(newPath.Child("KubeIPVSConfiguration.IPSet.HashSize"), int32(-1), "must be greater than 0"),
+				field.Invalid(newPath.Child("KubeIPVSConfiguration.IPSet.MaxElements"), int32(-2), "must be greater than 0")},
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			errs := validateKubeProxyIPVSConfiguration(testCase.config, newPath.Child("KubeIPVSConfiguration"))

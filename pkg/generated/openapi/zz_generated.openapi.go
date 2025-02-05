@@ -1217,6 +1217,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"k8s.io/kube-proxy/config/v1alpha1.DetectLocalConfiguration":                                            schema_k8sio_kube_proxy_config_v1alpha1_DetectLocalConfiguration(ref),
 		"k8s.io/kube-proxy/config/v1alpha1.KubeProxyConfiguration":                                              schema_k8sio_kube_proxy_config_v1alpha1_KubeProxyConfiguration(ref),
 		"k8s.io/kube-proxy/config/v1alpha1.KubeProxyConntrackConfiguration":                                     schema_k8sio_kube_proxy_config_v1alpha1_KubeProxyConntrackConfiguration(ref),
+		"k8s.io/kube-proxy/config/v1alpha1.KubeProxyIPSetConfiguration":                                         schema_k8sio_kube_proxy_config_v1alpha1_KubeProxyIPSetConfiguration(ref),
 		"k8s.io/kube-proxy/config/v1alpha1.KubeProxyIPTablesConfiguration":                                      schema_k8sio_kube_proxy_config_v1alpha1_KubeProxyIPTablesConfiguration(ref),
 		"k8s.io/kube-proxy/config/v1alpha1.KubeProxyIPVSConfiguration":                                          schema_k8sio_kube_proxy_config_v1alpha1_KubeProxyIPVSConfiguration(ref),
 		"k8s.io/kube-proxy/config/v1alpha1.KubeProxyNFTablesConfiguration":                                      schema_k8sio_kube_proxy_config_v1alpha1_KubeProxyNFTablesConfiguration(ref),
@@ -62191,6 +62192,33 @@ func schema_k8sio_kube_proxy_config_v1alpha1_KubeProxyConntrackConfiguration(ref
 	}
 }
 
+func schema_k8sio_kube_proxy_config_v1alpha1_KubeProxyIPSetConfiguration(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "KubeProxyIPSetConfiguration contains ipset-related configuration",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"hashSize": {
+						SchemaProps: spec.SchemaProps{
+							Description: "hashSize is the size of hash table for ipset",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+					"maxElements": {
+						SchemaProps: spec.SchemaProps{
+							Description: "maxElements is the maximal number of elements that can be stored in an ipset",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
 func schema_k8sio_kube_proxy_config_v1alpha1_KubeProxyIPTablesConfiguration(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -62309,12 +62337,19 @@ func schema_k8sio_kube_proxy_config_v1alpha1_KubeProxyIPVSConfiguration(ref comm
 							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Duration"),
 						},
 					},
+					"ipSet": {
+						SchemaProps: spec.SchemaProps{
+							Description: "ipSet contains ipset settings for IPVS proxier",
+							Default:     map[string]interface{}{},
+							Ref:         ref("k8s.io/kube-proxy/config/v1alpha1.KubeProxyIPSetConfiguration"),
+						},
+					},
 				},
 				Required: []string{"syncPeriod", "minSyncPeriod", "scheduler", "excludeCIDRs", "strictARP", "tcpTimeout", "tcpFinTimeout", "udpTimeout"},
 			},
 		},
 		Dependencies: []string{
-			"k8s.io/apimachinery/pkg/apis/meta/v1.Duration"},
+			"k8s.io/apimachinery/pkg/apis/meta/v1.Duration", "k8s.io/kube-proxy/config/v1alpha1.KubeProxyIPSetConfiguration"},
 	}
 }
 

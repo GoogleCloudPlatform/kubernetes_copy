@@ -69,6 +69,9 @@ ipvs:
   excludeCIDRs:
     - "10.20.30.40/16"
     - "fd00:1::0/64"
+  ipSet:
+    hashSize: 1024
+    maxElements: 65536
 nftables:
   masqueradeAll: true
   masqueradeBit: 18
@@ -218,6 +221,10 @@ nodePortAddresses:
 				},
 				IPVS: kubeproxyconfig.KubeProxyIPVSConfiguration{
 					ExcludeCIDRs: []string{"10.20.30.40/16", "fd00:1::0/64"},
+					IPSet: kubeproxyconfig.KubeProxyIPSetConfiguration{
+						HashSize:    ptr.To[int32](1024),
+						MaxElements: ptr.To[int32](65536),
+					},
 				},
 				NFTables: kubeproxyconfig.KubeProxyNFTablesConfiguration{
 					MasqueradeBit: ptr.To[int32](18),

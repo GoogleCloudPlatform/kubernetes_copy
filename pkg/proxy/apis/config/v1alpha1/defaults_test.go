@@ -61,6 +61,10 @@ func TestDefaultsKubeProxyConfiguration(t *testing.T) {
 				},
 				IPVS: kubeproxyconfigv1alpha1.KubeProxyIPVSConfiguration{
 					SyncPeriod: metav1.Duration{Duration: 30 * time.Second},
+					IPSet: kubeproxyconfigv1alpha1.KubeProxyIPSetConfiguration{
+						HashSize:    ptr.To[int32](1024),
+						MaxElements: ptr.To[int32](65536),
+					},
 				},
 				NFTables: kubeproxyconfigv1alpha1.KubeProxyNFTablesConfiguration{
 					MasqueradeBit: ptr.To[int32](14),
@@ -107,6 +111,10 @@ func TestDefaultsKubeProxyConfiguration(t *testing.T) {
 				},
 				IPVS: kubeproxyconfigv1alpha1.KubeProxyIPVSConfiguration{
 					SyncPeriod: metav1.Duration{Duration: 30 * time.Second},
+					IPSet: kubeproxyconfigv1alpha1.KubeProxyIPSetConfiguration{
+						HashSize:    ptr.To[int32](1024),
+						MaxElements: ptr.To[int32](65536),
+					},
 				},
 				NFTables: kubeproxyconfigv1alpha1.KubeProxyNFTablesConfiguration{
 					MasqueradeBit: ptr.To[int32](14),

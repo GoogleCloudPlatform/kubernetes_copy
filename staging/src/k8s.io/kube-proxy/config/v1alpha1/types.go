@@ -22,6 +22,16 @@ import (
 	logsapi "k8s.io/component-base/logs/api/v1"
 )
 
+// KubeProxyIPSetConfiguration contains ipset-related configuration
+type KubeProxyIPSetConfiguration struct {
+	// hashSize is the size of hash table for ipset
+	// +optional
+	HashSize *int32 `json:"hashSize,omitempty"`
+	// maxElements is the maximal number of elements that can be stored in an ipset
+	// +optional
+	MaxElements *int32 `json:"maxElements,omitempty"`
+}
+
 // KubeProxyIPTablesConfiguration contains iptables-related configuration
 // details for the Kubernetes proxy server.
 type KubeProxyIPTablesConfiguration struct {
@@ -75,6 +85,8 @@ type KubeProxyIPVSConfiguration struct {
 	// udpTimeout is the timeout value used for IPVS UDP packets.
 	// The default value is 0, which preserves the current timeout value on the system.
 	UDPTimeout metav1.Duration `json:"udpTimeout"`
+	// ipSet contains ipset settings for IPVS proxier
+	IPSet KubeProxyIPSetConfiguration `json:"ipSet,omitempty"`
 }
 
 // KubeProxyNFTablesConfiguration contains nftables-related configuration

@@ -222,7 +222,19 @@ func (s *ProxyServer) createProxier(ctx context.Context, config *proxyconfigapi.
 		}
 	} else if config.Mode == proxyconfigapi.ProxyModeIPVS {
 		execer := exec.New()
-		ipsetInterface := utilipset.New(execer)
+
+		// prepare ipset settings
+		ipsetSettings := &utilipset.Settings{}
+		if config.IPVS.IPSet.HashSize != nil {
+			ipsetSettings.HashSize = int(*config.IPVS.IPSet.HashSize)
+		}
+		if config.IPVS.IPSet.MaxElements != nil {
+			ipsetSettings.MaxElem = int(*config.IPVS.IPSet.MaxElements)
+		}
+
+		// Create the ipset interface with custom settings.
+		ipsetInterface := utilipset.NewWithSettings(execer, ipsetSettings)
+
 		ipvsInterface := utilipvs.New()
 		if err := ipvs.CanUseIPVSProxier(ctx, ipvsInterface, ipsetInterface, config.IPVS.Scheduler); err != nil {
 			return nil, fmt.Errorf("can't use the IPVS proxier: %v", err)

@@ -175,6 +175,8 @@ func (o *Options) AddFlags(fs *pflag.FlagSet) {
 	fs.Int32Var(&o.metricsPort, "metrics-port", o.metricsPort, "The port to bind the metrics server. Use 0 to disable.")
 	_ = fs.MarkDeprecated("metrics-port", "This flag is deprecated and will be removed in a future release. Please use --metrics-bind-address instead.")
 
+	fs.Int32Var(o.config.IPVS.IPSet.HashSize, "ipvs-ipset-hashsize", *o.config.IPVS.IPSet.HashSize, "The hash size for ipset used by IPVS proxier. Must be greater than 0.")
+	fs.Int32Var(o.config.IPVS.IPSet.MaxElements, "ipvs-ipset-maxelements", *o.config.IPVS.IPSet.MaxElements, "The maximal number of elements that can be stored in an ipset used by IPVS proxier. Must be greater than 0.")
 	logsapi.AddFlags(&o.config.Logging, fs)
 }
 

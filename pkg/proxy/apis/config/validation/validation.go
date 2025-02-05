@@ -103,7 +103,7 @@ func validateKubeProxyIPVSConfiguration(config kubeproxyconfig.KubeProxyIPVSConf
 
 	allErrs = append(allErrs, validateIPVSTimeout(config, fldPath)...)
 	allErrs = append(allErrs, validateIPVSExcludeCIDRs(config.ExcludeCIDRs, fldPath.Child("ExcludeCidrs"))...)
-
+	allErrs = append(allErrs, validateIPVSIPSetConfiguration(config.IPSet, fldPath.Child("IPSet"))...)
 	return allErrs
 }
 
@@ -288,6 +288,21 @@ func validateIPVSExcludeCIDRs(excludeCIDRs []string, fldPath *field.Path) field.
 		if _, _, err := netutils.ParseCIDRSloppy(excludeCIDRs[i]); err != nil {
 			allErrs = append(allErrs, field.Invalid(fldPath.Index(i), excludeCIDRs[i], "must be a valid CIDR"))
 		}
+	}
+	return allErrs
+}
+
+func validateIPVSIPSetConfiguration(ipSet kubeproxyconfig.KubeProxyIPSetConfiguration, fldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	if ipSet.HashSize != nil && *ipSet.HashSize <= 0 {
+		allErrs = append(allErrs, field.Invalid(fldPath.Child("HashSize"), *ipSet.HashSize,
+			"must be greater than 0"))
+	}
+
+	if ipSet.MaxElements != nil && *ipSet.MaxElements <= 0 {
+		allErrs = append(allErrs, field.Invalid(fldPath.Child("MaxElements"), *ipSet.MaxElements,
+			"must be greater than 0"))
 	}
 	return allErrs
 }

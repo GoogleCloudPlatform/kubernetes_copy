@@ -32,6 +32,9 @@ iptables:
   syncPeriod: 30s
 ipvs:
   excludeCIDRs: null
+  ipSet:
+    hashSize: 1024
+    maxElements: 65536
   minSyncPeriod: 0s
   scheduler: ""
   strictARP: false
