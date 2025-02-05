@@ -143,12 +143,6 @@ type Manager interface {
 	// the provided podUIDs.
 	RemoveOrphanedStatuses(podUIDs map[types.UID]bool)
 
-	// GetPodResizeStatus returns cached PodStatus.Resize value
-	GetPodResizeStatus(podUID types.UID) v1.PodResizeStatus
-
-	// SetPodResizeStatus caches the last resizing decision for the pod.
-	SetPodResizeStatus(podUID types.UID, resize v1.PodResizeStatus)
-
 	allocationManager
 }
 
@@ -285,13 +279,6 @@ func updatePodFromAllocation(pod *v1.Pod, allocs state.PodResourceAllocation) (*
 	return pod, updated
 }
 
-// GetPodResizeStatus returns the last cached ResizeStatus value.
-func (m *manager) GetPodResizeStatus(podUID types.UID) v1.PodResizeStatus {
-	m.podStatusesLock.RLock()
-	defer m.podStatusesLock.RUnlock()
-	return m.state.GetPodResizeStatus(string(podUID))
-}
-
 // SetPodAllocation checkpoints the resources allocated to a pod's containers
 func (m *manager) SetPodAllocation(pod *v1.Pod) error {
 	m.podStatusesLock.RLock()
@@ -304,14 +291,6 @@ func (m *manager) SetPodAllocation(pod *v1.Pod) error {
 	}
 	return nil
 }
-
-// SetPodResizeStatus checkpoints the last resizing decision for the pod.
-func (m *manager) SetPodResizeStatus(podUID types.UID, resizeStatus v1.PodResizeStatus) {
-	m.podStatusesLock.RLock()
-	defer m.podStatusesLock.RUnlock()
-	m.state.SetPodResizeStatus(string(podUID), resizeStatus)
-}
-
 func (m *manager) GetPodStatus(uid types.UID) (v1.PodStatus, bool) {
 	m.podStatusesLock.RLock()
 	defer m.podStatusesLock.RUnlock()

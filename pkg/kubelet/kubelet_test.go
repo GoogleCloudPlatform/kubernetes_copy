@@ -1943,7 +1943,7 @@ func TestGenerateAPIPodStatusWithSortedContainers(t *testing.T) {
 		ContainerStatuses: cStatuses,
 	}
 	for i := 0; i < 5; i++ {
-		apiStatus := kubelet.generateAPIPodStatus(pod, status, false)
+		apiStatus := kubelet.generateAPIPodStatus(pod, status, "", false)
 		for i, c := range apiStatus.ContainerStatuses {
 			if expectedOrder[i] != c.Name {
 				t.Fatalf("Container status not sorted, expected %v at index %d, but found %v", expectedOrder[i], i, c.Name)
@@ -2157,7 +2157,7 @@ func TestGenerateAPIPodStatusWithReasonCache(t *testing.T) {
 		pod.Spec.Containers = test.containers
 		pod.Status.ContainerStatuses = test.oldStatuses
 		podStatus.ContainerStatuses = test.statuses
-		apiStatus := kubelet.generateAPIPodStatus(pod, podStatus, false)
+		apiStatus := kubelet.generateAPIPodStatus(pod, podStatus, "", false)
 		verifyContainerStatuses(t, apiStatus.ContainerStatuses, test.expectedState, test.expectedLastTerminationState, fmt.Sprintf("case %d", i))
 	}
 
@@ -2170,7 +2170,7 @@ func TestGenerateAPIPodStatusWithReasonCache(t *testing.T) {
 		pod.Spec.InitContainers = test.containers
 		pod.Status.InitContainerStatuses = test.oldStatuses
 		podStatus.ContainerStatuses = test.statuses
-		apiStatus := kubelet.generateAPIPodStatus(pod, podStatus, false)
+		apiStatus := kubelet.generateAPIPodStatus(pod, podStatus, "", false)
 		expectedState := test.expectedState
 		if test.expectedInitState != nil {
 			expectedState = test.expectedInitState
@@ -2309,14 +2309,14 @@ func TestGenerateAPIPodStatusWithDifferentRestartPolicies(t *testing.T) {
 		pod.Spec.RestartPolicy = test.restartPolicy
 		// Test normal containers
 		pod.Spec.Containers = containers
-		apiStatus := kubelet.generateAPIPodStatus(pod, podStatus, false)
+		apiStatus := kubelet.generateAPIPodStatus(pod, podStatus, "", false)
 		expectedState, expectedLastTerminationState := test.expectedState, test.expectedLastTerminationState
 		verifyContainerStatuses(t, apiStatus.ContainerStatuses, expectedState, expectedLastTerminationState, fmt.Sprintf("case %d", c))
 		pod.Spec.Containers = nil
 
 		// Test init containers
 		pod.Spec.InitContainers = containers
-		apiStatus = kubelet.generateAPIPodStatus(pod, podStatus, false)
+		apiStatus = kubelet.generateAPIPodStatus(pod, podStatus, "", false)
 		if test.expectedInitState != nil {
 			expectedState = test.expectedInitState
 		}
@@ -2888,7 +2888,7 @@ func TestHandlePodResourcesResize(t *testing.T) {
 			backoffKey := kuberuntime.GetStableKey(originalPod, &originalPod.Spec.Containers[0])
 			kubelet.backOff.Next(backoffKey, now)
 
-			updatedPod, err := kubelet.handlePodResourcesResize(newPod, podStatus)
+			updatedPod, resizeStatus, err := kubelet.handlePodResourcesResize(newPod, podStatus)
 			require.NoError(t, err)
 			assert.Equal(t, tt.expectedAllocatedReqs, updatedPod.Spec.Containers[0].Resources.Requests, "updated pod spec requests")
 			assert.Equal(t, tt.expectedAllocatedLims, updatedPod.Spec.Containers[0].Resources.Limits, "updated pod spec limits")
@@ -2898,7 +2898,6 @@ func TestHandlePodResourcesResize(t *testing.T) {
 			assert.Equal(t, tt.expectedAllocatedReqs, alloc.Requests, "stored container request allocation")
 			assert.Equal(t, tt.expectedAllocatedLims, alloc.Limits, "stored container limit allocation")
 
-			resizeStatus := kubelet.statusManager.GetPodResizeStatus(newPod.UID)
 			assert.Equal(t, tt.expectedResize, resizeStatus)
 
 			isInBackoff := kubelet.backOff.IsInBackOffSince(backoffKey, now)
@@ -2976,7 +2975,7 @@ func TestGenerateAPIPodStatusInvokesPodSyncHandlers(t *testing.T) {
 		Name:      pod.Name,
 		Namespace: pod.Namespace,
 	}
-	apiStatus := kubelet.generateAPIPodStatus(pod, status, false)
+	apiStatus := kubelet.generateAPIPodStatus(pod, status, "", false)
 	require.Equal(t, v1.PodFailed, apiStatus.Phase)
 	require.Equal(t, "Evicted", apiStatus.Reason)
 	require.Equal(t, "because", apiStatus.Message)

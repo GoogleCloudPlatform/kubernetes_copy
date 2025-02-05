@@ -3805,7 +3805,7 @@ func Test_generateAPIPodStatus(t *testing.T) {
 					kl.readinessManager.Set(kubecontainer.BuildContainerID("", findContainerStatusByName(test.expected, name).ContainerID), results.Failure, test.pod)
 				}
 				expected := test.expected.DeepCopy()
-				actual := kl.generateAPIPodStatus(test.pod, test.currentStatus, test.isPodTerminal)
+				actual := kl.generateAPIPodStatus(test.pod, test.currentStatus, "", test.isPodTerminal)
 				if enablePodReadyToStartContainersCondition {
 					expected.Conditions = append([]v1.PodCondition{test.expectedPodReadyToStartContainersCondition}, expected.Conditions...)
 				}
@@ -3923,7 +3923,7 @@ func Test_generateAPIPodStatusForInPlaceVPAEnabled(t *testing.T) {
 			oldStatus := test.pod.Status
 			kl.statusManager = status.NewFakeManager()
 			kl.statusManager.SetPodStatus(test.pod, oldStatus)
-			actual := kl.generateAPIPodStatus(test.pod, &testKubecontainerPodStatus /* criStatus */, false /* test.isPodTerminal */)
+			actual := kl.generateAPIPodStatus(test.pod, &testKubecontainerPodStatus /* criStatus */, "" /* resizeStatus */, false /* test.isPodTerminal */)
 
 			if actual.Resize != "" {
 				t.Fatalf("Unexpected Resize status: %s", actual.Resize)
@@ -4239,7 +4239,7 @@ func TestGenerateAPIPodStatusHostNetworkPodIPs(t *testing.T) {
 				IPs:       tc.criPodIPs,
 			}
 
-			status := kl.generateAPIPodStatus(pod, criStatus, false)
+			status := kl.generateAPIPodStatus(pod, criStatus, "", false)
 			if !reflect.DeepEqual(status.PodIPs, tc.podIPs) {
 				t.Fatalf("Expected PodIPs %#v, got %#v", tc.podIPs, status.PodIPs)
 			}
@@ -4363,7 +4363,7 @@ func TestNodeAddressUpdatesGenerateAPIPodStatusHostNetworkPodIPs(t *testing.T) {
 			}
 			podStatus.IPs = tc.nodeIPs
 
-			status := kl.generateAPIPodStatus(pod, podStatus, false)
+			status := kl.generateAPIPodStatus(pod, podStatus, "", false)
 			if !reflect.DeepEqual(status.PodIPs, tc.expectedPodIPs) {
 				t.Fatalf("Expected PodIPs %#v, got %#v", tc.expectedPodIPs, status.PodIPs)
 			}
@@ -4496,7 +4496,7 @@ func TestGenerateAPIPodStatusPodIPs(t *testing.T) {
 				IPs:       tc.criPodIPs,
 			}
 
-			status := kl.generateAPIPodStatus(pod, criStatus, false)
+			status := kl.generateAPIPodStatus(pod, criStatus, "", false)
 			if !reflect.DeepEqual(status.PodIPs, tc.podIPs) {
 				t.Fatalf("Expected PodIPs %#v, got %#v", tc.podIPs, status.PodIPs)
 			}

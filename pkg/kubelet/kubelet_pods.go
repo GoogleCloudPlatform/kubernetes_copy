@@ -1745,21 +1745,6 @@ func getPhase(pod *v1.Pod, info []v1.ContainerStatus, podIsTerminal bool) v1.Pod
 	}
 }
 
-func (kl *Kubelet) determinePodResizeStatus(allocatedPod *v1.Pod, podStatus *kubecontainer.PodStatus, podIsTerminal bool) v1.PodResizeStatus {
-	if kubetypes.IsStaticPod(allocatedPod) {
-		return ""
-	}
-
-	// If pod is terminal, clear the resize status.
-	if podIsTerminal {
-		kl.statusManager.SetPodResizeStatus(allocatedPod.UID, "")
-		return ""
-	}
-
-	resizeStatus := kl.statusManager.GetPodResizeStatus(allocatedPod.UID)
-	return resizeStatus
-}
-
 // allocatedResourcesMatchStatus tests whether the resizeable resources in the pod spec match the
 // resources reported in the status.
 func allocatedResourcesMatchStatus(allocatedPod *v1.Pod, podStatus *kubecontainer.PodStatus) bool {
@@ -1827,7 +1812,7 @@ func allocatedResourcesMatchStatus(allocatedPod *v1.Pod, podStatus *kubecontaine
 
 // generateAPIPodStatus creates the final API pod status for a pod, given the
 // internal pod status. This method should only be called from within sync*Pod methods.
-func (kl *Kubelet) generateAPIPodStatus(pod *v1.Pod, podStatus *kubecontainer.PodStatus, podIsTerminal bool) v1.PodStatus {
+func (kl *Kubelet) generateAPIPodStatus(pod *v1.Pod, podStatus *kubecontainer.PodStatus, resizeStatus v1.PodResizeStatus, podIsTerminal bool) v1.PodStatus {
 	klog.V(3).InfoS("Generating pod status", "podIsTerminal", podIsTerminal, "pod", klog.KObj(pod))
 	// use the previous pod status, or the api status, as the basis for this pod
 	oldPodStatus, found := kl.statusManager.GetPodStatus(pod.UID)
@@ -1835,9 +1820,7 @@ func (kl *Kubelet) generateAPIPodStatus(pod *v1.Pod, podStatus *kubecontainer.Po
 		oldPodStatus = pod.Status
 	}
 	s := kl.convertStatusToAPIStatus(pod, podStatus, oldPodStatus)
-	if utilfeature.DefaultFeatureGate.Enabled(features.InPlacePodVerticalScaling) {
-		s.Resize = kl.determinePodResizeStatus(pod, podStatus, podIsTerminal)
-	}
+	s.Resize = resizeStatus
 	// calculate the next phase and preserve reason
 	allStatus := append(append([]v1.ContainerStatus{}, s.ContainerStatuses...), s.InitContainerStatuses...)
 	s.Phase = getPhase(pod, allStatus, podIsTerminal)

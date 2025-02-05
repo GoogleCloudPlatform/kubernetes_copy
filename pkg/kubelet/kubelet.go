@@ -1884,19 +1884,20 @@ func (kl *Kubelet) SyncPod(ctx context.Context, updateType kubetypes.SyncPodType
 	// handlePodResourcesResize updates the pod to use the allocated resources. This should come
 	// before the main business logic of SyncPod, so that a consistent view of the pod is used
 	// across the sync loop.
+	var resizeStatus v1.PodResizeStatus
 	if kuberuntime.IsInPlacePodVerticalScalingAllowed(pod) {
 		// Handle pod resize here instead of doing it in HandlePodUpdates because
 		// this conveniently retries any Deferred resize requests
 		// TODO(vinaykul,InPlacePodVerticalScaling): Investigate doing this in HandlePodUpdates + periodic SyncLoop scan
 		//     See: https://github.com/kubernetes/kubernetes/pull/102884#discussion_r663160060
-		pod, err = kl.handlePodResourcesResize(pod, podStatus)
+		pod, resizeStatus, err = kl.handlePodResourcesResize(pod, podStatus)
 		if err != nil {
 			return false, err
 		}
 	}
 
 	// Generate final API pod status with pod and status manager status
-	apiPodStatus := kl.generateAPIPodStatus(pod, podStatus, false)
+	apiPodStatus := kl.generateAPIPodStatus(pod, podStatus, resizeStatus, false)
 	// The pod IP may be changed in generateAPIPodStatus if the pod is using host network. (See #24576)
 	// TODO(random-liu): After writing pod spec into container labels, check whether pod is using host network, and
 	// set pod IP to hostIP directly in runtime.GetPodStatus
@@ -2066,7 +2067,9 @@ func (kl *Kubelet) SyncTerminatingPod(_ context.Context, pod *v1.Pod, podStatus 
 	klog.V(4).InfoS("SyncTerminatingPod enter", "pod", klog.KObj(pod), "podUID", pod.UID)
 	defer klog.V(4).InfoS("SyncTerminatingPod exit", "pod", klog.KObj(pod), "podUID", pod.UID)
 
-	apiPodStatus := kl.generateAPIPodStatus(pod, podStatus, false)
+	// Once the pod enters this terminating state resizes will no longer be actuated, so clear the status.
+	const terminatingResizeStatus v1.PodResizeStatus = ""
+	apiPodStatus := kl.generateAPIPodStatus(pod, podStatus, terminatingResizeStatus, false)
 	if podStatusFn != nil {
 		podStatusFn(&apiPodStatus)
 	}
@@ -2144,7 +2147,7 @@ func (kl *Kubelet) SyncTerminatingPod(_ context.Context, pod *v1.Pod, podStatus 
 	// The computation is done here to ensure the pod status used for it contains
 	// information about the container end states (including exit codes) - when
 	// SyncTerminatedPod is called the containers may already be removed.
-	apiPodStatus = kl.generateAPIPodStatus(pod, stoppedPodStatus, true)
+	apiPodStatus = kl.generateAPIPodStatus(pod, stoppedPodStatus, terminatingResizeStatus, true)
 	kl.statusManager.SetPodStatus(pod, apiPodStatus)
 
 	// we have successfully stopped all containers, the pod is terminating, our status is "done"
@@ -2213,7 +2216,7 @@ func (kl *Kubelet) SyncTerminatedPod(ctx context.Context, pod *v1.Pod, podStatus
 
 	// generate the final status of the pod
 	// TODO: should we simply fold this into TerminatePod? that would give a single pod update
-	apiPodStatus := kl.generateAPIPodStatus(pod, podStatus, true)
+	apiPodStatus := kl.generateAPIPodStatus(pod, podStatus, "", true)
 
 	kl.statusManager.SetPodStatus(pod, apiPodStatus)
 
@@ -2899,20 +2902,18 @@ func (kl *Kubelet) canResizePod(pod *v1.Pod) (bool, v1.PodResizeStatus, string) 
 // handlePodResourcesResize returns the "allocated pod", which should be used for all resource
 // calculations after this function is called. It also updates the cached ResizeStatus according to
 // the allocation decision and pod status.
-func (kl *Kubelet) handlePodResourcesResize(pod *v1.Pod, podStatus *kubecontainer.PodStatus) (*v1.Pod, error) {
+func (kl *Kubelet) handlePodResourcesResize(pod *v1.Pod, podStatus *kubecontainer.PodStatus) (*v1.Pod, v1.PodResizeStatus, error) {
 	allocatedPod, updated := kl.statusManager.UpdatePodFromAllocation(pod)
 	if !updated {
+		var resizeStatus v1.PodResizeStatus
 		// Desired resources == allocated resources. Check whether a resize is in progress.
 		resizeInProgress := !allocatedResourcesMatchStatus(allocatedPod, podStatus)
 		if resizeInProgress {
 			// If a resize is in progress, make sure the cache has the correct state in case the Kubelet restarted.
-			kl.statusManager.SetPodResizeStatus(pod.UID, v1.PodResizeStatusInProgress)
-		} else {
-			// (Desired == Allocated == Actual) => clear the resize status.
-			kl.statusManager.SetPodResizeStatus(pod.UID, "")
+			resizeStatus = v1.PodResizeStatusInProgress
 		}
 		// Pod allocation does not need to be updated.
-		return allocatedPod, nil
+		return allocatedPod, resizeStatus, nil
 	}
 
 	kl.podResizeMutex.Lock()
@@ -2922,7 +2923,9 @@ func (kl *Kubelet) handlePodResourcesResize(pod *v1.Pod, podStatus *kubecontaine
 	if fit {
 		// Update pod resource allocation checkpoint
 		if err := kl.statusManager.SetPodAllocation(pod); err != nil {
-			return nil, err
+			// Failure to set the allocation behaves similarly to a deferred resize. It will be retried with the next pod sync.
+			// TODO(tallclair): change the resize status to `Error` here once that state is added.
+			return nil, v1.PodResizeStatusDeferred, err
 		}
 		for i, container := range pod.Spec.Containers {
 			if !apiequality.Semantic.DeepEqual(container.Resources, allocatedPod.Spec.Containers[i].Resources) {
@@ -2938,12 +2941,10 @@ func (kl *Kubelet) handlePodResourcesResize(pod *v1.Pod, podStatus *kubecontaine
 		// status immediately, rather than waiting for the next SyncPod iteration.
 		if allocatedResourcesMatchStatus(allocatedPod, podStatus) {
 			// In this case, consider the resize complete.
-			kl.statusManager.SetPodResizeStatus(pod.UID, "")
-			return allocatedPod, nil
+			return allocatedPod, "", nil
 		}
 	}
 	if resizeStatus != "" {
-		kl.statusManager.SetPodResizeStatus(pod.UID, resizeStatus)
 		if resizeMsg != "" {
 			switch resizeStatus {
 			case v1.PodResizeStatusDeferred:
@@ -2953,7 +2954,7 @@ func (kl *Kubelet) handlePodResourcesResize(pod *v1.Pod, podStatus *kubecontaine
 			}
 		}
 	}
-	return allocatedPod, nil
+	return allocatedPod, resizeStatus, nil
 }
 
 // LatestLoopEntryTime returns the last time in the sync loop monitor.
