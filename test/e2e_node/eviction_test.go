@@ -473,13 +473,13 @@ var _ = SIGDescribe("PriorityPidEvictionOrdering", framework.WithSlow(), framewo
 
 	highPriorityClassName := f.BaseName + "-high-priority"
 	highPriority := int32(999999999)
-	processes := 30000
+	processes := 5000
 
 	// if criStats is true, PodAndContainerStatsFromCRI will use data from cri instead of cadvisor for kubelet to get pid count of pods
 	for _, criStats := range []bool{true, false} {
 		ginkgo.Context(fmt.Sprintf("when we run containers with PodAndContainerStatsFromCRI=%v that should cause %s", criStats, expectedNodeCondition), func() {
 			tempSetCurrentKubeletConfig(f, func(ctx context.Context, initialConfig *kubeletconfig.KubeletConfiguration) {
-				pidsConsumed := int64(10000)
+				pidsConsumed := int64(4000)
 				summary := eventuallyGetSummary(ctx)
 				availablePids := *(summary.Node.Rlimit.MaxPID) - *(summary.Node.Rlimit.NumOfRunningProcesses)
 				initialConfig.EvictionHard = map[string]string{string(evictionapi.SignalPIDAvailable): fmt.Sprintf("%d", availablePids-pidsConsumed)}
@@ -524,7 +524,7 @@ var _ = SIGDescribe("PriorityPidEvictionOrdering", framework.WithSlow(), framewo
 
 	f.Context(fmt.Sprintf(testContextFmt, expectedNodeCondition)+"; baseline scenario to verify DisruptionTarget is added", func() {
 		tempSetCurrentKubeletConfig(f, func(ctx context.Context, initialConfig *kubeletconfig.KubeletConfiguration) {
-			pidsConsumed := int64(10000)
+			pidsConsumed := int64(4000)
 			summary := eventuallyGetSummary(ctx)
 			availablePids := *(summary.Node.Rlimit.MaxPID) - *(summary.Node.Rlimit.NumOfRunningProcesses)
 			initialConfig.EvictionHard = map[string]string{string(evictionapi.SignalPIDAvailable): fmt.Sprintf("%d", availablePids-pidsConsumed)}
@@ -1049,8 +1049,7 @@ func diskConsumingPod(name string, diskConsumedMB int, volumeSource *v1.VolumeSo
 }
 
 func pidConsumingPod(name string, numProcesses int) *v1.Pod {
-	// Each iteration forks once, but creates two processes
-	return podWithCommand(nil, v1.ResourceRequirements{}, numProcesses/2, name, "(while true; do /bin/sleep 5; done)&")
+	return podWithCommand(nil, v1.ResourceRequirements{}, numProcesses, name, "/bin/sleep 0.01; (/bin/sleep 3600)&")
 }
 
 // podWithCommand returns a pod with the provided volumeSource and resourceRequirements.
