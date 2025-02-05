@@ -835,7 +835,12 @@ func structToUnstructured(sv, dv reflect.Value) error {
 		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 			realMap[fieldInfo.name] = fv.Int()
 		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-			realMap[fieldInfo.name] = fv.Uint()
+			uVal := fv.Uint()
+			if uVal > math.MaxInt64 {
+				return fmt.Errorf("unsigned value %d does not fit into int64 (overflow)", uVal)
+			}
+
+			realMap[fieldInfo.name] = int64(uVal)
 		case reflect.Float32, reflect.Float64:
 			realMap[fieldInfo.name] = fv.Float()
 		default:

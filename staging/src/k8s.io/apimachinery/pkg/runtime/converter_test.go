@@ -92,6 +92,7 @@ type F struct {
 	H []bool            `json:"fh"`
 	I []float32         `json:"fi"`
 	J []byte            `json:"fj"`
+	K uint32            `json:"fk"`
 }
 
 type G struct {
@@ -901,6 +902,16 @@ func TestDeepCopyJSON(t *testing.T) {
 	}
 	deepCopy := runtime.DeepCopyJSON(src)
 	assert.Equal(t, src, deepCopy)
+}
+
+func TestDeepCopyToUnstructured(t *testing.T) {
+	src := &F{}
+	obj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(src)
+	require.NoError(t, err)
+
+	uns := &unstructured.Unstructured{Object: obj}
+
+	assert.Equal(t, uns, uns.DeepCopy())
 }
 
 func TestFloatIntConversion(t *testing.T) {
