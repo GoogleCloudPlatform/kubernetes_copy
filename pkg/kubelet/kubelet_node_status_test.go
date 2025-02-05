@@ -64,6 +64,7 @@ import (
 	kubeletvolume "k8s.io/kubernetes/pkg/kubelet/volumemanager"
 	taintutil "k8s.io/kubernetes/pkg/util/taints"
 	"k8s.io/kubernetes/pkg/volume/util"
+	"k8s.io/kubernetes/test/utils/ktesting"
 	netutils "k8s.io/utils/net"
 )
 
@@ -604,43 +605,6 @@ func TestUpdateExistingNodeStatusTimeout(t *testing.T) {
 }
 
 func TestUpdateNodeStatusWithRuntimeStateError(t *testing.T) {
-	ctx := context.Background()
-	testKubelet := newTestKubelet(t, false /* controllerAttachDetachEnabled */)
-	defer testKubelet.Cleanup()
-	kubelet := testKubelet.kubelet
-	kubelet.nodeStatusMaxImages = 5 // don't truncate the image list that gets constructed by hand for this test
-	kubelet.kubeClient = nil        // ensure only the heartbeat client is used
-	kubelet.containerManager = &localCM{
-		ContainerManager: cm.NewStubContainerManager(),
-		allocatableReservation: v1.ResourceList{
-			v1.ResourceCPU:              *resource.NewMilliQuantity(200, resource.DecimalSI),
-			v1.ResourceMemory:           *resource.NewQuantity(100e6, resource.BinarySI),
-			v1.ResourceEphemeralStorage: *resource.NewQuantity(10e9, resource.BinarySI),
-		},
-		capacity: v1.ResourceList{
-			v1.ResourceCPU:              *resource.NewMilliQuantity(2000, resource.DecimalSI),
-			v1.ResourceMemory:           *resource.NewQuantity(10e9, resource.BinarySI),
-			v1.ResourceEphemeralStorage: *resource.NewQuantity(20e9, resource.BinarySI),
-		},
-	}
-	// Since this test retroactively overrides the stub container manager,
-	// we have to regenerate default status setters.
-	kubelet.setNodeStatusFuncs = kubelet.defaultNodeStatusFuncs()
-
-	clock := testKubelet.fakeClock
-	kubeClient := testKubelet.fakeKubeClient
-	existingNode := v1.Node{ObjectMeta: metav1.ObjectMeta{Name: testKubeletHostname}}
-	kubeClient.ReactionChain = fake.NewSimpleClientset(&v1.NodeList{Items: []v1.Node{existingNode}}).ReactionChain
-	kubelet.nodeLister = delegatingNodeLister{client: kubeClient}
-	machineInfo := &cadvisorapi.MachineInfo{
-		MachineID:      "123",
-		SystemUUID:     "abc",
-		BootID:         "1b3",
-		NumCores:       2,
-		MemoryCapacity: 10e9,
-	}
-	kubelet.setCachedMachineInfo(machineInfo)
-
 	expectedNode := &v1.Node{
 		ObjectMeta: metav1.ObjectMeta{Name: testKubeletHostname, Labels: map[string]string{v1.LabelOSStable: goruntime.GOOS, v1.LabelArchStable: goruntime.GOARCH}},
 		Spec:       v1.NodeSpec{},
@@ -713,7 +677,47 @@ func TestUpdateNodeStatusWithRuntimeStateError(t *testing.T) {
 		},
 	}
 
-	checkNodeStatus := func(status v1.ConditionStatus, reason string) {
+	buildTestKubelet := func() *TestKubelet {
+		testKubelet := newTestKubelet(t, false /* controllerAttachDetachEnabled */)
+		kubelet := testKubelet.kubelet
+		kubelet.nodeStatusMaxImages = 5 // don't truncate the image list that gets constructed by hand for this test
+		kubelet.kubeClient = nil        // ensure only the heartbeat client is used
+		kubelet.containerManager = &localCM{
+			ContainerManager: cm.NewStubContainerManager(),
+			allocatableReservation: v1.ResourceList{
+				v1.ResourceCPU:              *resource.NewMilliQuantity(200, resource.DecimalSI),
+				v1.ResourceMemory:           *resource.NewQuantity(100e6, resource.BinarySI),
+				v1.ResourceEphemeralStorage: *resource.NewQuantity(10e9, resource.BinarySI),
+			},
+			capacity: v1.ResourceList{
+				v1.ResourceCPU:              *resource.NewMilliQuantity(2000, resource.DecimalSI),
+				v1.ResourceMemory:           *resource.NewQuantity(10e9, resource.BinarySI),
+				v1.ResourceEphemeralStorage: *resource.NewQuantity(20e9, resource.BinarySI),
+			},
+		}
+		// Since this test retroactively overrides the stub container manager,
+		// we have to regenerate default status setters.
+		kubelet.setNodeStatusFuncs = kubelet.defaultNodeStatusFuncs()
+
+		// clock := testKubelet.fakeClock
+		kubeClient := testKubelet.fakeKubeClient
+		existingNode := v1.Node{ObjectMeta: metav1.ObjectMeta{Name: testKubeletHostname}}
+		kubeClient.ReactionChain = fake.NewSimpleClientset(&v1.NodeList{Items: []v1.Node{existingNode}}).ReactionChain
+		kubelet.nodeLister = delegatingNodeLister{client: kubeClient}
+		machineInfo := &cadvisorapi.MachineInfo{
+			MachineID:      "123",
+			SystemUUID:     "abc",
+			BootID:         "1b3",
+			NumCores:       2,
+			MemoryCapacity: 10e9,
+		}
+		kubelet.setCachedMachineInfo(machineInfo)
+		return testKubelet
+	}
+
+	checkNodeStatus := func(ctx context.Context, testKubelet *TestKubelet, status v1.ConditionStatus, reason string) {
+		kubeClient := testKubelet.fakeKubeClient
+		kubelet := testKubelet.kubelet
 		kubeClient.ClearActions()
 		assert.NoError(t, kubelet.updateNodeStatus(ctx))
 		actions := kubeClient.Actions()
@@ -747,71 +751,122 @@ func TestUpdateNodeStatusWithRuntimeStateError(t *testing.T) {
 		assert.True(t, apiequality.Semantic.DeepEqual(expectedNode, updatedNode), "%s", cmp.Diff(expectedNode, updatedNode))
 	}
 
-	// TODO(random-liu): Refactor the unit test to be table driven test.
-	// Should report kubelet not ready if the runtime check is out of date
-	clock.SetTime(time.Now().Add(-maxWaitForContainerRuntime))
-	kubelet.updateRuntimeUp()
-	checkNodeStatus(v1.ConditionFalse, "KubeletNotReady")
-
-	// Should report kubelet ready if the runtime check is updated
-	clock.SetTime(time.Now())
-	kubelet.updateRuntimeUp()
-	checkNodeStatus(v1.ConditionTrue, "KubeletReady")
-
-	// Should report kubelet not ready if the runtime check is out of date
-	clock.SetTime(time.Now().Add(-maxWaitForContainerRuntime))
-	kubelet.updateRuntimeUp()
-	checkNodeStatus(v1.ConditionFalse, "KubeletNotReady")
-
-	// Should report kubelet not ready if the runtime check failed
-	fakeRuntime := testKubelet.fakeRuntime
-	// Inject error into fake runtime status check, node should be NotReady
-	fakeRuntime.StatusErr = fmt.Errorf("injected runtime status error")
-	clock.SetTime(time.Now())
-	kubelet.updateRuntimeUp()
-	checkNodeStatus(v1.ConditionFalse, "KubeletNotReady")
-
-	fakeRuntime.StatusErr = nil
-
-	// Should report node not ready if runtime status is nil.
-	fakeRuntime.RuntimeStatus = nil
-	kubelet.updateRuntimeUp()
-	checkNodeStatus(v1.ConditionFalse, "KubeletNotReady")
-
-	// Should report node not ready if runtime status is empty.
-	fakeRuntime.RuntimeStatus = &kubecontainer.RuntimeStatus{}
-	kubelet.updateRuntimeUp()
-	checkNodeStatus(v1.ConditionFalse, "KubeletNotReady")
-
-	// Should report node not ready if RuntimeReady is false.
-	fakeRuntime.RuntimeStatus = &kubecontainer.RuntimeStatus{
-		Conditions: []kubecontainer.RuntimeCondition{
-			{Type: kubecontainer.RuntimeReady, Status: false},
-			{Type: kubecontainer.NetworkReady, Status: true},
+	cases := []struct {
+		Desc            string
+		Reason          string
+		Status          v1.ConditionStatus
+		UpdateRuntimeFn func(*TestKubelet)
+	}{
+		{
+			Desc:   "Should report kubelet not ready if the runtime check is out of date",
+			Reason: "KubeletNotReady",
+			Status: v1.ConditionFalse,
+			UpdateRuntimeFn: func(testKubelet *TestKubelet) {
+				clock := testKubelet.fakeClock
+				clock.SetTime(time.Now().Add(-maxWaitForContainerRuntime))
+			},
+		},
+		{
+			Desc:   "Should report kubelet ready if the runtime check is updated",
+			Reason: "KubeletReady",
+			Status: v1.ConditionTrue,
+			UpdateRuntimeFn: func(testKubelet *TestKubelet) {
+				clock := testKubelet.fakeClock
+				clock.SetTime(time.Now())
+			},
+		},
+		{
+			Desc:   "Should report kubelet not ready if the runtime check is out of date",
+			Reason: "KubeletNotReady",
+			Status: v1.ConditionFalse,
+			UpdateRuntimeFn: func(testKubelet *TestKubelet) {
+				clock := testKubelet.fakeClock
+				clock.SetTime(time.Now().Add(-maxWaitForContainerRuntime))
+			},
+		},
+		{
+			Desc:   "Should report kubelet not ready if the runtime check failed",
+			Reason: "KubeletNotReady",
+			Status: v1.ConditionFalse,
+			UpdateRuntimeFn: func(testKubelet *TestKubelet) {
+				fakeRuntime := testKubelet.fakeRuntime
+				// Inject error into fake runtime status check, node should be NotReady
+				fakeRuntime.StatusErr = fmt.Errorf("injected runtime status error")
+				clock := testKubelet.fakeClock
+				clock.SetTime(time.Now())
+			},
+		},
+		{
+			Desc:   "Should report node not ready if runtime status is nil",
+			Reason: "KubeletNotReady",
+			Status: v1.ConditionFalse,
+			UpdateRuntimeFn: func(testKubelet *TestKubelet) {
+				fakeRuntime := testKubelet.fakeRuntime
+				fakeRuntime.RuntimeStatus = nil
+			},
+		},
+		{
+			Desc:   "Should report node not ready if runtime status is empty",
+			Reason: "KubeletNotReady",
+			Status: v1.ConditionFalse,
+			UpdateRuntimeFn: func(testKubelet *TestKubelet) {
+				fakeRuntime := testKubelet.fakeRuntime
+				fakeRuntime.RuntimeStatus = &kubecontainer.RuntimeStatus{}
+			},
+		},
+		{
+			Desc:   "Should report node not ready if RuntimeReady is false",
+			Reason: "KubeletNotReady",
+			Status: v1.ConditionFalse,
+			UpdateRuntimeFn: func(testKubelet *TestKubelet) {
+				fakeRuntime := testKubelet.fakeRuntime
+				fakeRuntime.RuntimeStatus = &kubecontainer.RuntimeStatus{
+					Conditions: []kubecontainer.RuntimeCondition{
+						{Type: kubecontainer.RuntimeReady, Status: false},
+						{Type: kubecontainer.NetworkReady, Status: true},
+					},
+				}
+			},
+		},
+		{
+			Desc:   "Should report node ready if RuntimeReady is true",
+			Reason: "KubeletReady",
+			Status: v1.ConditionTrue,
+			UpdateRuntimeFn: func(testKubelet *TestKubelet) {
+				fakeRuntime := testKubelet.fakeRuntime
+				fakeRuntime.RuntimeStatus = &kubecontainer.RuntimeStatus{
+					Conditions: []kubecontainer.RuntimeCondition{
+						{Type: kubecontainer.RuntimeReady, Status: true},
+						{Type: kubecontainer.NetworkReady, Status: true},
+					},
+				}
+			},
+		},
+		{
+			Desc:   "Should report node not ready if NetworkReady is false",
+			Reason: "KubeletNotReady",
+			Status: v1.ConditionFalse,
+			UpdateRuntimeFn: func(testKubelet *TestKubelet) {
+				fakeRuntime := testKubelet.fakeRuntime
+				fakeRuntime.RuntimeStatus = &kubecontainer.RuntimeStatus{
+					Conditions: []kubecontainer.RuntimeCondition{
+						{Type: kubecontainer.RuntimeReady, Status: true},
+						{Type: kubecontainer.NetworkReady, Status: false},
+					},
+				}
+			},
 		},
 	}
-	kubelet.updateRuntimeUp()
-	checkNodeStatus(v1.ConditionFalse, "KubeletNotReady")
 
-	// Should report node ready if RuntimeReady is true.
-	fakeRuntime.RuntimeStatus = &kubecontainer.RuntimeStatus{
-		Conditions: []kubecontainer.RuntimeCondition{
-			{Type: kubecontainer.RuntimeReady, Status: true},
-			{Type: kubecontainer.NetworkReady, Status: true},
-		},
-	}
-	kubelet.updateRuntimeUp()
-	checkNodeStatus(v1.ConditionTrue, "KubeletReady")
+	tCtx := ktesting.Init(t)
+	for _, tc := range cases {
+		testKubelet := buildTestKubelet()
+		defer testKubelet.Cleanup()
 
-	// Should report node not ready if NetworkReady is false.
-	fakeRuntime.RuntimeStatus = &kubecontainer.RuntimeStatus{
-		Conditions: []kubecontainer.RuntimeCondition{
-			{Type: kubecontainer.RuntimeReady, Status: true},
-			{Type: kubecontainer.NetworkReady, Status: false},
-		},
+		tc.UpdateRuntimeFn(testKubelet)
+		testKubelet.kubelet.updateRuntimeUp()
+		checkNodeStatus(tCtx, testKubelet, tc.Status, tc.Reason)
 	}
-	kubelet.updateRuntimeUp()
-	checkNodeStatus(v1.ConditionFalse, "KubeletNotReady")
 }
 
 func TestUpdateNodeStatusError(t *testing.T) {
