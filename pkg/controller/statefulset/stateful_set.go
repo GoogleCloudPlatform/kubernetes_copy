@@ -139,6 +139,11 @@ func NewStatefulSetController(
 				if oldPS.Status.Replicas != curPS.Status.Replicas {
 					logger.V(4).Info("Observed updated replica count for StatefulSet", "statefulSet", klog.KObj(curPS), "oldReplicas", oldPS.Status.Replicas, "newReplicas", curPS.Status.Replicas)
 				}
+				if curPS.ResourceVersion == oldPS.ResourceVersion {
+					// In the event of a resync we may receive update events for all known statefulsets.
+					// Two different versions of the same statefulset will always have different RVs.
+					return
+				}
 				ssc.enqueueStatefulSet(cur)
 			},
 			DeleteFunc: ssc.enqueueStatefulSet,
