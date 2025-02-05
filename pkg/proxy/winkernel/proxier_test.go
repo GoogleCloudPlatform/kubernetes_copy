@@ -100,7 +100,7 @@ func NewFakeProxier(syncPeriod time.Duration, minSyncPeriod time.Duration, hostn
 		remoteSubnets: remoteSubnets,
 	}
 	hnsNetwork := newHnsNetwork(hnsNetworkInfo)
-	hcnMock := fakehcn.NewHcnMock(hnsNetwork)
+	hcnMock := fakehcn.NewHcnMock(hnsNetwork, true)
 	proxier := &Proxier{
 		svcPortMap:          make(proxy.ServicePortMap),
 		endpointsMap:        make(proxy.EndpointsMap),
@@ -1297,4 +1297,42 @@ func makeTestEndpointSlice(namespace, name string, sliceNum int, epsFunc func(*d
 	}
 	epsFunc(eps)
 	return eps
+}
+
+func TestConfigureSourceVIPWithEndpoint(t *testing.T) {
+	syncPeriod := 30 * time.Second
+	proxier := NewFakeProxier(syncPeriod, syncPeriod, "testhost", netutils.ParseIPSloppy("10.0.0.1"), NETWORK_TYPE_OVERLAY)
+	if proxier == nil {
+		t.Error()
+	}
+	proxier.sourceVip = "" // Simulate scenario where the configuration is not set
+
+	// Simulate scenario whereby an endpoint exists with well-known Source Vip name
+	network, err := proxier.hcn.GetNetworkByName(testNetwork)
+	if err != nil {
+		t.Error(err)
+	}
+	proxier.hcn = fakehcn.NewHcnMock(network, false)
+	endpoint, err := proxier.hcn.CreateEndpoint(network, &hcn.HostComputeEndpoint{
+		Name: SOURCE_VIP_NAME,
+		IpConfigurations: []hcn.IpConfig{
+			{
+				IpAddress: "10.0.0.5",
+			},
+		},
+	})
+	if err != nil {
+		t.Error(err)
+	}
+
+	proxier.setInitialized(true)
+	proxier.syncProxyRules()
+
+	if proxier.sourceVip != endpoint.IpConfigurations[0].IpAddress {
+		t.Errorf(
+			"proxier.sourceVip '%v' did not match '%v', expected Source Vip IP address to match IP address for endpoint with well known name",
+			proxier.sourceVip,
+			endpoint.IpConfigurations[0].IpAddress,
+		)
+	}
 }

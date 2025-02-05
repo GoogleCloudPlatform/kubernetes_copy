@@ -146,6 +146,7 @@ type remoteSubnetInfo struct {
 }
 
 const (
+	SOURCE_VIP_NAME      = "source_vip" // The well-known, documented name for the HNS endpoint used as the Source Vip when using overlay network mode
 	NETWORK_TYPE_OVERLAY = "overlay"
 	// MAX_COUNT_STALE_LOADBALANCERS is the maximum number of stale loadbalancers which cleanedup in single syncproxyrules.
 	// If there are more stale loadbalancers to clean, it will go to next iteration of syncproxyrules.
@@ -742,9 +743,28 @@ func NewProxier(
 		if err != nil {
 			return nil, err
 		}
+
+		/* Source VIP is required for overlay network mode. KubeProxy will determine the Source Vip in following order:
+		1. Use the Source Vip in the KubeProxy winkernel configuration options
+		2. If the Source Vip is not provided in the winkernel configuration, check if an HNS endpoint exists with the well-known name
+		   It is the responsibility of the CNI to ensure the Source Vip is created using the well known-documented name
+		3. If the expected Source Vip endpoint name does not exist on the host, KubeProxy will attempt to create the Source Vip
+		*/
 		sourceVip = config.SourceVip
 		if len(sourceVip) == 0 {
-			return nil, fmt.Errorf("source-vip flag not set")
+			klog.InfoS("sourceVip not set in the winkernel configuration, will check if an HNS endpoint exists with the well-known name %s", SOURCE_VIP_NAME)
+			endpoint, err := hns.getEndpointByName(SOURCE_VIP_NAME)
+			if err != nil {
+				if hcn.IsNotFoundError(err) {
+					klog.Warningf("Unable to find Source Vip endpoint with name '%s', expected endpoint to be created by CNI", SOURCE_VIP_NAME)
+				} else {
+					klog.Errorf("Querying HNS for Source Vip endpoint with name '%s' failed: %v", SOURCE_VIP_NAME, err)
+				}
+				return nil, fmt.Errorf("source-vip flag not set")
+			} else {
+				klog.V(4).Infof("Found HNS endpoint with well-known name %s and IP %s, using as Source Vip", SOURCE_VIP_NAME, endpoint.ip)
+				sourceVip = endpoint.ip
+			}
 		}
 
 		if nodeIP.IsUnspecified() {
@@ -1224,6 +1244,8 @@ func (proxier *Proxier) syncProxyRules() {
 					providerAddress: proxier.nodeIP.String(),
 				}
 
+				// TODO: Consider removing sourcevip creation code due to potential unavailability of IP from CNI's IPAM.
+				// See https://github.com/kubernetes/kubernetes/issues/100962#issuecomment-821274716
 				newHnsEndpoint, err := hns.createEndpoint(hnsEndpoint, hnsNetworkName)
 				if err != nil {
 					klog.ErrorS(err, "Remote endpoint creation failed for service VIP")
