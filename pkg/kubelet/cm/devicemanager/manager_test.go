@@ -269,6 +269,61 @@ func TestDevicePluginReRegistrationProbeMode(t *testing.T) {
 	cleanup(t, m, p1)
 }
 
+// Tests that the device plugin manager and client correctly handle the take over scenario
+// that a new device plugin is started while another device is running and managing the
+// same devices.
+// While testing above scenario, the resource allocatable and capacity values should stay
+// non-zero and equal.
+func TestDevicePluginTakeover(t *testing.T) {
+	// TODO: Remove skip once https://github.com/kubernetes/kubernetes/pull/115269 merges.
+	if goruntime.GOOS == "windows" {
+		t.Skip("Skipping test on Windows.")
+	}
+	socketDir, socketName, pluginSocketName, err := tmpSocketDir()
+	require.NoError(t, err)
+	defer func() { _ = os.RemoveAll(socketDir) }()
+	devs := []*pluginapi.Device{
+		{ID: "Dev1", Health: pluginapi.Healthy},
+		{ID: "Dev2", Health: pluginapi.Healthy},
+	}
+	m, ch, p1 := setup(t, devs, nil, socketName, pluginSocketName)
+	_ = p1.Register(socketName, testResourceName, "")
+
+	select {
+	case <-ch:
+	case <-time.After(5 * time.Second):
+		t.Fatalf("timeout while waiting for manager update")
+	}
+	capacity, allocatable, _ := m.GetCapacity()
+	resourceCapacity := capacity[v1.ResourceName(testResourceName)]
+	resourceAllocatable := allocatable[v1.ResourceName(testResourceName)]
+	require.Equal(t, resourceCapacity.Value(), resourceAllocatable.Value(), "capacity should equal to allocatable")
+	require.Equal(t, int64(2), resourceAllocatable.Value(), "Devices are not updated.")
+
+	p2 := setupDevicePlugin(t, devs, pluginSocketName+".new")
+	_ = p2.Register(socketName, testResourceName, "")
+
+	select {
+	case <-ch:
+	case <-time.After(5 * time.Second):
+		t.Fatalf("timeout while waiting for manager update")
+	}
+
+	_ = p1.Stop()
+	select {
+	case <-ch:
+		t.Fatalf("should not have an update")
+	case <-time.After(5 * time.Second):
+	}
+
+	capacity, allocatable, _ = m.GetCapacity()
+	resourceCapacity = capacity[v1.ResourceName(testResourceName)]
+	resourceAllocatable = allocatable[v1.ResourceName(testResourceName)]
+	require.Equal(t, resourceCapacity.Value(), resourceAllocatable.Value(), "capacity should equal to allocatable")
+	require.Equal(t, int64(2), resourceAllocatable.Value(), "Devices shouldn't change.")
+	cleanup(t, m, p2)
+}
+
 func setupDeviceManager(t *testing.T, devs []*pluginapi.Device, callback monitorCallback, socketName string,
 	topology []cadvisorapi.Node) (Manager, <-chan interface{}) {
 	topologyStore := topologymanager.NewFakeManager()

@@ -39,9 +39,11 @@ type DevicePlugin interface {
 
 // Client interface provides methods for establishing/closing gRPC connection and running the device plugin gRPC client.
 type Client interface {
+	ID() string
 	Connect() error
 	Run()
 	Disconnect() error
+	Close()
 }
 
 type client struct {
@@ -60,6 +62,11 @@ func NewPluginClient(r string, socketPath string, h ClientHandler) Client {
 		socket:   socketPath,
 		handler:  h,
 	}
+}
+
+// ID returns the identifier of the client.
+func (c *client) ID() string {
+	return c.socket
 }
 
 // Connect is for establishing a gRPC connection between device manager and device plugin.
@@ -107,6 +114,18 @@ func (c *client) Disconnect() error {
 	c.mutex.Unlock()
 	c.handler.PluginDisconnected(c.resource)
 	return nil
+}
+
+// Close is for closing gRPC connection without unregistering the plugin.
+func (c *client) Close() {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	if c.grpc != nil {
+		if err := c.grpc.Close(); err != nil {
+			klog.V(2).ErrorS(err, "Failed to close grcp connection", "resource", c.Resource())
+		}
+		c.grpc = nil
+	}
 }
 
 func (c *client) Resource() string {

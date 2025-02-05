@@ -106,8 +106,15 @@ func (s *server) deregisterClient(name string) {
 func (s *server) runClient(name string, c Client) {
 	c.Run()
 
-	c = s.getClient(name)
-	if c == nil {
+	curClient := s.getClient(name)
+	if curClient == nil {
+		return
+	}
+
+	// A new device plugin client has taken over and became the current.
+	// Note: the client is for the same device resource with different ID.
+	if curClient.ID() != c.ID() {
+		c.Close()
 		return
 	}
 
