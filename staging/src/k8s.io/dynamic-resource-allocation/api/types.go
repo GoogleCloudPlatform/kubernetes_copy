@@ -66,3 +66,14 @@ type DeviceAttribute struct {
 type DeviceCapacity struct {
 	Value resource.Quantity
 }
+
+type AllocatedDevice struct {
+	RequestNames []string `json:"request_names,omitempty"`
+	// The pool which contains the device. Required.
+	PoolName string `json:"pool_name,omitempty"`
+	// The device itself. Required.
+	DeviceName string `json:"device_name,omitempty"`
+	// A single device instance may map to several CDI device IDs.
+	// None is also valid.
+	CDIDeviceIDs []string `json:"cdi_device_ids,omitempty"`
+}
