@@ -2,8 +2,6 @@
 # enable an increasing amount of checks:
 # - golangci.yaml is the most permissive configuration. All existing code
 #   passed.
-# - golangci-strict.yaml adds checks that all new code in pull requests
-#   must pass.
 # - golangci-hints.yaml adds checks for code patterns where developer
 #   and reviewer may decide whether findings should get addressed before
 #   merging. Beware that the golangci-lint output includes also the

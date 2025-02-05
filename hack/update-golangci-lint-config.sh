@@ -40,5 +40,4 @@ generate () {
 
 # Regenerate.
 generate hack/golangci.yaml Base=1
-generate hack/golangci-strict.yaml Strict=1
 generate hack/golangci-hints.yaml Hints=1
