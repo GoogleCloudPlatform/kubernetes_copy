@@ -104,7 +104,7 @@ var _ = SIGDescribe("KubeletSeparateDiskGC", feature.KubeletSeparateDiskGC, func
 					// This pod should exceed disk capacity on nodeFs since it writes a lot to writeable layer.
 					evictionPriority: 1,
 					pod: diskConsumingPod("container-emptydir-disk-limit", diskTestInMb, nil,
-						v1.ResourceRequirements{}),
+						v1.ResourceRequirements{}, true),
 				},
 			})
 		})

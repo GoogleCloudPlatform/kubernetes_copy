@@ -59,7 +59,7 @@ type Config struct {
 // Manager evaluates when an eviction threshold for node stability has been met on the node.
 type Manager interface {
 	// Start starts the control loop to monitor eviction thresholds at specified interval.
-	Start(diskInfoProvider DiskInfoProvider, podFunc ActivePodsFunc, podCleanedUpFunc PodCleanedUpFunc, monitoringInterval time.Duration)
+	Start(diskInfoProvider DiskInfoProvider, podFunc ActivePodsFunc, terminatedPodFunc TerminatedPodsFunc, podCleanedUpFunc PodCleanedUpFunc, monitoringInterval time.Duration)
 
 	// IsUnderMemoryPressure returns true if the node is under memory pressure.
 	IsUnderMemoryPressure() bool
@@ -106,6 +106,9 @@ type MirrorPodFunc func(*v1.Pod) (*v1.Pod, bool)
 
 // ActivePodsFunc returns pods bound to the kubelet that are active (i.e. non-terminal state)
 type ActivePodsFunc func() []*v1.Pod
+
+// TerminatedPodsFunc return pods bound to the kubelet that are inactive (i.e. terminal state)
+type TerminatedPodsFunc func() []*v1.Pod
 
 // PodCleanedUpFunc returns true if all resources associated with a pod have been reclaimed.
 type PodCleanedUpFunc func(*v1.Pod) bool
