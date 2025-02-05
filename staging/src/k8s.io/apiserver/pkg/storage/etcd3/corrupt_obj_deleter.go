@@ -63,11 +63,11 @@ func WithCorruptObjErrorHandlingTransformer(transformer value.Transformer) value
 // corrupt object error(s) that the list operation encounters while
 // retrieving objects from the storage.
 // maxCount: it is the maximum number of error that will be aggregated
-func corruptObjErrAggregatorFactory(maxCount int) func() ListErrorAggregator {
+func corruptObjErrAggregatorFactory(maxCount int) func() storage.ListErrorAggregator {
 	if maxCount <= 0 {
 		return defaultListErrorAggregatorFactory
 	}
-	return func() ListErrorAggregator {
+	return func() storage.ListErrorAggregator {
 		return &corruptObjErrAggregator{maxCount: maxCount}
 	}
 }

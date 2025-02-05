@@ -115,7 +115,7 @@ func TestProgressNotify(t *testing.T) {
 func TestWatchWithUnsafeDelete(t *testing.T) {
 	featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.AllowUnsafeMalformedObjectDeletion, true)
 	ctx, store, _ := testSetup(t)
-	storagetesting.RunTestWatchWithUnsafeDelete(ctx, t, &storeWithCorruptedTransformer{store})
+	storagetesting.RunTestWatchWithUnsafeDelete(ctx, t, &storeWithCorruptedTransformer{Interface: store, store: store})
 }
 
 // TestWatchDispatchBookmarkEvents makes sure that
@@ -422,4 +422,64 @@ func initStoreData(ctx context.Context, store storage.Interface) ([]interface{},
 		created = append(created, item.key)
 	}
 	return created, nil
+}
+
+func TestTransformIfCorruptObjectError(t *testing.T) {
+	tests := []struct {
+		name  string
+		event *event
+		err   error
+		// whether the above error should be wrapped into a corruptObjectDeletedError
+		transform bool
+	}{
+		{
+			name:      "Deleted, corrupt object error",
+			event:     &event{isDeleted: true},
+			err:       &corruptObjectError{err: fmt.Errorf("bits flipped"), errType: untransformable},
+			transform: true,
+		},
+		{
+			name:      "Deleted, not a corrupt object error",
+			event:     &event{isDeleted: true},
+			err:       fmt.Errorf("bits flipped"),
+			transform: false,
+		},
+		{
+			name:      "not Deleted, corrupt object error",
+			event:     &event{isCreated: true},
+			err:       &corruptObjectError{err: fmt.Errorf("bits flipped"), errType: untransformable},
+			transform: false,
+		},
+		{
+			name:      "not Deleted, not a corrupt object error",
+			event:     &event{},
+			err:       fmt.Errorf("bits flipped"),
+			transform: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			w := watcher{}
+			err := w.transformIfCorruptObjectError(test.event, test.err)
+			switch test.transform {
+			case true:
+				var deletedErr *corruptObjectDeletedError
+				if !errors.As(err, &deletedErr) {
+					t.Fatalf("expected an error of type: %T, but got: %T", &corruptObjectDeletedError{}, err)
+				}
+				// nolint:errorlint // Unwrap should return the original
+				// error as is, so the test is asserting with identity.
+				if want, got := test.err, deletedErr.Unwrap(); got == nil || want != got {
+					t.Errorf("expected the inner error to be identical of the given error, want=%p, but got: %p", want, got)
+				}
+			default:
+				// nolint:errorlint // the function should return the
+				// error as is, so the test is asserting with identity.
+				if want, got := test.err, err; want != got {
+					t.Errorf("expected the error returned to be identical to the given error, want=%p, but got: %p", want, got)
+				}
+			}
+		})
+	}
 }

@@ -428,8 +428,8 @@ func RunTestWatchWithUnsafeDelete(ctx context.Context, t *testing.T, store Inter
 		t.Errorf("Unexpected error: %v", err)
 	}
 
-	// Now trigger watch error by injecting failing transformer.
-	revertTransformer := store.CorruptTransformer()
+	// Now trigger watch error by injecting a failing transformer where every object is corrupt.
+	revertTransformer := store.CorruptTransformer(nil)
 	defer revertTransformer()
 
 	w, err := store.Watch(ctx, key, storage.ListOptions{ResourceVersion: list.ResourceVersion, Predicate: storage.Everything})

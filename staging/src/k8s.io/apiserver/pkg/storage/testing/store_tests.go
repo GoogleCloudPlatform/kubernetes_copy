@@ -36,8 +36,11 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/apiserver/pkg/apis/example"
+	genericfeatures "k8s.io/apiserver/pkg/features"
 	"k8s.io/apiserver/pkg/storage"
 	"k8s.io/apiserver/pkg/storage/value"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	featuregatetesting "k8s.io/component-base/featuregate/testing"
 	utilpointer "k8s.io/utils/pointer"
 )
 
@@ -1687,6 +1690,153 @@ func RunTestGetListRecursivePrefix(ctx context.Context, t *testing.T, store stor
 	}
 }
 
+type FakeListErrorAggregator struct {
+	storage.ListErrorAggregator
+	// keep track of the errors encountered by GetList
+	errs []error
+	keys []string
+}
+
+func (f *FakeListErrorAggregator) Aggregate(key string, err error) bool {
+	f.errs = append(f.errs, err)
+	f.keys = append(f.keys, key)
+	return f.ListErrorAggregator.Aggregate(key, err)
+}
+
+// RunTestGetListWithErrorAggregation tests aggregation of errors while the list operation is in progress
+func RunTestGetListWithErrorAggregation(t *testing.T, newStoreFn func(*testing.T) (context.Context, *FakeListErrorAggregator, InterfaceWithCorruptTransformer)) {
+	tests := []struct {
+		name           string
+		featureEnabled bool
+		n              int
+		verifier       func(*testing.T, *FakeListErrorAggregator, error)
+	}{
+		{
+			name: "feature disabled, should maintain backward compatibility",
+			// when the feature is disabled, we should maintain
+			// backward compatibility, which is to abort on the first error
+			featureEnabled: false,
+			n:              7, // object 2, 4, and 6 will go corrupt
+			verifier: func(t *testing.T, aggr *FakeListErrorAggregator, errGetList error) {
+				// the error returned from GetList should not be wrapped
+				if want := "unable to transform key"; !strings.HasPrefix(errGetList.Error(), want) {
+					t.Errorf("expected the error to start with %q, but got: %v", want, errGetList)
+				}
+				if want, got := 1, len(aggr.errs); want != got {
+					t.Fatalf("expected exactly %d error(s), but got: %d", want, got)
+				}
+				// nolint:errorlint // the aggregator in use should return
+				// the error as is, so the test is asserting with identity.
+				if want, got := errGetList, aggr.errs[0]; want != got {
+					t.Errorf("expected the aggregator to return the original error: %v, but got: %v", want, got)
+				}
+			},
+		},
+		{
+			name:           "feature enabled, should aggregate corrupt object errors",
+			featureEnabled: true,
+			n:              7, // object 2, 4, and 6 will go corrupt
+			verifier: func(t *testing.T, aggr *FakeListErrorAggregator, errGetList error) {
+				var statusGot apierrors.APIStatus
+				if !errors.As(errGetList, &statusGot) {
+					t.Fatalf("expected an API status error object, but got: %v", errGetList)
+				}
+				if details := statusGot.Status().Details; details == nil || len(details.Causes) != 3 {
+					t.Errorf("expected the API status to include the corrupt object errors aggregated, but got: %v", details)
+				}
+				if want, got := 3, len(aggr.errs); want != got {
+					t.Fatalf("expected exactly %d error(s), but got: %d", want, got)
+				}
+			},
+		},
+		{
+			name:           "feature enabled, error aggregation should not exceed limit",
+			featureEnabled: true,
+			// aggregation limit is 100
+			// object 2, 4, 6 ... 196, 198, 200, ... 208, 210 will go corrupt
+			// a total of 105 objects will go corrupt
+			n: 210,
+			verifier: func(t *testing.T, aggr *FakeListErrorAggregator, errGetList error) {
+				// aggregation should stop after the max limit of 100 is reached
+				// and the 101th entry should be the 'too many' sentinel error
+				limit := 100
+				if want, got := limit+1, len(aggr.errs); want != got {
+					t.Fatalf("expected exactly %d error(s), but got: %d", want, got)
+				}
+
+				var statusGot apierrors.APIStatus
+				if !errors.As(errGetList, &statusGot) {
+					t.Fatalf("expected an API status error object, but got: %v", errGetList)
+				}
+				details := statusGot.Status().Details
+				if want := limit + 1; details == nil || len(details.Causes) != want {
+					t.Fatalf("aggregation max limit has exceeded, want %d, but got: %d", want, len(details.Causes))
+				}
+				// the 101th entry should be the sentinel error
+				want := metav1.StatusCause{
+					Type:    metav1.CauseTypeTooMany,
+					Message: "too many errors, the list is truncated",
+				}
+				if got := details.Causes[limit]; !cmp.Equal(want, got) {
+					t.Errorf("expected a sentinel error, diff: %s", cmp.Diff(want, got))
+				}
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, genericfeatures.AllowUnsafeMalformedObjectDeletion, test.featureEnabled)
+			ctx, aggregator, store := newStoreFn(t)
+
+			// Step 1: let's add N objects to the store
+			for i := 1; i <= test.n; i++ {
+				obj := &example.Pod{ObjectMeta: metav1.ObjectMeta{
+					Name:      fmt.Sprintf("foo-%d", i),
+					Namespace: "ns",
+				}}
+				// every object named 'foo-i' where i is even gets corrupted
+				if i%2 == 0 {
+					obj.Annotations = map[string]string{
+						"fake.k8s.io/corruption": "",
+					}
+				}
+				testPropagateStore(ctx, t, store, obj)
+			}
+
+			// step 2: list the N objects, we expect no error
+			out := &example.PodList{}
+			storageOpts := storage.ListOptions{
+				Predicate: storage.Everything,
+				Recursive: true,
+			}
+			err := store.GetList(ctx, "/pods/ns/", storageOpts, out)
+			if err != nil {
+				t.Fatalf("GetList failed with unexpected error: %v", err)
+			}
+			if want, got := test.n, len(out.Items); want != got {
+				t.Errorf("Expected length: %d, but got: %d", want, got)
+			}
+
+			// step 3: the transformer becomes corrupt for certain objects
+			revertTransformer := store.CorruptTransformer(func(ctx context.Context, data []byte) bool {
+				return strings.Contains(string(data), "fake.k8s.io/corruption")
+			})
+			defer revertTransformer()
+
+			// step 4: invoke list again, this time we expect error
+			out = &example.PodList{}
+			err = store.GetList(ctx, "/pods/ns/", storageOpts, out)
+			if err == nil {
+				t.Fatalf("Expected GetList to return error")
+			}
+
+			// step 5: verify what we expect in the error
+			test.verifier(t, aggregator, err)
+		})
+	}
+}
+
 type CallsValidation func(t *testing.T, pageSize, estimatedProcessedObjects uint64)
 
 func RunTestListContinuation(ctx context.Context, t *testing.T, store storage.Interface, validation CallsValidation) {
@@ -2147,9 +2297,12 @@ type InterfaceWithPrefixTransformer interface {
 	UpdatePrefixTransformer(PrefixTransformerModifier) func()
 }
 
+// a test can control which object(s) to corrupt
+type TransformPredicate func(ctx context.Context, data []byte) bool
+
 type InterfaceWithCorruptTransformer interface {
 	storage.Interface
-	CorruptTransformer() func()
+	CorruptTransformer(TransformPredicate) func()
 }
 
 func RunTestListResourceVersionMatch(ctx context.Context, t *testing.T, store InterfaceWithPrefixTransformer) {

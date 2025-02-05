@@ -43,10 +43,12 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apiserver/pkg/apis/example"
 	examplev1 "k8s.io/apiserver/pkg/apis/example/v1"
+	genericfeatures "k8s.io/apiserver/pkg/features"
 	"k8s.io/apiserver/pkg/storage"
 	"k8s.io/apiserver/pkg/storage/etcd3/testserver"
 	storagetesting "k8s.io/apiserver/pkg/storage/testing"
 	"k8s.io/apiserver/pkg/storage/value"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/klog/v2"
 )
 
@@ -179,6 +181,26 @@ func TestGetListRecursivePrefix(t *testing.T) {
 	storagetesting.RunTestGetListRecursivePrefix(ctx, t, store)
 }
 
+func TestGetListWithErrorAggregation(t *testing.T) {
+	storagetesting.RunTestGetListWithErrorAggregation(t, func(t *testing.T) (context.Context, *storagetesting.FakeListErrorAggregator, storagetesting.InterfaceWithCorruptTransformer) {
+		ctx, s, _ := testSetup(t)
+		var store storage.Interface = s
+		if utilfeature.DefaultFeatureGate.Enabled(genericfeatures.AllowUnsafeMalformedObjectDeletion) {
+			store = NewStoreWithUnsafeCorruptObjectDeletion(store, s.groupResource)
+		}
+
+		f := s.listErrAggrFactory
+		// wrap the original error aggregator from the store so
+		// the test can keep track of the aggregation.
+		wrapper := &storagetesting.FakeListErrorAggregator{}
+		s.listErrAggrFactory = func() storage.ListErrorAggregator {
+			wrapper.ListErrorAggregator = f()
+			return wrapper
+		}
+		return ctx, wrapper, &storeWithCorruptedTransformer{Interface: store, store: s}
+	})
+}
+
 type storeWithPrefixTransformer struct {
 	*store
 }
@@ -196,23 +218,44 @@ func (s *storeWithPrefixTransformer) UpdatePrefixTransformer(modifier storagetes
 
 type corruptedTransformer struct {
 	value.Transformer
+	// so certain objects can be made corrupt
+	shouldBeCorrupt func(ctx context.Context, data []byte) bool
 }
 
 func (f *corruptedTransformer) TransformFromStorage(ctx context.Context, data []byte, dataCtx value.Context) (out []byte, stale bool, err error) {
-	return nil, true, &corruptObjectError{err: fmt.Errorf("bits flipped"), errType: untransformable}
+	// every object is corrupt if shouldBeCorrupt is not provided
+	corruptObjErr := &corruptObjectError{err: fmt.Errorf("bits flipped"), errType: untransformable}
+	if f.shouldBeCorrupt == nil {
+		return nil, true, corruptObjErr
+	}
+
+	out, stale, err = f.Transformer.TransformFromStorage(ctx, data, dataCtx)
+	// unexpected error
+	if err != nil {
+		return out, stale, err
+	}
+	if f.shouldBeCorrupt(ctx, out) {
+		return nil, true, corruptObjErr
+	}
+	return out, stale, err
 }
 
 type storeWithCorruptedTransformer struct {
-	*store
+	storage.Interface
+	// we need the original *store instance to mutate the transformer
+	store *store
 }
 
-func (s *storeWithCorruptedTransformer) CorruptTransformer() func() {
-	ct := &corruptedTransformer{Transformer: s.transformer}
-	s.transformer = ct
-	s.watcher.transformer = ct
+func (s *storeWithCorruptedTransformer) CorruptTransformer(shouldBeCorrupt storagetesting.TransformPredicate) func() {
+	ct := &corruptedTransformer{
+		Transformer:     s.store.transformer,
+		shouldBeCorrupt: shouldBeCorrupt,
+	}
+	s.store.transformer = ct
+	s.store.watcher.transformer = ct
 	return func() {
-		s.transformer = ct.Transformer
-		s.watcher.transformer = ct.Transformer
+		s.store.transformer = ct.Transformer
+		s.store.watcher.transformer = ct.Transformer
 	}
 }
 

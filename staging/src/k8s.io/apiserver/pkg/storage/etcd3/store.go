@@ -83,7 +83,7 @@ type store struct {
 	watcher             *watcher
 	leaseManager        *leaseManager
 	decoder             Decoder
-	listErrAggrFactory  func() ListErrorAggregator
+	listErrAggrFactory  func() storage.ListErrorAggregator
 }
 
 func (s *store) RequestWatchProgress(ctx context.Context) error {
@@ -100,25 +100,10 @@ type objState struct {
 	stale bool
 }
 
-// ListErrorAggregator aggregates the error(s) that the LIST operation
-// encounters while retrieving object(s) from the storage
-type ListErrorAggregator interface {
-	// Aggregate aggregates the given error from list operation
-	// key: it identifies the given object in the storage.
-	// err: it represents the error the list operation encountered while
-	// retrieving the given object from the storage.
-	// done: true if the aggregation is done and the list operation should
-	// abort, otherwise the list operation will continue
-	Aggregate(key string, err error) bool
-
-	// Err returns the aggregated error
-	Err() error
-}
-
 // defaultListErrorAggregatorFactory returns the default list error
 // aggregator that maintains backward compatibility, which is abort
 // the list operation as soon as it encounters the first error
-func defaultListErrorAggregatorFactory() ListErrorAggregator { return &abortOnFirstError{} }
+func defaultListErrorAggregatorFactory() storage.ListErrorAggregator { return &abortOnFirstError{} }
 
 // LIST aborts on the first error it encounters (backward compatible)
 type abortOnFirstError struct {

@@ -325,3 +325,18 @@ type DeleteOptions struct {
 	// object which otherwise can not be deleted using the normal flow
 	IgnoreStoreReadError bool
 }
+
+// ListErrorAggregator aggregates the error(s) that the LIST operation
+// encounters while retrieving object(s) from the storage
+type ListErrorAggregator interface {
+	// Aggregate aggregates the given error from list operation
+	// key: it identifies the given object in the storage.
+	// err: it represents the error the list operation encountered while
+	// retrieving the given object from the storage.
+	// done: true if the aggregation is done and the list operation should
+	// abort, otherwise the list operation will continue
+	Aggregate(key string, err error) bool
+
+	// Err returns the aggregated error
+	Err() error
+}
