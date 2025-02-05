@@ -59,7 +59,6 @@ var _ admission.ValidationInterface = &AlwaysPullImages{}
 
 // Admit makes an admission decision based on the request attributes
 func (a *AlwaysPullImages) Admit(ctx context.Context, attributes admission.Attributes, o admission.ObjectInterfaces) (err error) {
-	// Ignore all calls to subresources or resources other than pods.
 	if shouldIgnore(attributes) {
 		return nil
 	}
@@ -95,25 +94,36 @@ func (*AlwaysPullImages) Validate(ctx context.Context, attributes admission.Attr
 	}
 
 	var allErrs []error
-	pods.VisitContainersWithPath(&pod.Spec, field.NewPath("spec"), func(c *api.Container, p *field.Path) bool {
+	containerVisitor := func(c *api.Container, p *field.Path) bool {
 		if c.ImagePullPolicy != api.PullAlways {
 			allErrs = append(allErrs, admission.NewForbidden(attributes,
 				field.NotSupported(p.Child("imagePullPolicy"), c.ImagePullPolicy, []string{string(api.PullAlways)}),
 			))
 		}
 		return true
-	})
+	}
 
-	// See: https://kep.k8s.io/4639
-	for i, v := range pod.Spec.Volumes {
-		if v.Image != nil && v.Image.PullPolicy != api.PullAlways {
-			allErrs = append(allErrs, admission.NewForbidden(attributes,
-				field.NotSupported(
-					field.NewPath("spec").Child("volumes").Index(i).Child("image").Child("pullPolicy"),
-					v.Image.PullPolicy,
-					[]string{string(api.PullAlways)},
-				),
-			))
+	if attributes.GetSubresource() == "ephemeralcontainers" {
+		fldPath := field.NewPath("spec").Child("ephemeralContainers")
+		for i := range pod.Spec.EphemeralContainers {
+			if !containerVisitor((*api.Container)(&pod.Spec.EphemeralContainers[i].EphemeralContainerCommon), fldPath.Index(i)) {
+				break
+			}
+		}
+	} else {
+		pods.VisitContainersWithPath(&pod.Spec, field.NewPath("spec"), containerVisitor)
+
+		// See: https://kep.k8s.io/4639
+		for i, v := range pod.Spec.Volumes {
+			if v.Image != nil && v.Image.PullPolicy != api.PullAlways {
+				allErrs = append(allErrs, admission.NewForbidden(attributes,
+					field.NotSupported(
+						field.NewPath("spec").Child("volumes").Index(i).Child("image").Child("pullPolicy"),
+						v.Image.PullPolicy,
+						[]string{string(api.PullAlways)},
+					),
+				))
+			}
 		}
 	}
 
@@ -159,8 +169,9 @@ func isUpdateWithNoNewImages(attributes admission.Attributes) bool {
 }
 
 func shouldIgnore(attributes admission.Attributes) bool {
-	// Ignore all calls to subresources or resources other than pods.
-	if len(attributes.GetSubresource()) != 0 || attributes.GetResource().GroupResource() != api.Resource("pods") {
+	// Ignore all calls to subresources other than ephemeralcontainers or resources other than pods.
+	subresource := attributes.GetSubresource()
+	if (len(subresource) != 0 && subresource != "ephemeralcontainers") || attributes.GetResource().GroupResource() != api.Resource("pods") {
 		return true
 	}
 

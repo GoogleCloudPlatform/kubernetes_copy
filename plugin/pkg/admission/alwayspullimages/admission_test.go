@@ -75,6 +75,31 @@ func TestAdmission(t *testing.T) {
 	}
 }
 
+func TestEphemeralContainersAdmission(t *testing.T) {
+	namespace := "test"
+	handler := admissiontesting.WithReinvocationTesting(t, &AlwaysPullImages{})
+	pod := api.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "123", Namespace: namespace},
+		Spec: api.PodSpec{
+			EphemeralContainers: []api.EphemeralContainer{
+				{EphemeralContainerCommon: api.EphemeralContainerCommon{Name: "ephemeral1", Image: "image"}},
+				{EphemeralContainerCommon: api.EphemeralContainerCommon{Name: "ephemeral2", Image: "image", ImagePullPolicy: api.PullNever}},
+				{EphemeralContainerCommon: api.EphemeralContainerCommon{Name: "ephemeral3", Image: "image", ImagePullPolicy: api.PullIfNotPresent}},
+				{EphemeralContainerCommon: api.EphemeralContainerCommon{Name: "ephemeral4", Image: "image", ImagePullPolicy: api.PullAlways}},
+			},
+		},
+	}
+	err := handler.Admit(context.TODO(), admission.NewAttributesRecord(&pod, nil, api.Kind("Pod").WithVersion("version"), pod.Namespace, pod.Name, api.Resource("pods").WithVersion("version"), "ephemeralcontainers", admission.Create, &metav1.CreateOptions{}, false, nil), nil)
+	if err != nil {
+		t.Errorf("Unexpected error returned from admission handler")
+	}
+	for _, c := range pod.Spec.EphemeralContainers {
+		if c.EphemeralContainerCommon.ImagePullPolicy != api.PullAlways {
+			t.Errorf("Container %v: expected pull always, got %v", c, c.ImagePullPolicy)
+		}
+	}
+}
+
 func TestValidate(t *testing.T) {
 	namespace := "test"
 	handler := &AlwaysPullImages{}
@@ -122,7 +147,7 @@ func TestValidate(t *testing.T) {
 }
 
 // TestOtherResources ensures that this admission controller is a no-op for other resources,
-// subresources, and non-pods.
+// subresources other than ephemeralcontainers, and non-pods.
 func TestOtherResources(t *testing.T) {
 	namespace := "testnamespace"
 	name := "testname"
