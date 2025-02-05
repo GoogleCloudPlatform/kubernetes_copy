@@ -239,6 +239,10 @@ func (m *kubeGenericRuntimeManager) startContainer(ctx context.Context, podSandb
 		}
 	}
 
+	if restartCount > 0 {
+		m.recordContainerEvent(pod, container, "", v1.EventTypeNormal, events.RestartedContainer, fmt.Sprintf("Restarting container %s", container.Name))
+	}
+
 	target, err := spec.getTargetID(podStatus)
 	if err != nil {
 		s, _ := grpcstatus.FromError(err)
