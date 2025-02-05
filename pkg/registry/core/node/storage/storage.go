@@ -25,6 +25,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	genericapirequest "k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/apiserver/pkg/registry/generic"
 	genericregistry "k8s.io/apiserver/pkg/registry/generic/registry"
 	"k8s.io/apiserver/pkg/registry/rest"
@@ -127,6 +128,18 @@ func NewStorage(optsGetter generic.RESTOptionsGetter, kubeletClientConfig client
 
 	// Build a NodeGetter that looks up nodes using the REST handler
 	nodeGetter := client.NodeGetterFunc(func(ctx context.Context, nodeName string, options metav1.GetOptions) (*v1.Node, error) {
+		// If the request is for a different resource, we need to temporarily overwrite the request resource to nodes
+		if requestInfo, found := genericapirequest.RequestInfoFrom(ctx); found {
+			if requestInfo.Resource != store.DefaultQualifiedResource.Resource || requestInfo.APIGroup != store.DefaultQualifiedResource.Group {
+				defer func(group, resource string) {
+					requestInfo.APIGroup, requestInfo.Resource = group, resource
+					genericapirequest.WithRequestInfo(ctx, requestInfo)
+				}(requestInfo.APIGroup, requestInfo.Resource)
+
+				requestInfo.APIGroup, requestInfo.Resource = store.DefaultQualifiedResource.Group, store.DefaultQualifiedResource.Resource
+				genericapirequest.WithRequestInfo(ctx, requestInfo)
+			}
+		}
 		obj, err := nodeREST.Get(ctx, nodeName, &options)
 		if err != nil {
 			return nil, err
