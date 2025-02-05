@@ -56,6 +56,8 @@ const (
 	ProfileNetadmin = "netadmin"
 	// ProfileSysadmin offers elevated privileges for debugging.
 	ProfileSysadmin = "sysadmin"
+	// ProfileAuto is a special profile that automatically selects the most appropriate profile.
+	ProfileAuto = "auto"
 )
 
 type ProfileApplier interface {
@@ -78,6 +80,8 @@ func NewProfileApplier(profile string, kflags KeepFlags) (ProfileApplier, error)
 		return &netadminProfile{kflags}, nil
 	case ProfileSysadmin:
 		return &sysadminProfile{kflags}, nil
+	case ProfileAuto:
+		return &autoProfile{kflags, ""}, nil
 	}
 	return nil, fmt.Errorf("unknown profile: %s", profile)
 }
@@ -104,6 +108,11 @@ type netadminProfile struct {
 
 type sysadminProfile struct {
 	KeepFlags
+}
+
+type autoProfile struct {
+	KeepFlags
+	Enforce string
 }
 
 // KeepFlags holds the flag set that determine which fields to keep in the copy pod.
@@ -318,6 +327,25 @@ func (p *sysadminProfile) Apply(pod *corev1.Pod, containerName string, target ru
 	}
 
 	return nil
+}
+
+func (p *autoProfile) Apply(pod *corev1.Pod, containerName string, target runtime.Object) error {
+	_, err := getDebugStyle(pod, target)
+	if err != nil {
+		return fmt.Errorf("auto profile: %w", err)
+	}
+
+	var profile ProfileApplier
+
+	switch p.Enforce {
+	case "baseline":
+		profile = &baselineProfile{p.KeepFlags}
+	case "restricted":
+		profile = &restrictedProfile{p.KeepFlags}
+	default:
+		profile = &generalProfile{p.KeepFlags}
+	}
+	return profile.Apply(pod, containerName, target)
 }
 
 // mountRootPartition mounts the host's root path at "/host" in the container.

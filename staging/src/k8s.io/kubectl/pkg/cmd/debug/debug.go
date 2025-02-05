@@ -108,6 +108,10 @@ var (
 
 var nameSuffixFunc = utilrand.String
 
+const (
+	PodSecurityLabel = "pod-security.kubernetes.io/enforce"
+)
+
 type DebugAttachFunc func(ctx context.Context, restClientGetter genericclioptions.RESTClientGetter, cmdPath string, ns, podName, containerName string) error
 
 // DebugOptions holds the options for an invocation of kubectl debug.
@@ -211,7 +215,7 @@ func (o *DebugOptions) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolVar(&o.ShareProcesses, "share-processes", o.ShareProcesses, i18n.T("When used with '--copy-to', enable process namespace sharing in the copy."))
 	cmd.Flags().StringVar(&o.TargetContainer, "target", "", i18n.T("When using an ephemeral container, target processes in this container name."))
 	cmd.Flags().BoolVarP(&o.TTY, "tty", "t", o.TTY, i18n.T("Allocate a TTY for the debugging container."))
-	cmd.Flags().StringVar(&o.Profile, "profile", ProfileLegacy, i18n.T(`Options are "legacy", "general", "baseline", "netadmin", "restricted" or "sysadmin".`))
+	cmd.Flags().StringVar(&o.Profile, "profile", ProfileLegacy, i18n.T(`Options are "legacy", "general", "baseline", "restricted", "netadmin", "sysadmin" or "auto".`))
 	cmd.Flags().StringVar(&o.CustomProfileFile, "custom", o.CustomProfileFile, i18n.T("Path to a JSON or YAML file containing a partial container spec to customize built-in debug profiles."))
 }
 
@@ -457,7 +461,7 @@ func (o *DebugOptions) Run(restClientGetter genericclioptions.RESTClientGetter, 
 // Returns an already created pod and container name for subsequent attach, if applicable.
 func (o *DebugOptions) visitNode(ctx context.Context, node *corev1.Node) (*corev1.Pod, string, error) {
 	pods := o.podClient.Pods(o.Namespace)
-	debugPod, err := o.generateNodeDebugPod(node)
+	debugPod, err := o.generateNodeDebugPod(ctx, node)
 	if err != nil {
 		return nil, "", err
 	}
@@ -489,7 +493,7 @@ func (o *DebugOptions) debugByEphemeralContainer(ctx context.Context, pod *corev
 		return nil, "", fmt.Errorf("error creating JSON for pod: %v", err)
 	}
 
-	debugPod, debugContainer, err := o.generateDebugContainer(pod)
+	debugPod, debugContainer, err := o.generateDebugContainer(ctx, pod)
 	if err != nil {
 		return nil, "", err
 	}
@@ -607,7 +611,7 @@ func (o *DebugOptions) applyCustomProfileEphemeral(debugPod *corev1.Pod, contain
 
 // debugByCopy runs a copy of the target Pod with a debug container added or an original container modified
 func (o *DebugOptions) debugByCopy(ctx context.Context, pod *corev1.Pod) (*corev1.Pod, string, error) {
-	copied, dc, err := o.generatePodCopyWithDebugContainer(pod)
+	copied, dc, err := o.generatePodCopyWithDebugContainer(ctx, pod)
 	if err != nil {
 		return nil, "", err
 	}
@@ -626,7 +630,7 @@ func (o *DebugOptions) debugByCopy(ctx context.Context, pod *corev1.Pod) (*corev
 
 // generateDebugContainer returns a debugging pod and an EphemeralContainer suitable for use as a debug container
 // in the given pod.
-func (o *DebugOptions) generateDebugContainer(pod *corev1.Pod) (*corev1.Pod, *corev1.EphemeralContainer, error) {
+func (o *DebugOptions) generateDebugContainer(ctx context.Context, pod *corev1.Pod) (*corev1.Pod, *corev1.EphemeralContainer, error) {
 	name := o.computeDebugContainerName(pod)
 	ec := &corev1.EphemeralContainer{
 		EphemeralContainerCommon: corev1.EphemeralContainerCommon{
@@ -645,6 +649,15 @@ func (o *DebugOptions) generateDebugContainer(pod *corev1.Pod) (*corev1.Pod, *co
 		ec.Args = o.Args
 	} else {
 		ec.Command = o.Args
+	}
+
+	profile, auto := o.Applier.(*autoProfile)
+	if auto {
+		ns, err := o.podClient.Namespaces().Get(ctx, pod.Namespace, metav1.GetOptions{})
+		if err != nil {
+			return nil, nil, err
+		}
+		profile.Enforce = ns.Labels[PodSecurityLabel]
 	}
 
 	copied := pod.DeepCopy()
@@ -667,7 +680,7 @@ func (o *DebugOptions) generateDebugContainer(pod *corev1.Pod) (*corev1.Pod, *co
 
 // generateNodeDebugPod generates a debugging pod that schedules on the specified node.
 // The generated pod will run in the host PID, Network & IPC namespaces, and it will have the node's filesystem mounted at /host.
-func (o *DebugOptions) generateNodeDebugPod(node *corev1.Node) (*corev1.Pod, error) {
+func (o *DebugOptions) generateNodeDebugPod(ctx context.Context, node *corev1.Node) (*corev1.Pod, error) {
 	cn := "debugger"
 	// Setting a user-specified container name doesn't make much difference when there's only one container,
 	// but the argument exists for pod debugging so it might be confusing if it didn't work here.
@@ -715,6 +728,15 @@ func (o *DebugOptions) generateNodeDebugPod(node *corev1.Node) (*corev1.Pod, err
 		p.Spec.Containers[0].Command = o.Args
 	}
 
+	profile, auto := o.Applier.(*autoProfile)
+	if auto {
+		ns, err := o.podClient.Namespaces().Get(ctx, o.Namespace, metav1.GetOptions{})
+		if err != nil {
+			return nil, err
+		}
+		profile.Enforce = ns.Labels[PodSecurityLabel]
+	}
+
 	if err := o.Applier.Apply(p, cn, node); err != nil {
 		return nil, err
 	}
@@ -730,7 +752,7 @@ func (o *DebugOptions) generateNodeDebugPod(node *corev1.Node) (*corev1.Pod, err
 }
 
 // generatePodCopyWithDebugContainer takes a Pod and returns a copy and the debug container name of that copy
-func (o *DebugOptions) generatePodCopyWithDebugContainer(pod *corev1.Pod) (*corev1.Pod, string, error) {
+func (o *DebugOptions) generatePodCopyWithDebugContainer(ctx context.Context, pod *corev1.Pod) (*corev1.Pod, string, error) {
 	copied := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        o.CopyTo,
@@ -804,13 +826,21 @@ func (o *DebugOptions) generatePodCopyWithDebugContainer(pod *corev1.Pod) (*core
 	c.Stdin = o.Interactive
 	c.TTY = o.TTY
 
-	err := o.Applier.Apply(copied, c.Name, pod)
-	if err != nil {
+	profile, auto := o.Applier.(*autoProfile)
+	if auto {
+		ns, err := o.podClient.Namespaces().Get(ctx, pod.Namespace, metav1.GetOptions{})
+		if err != nil {
+			return nil, "", err
+		}
+		profile.Enforce = ns.Labels[PodSecurityLabel]
+	}
+
+	if err := o.Applier.Apply(copied, c.Name, pod); err != nil {
 		return nil, "", err
 	}
 
 	if o.CustomProfile != nil {
-		err = o.applyCustomProfile(copied, name)
+		err := o.applyCustomProfile(copied, name)
 		if err != nil {
 			return nil, "", err
 		}
