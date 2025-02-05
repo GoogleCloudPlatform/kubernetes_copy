@@ -140,7 +140,7 @@ func removePathIfNotMountPoint(mountPath string, mounter Interface, extensiveMou
 
 	if notMnt {
 		klog.V(4).Infof("%q is not a mountpoint, deleting", mountPath)
-		return notMnt, os.Remove(mountPath)
+		return notMnt, removePath(mountPath)
 	}
 	return notMnt, nil
 }
@@ -148,7 +148,7 @@ func removePathIfNotMountPoint(mountPath string, mounter Interface, extensiveMou
 // removePath attempts to remove the directory. Returns nil if the directory was removed or does not exist.
 func removePath(mountPath string) error {
 	klog.V(4).Infof("Deleting path %q", mountPath)
-	err := os.Remove(mountPath)
+	err := os.RemoveAll(mountPath)
 	if os.IsNotExist(err) {
 		klog.V(4).Infof("%q does not exist", mountPath)
 		return nil
