@@ -41,6 +41,7 @@ import (
 	epmetrics "k8s.io/apiserver/pkg/endpoints/metrics"
 	apirequest "k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/apiserver/pkg/server/mux"
+	"k8s.io/apiserver/pkg/util/controlflow"
 	utilflowcontrol "k8s.io/apiserver/pkg/util/flowcontrol"
 	fq "k8s.io/apiserver/pkg/util/flowcontrol/fairqueuing"
 	fcmetrics "k8s.io/apiserver/pkg/util/flowcontrol/metrics"
@@ -166,6 +167,9 @@ func newApfServerWithFilter(t *testing.T, flowControlFilter utilflowcontrol.Inte
 }
 
 func newApfHandlerWithFilter(t *testing.T, flowControlFilter utilflowcontrol.Interface, defaultWaitLimit time.Duration, onExecute, postExecute func()) http.Handler {
+	if atomicReadOnlyExecuting != 0 {
+		t.Errorf("Expected %d requests executing when constructing filter, got %d", 0, atomicReadOnlyExecuting)
+	}
 	requestInfoFactory := &apirequest.RequestInfoFactory{APIPrefixes: sets.NewString("apis", "api"), GrouplessAPIPrefixes: sets.NewString("api")}
 	longRunningRequestCheck := BasicLongRunningRequestCheck(sets.NewString("watch"), sets.NewString("proxy"))
 
@@ -177,21 +181,20 @@ func newApfHandlerWithFilter(t *testing.T, flowControlFilter utilflowcontrol.Int
 		r = r.WithContext(apirequest.WithUser(r.Context(), &user.DefaultInfo{
 			Groups: []string{user.AllUnauthenticated},
 		}))
-		func() {
+		controlflow.TryFinally(func() {
+			apfHandler.ServeHTTP(w, r)
+			postExecute()
+		}, func() {
 			// the APF handler completes its run, either normally or
 			// with a panic, in either case, all APF book keeping must
 			// be completed by now. Also, whether the request is
 			// executed or rejected, we expect the counter to be zero.
 			// TODO: all test(s) using this filter must run
 			// serially to each other
-			defer func() {
-				if atomicReadOnlyExecuting != 0 {
-					t.Errorf("Wanted %d requests executing, got %d", 0, atomicReadOnlyExecuting)
-				}
-			}()
-			apfHandler.ServeHTTP(w, r)
-			postExecute()
-		}()
+			if atomicReadOnlyExecuting != 0 {
+				t.Errorf("Expected %d requests executing after handling, got %d", 0, atomicReadOnlyExecuting)
+			}
+		})
 	}), requestInfoFactory)
 
 	return handler
@@ -581,6 +584,12 @@ func TestApfWatchHandlePanic(t *testing.T) {
 				defer func() {
 					if err := recover(); err == nil {
 						t.Errorf("expected panic, got %v", err)
+					} else if errStr, isStr := err.(string); !isStr {
+						t.Errorf("Expected to recover a string, but got %#v (type %T)", err, err)
+					} else if !strings.HasPrefix(errStr, "APF wait goroutine panicked") {
+						t.Errorf("Recovered string has unexpected content: %q", errStr)
+					} else {
+						w.WriteHeader(http.StatusOK)
 					}
 				}()
 				apfHandler.ServeHTTP(w, r)
@@ -800,15 +809,15 @@ func TestPriorityAndFairnessWithPanicRecoveryAndTimeoutFilter(t *testing.T) {
 			response *http.Response
 			err      error
 		)
-		func() {
-			defer close(callerRoundTripDoneCh)
-
+		controlflow.TryFinally(func() {
 			t.Logf("Waiting for the request: %q to time out", rquestTimesOutPath)
 			response, err = requestGetter(rquestTimesOutPath)
 			if isClientTimeout(err) {
 				t.Fatalf("the client has unexpectedly timed out - request: %q error: %s", rquestTimesOutPath, err.Error())
 			}
-		}()
+		}, func() {
+			close(callerRoundTripDoneCh)
+		})
 
 		t.Logf("Waiting for the inner handler of the request: %q to complete", rquestTimesOutPath)
 		select {
@@ -877,14 +886,15 @@ func TestPriorityAndFairnessWithPanicRecoveryAndTimeoutFilter(t *testing.T) {
 			response *http.Response
 			err      error
 		)
-		func() {
-			defer close(callerRoundTripDoneCh)
+		controlflow.TryFinally(func() {
 			t.Logf("Waiting for the request: %q to time out", rquestTimesOutPath)
 			response, err = requestGetter(rquestTimesOutPath)
 			if isClientTimeout(err) {
 				t.Fatalf("the client has unexpectedly timed out - request: %q error: %s", rquestTimesOutPath, err.Error())
 			}
-		}()
+		}, func() {
+			close(callerRoundTripDoneCh)
+		})
 
 		t.Logf("Waiting for the inner handler of the request: %q to complete", rquestTimesOutPath)
 		select {
@@ -954,14 +964,15 @@ func TestPriorityAndFairnessWithPanicRecoveryAndTimeoutFilter(t *testing.T) {
 		// chance of a flake in ci, the cient waits long enough for the server to send a
 		// timeout response to the client.
 		var err error
-		func() {
-			defer close(callerRoundTripDoneCh)
+		controlflow.TryFinally(func() {
 			t.Logf("Waiting for the request: %q to time out", rquestTimesOutPath)
 			_, err = requestGetter(rquestTimesOutPath)
 			if isClientTimeout(err) {
 				t.Fatalf("the client has unexpectedly timed out - request: %q error: %s", rquestTimesOutPath, err.Error())
 			}
-		}()
+		}, func() {
+			close(callerRoundTripDoneCh)
+		})
 
 		t.Logf("Waiting for the inner handler of the request: %q to complete", rquestTimesOutPath)
 		select {

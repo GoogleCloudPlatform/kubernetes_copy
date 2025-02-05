@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"runtime"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -31,6 +30,7 @@ import (
 	epmetrics "k8s.io/apiserver/pkg/endpoints/metrics"
 	apirequest "k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/apiserver/pkg/server/httplog"
+	"k8s.io/apiserver/pkg/util/controlflow"
 	utilflowcontrol "k8s.io/apiserver/pkg/util/flowcontrol"
 	fcmetrics "k8s.io/apiserver/pkg/util/flowcontrol/metrics"
 	flowcontrolrequest "k8s.io/apiserver/pkg/util/flowcontrol/request"
@@ -169,34 +169,29 @@ func (h *priorityAndFairnessHandler) Handle(w http.ResponseWriter, r *http.Reque
 	}
 
 	if isWatchRequest {
-		// This channel blocks calling handler.ServeHTTP() until closed, and is closed inside execute().
-		// If APF rejects the request, it is never closed.
-		shouldStartWatchCh := make(chan struct{})
+		// This channel is closed once APF makes a decision about whether or not to serve this WATCH.
+		// The decision is stored in `served`.
+		decidedCh := make(chan struct{})
+		var decidedIsClosed bool
+		closeDecided := func() {
+			if !decidedIsClosed {
+				decidedIsClosed = true
+				close(decidedCh)
+			}
+		}
+
+		// Used to relay the report from the wait goroutine about its panic, if any.
+		// The code in that goroutine is not trivial, so the possibility of a panic
+		// in there is not ignored.
+		relayCh := make(chan string, 1)
 
 		watchInitializationSignal := newInitializationSignal()
 		// This wraps the request passed to handler.ServeHTTP(),
 		// setting a context that plumbs watchInitializationSignal to storage
 		var watchReq *http.Request
-		// This is set inside execute(), prior to closing shouldStartWatchCh.
+		// This is set inside execute(), prior to closing decidedCh.
 		// If the request is rejected by APF it is left nil.
 		var forgetWatch utilflowcontrol.ForgetWatchFunc
-
-		defer func() {
-			// Protect from the situation when request will not reach storage layer
-			// and the initialization signal will not be send.
-			if watchInitializationSignal != nil {
-				watchInitializationSignal.Signal()
-			}
-			// Forget the watcher if it was registered.
-			//
-			// This is race-free because by this point, one of the following occurred:
-			// case <-shouldStartWatchCh: execute() completed the assignment to forgetWatch
-			// case <-resultCh: Handle() completed, and Handle() does not return
-			//   while execute() is running
-			if forgetWatch != nil {
-				forgetWatch()
-			}
-		}()
 
 		execute := func() {
 			startedAt := time.Now()
@@ -211,15 +206,12 @@ func (h *priorityAndFairnessHandler) Handle(w http.ResponseWriter, r *http.Reque
 			forgetWatch = h.fcIfc.RegisterWatch(r)
 
 			// Notify the main thread that we're ready to start the watch.
-			close(shouldStartWatchCh)
+			closeDecided()
 
 			// Wait until the request is finished from the APF point of view
 			// (which is when its initialization is done).
 			watchInitializationSignal.Wait()
 		}
-
-		// Ensure that an item can be put to resultCh asynchronously.
-		resultCh := make(chan interface{}, 1)
 
 		// Call Handle in a separate goroutine.
 		// The reason for it is that from APF point of view, the request processing
@@ -231,18 +223,11 @@ func (h *priorityAndFairnessHandler) Handle(w http.ResponseWriter, r *http.Reque
 		go func() {
 			defer func() {
 				err := recover()
-				// do not wrap the sentinel ErrAbortHandler panic value
-				if err != nil && err != http.ErrAbortHandler {
-					// Same as stdlib http server code. Manually allocate stack
-					// trace buffer size to prevent excessively large logs
-					const size = 64 << 10
-					buf := make([]byte, size)
-					buf = buf[:runtime.Stack(buf, false)]
-					err = fmt.Sprintf("%v\n%s", err, buf)
+				closeDecided() // needed in case request is rejected (`execute` not called)
+				if err != nil {
+					relayCh <- controlflow.FormatValueWithStack(err)
 				}
-
-				// Ensure that the result is put into resultCh independently of the panic.
-				resultCh <- err
+				close(relayCh)
 			}()
 
 			// We create handleCtx with an adjusted deadline, for two reasons.
@@ -264,30 +249,40 @@ func (h *priorityAndFairnessHandler) Handle(w http.ResponseWriter, r *http.Reque
 			h.fcIfc.Handle(handleCtx, digest, noteFn, estimateWork, queueNote, execute)
 		}()
 
-		select {
-		case <-shouldStartWatchCh:
-			func() {
-				// TODO: if both goroutines panic, propagate the stack traces from both
-				// goroutines so they are logged properly:
-				defer func() {
-					// Protect from the situation when request will not reach storage layer
-					// and the initialization signal will not be send.
-					// It has to happen before waiting on the resultCh below.
-					watchInitializationSignal.Signal()
-					// TODO: Consider finishing the request as soon as Handle call panics.
-					if err := <-resultCh; err != nil {
-						panic(err)
-					}
-				}()
+		controlflow.TryFinally(func() {
+			<-decidedCh
+			if served {
 				watchCtx := utilflowcontrol.WithInitializationSignal(ctx, watchInitializationSignal)
 				watchReq = r.WithContext(watchCtx)
 				h.handler.ServeHTTP(w, watchReq)
-			}()
-		case err := <-resultCh:
-			if err != nil {
-				panic(err)
 			}
-		}
+		}, func() {
+			recoveredFromWatch := recover()
+			// Protect from the situation when request will not reach storage layer
+			// and the initialization signal will not be send.
+			if watchInitializationSignal != nil {
+				watchInitializationSignal.Signal()
+			}
+			// Forget the watcher if it was registered.
+			//
+			// This is race-free because decidedCh has been closed and the assignment
+			// to this variable, if any, happens before that closure.
+			if forgetWatch != nil {
+				forgetWatch()
+			}
+			waitReport, waitPanicked := <-relayCh
+			if recoveredFromWatch != nil {
+				if waitPanicked {
+					combined := fmt.Sprintf("wait and watch both panicked.\nwait: %s\n\nwatch: %v", waitReport, recoveredFromWatch)
+					panic(combined)
+				} else {
+					// Experiment shows that this preserves the stack, so faithfully that both panics show up.
+					panic(recoveredFromWatch)
+				}
+			} else if waitPanicked {
+				panic("APF wait goroutine panicked: " + waitReport)
+			}
+		})
 	} else {
 		execute := func() {
 			noteExecutingDelta(1)
