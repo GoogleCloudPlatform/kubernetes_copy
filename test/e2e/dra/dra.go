@@ -991,10 +991,20 @@ var _ = framework.SIGDescribe("node")("DRA", feature.DynamicResourceAllocation, 
 				}),
 			)))
 
+			setVAPLabel := func(labels map[string]string) map[string]string {
+				if labels == nil {
+					labels = make(map[string]string)
+				}
+				labels["vap-enforced"] = ""
+				return labels
+			}
+
 			// Attempt to create claim and claim template with admin access. Must fail eventually.
 			claim := b.externalClaim()
+			claim.Labels = setVAPLabel(claim.Labels)
 			claim.Spec.Devices.Requests[0].AdminAccess = ptr.To(true)
 			_, claimTemplate := b.podInline()
+			claimTemplate.Labels = setVAPLabel(claimTemplate.Labels)
 			claimTemplate.Spec.Spec.Devices.Requests[0].AdminAccess = ptr.To(true)
 			matchVAPError := gomega.MatchError(gomega.ContainSubstring("admin access to devices not enabled in namespace " + b.f.Namespace.Name))
 			gomega.Eventually(ctx, func(ctx context.Context) error {

@@ -22,6 +22,10 @@ spec:
       apiVersions: ["v1alpha3", "v1beta1"]
       operations:  ["CREATE", "UPDATE"]
       resources:   ["resourceclaims"]
+    objectSelector:
+      matchExpressions:
+        - key: vap-enforced
+          operator: Exists
   validations:
     - expression: '! object.spec.devices.requests.exists(e, has(e.adminAccess) && e.adminAccess)'
       reason: Forbidden
@@ -52,6 +56,10 @@ spec:
       apiVersions: ["v1alpha3", "v1beta1"]
       operations:  ["CREATE", "UPDATE"]
       resources:   ["resourceclaimtemplates"]
+    objectSelector:
+      matchExpressions:
+        - key: vap-enforced
+          operator: Exists
   validations:
     - expression: '! object.spec.spec.devices.requests.exists(e, has(e.adminAccess) && e.adminAccess)'
       reason: Forbidden
