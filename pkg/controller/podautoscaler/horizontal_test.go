@@ -382,6 +382,13 @@ func (tc *testCase) prepareTestClient(t *testing.T) (*fake.Clientset, *metricsfa
 					assert.Equal(t, tc.CPUCurrent, *utilization, "the report CPU utilization percentage should be as expected")
 				}
 			}
+
+			if len(obj.Spec.Metrics) > 0 && obj.Spec.Metrics[0].Object != nil && len(obj.Status.CurrentMetrics) > 0 && obj.Status.CurrentMetrics[0].Object != nil {
+				assert.Equal(t, obj.Spec.Metrics[0].Object.DescribedObject.APIVersion, obj.Status.CurrentMetrics[0].Object.DescribedObject.APIVersion)
+				assert.Equal(t, obj.Spec.Metrics[0].Object.DescribedObject.Kind, obj.Status.CurrentMetrics[0].Object.DescribedObject.Kind)
+				assert.Equal(t, obj.Spec.Metrics[0].Object.DescribedObject.Name, obj.Status.CurrentMetrics[0].Object.DescribedObject.Name)
+			}
+
 			actualConditions := obj.Status.Conditions
 			// TODO: it's ok not to sort these because statusOk
 			// contains all the conditions, so we'll never be appending.
