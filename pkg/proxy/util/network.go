@@ -33,7 +33,14 @@ type RealNetwork struct{}
 
 // InterfaceAddrs wraps net.InterfaceAddrs(), it's a part of NetworkInterfacer interface.
 func (RealNetwork) InterfaceAddrs() ([]net.Addr, error) {
-	return net.InterfaceAddrs()
+	addr, err := net.InterfaceAddrs()
+	if err != nil {
+		err = GetInterfaceAddrsByInterfaces(&addr)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return addr, nil
 }
 
 var _ NetworkInterfacer = &RealNetwork{}

@@ -21,6 +21,7 @@ import (
 	"net"
 
 	"k8s.io/api/core/v1"
+	"k8s.io/klog/v2"
 	netutils "k8s.io/utils/net"
 )
 
@@ -90,13 +91,36 @@ func (npa *NodePortAddresses) MatchAll() bool {
 	return npa.matchAll
 }
 
+// net.InterfaceAddrs() on linux may return err mistakely
+// before https://go-review.googlesource.com/c/go/+/635196
+func GetInterfaceAddrsByInterfaces(addr *[]net.Addr) error {
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return fmt.Errorf("error listing all interface from host, error: %v", err)
+	}
+	for _, iface := range ifaces {
+		ifadr, err := iface.Addrs()
+		if err != nil {
+			// This may happen if the interface was deleted. Ignore
+			// but log the error.
+			klog.ErrorS(err, "GetAllLocalAddresses reading addresses", "interface", iface.Name)
+			continue
+		}
+		*addr = append(*addr, ifadr...)
+	}
+	return nil
+}
+
 // GetNodeIPs return all matched node IP addresses for npa's CIDRs. If no matching
 // IPs are found, it returns an empty list.
 // NetworkInterfacer is injected for test purpose.
 func (npa *NodePortAddresses) GetNodeIPs(nw NetworkInterfacer) ([]net.IP, error) {
 	addrs, err := nw.InterfaceAddrs()
 	if err != nil {
-		return nil, fmt.Errorf("error listing all interfaceAddrs from host, error: %v", err)
+		err = GetInterfaceAddrsByInterfaces(&addrs)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// Use a map to dedup matches

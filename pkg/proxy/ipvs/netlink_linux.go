@@ -133,7 +133,10 @@ func (h *netlinkHandle) ListBindAddress(devName string) ([]string, error) {
 func (h *netlinkHandle) GetAllLocalAddresses() (sets.Set[string], error) {
 	addr, err := net.InterfaceAddrs()
 	if err != nil {
-		return nil, fmt.Errorf("Could not get addresses: %v", err)
+		err = proxyutil.GetInterfaceAddrsByInterfaces(&addr)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return proxyutil.AddressSet(h.isValidForSet, addr), nil
 }
