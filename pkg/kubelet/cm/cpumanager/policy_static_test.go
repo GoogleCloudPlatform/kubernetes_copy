@@ -68,6 +68,16 @@ func (spt staticPolicyTest) PseudoClone() staticPolicyTest {
 	}
 }
 
+func TestSMTAlignmentError(t *testing.T) {
+	smtErr := SMTAlignmentError{RequestedCPUs: 3, CpusPerCore: 2}
+	if err := smtErr.Error(); err != "SMT Alignment Error: requested 3 cpus not multiple cpus per core = 2" {
+		t.Errorf("expected: SMT Alignment Error: requested 3 cpus not multiple cpus per core = 2, but got: %s", err)
+	}
+	if typ := smtErr.Type(); typ != "SMTAlignmentError" {
+		t.Errorf("expected: SMTAlignmentError but got: %s", typ)
+	}
+}
+
 func TestStaticPolicyName(t *testing.T) {
 	policy, _ := NewStaticPolicy(topoSingleSocketHT, 1, cpuset.New(), topologymanager.NewFakeManager(), nil)
 
@@ -1060,7 +1070,6 @@ func TestStaticPolicyStartWithResvList(t *testing.T) {
 }
 
 func TestStaticPolicyAddWithResvList(t *testing.T) {
-
 	testCases := []staticPolicyTestWithResvList{
 		{
 			description:     "GuPodSingleCore, SingleSocketHT, ExpectError",

@@ -26,7 +26,6 @@ import (
 )
 
 func Test_Discover(t *testing.T) {
-
 	tests := []struct {
 		name        string
 		machineInfo cadvisorapi.MachineInfo
@@ -837,9 +836,7 @@ func Test_Discover(t *testing.T) {
 }
 
 func TestCPUDetailsKeepOnly(t *testing.T) {
-
-	var details CPUDetails
-	details = map[int]CPUInfo{
+	details := CPUDetails{
 		0: {},
 		1: {},
 		2: {},
@@ -873,7 +870,6 @@ func TestCPUDetailsKeepOnly(t *testing.T) {
 }
 
 func TestCPUDetailsNUMANodes(t *testing.T) {
-
 	tests := []struct {
 		name    string
 		details CPUDetails
@@ -900,9 +896,7 @@ func TestCPUDetailsNUMANodes(t *testing.T) {
 }
 
 func TestCPUDetailsNUMANodesInSockets(t *testing.T) {
-
-	var details1 CPUDetails
-	details1 = map[int]CPUInfo{
+	details1 := CPUDetails{
 		0: {SocketID: 0, NUMANodeID: 0},
 		1: {SocketID: 1, NUMANodeID: 0},
 		2: {SocketID: 2, NUMANodeID: 1},
@@ -910,8 +904,7 @@ func TestCPUDetailsNUMANodesInSockets(t *testing.T) {
 	}
 
 	// poorly designed mainboards
-	var details2 CPUDetails
-	details2 = map[int]CPUInfo{
+	details2 := CPUDetails{
 		0: {SocketID: 0, NUMANodeID: 0},
 		1: {SocketID: 0, NUMANodeID: 1},
 		2: {SocketID: 1, NUMANodeID: 2},
@@ -956,7 +949,6 @@ func TestCPUDetailsNUMANodesInSockets(t *testing.T) {
 }
 
 func TestCPUDetailsSockets(t *testing.T) {
-
 	tests := []struct {
 		name    string
 		details CPUDetails
@@ -983,9 +975,7 @@ func TestCPUDetailsSockets(t *testing.T) {
 }
 
 func TestCPUDetailsCPUsInSockets(t *testing.T) {
-
-	var details CPUDetails
-	details = map[int]CPUInfo{
+	details := CPUDetails{
 		0: {SocketID: 0},
 		1: {SocketID: 0},
 		2: {SocketID: 1},
@@ -1017,9 +1007,7 @@ func TestCPUDetailsCPUsInSockets(t *testing.T) {
 }
 
 func TestCPUDetailsSocketsInNUMANodes(t *testing.T) {
-
-	var details CPUDetails
-	details = map[int]CPUInfo{
+	details := CPUDetails{
 		0: {NUMANodeID: 0, SocketID: 0},
 		1: {NUMANodeID: 0, SocketID: 1},
 		2: {NUMANodeID: 1, SocketID: 2},
@@ -1051,7 +1039,6 @@ func TestCPUDetailsSocketsInNUMANodes(t *testing.T) {
 }
 
 func TestCPUDetailsCores(t *testing.T) {
-
 	tests := []struct {
 		name    string
 		details CPUDetails
@@ -1078,9 +1065,7 @@ func TestCPUDetailsCores(t *testing.T) {
 }
 
 func TestCPUDetailsCoresInNUMANodes(t *testing.T) {
-
-	var details CPUDetails
-	details = map[int]CPUInfo{
+	details := CPUDetails{
 		0: {NUMANodeID: 0, CoreID: 0},
 		1: {NUMANodeID: 0, CoreID: 1},
 		2: {NUMANodeID: 1, CoreID: 2},
@@ -1112,9 +1097,7 @@ func TestCPUDetailsCoresInNUMANodes(t *testing.T) {
 }
 
 func TestCPUDetailsCoresInSockets(t *testing.T) {
-
-	var details CPUDetails
-	details = map[int]CPUInfo{
+	details := CPUDetails{
 		0: {SocketID: 0, CoreID: 0},
 		1: {SocketID: 0, CoreID: 1},
 		2: {SocketID: 1, CoreID: 2},
@@ -1146,7 +1129,6 @@ func TestCPUDetailsCoresInSockets(t *testing.T) {
 }
 
 func TestCPUDetailsCPUs(t *testing.T) {
-
 	tests := []struct {
 		name    string
 		details CPUDetails
@@ -1171,9 +1153,7 @@ func TestCPUDetailsCPUs(t *testing.T) {
 }
 
 func TestCPUDetailsCPUsInNUMANodes(t *testing.T) {
-
-	var details CPUDetails
-	details = map[int]CPUInfo{
+	details := CPUDetails{
 		0: {NUMANodeID: 0},
 		1: {NUMANodeID: 0},
 		2: {NUMANodeID: 1},
@@ -1205,9 +1185,7 @@ func TestCPUDetailsCPUsInNUMANodes(t *testing.T) {
 }
 
 func TestCPUDetailsCPUsInCores(t *testing.T) {
-
-	var details CPUDetails
-	details = map[int]CPUInfo{
+	details := CPUDetails{
 		0: {CoreID: 0},
 		1: {CoreID: 0},
 		2: {CoreID: 1},
