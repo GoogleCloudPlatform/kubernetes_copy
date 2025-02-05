@@ -18,7 +18,9 @@ package rest
 
 import (
 	"context"
+	"reflect"
 	"testing"
+	"time"
 
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -52,14 +54,31 @@ func TestBeforeDelete(t *testing.T) {
 		options  *metav1.DeleteOptions
 	}
 
-	makePod := func(deletionGracePeriodSeconds int64) *v1.Pod {
+	// snapshot and restore real metav1Now function
+	originalMetav1Now := metav1Now
+	t.Cleanup(func() {
+		metav1Now = originalMetav1Now
+	})
+
+	// make now refer to a fixed point in time
+	now := metav1.Time{Time: time.Now().Truncate(time.Second)}
+	metav1Now = func() metav1.Time {
+		return now
+	}
+
+	makePodWithDeletionTimestamp := func(deletionTimestamp *metav1.Time, deletionGracePeriodSeconds int64) *v1.Pod {
 		return &v1.Pod{
 			TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "Pod"},
 			ObjectMeta: metav1.ObjectMeta{
-				DeletionTimestamp:          &metav1.Time{},
+				DeletionTimestamp:          deletionTimestamp,
 				DeletionGracePeriodSeconds: &deletionGracePeriodSeconds,
 			},
 		}
+	}
+	makePod := func(deletionGracePeriodSeconds int64) *v1.Pod {
+		deletionTimestamp := now
+		deletionTimestamp.Time = deletionTimestamp.Time.Add(time.Duration(deletionGracePeriodSeconds) * time.Second)
+		return makePodWithDeletionTimestamp(&deletionTimestamp, deletionGracePeriodSeconds)
 	}
 	makeOption := func(gracePeriodSeconds int64) *metav1.DeleteOptions {
 		return &metav1.DeleteOptions{
@@ -74,6 +93,7 @@ func TestBeforeDelete(t *testing.T) {
 		wantGracefulPending            bool
 		wantGracePeriodSeconds         *int64
 		wantDeletionGracePeriodSeconds *int64
+		wantDeletionTimestamp          *metav1.Time
 		wantErr                        bool
 	}{
 		{
@@ -271,6 +291,28 @@ func TestBeforeDelete(t *testing.T) {
 			wantGraceful:                   false,
 			wantGracefulPending:            true,
 		},
+		{
+			name: "when a shorter non-zero grace period would move into the past",
+			args: args{
+				pod:     makePodWithDeletionTimestamp(&metav1.Time{Time: now.Time.Add(-time.Minute)}, 60),
+				options: makeOption(50),
+			},
+			wantDeletionTimestamp:          &now,
+			wantDeletionGracePeriodSeconds: utilpointer.Int64(1),
+			wantGracePeriodSeconds:         utilpointer.Int64(50),
+			wantGraceful:                   true,
+		},
+		{
+			name: "when a zero grace period would move into the past",
+			args: args{
+				pod:     makePodWithDeletionTimestamp(&metav1.Time{Time: now.Time.Add(-time.Minute)}, 60),
+				options: makeOption(0),
+			},
+			wantDeletionTimestamp:          &now,
+			wantDeletionGracePeriodSeconds: utilpointer.Int64(0),
+			wantGracePeriodSeconds:         utilpointer.Int64(0),
+			wantGraceful:                   true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -300,6 +342,11 @@ func TestBeforeDelete(t *testing.T) {
 			}
 			if !utilpointer.Int64Equal(tt.args.options.GracePeriodSeconds, tt.wantGracePeriodSeconds) {
 				t.Errorf("options.GracePeriodSeconds = %v, want %v", ptr.Deref(tt.args.options.GracePeriodSeconds, 0), ptr.Deref(tt.wantGracePeriodSeconds, 0))
+			}
+			if tt.wantDeletionTimestamp != nil {
+				if !reflect.DeepEqual(tt.args.pod.DeletionTimestamp, tt.wantDeletionTimestamp) {
+					t.Errorf("pod.deletionTimestamp = %v, want %v", tt.args.pod.DeletionTimestamp, tt.wantDeletionTimestamp)
+				}
 			}
 		})
 	}
