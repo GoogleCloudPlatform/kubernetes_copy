@@ -29,11 +29,16 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	kubeletdevicepluginv1beta1 "k8s.io/kubelet/pkg/apis/deviceplugin/v1beta1"
+	"k8s.io/kubernetes/test/e2e/framework"
 )
 
 type DevicePlugin struct {
-	server     *grpc.Server
-	uniqueName string
+	server       *grpc.Server
+	listener     *net.Listener
+	uniqueName   string
+	resourceName string
+
+	devicePluginEndpoint string
 
 	devices     []kubeletdevicepluginv1beta1.Device
 	devicesSync sync.Mutex
@@ -46,15 +51,55 @@ type DevicePlugin struct {
 	errorInjector func(string) error
 }
 
-func NewDevicePlugin(errorInjector func(string) error) *DevicePlugin {
-	return &DevicePlugin{
+func NewDevicePlugin(resourceName, uniqueName string, defaultEndpoint bool, devices []kubeletdevicepluginv1beta1.Device, errorInjector func(string) error) (*DevicePlugin, error) {
+	var dp = &DevicePlugin{
 		calls:           []string{},
 		devicesUpdateCh: make(chan struct{}),
 		errorInjector:   errorInjector,
+		resourceName:    resourceName,
 	}
+
+	dp.devicesSync.Lock()
+	dp.devices = devices
+	dp.devicesSync.Unlock()
+
+	dp.devicePluginEndpoint = fmt.Sprintf("%s-%s.sock", "test-device-plugin", uniqueName)
+	if defaultEndpoint {
+		dp.devicePluginEndpoint = kubeletdevicepluginv1beta1.DevicePluginPath + dp.devicePluginEndpoint
+	} else {
+		dp.devicePluginEndpoint = "/var/lib/kubelet/" + dp.devicePluginEndpoint
+	}
+
+	dp.uniqueName = uniqueName
+
+	// Implement the logic to register the device plugin with the kubelet
+	// Create a new gRPC server
+	dp.server = grpc.NewServer()
+	// Register the device plugin with the server
+	kubeletdevicepluginv1beta1.RegisterDevicePluginServer(dp.server, dp)
+	// Create a listener on a specific port
+	lis, err := net.Listen("unix", dp.devicePluginEndpoint)
+	dp.listener = &lis
+	if err != nil {
+		return nil, err
+	}
+	// Start the gRPC server
+	go func() {
+		err := dp.server.Serve(lis)
+		framework.Logf("Device plugin server stopped: %v", err)
+		gomega.Expect(err).To(gomega.Succeed())
+	}()
+
+	return dp, nil
+}
+
+func (dp *DevicePlugin) GetEndpoint() string {
+	return dp.devicePluginEndpoint
 }
 
 func (dp *DevicePlugin) GetDevicePluginOptions(context.Context, *kubeletdevicepluginv1beta1.Empty) (*kubeletdevicepluginv1beta1.DevicePluginOptions, error) {
+	framework.Logf("GetDevicePluginOptions called")
+
 	// lock the mutex and add to a list of calls
 	dp.callsSync.Lock()
 	dp.calls = append(dp.calls, "GetDevicePluginOptions")
@@ -79,6 +124,7 @@ func (dp *DevicePlugin) sendDevices(stream kubeletdevicepluginv1beta1.DevicePlug
 }
 
 func (dp *DevicePlugin) ListAndWatch(empty *kubeletdevicepluginv1beta1.Empty, stream kubeletdevicepluginv1beta1.DevicePlugin_ListAndWatchServer) error {
+	framework.Logf("ListAndWatch called")
 	dp.callsSync.Lock()
 	dp.calls = append(dp.calls, "ListAndWatch")
 	dp.callsSync.Unlock()
@@ -146,31 +192,8 @@ func (dp *DevicePlugin) GetPreferredAllocation(ctx context.Context, request *kub
 	return nil, nil
 }
 
-func (dp *DevicePlugin) RegisterDevicePlugin(ctx context.Context, uniqueName, resourceName string, devices []kubeletdevicepluginv1beta1.Device) error {
+func (dp *DevicePlugin) RegisterDevicePlugin(ctx context.Context) error {
 	ginkgo.GinkgoHelper()
-
-	dp.devicesSync.Lock()
-	dp.devices = devices
-	dp.devicesSync.Unlock()
-
-	devicePluginEndpoint := fmt.Sprintf("%s-%s.sock", "test-device-plugin", uniqueName)
-	dp.uniqueName = uniqueName
-
-	// Implement the logic to register the device plugin with the kubelet
-	// Create a new gRPC server
-	dp.server = grpc.NewServer()
-	// Register the device plugin with the server
-	kubeletdevicepluginv1beta1.RegisterDevicePluginServer(dp.server, dp)
-	// Create a listener on a specific port
-	lis, err := net.Listen("unix", kubeletdevicepluginv1beta1.DevicePluginPath+devicePluginEndpoint)
-	if err != nil {
-		return err
-	}
-	// Start the gRPC server
-	go func() {
-		err := dp.server.Serve(lis)
-		gomega.Expect(err).To(gomega.Succeed())
-	}()
 
 	// Create a connection to the kubelet
 	conn, err := grpc.NewClient("unix://"+kubeletdevicepluginv1beta1.KubeletSocket,
@@ -190,8 +213,8 @@ func (dp *DevicePlugin) RegisterDevicePlugin(ctx context.Context, uniqueName, re
 	// Register the device plugin with the kubelet
 	_, err = client.Register(ctx, &kubeletdevicepluginv1beta1.RegisterRequest{
 		Version:      kubeletdevicepluginv1beta1.Version,
-		Endpoint:     devicePluginEndpoint,
-		ResourceName: resourceName,
+		Endpoint:     dp.GetEndpoint(),
+		ResourceName: dp.resourceName,
 	})
 	if err != nil {
 		return err
@@ -200,9 +223,11 @@ func (dp *DevicePlugin) RegisterDevicePlugin(ctx context.Context, uniqueName, re
 }
 
 func (dp *DevicePlugin) Stop() {
+	framework.Logf("Stopping device plugin")
 	if dp.server != nil {
 		dp.server.Stop()
 		dp.server = nil
+		(*dp.listener).Close()
 	}
 }
 

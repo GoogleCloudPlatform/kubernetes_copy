@@ -105,14 +105,14 @@ var _ = SIGDescribe("Device Plugin Failures:", framework.WithNodeConformance(), 
 
 		expectedErr := fmt.Errorf("GetDevicePluginOptions failed")
 
-		plugin := testdeviceplugin.NewDevicePlugin(func(name string) error {
+		plugin, _ := testdeviceplugin.NewDevicePlugin(resourceName, f.UniqueName, true, []kubeletdevicepluginv1beta1.Device{{ID: "testdevice", Health: kubeletdevicepluginv1beta1.Healthy}}, func(name string) error {
 			if name == "GetDevicePluginOptions" {
 				return expectedErr
 			}
 			return nil
 		})
 
-		err := plugin.RegisterDevicePlugin(ctx, f.UniqueName, resourceName, []kubeletdevicepluginv1beta1.Device{{ID: "testdevice", Health: kubeletdevicepluginv1beta1.Healthy}})
+		err := plugin.RegisterDevicePlugin(ctx)
 		defer plugin.Stop() // should stop even if registration failed
 		gomega.Expect(err).To(gomega.MatchError(gomega.ContainSubstring("failed to get device plugin options")))
 		gomega.Expect(err).To(gomega.MatchError(gomega.ContainSubstring(expectedErr.Error())))
@@ -125,13 +125,84 @@ var _ = SIGDescribe("Device Plugin Failures:", framework.WithNodeConformance(), 
 		gomega.Eventually(getNodeResourceValues, nodeStatusUpdateTimeout, f.Timeouts.Poll).WithContext(ctx).WithArguments(resourceName).Should(gomega.Equal(ResourceValue{Allocatable: -1, Capacity: -1}))
 	})
 
+	ginkgo.It("when GetDevicePluginOptions fails with the registrar, device plugin will not be used", func(ctx context.Context) {
+		// randomizing so tests can run in parallel
+		resourceName := fmt.Sprintf("test.device/%s", f.UniqueName)
+
+		expectedErr := fmt.Errorf("GetDevicePluginOptions failed")
+
+		r, err := testdeviceplugin.NewDevicePluginRegistrar(resourceName, f.UniqueName, []kubeletdevicepluginv1beta1.Device{{ID: "testdevice", Health: kubeletdevicepluginv1beta1.Healthy}}, func(name string) error {
+			if name == "GetDevicePluginOptions" {
+				return expectedErr
+			}
+			return nil
+		}, nil)
+
+		defer r.Stop()
+
+		plugin := r.GetDevicePlugin()
+
+		gomega.Expect(err).To(gomega.Succeed())
+
+		// need to wait a bit for kubelet to discover the device plugin
+		gomega.Eventually(plugin.WasCalled, nodeStatusUpdateTimeout, f.Timeouts.Poll).WithArguments("GetDevicePluginOptions").Should(gomega.BeTrueBecause("get device plugin options should be called at least once"))
+		gomega.Expect(plugin.WasCalled("ListAndWatch")).To(gomega.BeFalseBecause("plugin should not be used if GetDevicePluginOptions fails"))
+
+		// kubelet will retry shortly to register the device plugin
+		gomega.Eventually(func() int { return len(plugin.Calls()) }, nodeStatusUpdateTimeout, f.Timeouts.Poll).Should(gomega.BeNumerically(">=", 2))
+
+		// kubelet will not even register the resource
+		gomega.Eventually(getNodeResourceValues, nodeStatusUpdateTimeout, f.Timeouts.Poll).WithContext(ctx).WithArguments(resourceName).Should(gomega.Equal(ResourceValue{Allocatable: -1, Capacity: -1}))
+	})
+
+	ginkgo.It("when kubelet restarts, while using plugin registration, there is no race condition with the pod admission", func(ctx context.Context) {
+		// randomizing so tests can run in parallel
+		resourceName := fmt.Sprintf("test.device/%s", f.UniqueName)
+
+		r, err := testdeviceplugin.NewDevicePluginRegistrar(resourceName, f.UniqueName, []kubeletdevicepluginv1beta1.Device{{ID: "testdevice", Health: kubeletdevicepluginv1beta1.Healthy}}, nil, func(method string) error {
+			if method == "GetInfo" {
+				// sleep for a long time to simulate delay in plugin registration
+				time.Sleep(500 * time.Millisecond) //grpc timeout for plugin registration is 1 second
+			}
+			return nil
+		})
+		defer r.Stop()
+
+		gomega.Expect(err).To(gomega.Succeed())
+
+		plugin := r.GetDevicePlugin()
+
+		// need to wait a bit for kubelet to discover the device plugin
+		ginkgo.By("need to wait a bit for kubelet to discover the device plugin")
+		gomega.Eventually(getNodeResourceValues, nodeStatusUpdateTimeout, f.Timeouts.Poll).WithContext(ctx).WithArguments(resourceName).Should(gomega.Equal(ResourceValue{Allocatable: 1, Capacity: 1}))
+
+		gomega.Expect(plugin.WasCalled("ListAndWatch")).To(gomega.BeTrueBecause("List And Watch should be called at least once"))
+
+		// stop the kubelet to simulate race condition
+		ginkgo.By("stop the kubelet")
+		restartKubelet := stopKubelet()
+
+		// schedule a pod that requests the device
+		client := e2epod.NewPodClient(f)
+		podSpec := createPod(resourceName, 1)
+		podSpec.Spec.NodeName = framework.TestContext.NodeName
+		pod := client.Create(ctx, podSpec)
+
+		ginkgo.By("Restarting the kubelet")
+		restartKubelet()
+
+		// wait for the pod to be running
+		gomega.Expect(e2epod.WaitForPodRunningInNamespace(ctx, f.ClientSet, pod)).To(gomega.Succeed())
+
+	})
+
 	ginkgo.It("will set allocatable to zero when a single device became unhealthy and then back to 1 if it got healthy again", func(ctx context.Context) {
 		// randomizing so tests can run in parallel
 		resourceName := fmt.Sprintf("test.device/%s", f.UniqueName)
 		devices := []kubeletdevicepluginv1beta1.Device{{ID: "testdevice", Health: kubeletdevicepluginv1beta1.Healthy}}
-		plugin := testdeviceplugin.NewDevicePlugin(nil)
+		plugin, _ := testdeviceplugin.NewDevicePlugin(resourceName, f.UniqueName, true, devices, nil)
 
-		err := plugin.RegisterDevicePlugin(ctx, f.UniqueName, resourceName, devices)
+		err := plugin.RegisterDevicePlugin(ctx)
 		defer plugin.Stop() // should stop even if registration failed
 		gomega.Expect(err).To(gomega.Succeed())
 
@@ -155,9 +226,9 @@ var _ = SIGDescribe("Device Plugin Failures:", framework.WithNodeConformance(), 
 		// randomizing so tests can run in parallel
 		resourceName := fmt.Sprintf("test.device/%s", f.UniqueName)
 		devices := []kubeletdevicepluginv1beta1.Device{{ID: "testdevice", Health: kubeletdevicepluginv1beta1.Healthy}}
-		plugin := testdeviceplugin.NewDevicePlugin(nil)
+		plugin, _ := testdeviceplugin.NewDevicePlugin(resourceName, f.UniqueName, true, devices, nil)
 
-		err := plugin.RegisterDevicePlugin(ctx, f.UniqueName, resourceName, devices)
+		err := plugin.RegisterDevicePlugin(ctx)
 		defer plugin.Stop() // should stop even if registration failed
 		gomega.Expect(err).To(gomega.Succeed())
 
@@ -213,9 +284,9 @@ var _ = SIGDescribe("Device Plugin Failures:", framework.WithNodeConformance(), 
 			{ID: "2", Health: kubeletdevicepluginv1beta1.Healthy},
 			{ID: "3", Health: kubeletdevicepluginv1beta1.Healthy},
 		}
-		plugin := testdeviceplugin.NewDevicePlugin(nil)
+		plugin, _ := testdeviceplugin.NewDevicePlugin(resourceName, f.UniqueName, true, devices, nil)
 
-		err := plugin.RegisterDevicePlugin(ctx, f.UniqueName, resourceName, devices)
+		err := plugin.RegisterDevicePlugin(ctx)
 		defer plugin.Stop() // should stop even if registration failed
 		gomega.Expect(err).To(gomega.Succeed())
 
@@ -262,14 +333,14 @@ var _ = SIGDescribe("Device Plugin Failures:", framework.WithNodeConformance(), 
 		// Initially, there are no allocatable of this resource
 		gomega.Eventually(getNodeResourceValues, nodeStatusUpdateTimeout, f.Timeouts.Poll).WithContext(ctx).WithArguments(resourceName).Should(gomega.Equal(ResourceValue{Allocatable: -1, Capacity: -1}))
 
-		plugin := testdeviceplugin.NewDevicePlugin(func(name string) error {
+		plugin, _ := testdeviceplugin.NewDevicePlugin(resourceName, f.UniqueName, true, devices, func(name string) error {
 			if name == "ListAndWatch" {
 				return fmt.Errorf("ListAndWatch failed")
 			}
 			return nil
 		})
 
-		err := plugin.RegisterDevicePlugin(ctx, f.UniqueName, resourceName, devices)
+		err := plugin.RegisterDevicePlugin(ctx)
 		defer plugin.Stop() // should stop even if registration failed
 		gomega.Expect(err).To(gomega.Succeed())
 
@@ -292,7 +363,7 @@ var _ = SIGDescribe("Device Plugin Failures:", framework.WithNodeConformance(), 
 		}
 
 		failing := false
-		plugin := testdeviceplugin.NewDevicePlugin(func(name string) error {
+		plugin, _ := testdeviceplugin.NewDevicePlugin(resourceName, f.UniqueName, true, devices, func(name string) error {
 			if name == "ListAndWatch" {
 				if failing {
 					return fmt.Errorf("ListAndWatch failed")
@@ -301,7 +372,7 @@ var _ = SIGDescribe("Device Plugin Failures:", framework.WithNodeConformance(), 
 			return nil
 		})
 
-		err := plugin.RegisterDevicePlugin(ctx, f.UniqueName, resourceName, devices)
+		err := plugin.RegisterDevicePlugin(ctx)
 		defer plugin.Stop() // should stop even if registration failed
 		gomega.Expect(err).To(gomega.Succeed())
 
@@ -334,9 +405,9 @@ var _ = SIGDescribe("Device Plugin Failures:", framework.WithNodeConformance(), 
 
 		gomega.Eventually(getNodeResourceValues, nodeStatusUpdateTimeout, f.Timeouts.Poll).WithContext(ctx).WithArguments(resourceName).Should(gomega.Equal(ResourceValue{Allocatable: -1, Capacity: -1}))
 
-		plugin := testdeviceplugin.NewDevicePlugin(nil)
+		plugin, _ := testdeviceplugin.NewDevicePlugin(resourceName, f.UniqueName, true, devices, nil)
 
-		err := plugin.RegisterDevicePlugin(ctx, f.UniqueName, resourceName, devices)
+		err := plugin.RegisterDevicePlugin(ctx)
 		defer plugin.Stop() // should stop even if registration failed
 		gomega.Expect(err).To(gomega.Succeed())
 
