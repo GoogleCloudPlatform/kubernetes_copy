@@ -26,7 +26,7 @@ type String map[string]Empty
 
 // NewString creates a String from a list of values.
 func NewString(items ...string) String {
-	return String(New[string](items...))
+	return String(New(items...))
 }
 
 // StringKeySet creates a String from a keys of a map[string](? extends interface{}).

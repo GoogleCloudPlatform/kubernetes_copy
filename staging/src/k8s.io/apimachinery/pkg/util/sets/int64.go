@@ -26,7 +26,7 @@ type Int64 map[int64]Empty
 
 // NewInt64 creates a Int64 from a list of values.
 func NewInt64(items ...int64) Int64 {
-	return Int64(New[int64](items...))
+	return Int64(New(items...))
 }
 
 // Int64KeySet creates a Int64 from a keys of a map[int64](? extends interface{}).

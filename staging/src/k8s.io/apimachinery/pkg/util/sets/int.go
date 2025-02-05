@@ -26,7 +26,7 @@ type Int map[int]Empty
 
 // NewInt creates a Int from a list of values.
 func NewInt(items ...int) Int {
-	return Int(New[int](items...))
+	return Int(New(items...))
 }
 
 // IntKeySet creates a Int from a keys of a map[int](? extends interface{}).

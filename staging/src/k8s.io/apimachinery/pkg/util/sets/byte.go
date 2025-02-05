@@ -26,7 +26,7 @@ type Byte map[byte]Empty
 
 // NewByte creates a Byte from a list of values.
 func NewByte(items ...byte) Byte {
-	return Byte(New[byte](items...))
+	return Byte(New(items...))
 }
 
 // ByteKeySet creates a Byte from a keys of a map[byte](? extends interface{}).

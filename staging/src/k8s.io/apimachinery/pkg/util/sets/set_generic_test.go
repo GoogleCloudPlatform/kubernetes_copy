@@ -147,7 +147,7 @@ func TestNewSet(t *testing.T) {
 
 func TestKeySet(t *testing.T) {
 	m := map[string]int{"a": 1, "b": 2, "c": 3}
-	ss := sets.KeySet[string](m)
+	ss := sets.KeySet(m)
 	if !ss.Equal(sets.New("a", "b", "c")) {
 		t.Errorf("Unexpected contents: %#v", sets.List(ss))
 	}

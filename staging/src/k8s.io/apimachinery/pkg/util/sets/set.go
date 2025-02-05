@@ -191,7 +191,7 @@ func (s1 Set[T]) Equal(s2 Set[T]) bool {
 type sortableSliceOfGeneric[T cmp.Ordered] []T
 
 func (g sortableSliceOfGeneric[T]) Len() int           { return len(g) }
-func (g sortableSliceOfGeneric[T]) Less(i, j int) bool { return less[T](g[i], g[j]) }
+func (g sortableSliceOfGeneric[T]) Less(i, j int) bool { return less(g[i], g[j]) }
 func (g sortableSliceOfGeneric[T]) Swap(i, j int)      { g[i], g[j] = g[j], g[i] }
 
 // List returns the contents as a sorted T slice.
