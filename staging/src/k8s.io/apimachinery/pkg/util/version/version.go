@@ -467,13 +467,14 @@ func (v *Version) Info() *apimachineryversion.Info {
 	if v == nil {
 		return nil
 	}
+	result := v.info
 	// in case info is empty, or the major and minor in info is different from the actual major and minor
-	v.info.Major = itoa(v.Major())
-	v.info.Minor = itoa(v.Minor())
-	if v.info.GitVersion == "" {
-		v.info.GitVersion = v.String()
+	result.Major = itoa(v.Major())
+	result.Minor = itoa(v.Minor())
+	if result.GitVersion == "" {
+		result.GitVersion = v.String()
 	}
-	return &v.info
+	return &result
 }
 
 func itoa(i uint) string {
