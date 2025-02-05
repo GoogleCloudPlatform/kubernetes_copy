@@ -605,7 +605,7 @@ func MonitorRequest(req *http.Request, verb, group, version, resource, subresour
 		requestSliLatencies.WithContext(req.Context()).WithLabelValues(reportedVerb, group, version, resource, subresource, scope, component).Observe(sliLatency)
 	}
 	// We are only interested in response sizes of read requests.
-	if verb == "GET" || verb == "LIST" {
+	if verb == "GET" || verb == "LIST" || verb == "WATCH" {
 		responseSizes.WithContext(req.Context()).WithLabelValues(reportedVerb, group, version, resource, subresource, scope, component).Observe(float64(respSize))
 	}
 }
