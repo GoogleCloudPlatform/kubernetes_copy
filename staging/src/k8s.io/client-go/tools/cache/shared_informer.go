@@ -20,11 +20,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"sync"
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/naming"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/cache/synctrack"
@@ -303,7 +305,12 @@ func NewSharedIndexInformer(lw ListerWatcher, exampleObject runtime.Object, defa
 func NewSharedIndexInformerWithOptions(lw ListerWatcher, exampleObject runtime.Object, options SharedIndexInformerOptions) SharedIndexInformer {
 	realClock := &clock.RealClock{}
 
+	informerName := naming.GetNameFromCallsite(internalPackages...)
+	metricName := makeValidPromethusMetricName(fmt.Sprintf("informer_%s_objectType_%s", informerName, reflect.TypeOf(exampleObject).String()))
+
 	return &sharedIndexInformer{
+		name:                            informerName,
+		metrics:                         newInformerMetrics(metricName),
 		indexer:                         NewIndexer(DeletionHandlingMetaNamespaceKeyFunc, options.Indexers),
 		processor:                       &sharedProcessor{clock: realClock},
 		listerWatcher:                   lw,
@@ -414,6 +421,8 @@ func WaitForCacheSync(stopCh <-chan struct{}, cacheSyncs ...InformerSynced) bool
 // sharedProcessor, which is responsible for relaying those
 // notifications to each of the informer's clients.
 type sharedIndexInformer struct {
+	name string
+
 	indexer    Indexer
 	controller Controller
 
@@ -450,6 +459,9 @@ type sharedIndexInformer struct {
 	watchErrorHandler WatchErrorHandlerWithContext
 
 	transform TransformFunc
+
+	// metrics tracks basic metric information about the informer.
+	metrics *informerMetrics
 }
 
 // dummyController hides the fact that a SharedInformer is different from a dedicated one
@@ -548,6 +560,7 @@ func (s *sharedIndexInformer) RunWithContext(ctx context.Context) {
 				KnownObjects:          s.indexer,
 				EmitDeltaTypeReplaced: true,
 				Transformer:           s.transform,
+				Metrics:               s.metrics,
 			})
 		}
 
@@ -693,7 +706,7 @@ func (s *sharedIndexInformer) AddEventHandlerWithOptions(handler ResourceEventHa
 		}
 	}
 
-	listener := newProcessListener(logger, handler, resyncPeriod, determineResyncPeriod(logger, resyncPeriod, s.resyncCheckPeriod), s.clock.Now(), initialBufferSize, s.HasSynced)
+	listener := newProcessListener(logger, s.name, handler, resyncPeriod, determineResyncPeriod(logger, resyncPeriod, s.resyncCheckPeriod), s.clock.Now(), initialBufferSize, s.HasSynced)
 
 	if !s.started {
 		return s.processor.addListener(listener), nil
@@ -954,7 +967,9 @@ func (p *sharedProcessor) resyncCheckPeriodChanged(logger klog.Logger, resyncChe
 // processorListener also keeps track of the adjusted requested resync
 // period of the listener.
 type processorListener struct {
+	name   string
 	logger klog.Logger
+
 	nextCh chan interface{}
 	addCh  chan interface{}
 
@@ -990,6 +1005,9 @@ type processorListener struct {
 	nextResync time.Time
 	// resyncLock guards access to resyncPeriod and nextResync
 	resyncLock sync.Mutex
+
+	// metrics tracks basic metric information about the listener.
+	metrics *eventHandlerMetrics
 }
 
 // HasSynced returns true if the source informer has synced, and all
@@ -998,9 +1016,19 @@ func (p *processorListener) HasSynced() bool {
 	return p.syncTracker.HasSynced()
 }
 
-func newProcessListener(logger klog.Logger, handler ResourceEventHandler, requestedResyncPeriod, resyncPeriod time.Duration, now time.Time, bufferSize int, hasSynced func() bool) *processorListener {
+func newProcessListener(logger klog.Logger, name string, handler ResourceEventHandler, requestedResyncPeriod, resyncPeriod time.Duration, now time.Time, bufferSize int, hasSynced func() bool) *processorListener {
+	listenerName := makeValidPromethusMetricName(fmt.Sprintf("listener_%s_%T", name, handler))
+
+	metrics := &eventHandlerMetrics{
+		numberOfPendingNotifications: sharedInformerMetricsFactory.getMetricsProvider().NewPendingNotificationsTotalMetric(listenerName),
+		sizeOfRingGrowing:            sharedInformerMetricsFactory.getMetricsProvider().NewRingGrowingCapacityMetric(listenerName),
+		processDuration:              sharedInformerMetricsFactory.getMetricsProvider().NewEventProcessingDurationMetric(listenerName),
+	}
+
 	ret := &processorListener{
 		logger:                logger,
+		metrics:               metrics,
+		name:                  listenerName,
 		nextCh:                make(chan interface{}),
 		addCh:                 make(chan interface{}),
 		handler:               handler,
@@ -1060,11 +1088,19 @@ func (p *processorListener) run() {
 	//
 	// This only applies if utilruntime is configured to not panic, which is not the default.
 	sleepAfterCrash := false
+	metricsUpdateCounter := 0
+	lastMetricsUpdate := time.Now()
+	const (
+		metricsUpdateInterval = 5 * time.Second
+		metricsUpdateBatch    = 100
+	)
+
 	for next := range p.nextCh {
 		if sleepAfterCrash {
 			// Sleep before processing the next item.
 			time.Sleep(time.Second)
 		}
+		startTime := time.Now()
 		func() {
 			// Gets reset below, but only if we get that far.
 			sleepAfterCrash = true
@@ -1084,6 +1120,22 @@ func (p *processorListener) run() {
 				utilruntime.HandleErrorWithLogger(p.logger, nil, "unrecognized notification", "notificationType", fmt.Sprintf("%T", next))
 			}
 			sleepAfterCrash = false
+
+			// Note: There is a data race here when multiple goroutines read/write the queue concurrently.
+			// However, since these are just metrics and some inaccuracy is acceptable,
+			// we choose not to add locks to avoid the performance overhead.
+			// This is an intentional trade-off between accuracy and performance.
+			//
+			// TODO: This requires implementing Len() and Capacity() for ring growing
+			metricsUpdateCounter++
+			if metricsUpdateCounter >= metricsUpdateBatch || time.Since(lastMetricsUpdate) >= metricsUpdateInterval {
+				p.metrics.processDuration.Observe(time.Since(startTime).Seconds())
+				// p.metrics.numberOfPendingNotifications.Set(p.pendingNotifications.Len())
+				// p.metrics.sizeOfRingGrowing.Set(float64(p.pendingNotifications.Capacity()))
+
+				metricsUpdateCounter = 0
+				lastMetricsUpdate = time.Now()
+			}
 		}()
 	}
 }
