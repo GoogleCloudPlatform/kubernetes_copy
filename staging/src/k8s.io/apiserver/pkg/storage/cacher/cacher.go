@@ -374,7 +374,7 @@ func NewCacherFromConfig(config Config) (*Cacher, error) {
 	objType := reflect.TypeOf(obj)
 	cacher := &Cacher{
 		resourcePrefix: config.ResourcePrefix,
-		ready:          newReady(),
+		ready:          newReady(config.Clock),
 		storage:        config.Storage,
 		objectType:     objType,
 		groupResource:  config.GroupResource,
@@ -506,9 +506,10 @@ func (c *Cacher) Watch(ctx context.Context, key string, opts storage.ListOptions
 	var readyGeneration int
 	if utilfeature.DefaultFeatureGate.Enabled(features.ResilientWatchCacheInitialization) {
 		var ok bool
-		readyGeneration, ok = c.ready.checkAndReadGeneration()
+		var downtime time.Duration
+		readyGeneration, downtime, ok = c.ready.checkAndReadGeneration()
 		if !ok {
-			return nil, errors.NewTooManyRequests("storage is (re)initializing", 1)
+			return nil, errors.NewTooManyRequests("storage is (re)initializing", calculateRetryAfterForUnreadyCache(downtime))
 		}
 	} else {
 		readyGeneration, err = c.ready.waitAndReadGeneration(ctx)
@@ -629,7 +630,7 @@ func (c *Cacher) Watch(ctx context.Context, key string, opts storage.ListOptions
 		c.Lock()
 		defer c.Unlock()
 
-		if generation, ok := c.ready.checkAndReadGeneration(); generation != readyGeneration || !ok {
+		if generation, _, ok := c.ready.checkAndReadGeneration(); generation != readyGeneration || !ok {
 			// We went unready or are already on a different generation.
 			// Avoid registering and starting the watch as it will have to be
 			// terminated immediately anyway.
@@ -783,10 +784,10 @@ func (c *Cacher) GetList(ctx context.Context, key string, opts storage.ListOptio
 	defer span.End(500 * time.Millisecond)
 
 	if utilfeature.DefaultFeatureGate.Enabled(features.ResilientWatchCacheInitialization) {
-		if !c.ready.check() {
+		if downtime, ok := c.ready.check(); !ok {
 			// If Cacher is not initialized, reject List requests
 			// as described in https://kep.k8s.io/4568
-			return errors.NewTooManyRequests("storage is (re)initializing", 1)
+			return errors.NewTooManyRequests("storage is (re)initializing", calculateRetryAfterForUnreadyCache(downtime))
 		}
 	} else {
 		if err := c.ready.wait(ctx); err != nil {
@@ -1338,7 +1339,8 @@ func (c *Cacher) setInitialEventsEndBookmarkIfRequested(cacheInterval *watchCach
 }
 
 func (c *Cacher) Ready() bool {
-	return c.ready.check()
+	_, ok := c.ready.check()
+	return ok
 }
 
 // errWatcher implements watch.Interface to return a single error

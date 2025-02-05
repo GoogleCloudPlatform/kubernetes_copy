@@ -21,11 +21,13 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	testingclock "k8s.io/utils/clock/testing"
 )
 
 func Test_newReady(t *testing.T) {
 	errCh := make(chan error, 10)
-	ready := newReady()
+	ready := newReady(testingclock.NewFakeClock(time.Now()))
 	ready.set(false)
 	// create 10 goroutines waiting for ready
 	for i := 0; i < 10; i++ {
@@ -48,20 +50,20 @@ func Test_newReady(t *testing.T) {
 
 func Test_newReadySetIdempotent(t *testing.T) {
 	errCh := make(chan error, 10)
-	ready := newReady()
+	ready := newReady(testingclock.NewFakeClock(time.Now()))
 	ready.set(false)
 	ready.set(false)
 	ready.set(false)
-	if generation, ok := ready.checkAndReadGeneration(); generation != 0 || ok {
+	if generation, _, ok := ready.checkAndReadGeneration(); generation != 0 || ok {
 		t.Errorf("unexpected state: generation=%v ready=%v", generation, ok)
 	}
 	ready.set(true)
-	if generation, ok := ready.checkAndReadGeneration(); generation != 1 || !ok {
+	if generation, _, ok := ready.checkAndReadGeneration(); generation != 1 || !ok {
 		t.Errorf("unexpected state: generation=%v ready=%v", generation, ok)
 	}
 	ready.set(true)
 	ready.set(true)
-	if generation, ok := ready.checkAndReadGeneration(); generation != 1 || !ok {
+	if generation, _, ok := ready.checkAndReadGeneration(); generation != 1 || !ok {
 		t.Errorf("unexpected state: generation=%v ready=%v", generation, ok)
 	}
 	ready.set(false)
@@ -77,7 +79,7 @@ func Test_newReadySetIdempotent(t *testing.T) {
 		t.Errorf("ready should be blocking")
 	}
 	ready.set(true)
-	if generation, ok := ready.checkAndReadGeneration(); generation != 2 || !ok {
+	if generation, _, ok := ready.checkAndReadGeneration(); generation != 2 || !ok {
 		t.Errorf("unexpected state: generation=%v ready=%v", generation, ok)
 	}
 	for i := 0; i < 10; i++ {
@@ -92,7 +94,7 @@ func Test_newReadySetIdempotent(t *testing.T) {
 func Test_newReadyRacy(t *testing.T) {
 	concurrency := 1000
 	errCh := make(chan error, concurrency)
-	ready := newReady()
+	ready := newReady(testingclock.NewFakeClock(time.Now()))
 	ready.set(false)
 
 	wg := sync.WaitGroup{}
@@ -123,7 +125,7 @@ func Test_newReadyRacy(t *testing.T) {
 
 func Test_newReadyStop(t *testing.T) {
 	errCh := make(chan error, 10)
-	ready := newReady()
+	ready := newReady(testingclock.NewFakeClock(time.Now()))
 	ready.set(false)
 	// create 10 goroutines waiting for ready and stop
 	for i := 0; i < 10; i++ {
@@ -145,24 +147,24 @@ func Test_newReadyStop(t *testing.T) {
 }
 
 func Test_newReadyCheck(t *testing.T) {
-	ready := newReady()
+	ready := newReady(testingclock.NewFakeClock(time.Now()))
 	// it starts as false
-	if ready.check() {
-		t.Errorf("unexpected ready state %v", ready.check())
+	if _, ok := ready.check(); ok {
+		t.Errorf("unexpected ready state %v", ok)
 	}
 	ready.set(true)
-	if !ready.check() {
-		t.Errorf("unexpected ready state %v", ready.check())
+	if _, ok := ready.check(); !ok {
+		t.Errorf("unexpected ready state %v", ok)
 	}
 	// stop sets ready to false
 	ready.stop()
-	if ready.check() {
-		t.Errorf("unexpected ready state %v", ready.check())
+	if _, ok := ready.check(); ok {
+		t.Errorf("unexpected ready state %v", ok)
 	}
 	// can not set to true if is stopped
 	ready.set(true)
-	if ready.check() {
-		t.Errorf("unexpected ready state %v", ready.check())
+	if _, ok := ready.check(); ok {
+		t.Errorf("unexpected ready state %v", ok)
 	}
 	err := ready.wait(context.Background())
 	if err == nil {
@@ -172,7 +174,7 @@ func Test_newReadyCheck(t *testing.T) {
 
 func Test_newReadyCancelPending(t *testing.T) {
 	errCh := make(chan error, 10)
-	ready := newReady()
+	ready := newReady(testingclock.NewFakeClock(time.Now()))
 	ready.set(false)
 	ctx, cancel := context.WithCancel(context.Background())
 	// create 10 goroutines stuck on pending
@@ -192,4 +194,40 @@ func Test_newReadyCancelPending(t *testing.T) {
 			t.Errorf("unexpected success on channel %d", i)
 		}
 	}
+}
+
+func Test_newReadyStateChangeTimestamp(t *testing.T) {
+	fakeClock := testingclock.NewFakeClock(time.Now())
+	fakeClock.SetTime(time.Now())
+	assertLastStateChangeTSFunc := func(target *ready, expectedLastStateChangeDuration time.Duration) {
+		if lastStateChangeDuration, _ := target.check(); lastStateChangeDuration != expectedLastStateChangeDuration {
+			t.Errorf("unexpected last state change duration: %v, expected: %v", lastStateChangeDuration, expectedLastStateChangeDuration)
+		}
+	}
+
+	ready := newReady(fakeClock)
+	fakeClock.Step(time.Minute)
+	assertLastStateChangeTSFunc(ready, time.Minute)
+
+	ready.set(true)
+	fakeClock.Step(time.Minute)
+	assertLastStateChangeTSFunc(ready, time.Minute)
+	fakeClock.Step(time.Minute)
+	assertLastStateChangeTSFunc(ready, 2*time.Minute)
+
+	ready.set(false)
+	fakeClock.Step(time.Minute)
+	assertLastStateChangeTSFunc(ready, time.Minute)
+	fakeClock.Step(time.Minute)
+	assertLastStateChangeTSFunc(ready, 2*time.Minute)
+
+	ready.set(true)
+	fakeClock.Step(time.Minute)
+	assertLastStateChangeTSFunc(ready, time.Minute)
+
+	ready.stop()
+	fakeClock.Step(time.Minute)
+	assertLastStateChangeTSFunc(ready, time.Minute)
+	fakeClock.Step(time.Minute)
+	assertLastStateChangeTSFunc(ready, 2*time.Minute)
 }
