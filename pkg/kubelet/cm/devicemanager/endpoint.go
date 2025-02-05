@@ -22,6 +22,7 @@ import (
 	"sync"
 	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	pluginapi "k8s.io/kubelet/pkg/apis/deviceplugin/v1beta1"
 	plugin "k8s.io/kubernetes/pkg/kubelet/cm/devicemanager/plugin/v1beta1"
 )
@@ -39,19 +40,21 @@ type endpoint interface {
 }
 
 type endpointImpl struct {
-	mutex        sync.Mutex
-	resourceName string
-	api          pluginapi.DevicePluginClient
-	stopTime     time.Time
-	client       plugin.Client // for testing only
+	mutex          sync.Mutex
+	resourceName   string
+	api            pluginapi.DevicePluginClient
+	stopTime       time.Time
+	client         plugin.Client // for testing only
+	requestTimeout metav1.Duration
 }
 
 // newEndpointImpl creates a new endpoint for the given resourceName.
 // This is to be used during normal device plugin registration.
 func newEndpointImpl(p plugin.DevicePlugin) *endpointImpl {
 	return &endpointImpl{
-		api:          p.API(),
-		resourceName: p.Resource(),
+		api:            p.API(),
+		resourceName:   p.Resource(),
+		requestTimeout: metav1.Duration{Duration: 2 * time.Minute},
 	}
 }
 
@@ -103,7 +106,9 @@ func (e *endpointImpl) allocate(devs []string) (*pluginapi.AllocateResponse, err
 	if e.isStopped() {
 		return nil, fmt.Errorf(errEndpointStopped, e)
 	}
-	return e.api.Allocate(context.Background(), &pluginapi.AllocateRequest{
+	ctx, cancel := context.WithTimeout(context.Background(), e.requestTimeout.Duration)
+	defer cancel()
+	return e.api.Allocate(ctx, &pluginapi.AllocateRequest{
 		ContainerRequests: []*pluginapi.ContainerAllocateRequest{
 			{DevicesIDs: devs},
 		},
