@@ -374,7 +374,7 @@ func (c *Controller) reconcileElectionStep(ctx context.Context, leaseNN types.Na
 	orig := existing.DeepCopy()
 
 	isExpired := isLeaseExpired(c.clock, existing)
-	noHolderIdentity := leaderLease.Spec.HolderIdentity != nil && existing.Spec.HolderIdentity == nil || *existing.Spec.HolderIdentity == ""
+	noHolderIdentity := leaderLease.Spec.HolderIdentity != nil && (existing.Spec.HolderIdentity == nil || *existing.Spec.HolderIdentity == "")
 	expiredAndNewHolder := isExpired && leaderLease.Spec.HolderIdentity != nil && *existing.Spec.HolderIdentity != *leaderLease.Spec.HolderIdentity
 	strategyChanged := existing.Spec.Strategy == nil || *existing.Spec.Strategy != strategy
 	differentHolder := leaderLease.Spec.HolderIdentity != nil && *leaderLease.Spec.HolderIdentity != *existing.Spec.HolderIdentity
@@ -402,7 +402,13 @@ func (c *Controller) reconcileElectionStep(ctx context.Context, leaseNN types.Na
 	}
 
 	if reflect.DeepEqual(existing, orig) {
-		klog.V(5).Infof("Lease %s already has the most optimal leader %q", leaseNN, *existing.Spec.HolderIdentity)
+		leader := ""
+		if existing.Spec.HolderIdentity != nil {
+			leader = *existing.Spec.HolderIdentity
+			klog.V(5).Infof("Lease %s is managed by a third party strategy", leader)
+		} else {
+			klog.V(5).Infof("Lease %s already has the most optimal leader %q", leaseNN, leader)
+		}
 		// We need to requeue to ensure that we are aware of an expired lease
 		return defaultRequeueInterval, nil
 	}
