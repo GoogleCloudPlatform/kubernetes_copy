@@ -158,7 +158,7 @@ func NewCmdCreateIngress(f cmdutil.Factory, ioStreams genericiooptions.IOStreams
 	cmdutil.AddValidateFlags(cmd)
 	cmdutil.AddDryRunFlag(cmd)
 	cmd.Flags().StringVar(&o.IngressClass, "class", o.IngressClass, "Ingress Class to be used")
-	cmd.Flags().StringArrayVar(&o.Rules, "rule", o.Rules, "Rule in format host/path=service:port[,tls=secretname]. Paths containing the leading character '*' are considered pathType=Prefix. tls argument is optional.")
+	cmd.Flags().StringArrayVar(&o.Rules, "rule", o.Rules, "Rule in format host/path=service:port[,tls=secretname]. Paths containing the trailing character '*' are considered pathType=Prefix. tls argument is optional.")
 	cmd.Flags().StringVar(&o.DefaultBackend, "default-backend", o.DefaultBackend, "Default service for backend, in format of svcname:port")
 	cmd.Flags().StringArrayVar(&o.Annotations, "annotation", o.Annotations, "Annotation to insert in the ingress object, in the format annotation=value")
 	cmdutil.AddFieldManagerFlagVar(cmd, &o.FieldManager, "kubectl-create")
