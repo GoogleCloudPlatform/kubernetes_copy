@@ -20,7 +20,6 @@ import (
 	"fmt"
 
 	apidiscovery "k8s.io/api/apidiscovery/v2"
-	apidiscoveryv2beta1 "k8s.io/api/apidiscovery/v2beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
@@ -142,127 +141,6 @@ func convertAPIResource(in apidiscovery.APIResourceDiscovery) (metav1.APIResourc
 
 // convertAPISubresource tranforms a APISubresourceDiscovery to an APIResource.
 func convertAPISubresource(parent metav1.APIResource, in apidiscovery.APISubresourceDiscovery) (metav1.APIResource, error) {
-	result := metav1.APIResource{}
-	if in.ResponseKind == nil || (*in.ResponseKind) == emptyKind {
-		return result, fmt.Errorf("subresource %s/%s missing GVK", parent.Name, in.Subresource)
-	}
-	result.Name = fmt.Sprintf("%s/%s", parent.Name, in.Subresource)
-	result.SingularName = parent.SingularName
-	result.Namespaced = parent.Namespaced
-	result.Group = in.ResponseKind.Group
-	result.Version = in.ResponseKind.Version
-	result.Kind = in.ResponseKind.Kind
-	result.Verbs = in.Verbs
-	return result, nil
-}
-
-// Please note the functions below will be removed in v1.33. They facilitate conversion
-// between the deprecated type apidiscoveryv2beta1.APIGroupDiscoveryList.
-
-// SplitGroupsAndResourcesV2Beta1 transforms "aggregated" discovery top-level structure into
-// the previous "unaggregated" discovery groups and resources.
-// Deprecated: Please use SplitGroupsAndResources
-func SplitGroupsAndResourcesV2Beta1(aggregatedGroups apidiscoveryv2beta1.APIGroupDiscoveryList) (
-	*metav1.APIGroupList,
-	map[schema.GroupVersion]*metav1.APIResourceList,
-	map[schema.GroupVersion]error) {
-	// Aggregated group list will contain the entirety of discovery, including
-	// groups, versions, and resources. GroupVersions marked "stale" are failed.
-	groups := []*metav1.APIGroup{}
-	failedGVs := map[schema.GroupVersion]error{}
-	resourcesByGV := map[schema.GroupVersion]*metav1.APIResourceList{}
-	for _, aggGroup := range aggregatedGroups.Items {
-		group, resources, failed := convertAPIGroupv2beta1(aggGroup)
-		groups = append(groups, group)
-		for gv, resourceList := range resources {
-			resourcesByGV[gv] = resourceList
-		}
-		for gv, err := range failed {
-			failedGVs[gv] = err
-		}
-	}
-	// Transform slice of groups to group list before returning.
-	groupList := &metav1.APIGroupList{}
-	groupList.Groups = make([]metav1.APIGroup, 0, len(groups))
-	for _, group := range groups {
-		groupList.Groups = append(groupList.Groups, *group)
-	}
-	return groupList, resourcesByGV, failedGVs
-}
-
-// convertAPIGroupv2beta1 tranforms an "aggregated" APIGroupDiscovery to an "legacy" APIGroup,
-// also returning the map of APIResourceList for resources within GroupVersions.
-func convertAPIGroupv2beta1(g apidiscoveryv2beta1.APIGroupDiscovery) (
-	*metav1.APIGroup,
-	map[schema.GroupVersion]*metav1.APIResourceList,
-	map[schema.GroupVersion]error) {
-	// Iterate through versions to convert to group and resources.
-	group := &metav1.APIGroup{}
-	gvResources := map[schema.GroupVersion]*metav1.APIResourceList{}
-	failedGVs := map[schema.GroupVersion]error{}
-	group.Name = g.ObjectMeta.Name
-	for _, v := range g.Versions {
-		gv := schema.GroupVersion{Group: g.Name, Version: v.Version}
-		if v.Freshness == apidiscoveryv2beta1.DiscoveryFreshnessStale {
-			failedGVs[gv] = StaleGroupVersionError{gv: gv}
-			continue
-		}
-		version := metav1.GroupVersionForDiscovery{}
-		version.GroupVersion = gv.String()
-		version.Version = v.Version
-		group.Versions = append(group.Versions, version)
-		// PreferredVersion is first non-stale Version
-		if group.PreferredVersion == (metav1.GroupVersionForDiscovery{}) {
-			group.PreferredVersion = version
-		}
-		resourceList := &metav1.APIResourceList{}
-		resourceList.GroupVersion = gv.String()
-		for _, r := range v.Resources {
-			resource, err := convertAPIResourcev2beta1(r)
-			if err == nil {
-				resourceList.APIResources = append(resourceList.APIResources, resource)
-			}
-			// Subresources field in new format get transformed into full APIResources.
-			// It is possible a partial result with an error was returned to be used
-			// as the parent resource for the subresource.
-			for _, subresource := range r.Subresources {
-				sr, err := convertAPISubresourcev2beta1(resource, subresource)
-				if err == nil {
-					resourceList.APIResources = append(resourceList.APIResources, sr)
-				}
-			}
-		}
-		gvResources[gv] = resourceList
-	}
-	return group, gvResources, failedGVs
-}
-
-// convertAPIResource tranforms a APIResourceDiscovery to an APIResource. We are
-// resilient to missing GVK, since this resource might be the parent resource
-// for a subresource. If the parent is missing a GVK, it is not returned in
-// discovery, and the subresource MUST have the GVK.
-func convertAPIResourcev2beta1(in apidiscoveryv2beta1.APIResourceDiscovery) (metav1.APIResource, error) {
-	result := metav1.APIResource{
-		Name:         in.Resource,
-		SingularName: in.SingularResource,
-		Namespaced:   in.Scope == apidiscoveryv2beta1.ScopeNamespace,
-		Verbs:        in.Verbs,
-		ShortNames:   in.ShortNames,
-		Categories:   in.Categories,
-	}
-	// Can return partial result with error, which can be the parent for a
-	// subresource. Do not add this result to the returned discovery resources.
-	if in.ResponseKind == nil || (*in.ResponseKind) == emptyKind {
-		return result, fmt.Errorf("discovery resource %s missing GVK", in.Resource)
-	}
-	result.Group = in.ResponseKind.Group
-	result.Version = in.ResponseKind.Version
-	result.Kind = in.ResponseKind.Kind
-	return result, nil
-}
-
-// convertAPISubresource tranforms a APISubresourceDiscovery to an APIResource.
-func convertAPISubresourcev2beta1(parent metav1.APIResource, in apidiscoveryv2beta1.APISubresourceDiscovery) (metav1.APIResource, error) {
 	result := metav1.APIResource{}
 	if in.ResponseKind == nil || (*in.ResponseKind) == emptyKind {
 		return result, fmt.Errorf("subresource %s/%s missing GVK", parent.Name, in.Subresource)

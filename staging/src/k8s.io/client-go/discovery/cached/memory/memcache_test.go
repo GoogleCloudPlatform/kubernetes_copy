@@ -1416,7 +1416,7 @@ func TestMemCacheAggregatedServerGroups(t *testing.T) {
 			output, err := json.Marshal(agg)
 			require.NoError(t, err)
 			// Content-type is "aggregated" discovery format.
-			w.Header().Set("Content-Type", discovery.AcceptV2Beta1)
+			w.Header().Set("Content-Type", discovery.AcceptV2)
 			w.WriteHeader(http.StatusOK)
 			w.Write(output)
 		}))
