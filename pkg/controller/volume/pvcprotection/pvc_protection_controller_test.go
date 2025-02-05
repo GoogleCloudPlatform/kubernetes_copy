@@ -503,6 +503,7 @@ func TestPVCProtectionController(t *testing.T) {
 		if !test.informersAreLate {
 			informersObjs = append(informersObjs, test.initialObjects...)
 		}
+
 		// Create client with initial data
 		client := fake.NewSimpleClientset(clientObjs...)
 
@@ -567,7 +568,6 @@ func TestPVCProtectionController(t *testing.T) {
 					ctrl.processPVCsByNamespace(ctx)
 				}
 			}
-
 			if ctrl.queue.Len() > 0 {
 				// There is still some work in the queue, process it now
 				continue

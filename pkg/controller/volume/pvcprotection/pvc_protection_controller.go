@@ -377,7 +377,7 @@ func (c *Controller) podUsesPVC(logger klog.Logger, pod *v1.Pod, pvc *v1.Persist
 	// starting a pod referencing a PVC with a non-nil deletionTimestamp.
 	if pod.Spec.NodeName != "" {
 		for _, volume := range pod.Spec.Volumes {
-			if volume.PersistentVolumeClaim != nil && volume.PersistentVolumeClaim.ClaimName == pvc.Name ||
+			if volume.PersistentVolumeClaim != nil && volume.PersistentVolumeClaim.ClaimName == pvc.Name && !podIsFinished(pod) ||
 				!podIsShutDown(pod) && volume.Ephemeral != nil && ephemeral.VolumeClaimName(pod, &volume) == pvc.Name && ephemeral.VolumeIsForPod(pod, pvc) == nil {
 				logger.V(2).Info("Pod uses PVC", "pod", klog.KObj(pod), "PVC", klog.KObj(pvc))
 				return true
@@ -385,6 +385,10 @@ func (c *Controller) podUsesPVC(logger klog.Logger, pod *v1.Pod, pvc *v1.Persist
 		}
 	}
 	return false
+}
+
+func podIsFinished(pod *v1.Pod) bool {
+	return pod.Status.Phase == v1.PodFailed || pod.Status.Phase == v1.PodSucceeded
 }
 
 // podIsShutDown returns true if kubelet is done with the pod or
