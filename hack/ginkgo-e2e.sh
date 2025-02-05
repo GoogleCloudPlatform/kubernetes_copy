@@ -252,6 +252,22 @@ esac
 # environments like Prow.
 case "${GINKGO_SHOW_COMMAND:-${CI:-no}}" in y|yes|true) set -x ;; esac
 
+# The e2e.test binary is meant to be self-contained and must embed all
+# files that it depends on. For example, it gets run outside of the
+# Kubernetes source tree during conformance testing. The mechanism
+# for loading files from the current directory (required for
+# user-configurable files e.g. when running the storage tests against
+# an out-of-tree CSI driver) can hide missing embedded files.
+#
+# To detect missing embedding, we change the directory here when running
+# in a CI environment. Otherwise we do the opposite and explicitly
+# tell the binary where the source code root is.
+if [ "${CI:-}" = "true" ] && [ -n "${ARTIFACTS:-}" ]; then
+    cd "${ARTIFACTS}"
+else
+    suite_args+=(--repo-root="${KUBE_ROOT}")
+fi
+
 "${program[@]}" "${e2e_test}" -- \
   "${auth_config[@]:+${auth_config[@]}}" \
   --host="${KUBE_MASTER_URL}" \
@@ -264,7 +280,6 @@ case "${GINKGO_SHOW_COMMAND:-${CI:-no}}" in y|yes|true) set -x ;; esac
   --kube-master="${KUBE_MASTER:-}" \
   --cluster-tag="${CLUSTER_ID:-}" \
   --cloud-config-file="${CLOUD_CONFIG:-}" \
-  --repo-root="${KUBE_ROOT}" \
   --node-instance-group="${NODE_INSTANCE_GROUP:-}" \
   --prefix="${KUBE_GCE_INSTANCE_PREFIX:-e2e}" \
   --network="${KUBE_GCE_NETWORK:-${KUBE_GKE_NETWORK:-e2e}}" \
