@@ -637,9 +637,8 @@ func (pm *VolumePluginMgr) initProbedPlugin(probedPlugin VolumePlugin) error {
 // specification.  If no plugins can support or more than one plugin can
 // support it, return error.
 func (pm *VolumePluginMgr) FindPluginBySpec(spec *Spec) (VolumePlugin, error) {
-	pm.mutex.RLock()
-	defer pm.mutex.RUnlock()
-
+	pm.mutex.Lock()
+	defer pm.mutex.Unlock()
 	if spec == nil {
 		return nil, fmt.Errorf("could not find plugin because volume spec is nil")
 	}
@@ -652,8 +651,8 @@ func (pm *VolumePluginMgr) FindPluginBySpec(spec *Spec) (VolumePlugin, error) {
 			matchedPluginNames = append(matchedPluginNames, v.GetPluginName())
 		}
 	}
-
 	pm.refreshProbedPlugins()
+
 	for _, plugin := range pm.probedPlugins {
 		if plugin.CanSupport(spec) {
 			match = plugin
@@ -673,14 +672,13 @@ func (pm *VolumePluginMgr) FindPluginBySpec(spec *Spec) (VolumePlugin, error) {
 
 // FindPluginByName fetches a plugin by name. If no plugin is found, returns error.
 func (pm *VolumePluginMgr) FindPluginByName(name string) (VolumePlugin, error) {
-	pm.mutex.RLock()
-	defer pm.mutex.RUnlock()
+	pm.mutex.Lock()
+	defer pm.mutex.Unlock()
 
 	var match VolumePlugin
 	if v, found := pm.plugins[name]; found {
 		match = v
 	}
-
 	pm.refreshProbedPlugins()
 	if plugin, found := pm.probedPlugins[name]; found {
 		if match != nil {
@@ -707,6 +705,7 @@ func (pm *VolumePluginMgr) refreshProbedPlugins() {
 	// because the probe function can return a list of valid plugins
 	// even when an error is present we still must add the plugins
 	// or they will be skipped because each event only fires once
+
 	for _, event := range events {
 		if event.Op == ProbeAddOrUpdate {
 			if err := pm.initProbedPlugin(event.Plugin); err != nil {
