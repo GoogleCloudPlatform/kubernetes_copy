@@ -47,17 +47,6 @@ var (
 	hugePageResourceA     = v1.ResourceName(v1.ResourceHugePagesPrefix + "2Mi")
 )
 
-var statusCmpOpts = []cmp.Option{
-	cmp.Comparer(func(s1 *framework.Status, s2 *framework.Status) bool {
-		if s1 == nil || s2 == nil {
-			return s1.IsSuccess() && s2.IsSuccess()
-		}
-		if s1.Code() == framework.Error {
-			return s1.AsError().Error() == s2.AsError().Error()
-		}
-		return s1.Code() == s2.Code() && s1.Plugin() == s2.Plugin() && s1.Message() == s2.Message()
-	}),
-}
 var clusterEventCmpOpts = []cmp.Option{
 	cmpopts.EquateComparable(framework.ClusterEvent{}),
 }
@@ -598,7 +587,7 @@ func TestEnoughRequests(t *testing.T) {
 			}
 
 			gotStatus := p.(framework.FilterPlugin).Filter(ctx, cycleState, test.pod, test.nodeInfo)
-			if diff := cmp.Diff(test.wantStatus, gotStatus, statusCmpOpts...); diff != "" {
+			if diff := cmp.Diff(test.wantStatus, gotStatus); diff != "" {
 				t.Errorf("status does not match (-want,+got):\n%s", diff)
 			}
 
@@ -624,8 +613,8 @@ func TestPreFilterDisabled(t *testing.T) {
 	}
 	cycleState := framework.NewCycleState()
 	gotStatus := p.(framework.FilterPlugin).Filter(ctx, cycleState, pod, nodeInfo)
-	wantStatus := framework.AsStatus(fmt.Errorf(`error reading "PreFilterNodeResourcesFit" from cycleState: %w`, framework.ErrNotFound))
-	if diff := cmp.Diff(wantStatus, gotStatus, statusCmpOpts...); diff != "" {
+	wantStatus := framework.AsStatus(framework.ErrNotFound)
+	if diff := cmp.Diff(wantStatus, gotStatus); diff != "" {
 		t.Errorf("status does not match (-want,+got):\n%s", diff)
 	}
 }
@@ -682,7 +671,7 @@ func TestNotEnoughRequests(t *testing.T) {
 			}
 
 			gotStatus := p.(framework.FilterPlugin).Filter(ctx, cycleState, test.pod, test.nodeInfo)
-			if diff := cmp.Diff(test.wantStatus, gotStatus, statusCmpOpts...); diff != "" {
+			if diff := cmp.Diff(test.wantStatus, gotStatus); diff != "" {
 				t.Errorf("status does not match (-want,+got):\n%s", diff)
 			}
 		})
@@ -743,7 +732,7 @@ func TestStorageRequests(t *testing.T) {
 			}
 
 			gotStatus := p.(framework.FilterPlugin).Filter(ctx, cycleState, test.pod, test.nodeInfo)
-			if diff := cmp.Diff(test.wantStatus, gotStatus, statusCmpOpts...); diff != "" {
+			if diff := cmp.Diff(test.wantStatus, gotStatus); diff != "" {
 				t.Errorf("status does not match (-want,+got):\n%s", diff)
 			}
 		})
@@ -848,7 +837,7 @@ func TestRestartableInitContainers(t *testing.T) {
 			}
 			cycleState := framework.NewCycleState()
 			_, preFilterStatus := p.(framework.PreFilterPlugin).PreFilter(ctx, cycleState, test.pod)
-			if diff := cmp.Diff(test.wantPreFilterStatus, preFilterStatus, statusCmpOpts...); diff != "" {
+			if diff := cmp.Diff(test.wantPreFilterStatus, preFilterStatus); diff != "" {
 				t.Error("prefilter status does not match (-expected +actual):\n", diff)
 			}
 			if !preFilterStatus.IsSuccess() {
@@ -856,7 +845,7 @@ func TestRestartableInitContainers(t *testing.T) {
 			}
 
 			filterStatus := p.(framework.FilterPlugin).Filter(ctx, cycleState, test.pod, nodeInfo)
-			if diff := cmp.Diff(test.wantFilterStatus, filterStatus, statusCmpOpts...); diff != "" {
+			if diff := cmp.Diff(test.wantFilterStatus, filterStatus); diff != "" {
 				t.Error("filter status does not match (-expected +actual):\n", diff)
 			}
 		})
