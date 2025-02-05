@@ -1071,7 +1071,13 @@ func checkPodResourcesAssignment(v1PodRes *kubeletpodresourcesv1.ListPodResource
 			return matchContainerDevices(podNamespace+"/"+podName+"/"+containerName, contRes.Devices, resourceName, devs)
 		}
 	}
-	err := fmt.Errorf("no resources found for %s/%s/%s", podNamespace, podName, containerName)
+	v1PodResStr := ""
+	for _, p := range v1PodRes.PodResources {
+		for _, c := range p.Containers {
+			v1PodResStr += fmt.Sprintf("%s/%s/%s,", p.Namespace, p.Name, c.Name)
+		}
+	}
+	err := fmt.Errorf("no resources found for %s/%s/%s in listpodresources [%s]", podNamespace, podName, containerName, v1PodResStr)
 	framework.Logf("%v", err)
 	return err, false
 }
