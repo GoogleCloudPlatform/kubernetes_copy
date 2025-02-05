@@ -219,13 +219,13 @@ func testWebhookConverter(t *testing.T, watchCache bool) {
 			defer ctc.removeConversionWebhook(t)
 
 			// wait until new webhook is called the first time
-			if err := wait.PollUntilContextTimeout(context.Background(), time.Millisecond*100, wait.ForeverTestTimeout, true, func(ctx context.Context) (done bool, err error) {
-				_, getErr := ctc.versionedClient(marker.GetNamespace(), "v1alpha1").Get(ctx, marker.GetName(), metav1.GetOptions{})
+			if err := wait.PollUntilContextTimeout(context.Background(), time.Millisecond*100, wait.ForeverTestTimeout, true, func(ctx context.Context) (bool, error) {
+				_, err := ctc.versionedClient(marker.GetNamespace(), "v1alpha1").Get(ctx, marker.GetName(), metav1.GetOptions{})
 				select {
 				case <-upCh:
 					return true, nil
 				default:
-					t.Logf("Waiting for webhook to become effective, getting marker object: %v", getErr)
+					t.Logf("Waiting for webhook to become effective, getting marker object: %v", err)
 					return false, nil
 				}
 			}); err != nil {
