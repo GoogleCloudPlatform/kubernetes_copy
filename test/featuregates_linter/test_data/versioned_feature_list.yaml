@@ -272,20 +272,6 @@
     lockToDefault: false
     preRelease: Alpha
     version: "1.12"
-- name: CPUManager
-  versionedSpecs:
-  - default: false
-    lockToDefault: false
-    preRelease: Alpha
-    version: "1.8"
-  - default: true
-    lockToDefault: false
-    preRelease: Beta
-    version: "1.10"
-  - default: true
-    lockToDefault: true
-    preRelease: GA
-    version: "1.26"
 - name: CPUManagerPolicyAlphaOptions
   versionedSpecs:
   - default: false

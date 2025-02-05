@@ -89,11 +89,6 @@ const (
 	// Enable nodes to change CPUCFSQuotaPeriod
 	CPUCFSQuotaPeriod featuregate.Feature = "CustomCPUCFSQuotaPeriod"
 
-	// owner: @ConnorDoyle, @fromanirh (only for GA graduation)
-	//
-	// Alternative container-level CPU affinity policies.
-	CPUManager featuregate.Feature = "CPUManager"
-
 	// owner: @fromanirh
 	// beta: see below.
 	//

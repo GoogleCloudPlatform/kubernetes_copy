@@ -815,8 +815,8 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 		if utilfeature.DefaultFeatureGate.Enabled(features.CPUManagerPolicyOptions) {
 			cpuManagerPolicyOptions = s.CPUManagerPolicyOptions
 		} else if s.CPUManagerPolicyOptions != nil {
-			return fmt.Errorf("CPU Manager policy options %v require feature gates %q, %q enabled",
-				s.CPUManagerPolicyOptions, features.CPUManager, features.CPUManagerPolicyOptions)
+			return fmt.Errorf("CPU Manager policy options %v require feature gates %q enabled",
+				s.CPUManagerPolicyOptions, features.CPUManagerPolicyOptions)
 		}
 
 		var topologyManagerPolicyOptions map[string]string
