@@ -69,6 +69,7 @@ type tmCtnAttribute struct {
 	deviceName    string
 	deviceRequest string
 	deviceLimit   string
+	restartPolicy *v1.ContainerRestartPolicy
 }
 
 func detectNUMANodes() int {
@@ -158,7 +159,8 @@ func makeContainers(ctnCmd string, ctnAttributes []tmCtnAttribute) (ctns []v1.Co
 					v1.ResourceName(v1.ResourceMemory): resource.MustParse("100Mi"),
 				},
 			},
-			Command: []string{"sh", "-c", ctnCmd},
+			Command:       []string{"sh", "-c", ctnCmd},
+			RestartPolicy: ctnAttr.restartPolicy,
 		}
 		if ctnAttr.deviceName != "" {
 			ctn.Resources.Requests[v1.ResourceName(ctnAttr.deviceName)] = resource.MustParse(ctnAttr.deviceRequest)
@@ -171,8 +173,12 @@ func makeContainers(ctnCmd string, ctnAttributes []tmCtnAttribute) (ctns []v1.Co
 
 func makeTopologyManagerTestPod(podName string, tmCtnAttributes, tmInitCtnAttributes []tmCtnAttribute) *v1.Pod {
 	var containers, initContainers []v1.Container
-	if len(tmInitCtnAttributes) > 0 {
-		initContainers = makeContainers(numaAlignmentCommand, tmInitCtnAttributes)
+	for _, attr := range tmInitCtnAttributes {
+		cmd := numaAlignmentCommand
+		if attr.restartPolicy != nil && *attr.restartPolicy == v1.ContainerRestartPolicyAlways {
+			cmd = numaAlignmentSleepCommand
+		}
+		initContainers = append(initContainers, makeContainers(cmd, []tmCtnAttribute{attr})...)
 	}
 	containers = makeContainers(numaAlignmentSleepCommand, tmCtnAttributes)
 
@@ -346,6 +352,20 @@ func findSRIOVResource(node *v1.Node) (string, int64) {
 }
 
 func validatePodAlignment(ctx context.Context, f *framework.Framework, pod *v1.Pod, envInfo *testEnvInfo) {
+	for _, cnt := range pod.Spec.InitContainers {
+		ginkgo.By(fmt.Sprintf("validating the init container %s on Gu pod %s", cnt.Name, pod.Name))
+
+		logs, err := e2epod.GetPodLogs(ctx, f.ClientSet, f.Namespace.Name, pod.Name, cnt.Name)
+		framework.ExpectNoError(err, "expected log not found in init container [%s] of pod [%s]", cnt.Name, pod.Name)
+
+		framework.Logf("got init container logs: %v", logs)
+		numaRes, err := checkNUMAAlignment(f, pod, &cnt, logs, envInfo)
+		framework.ExpectNoError(err, "NUMA Alignment check failed for init container [%s] of pod [%s]", cnt.Name, pod.Name)
+		if numaRes != nil {
+			framework.Logf("NUMA resources for init container %s/%s: %s", pod.Name, cnt.Name, numaRes.String())
+		}
+	}
+
 	for _, cnt := range pod.Spec.Containers {
 		ginkgo.By(fmt.Sprintf("validating the container %s on Gu pod %s", cnt.Name, pod.Name))
 
@@ -367,6 +387,18 @@ func validatePodAlignmentWithPodScope(ctx context.Context, f *framework.Framewor
 	podsNUMA := make(map[int]int)
 
 	ginkgo.By(fmt.Sprintf("validate pod scope alignment for %s pod", pod.Name))
+	for _, cnt := range pod.Spec.InitContainers {
+		logs, err := e2epod.GetPodLogs(ctx, f.ClientSet, f.Namespace.Name, pod.Name, cnt.Name)
+		framework.ExpectNoError(err, "NUMA alignment failed for init container [%s] of pod [%s]", cnt.Name, pod.Name)
+		envMap, err := makeEnvMap(logs)
+		framework.ExpectNoError(err, "NUMA alignment failed for init container [%s] of pod [%s]", cnt.Name, pod.Name)
+		cpuToNUMA, err := getCPUToNUMANodeMapFromEnv(f, pod, &cnt, envMap, envInfo.numaNodes)
+		framework.ExpectNoError(err, "NUMA alignment failed for init container [%s] of pod [%s]", cnt.Name, pod.Name)
+		for cpuID, numaID := range cpuToNUMA {
+			podsNUMA[cpuID] = numaID
+		}
+	}
+
 	for _, cnt := range pod.Spec.Containers {
 		logs, err := e2epod.GetPodLogs(ctx, f.ClientSet, f.Namespace.Name, pod.Name, cnt.Name)
 		framework.ExpectNoError(err, "NUMA alignment failed for container [%s] of pod [%s]", cnt.Name, pod.Name)
@@ -425,6 +457,9 @@ func runTopologyManagerPolicySuiteTests(ctx context.Context, f *framework.Framew
 
 	ginkgo.By("running multiple Gu pods")
 	runMultipleGuPods(ctx, f)
+
+	ginkgo.By("running a Gu pod with restartable init container requesting integer CPUs")
+	runRestartableInitContainerGuPod(ctx, f)
 }
 
 func runTopologyManagerPositiveTest(ctx context.Context, f *framework.Framework, numPods int, ctnAttrs, initCtnAttrs []tmCtnAttribute, envInfo *testEnvInfo) {
@@ -440,7 +475,7 @@ func runTopologyManagerPositiveTest(ctx context.Context, f *framework.Framework,
 	}
 
 	// per https://github.com/kubernetes/enhancements/blob/master/keps/sig-node/693-topology-manager/README.md#multi-numa-systems-tests
-	// we can do a menaingful validation only when using the single-numa node policy
+	// we can do a meaningful validation only when using the single-numa node policy
 	if envInfo.policy == topologymanager.PolicySingleNumaNode {
 		for _, pod := range podMap {
 			validatePodAlignment(ctx, f, pod, envInfo)
@@ -728,6 +763,28 @@ func runTMScopeResourceAlignmentTestSuite(ctx context.Context, f *framework.Fram
 	}
 	runTopologyManagerPositiveTest(ctx, f, 2, ctnAttrs, initCtnAttrs, envInfo)
 
+	ginkgo.By(fmt.Sprintf("Successfully admit one guaranteed pod with restartable init container, 1 core and 1 %s device", sd.resourceName))
+	initCtnAttrs = []tmCtnAttribute{
+		{
+			ctnName:       "restartable-init-container",
+			cpuRequest:    "1000m",
+			cpuLimit:      "1000m",
+			deviceRequest: "1",
+			deviceLimit:   "1",
+			restartPolicy: &containerRestartPolicyAlways,
+		},
+	}
+	ctnAttrs = []tmCtnAttribute{
+		{
+			ctnName:       "gu-container",
+			cpuRequest:    "1000m",
+			cpuLimit:      "1000m",
+			deviceRequest: "1",
+			deviceLimit:   "1",
+		},
+	}
+	runTopologyManagerPositiveTest(ctx, f, 2, ctnAttrs, initCtnAttrs, envInfo)
+
 	teardownSRIOVConfigOrFail(ctx, f, sd)
 }
 
@@ -819,6 +876,30 @@ func runTopologyManagerNodeAlignmentSuiteTests(ctx context.Context, f *framework
 			},
 		}
 		runTopologyManagerPositiveTest(ctx, f, 2, ctnAttrs, initCtnAttrs, envInfo)
+
+		ginkgo.By(fmt.Sprintf("Successfully admit one guaranteed pod with restartable init container - each with 1 core, 1 %s device", sd.resourceName))
+		initCtnAttrs = []tmCtnAttribute{
+			{
+				ctnName:       "init-container",
+				cpuRequest:    "1000m",
+				cpuLimit:      "1000m",
+				deviceName:    sd.resourceName,
+				deviceRequest: "1",
+				deviceLimit:   "1",
+				restartPolicy: &containerRestartPolicyAlways,
+			},
+		}
+		ctnAttrs = []tmCtnAttribute{
+			{
+				ctnName:       "gu-container",
+				cpuRequest:    "1000m",
+				cpuLimit:      "1000m",
+				deviceName:    sd.resourceName,
+				deviceRequest: "1",
+				deviceLimit:   "1",
+			},
+		}
+		runTopologyManagerPositiveTest(ctx, f, 1, ctnAttrs, initCtnAttrs, envInfo)
 
 		// testing more complex conditions require knowledge about the system cpu+bus topology
 	}
