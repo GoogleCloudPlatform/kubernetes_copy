@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"strings"
 
+	v1 "k8s.io/api/core/v1"
 	utilsysctl "k8s.io/component-helpers/node/util/sysctl"
 	"k8s.io/kubernetes/pkg/apis/core/validation"
 	policyvalidation "k8s.io/kubernetes/pkg/apis/policy/validation"
@@ -46,10 +47,16 @@ func NewAllowlist(patterns []string) (*patternAllowlist, error) {
 		sysctls:  map[string]utilsysctl.Namespace{},
 		prefixes: map[string]utilsysctl.Namespace{},
 	}
+	if err := w.setPrefixAndSysctls(patterns); err != nil {
+		return nil, err
+	}
+	return w, nil
+}
 
+func (w *patternAllowlist) setPrefixAndSysctls(patterns []string) error {
 	for _, s := range patterns {
 		if !policyvalidation.IsValidSysctlPattern(s) {
-			return nil, fmt.Errorf("sysctl %q must have at most %d characters and match regex %s",
+			return fmt.Errorf("sysctl %q must have at most %d characters and match regex %s",
 				s,
 				validation.SysctlMaxLength,
 				policyvalidation.SysctlContainSlashPatternFmt,
@@ -57,7 +64,7 @@ func NewAllowlist(patterns []string) (*patternAllowlist, error) {
 		}
 		ns, sysctlOrPrefix, prefixed := utilsysctl.GetNamespace(s)
 		if ns == utilsysctl.UnknownNamespace {
-			return nil, fmt.Errorf("the sysctls %q are not known to be namespaced", sysctlOrPrefix)
+			return fmt.Errorf("the sysctls %q are not known to be namespaced", sysctlOrPrefix)
 		}
 		if prefixed {
 			w.prefixes[sysctlOrPrefix] = ns
@@ -65,7 +72,7 @@ func NewAllowlist(patterns []string) (*patternAllowlist, error) {
 			w.sysctls[sysctlOrPrefix] = ns
 		}
 	}
-	return w, nil
+	return nil
 }
 
 // validateSysctl checks that a sysctl is allowlisted because it is known
@@ -110,7 +117,16 @@ func (w *patternAllowlist) Admit(attrs *lifecycle.PodAdmitAttributes) lifecycle.
 			Admit: true,
 		}
 	}
-
+	if pod.Spec.OS != nil && pod.Spec.OS.Name == v1.Linux {
+		// Unsafe sysctl list would have been passed by kubelet
+		if err := w.setPrefixAndSysctls(safeAllowedList()); err != nil {
+			return lifecycle.PodAdmitResult{
+				Admit:   false,
+				Reason:  ForbiddenReason,
+				Message: fmt.Sprintf("setting prefixes and sysctls failed: %v", err),
+			}
+		}
+	}
 	for _, s := range pod.Spec.SecurityContext.Sysctls {
 		if err := w.validateSysctl(s.Name, pod.Spec.HostNetwork, pod.Spec.HostIPC); err != nil {
 			return lifecycle.PodAdmitResult{

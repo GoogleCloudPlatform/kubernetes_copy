@@ -90,7 +90,6 @@ func getSafeSysctlAllowlist(ctx context.Context, getVersion func() (*version.Ver
 	if err != nil {
 		logger.Error(err, "failed to get kernel version, unable to determine which sysctls are available")
 	}
-
 	var safeSysctlAllowlist []string
 	for _, sc := range safeSysctls {
 		if sc.kernel == "" {
@@ -103,6 +102,17 @@ func getSafeSysctlAllowlist(ctx context.Context, getVersion func() (*version.Ver
 		} else {
 			logger.Info("kernel version is too old, dropping the sysctl from safe sysctl list", "kernelVersion", kernelVersion, "sysctl", sc.name)
 		}
+	}
+	return safeSysctlAllowlist
+}
+
+// safeAllowList()
+// There is a good chance that we have a different pod OS from host OS, in such cases, we should let container
+// runtime deal with such errors instead of breaking hard. An example of it Linux Containers on Windows.
+func safeAllowedList() []string {
+	var safeSysctlAllowlist []string
+	for _, sc := range safeSysctls {
+		safeSysctlAllowlist = append(safeSysctlAllowlist, sc.name)
 	}
 	return safeSysctlAllowlist
 }
