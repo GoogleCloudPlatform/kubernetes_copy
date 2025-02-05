@@ -91,11 +91,11 @@ func (r *lengthDelimitedFrameReader) Read(data []byte) (int, error) {
 	}
 	n, err := io.ReadAtLeast(r.r, data[:max], int(max))
 	r.remaining -= n
-	if err == io.ErrShortBuffer || r.remaining > 0 {
-		return n, io.ErrShortBuffer
-	}
 	if err != nil {
 		return n, err
+	}
+	if r.remaining > 0 {
+		return n, io.ErrShortBuffer
 	}
 	if n != expect {
 		return n, io.ErrUnexpectedEOF
