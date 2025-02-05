@@ -184,6 +184,10 @@
     lockToDefault: false
     preRelease: Beta
     version: "1.32"
+  - default: true
+    lockToDefault: true
+    preRelease: GA
+    version: "1.33"
 - name: CBORServingAndStorage
   versionedSpecs:
   - default: false
