@@ -87,7 +87,9 @@ func (e *endpointImpl) getPreferredAllocation(available, mustInclude []string, s
 	if e.isStopped() {
 		return nil, fmt.Errorf(errEndpointStopped, e)
 	}
-	return e.api.GetPreferredAllocation(context.Background(), &pluginapi.PreferredAllocationRequest{
+	ctx, cancel := context.WithTimeout(context.Background(), pluginapi.KubeletGetPreferredAllocationRPCTimeoutInSecs*time.Second)
+	defer cancel()
+	return e.api.GetPreferredAllocation(ctx, &pluginapi.PreferredAllocationRequest{
 		ContainerRequests: []*pluginapi.ContainerPreferredAllocationRequest{
 			{
 				AvailableDeviceIDs:   available,
@@ -103,7 +105,9 @@ func (e *endpointImpl) allocate(devs []string) (*pluginapi.AllocateResponse, err
 	if e.isStopped() {
 		return nil, fmt.Errorf(errEndpointStopped, e)
 	}
-	return e.api.Allocate(context.Background(), &pluginapi.AllocateRequest{
+	ctx, cancel := context.WithTimeout(context.Background(), pluginapi.KubeletAllocateRPCTimeoutInSecs*time.Second)
+	defer cancel()
+	return e.api.Allocate(ctx, &pluginapi.AllocateRequest{
 		ContainerRequests: []*pluginapi.ContainerAllocateRequest{
 			{DevicesIDs: devs},
 		},

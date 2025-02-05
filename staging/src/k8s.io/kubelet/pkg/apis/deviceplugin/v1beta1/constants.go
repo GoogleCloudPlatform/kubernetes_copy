@@ -39,6 +39,14 @@ const (
 	// KubeletSocketWindows is the path of the Kubelet registry socket on windows
 	KubeletSocketWindows = DevicePluginPathWindows + "kubelet.sock"
 
+	// KubeletGetPreferredAllocationRPCTimeoutInSecs is the timeout duration in secs for GetPreferredAllocation RPC
+	// Timeout duration in secs for GetPreferredAllocation RPC
+	KubeletGetPreferredAllocationRPCTimeoutInSecs = 30
+
+	// KubeletAllocateRPCTimeoutInSecs is the timeout duration in secs for Allocate RPC
+	// Timeout duration in secs for Allocate RPC
+	KubeletAllocateRPCTimeoutInSecs = 30
+
 	// KubeletPreStartContainerRPCTimeoutInSecs is the timeout duration in secs for PreStartContainer RPC
 	// Timeout duration in secs for PreStartContainer RPC
 	KubeletPreStartContainerRPCTimeoutInSecs = 30
