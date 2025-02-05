@@ -774,7 +774,7 @@ func podLifecycleSleepActionZeroValueInUse(podSpec *api.PodSpec) bool {
 			inUse = true
 			return false
 		}
-		if c.Lifecycle.PostStart != nil && c.Lifecycle.PostStart.Sleep != nil && c.Lifecycle.PreStop.Sleep.Seconds == 0 {
+		if c.Lifecycle.PostStart != nil && c.Lifecycle.PostStart.Sleep != nil && c.Lifecycle.PostStart.Sleep.Seconds == 0 {
 			inUse = true
 			return false
 		}
