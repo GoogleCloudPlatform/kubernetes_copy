@@ -141,7 +141,7 @@ func NewDefaultKubectlCommandWithArgs(o KubectlOptions) *cobra.Command {
 					os.Exit(1)
 				}
 			}
-		} else if err == nil {
+		} else {
 			if !cmdutil.CmdPluginAsSubcommand.IsDisabled() {
 				// Command exists(e.g. kubectl create), but it is not certain that
 				// subcommand also exists (e.g. kubectl create networkpolicy)
