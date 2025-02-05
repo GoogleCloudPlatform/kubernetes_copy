@@ -70,7 +70,7 @@ func makeExpectedConfig(m *kubeGenericRuntimeManager, pod *v1.Pod, containerInde
 		Labels:      newContainerLabels(container, pod),
 		Annotations: newContainerAnnotations(container, pod, restartCount, opts),
 		Devices:     makeDevices(opts),
-		Mounts:      m.makeMounts(opts, container),
+		Mounts:      m.makeMounts(opts, container, pod),
 		LogPath:     containerLogsPath,
 		Stdin:       container.Stdin,
 		StdinOnce:   container.StdinOnce,

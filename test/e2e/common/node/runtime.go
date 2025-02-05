@@ -137,6 +137,7 @@ while true; do sleep 1; done
 		ginkgo.Context("on terminated container", func() {
 			rootUser := int64(0)
 			nonRootUser := int64(10000)
+			nonRootGroup := int64(10000)
 			adminUserName := "ContainerAdministrator"
 			nonAdminUserName := "ContainerUser"
 
@@ -204,6 +205,7 @@ while true; do sleep 1; done
 					container.SecurityContext.WindowsOptions = &v1.WindowsSecurityContextOptions{RunAsUserName: &nonAdminUserName}
 				} else {
 					container.SecurityContext.RunAsUser = &nonRootUser
+					container.SecurityContext.RunAsGroup = &nonRootGroup
 				}
 				matchTerminationMessage(ctx, container, v1.PodSucceeded, gomega.Equal("DONE"))
 			})

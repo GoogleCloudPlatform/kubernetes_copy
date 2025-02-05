@@ -366,7 +366,7 @@ func (m *kubeGenericRuntimeManager) generateContainerConfig(ctx context.Context,
 		Annotations: newContainerAnnotations(container, pod, restartCount, opts),
 		Devices:     makeDevices(opts),
 		CDIDevices:  makeCDIDevices(opts),
-		Mounts:      m.makeMounts(opts, container),
+		Mounts:      m.makeMounts(opts, container, pod),
 		LogPath:     containerLogsPath,
 		Stdin:       container.Stdin,
 		StdinOnce:   container.StdinOnce,
@@ -435,7 +435,7 @@ func makeCDIDevices(opts *kubecontainer.RunContainerOptions) []*runtimeapi.CDIDe
 }
 
 // makeMounts generates container volume mounts for kubelet runtime v1.
-func (m *kubeGenericRuntimeManager) makeMounts(opts *kubecontainer.RunContainerOptions, container *v1.Container) []*runtimeapi.Mount {
+func (m *kubeGenericRuntimeManager) makeMounts(opts *kubecontainer.RunContainerOptions, container *v1.Container, pod *v1.Pod) []*runtimeapi.Mount {
 	volumeMounts := []*runtimeapi.Mount{}
 
 	for idx := range opts.Mounts {
@@ -473,8 +473,31 @@ func (m *kubeGenericRuntimeManager) makeMounts(opts *kubecontainer.RunContainerO
 			// open(2) to create the file, so the final mode used is "mode &
 			// ~umask". But we want to make sure the specified mode is used
 			// in the file no matter what the umask is.
-			if err := m.osInterface.Chmod(containerLogPath, 0666); err != nil {
+			if err := m.osInterface.Chmod(containerLogPath, 0660); err != nil {
 				utilruntime.HandleError(fmt.Errorf("unable to set termination-log file permissions %q: %v", containerLogPath, err))
+			}
+
+			var containerUID, containerGID int
+			if container.SecurityContext != nil && container.SecurityContext.RunAsUser != nil {
+				containerUID = int(*container.SecurityContext.RunAsUser)
+			} else if pod.Spec.SecurityContext != nil && pod.Spec.SecurityContext.RunAsUser != nil {
+				containerUID = int(*pod.Spec.SecurityContext.RunAsUser)
+			} else {
+				containerUID = 0
+			}
+
+			if container.SecurityContext != nil && container.SecurityContext.RunAsGroup != nil {
+				containerGID = int(*container.SecurityContext.RunAsGroup)
+			} else if pod.Spec.SecurityContext != nil && pod.Spec.SecurityContext.RunAsGroup != nil {
+				containerGID = int(*pod.Spec.SecurityContext.RunAsGroup)
+			} else {
+				containerGID = 0
+			}
+
+			if goruntime.GOOS != "windows" {
+				if err := os.Chown(containerLogPath, containerUID, containerGID); err != nil {
+					utilruntime.HandleError(fmt.Errorf("unable to chown termination-log file: %q: %w", containerLogPath, err))
+				}
 			}
 
 			// Volume Mounts fail on Windows if it is not of the form C:/
