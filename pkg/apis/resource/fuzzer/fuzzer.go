@@ -62,7 +62,7 @@ var Funcs = func(codecs runtimeserializer.CodecFactory) []interface{} {
 			//
 			// This is necessary because randomly generated content
 			// might be valid JSON which changes during re-encoding.
-			r.Data = runtime.RawExtension{Raw: []byte(`{"apiVersion":"unknown.group/unknown","kind":"Something","someKey":"someValue"}`)}
+			r.Data = &runtime.RawExtension{Raw: []byte(`{"apiVersion":"unknown.group/unknown","kind":"Something","someKey":"someValue"}`)}
 		},
 	}
 }

@@ -389,7 +389,7 @@ func autoConvert_v1beta1_AllocatedDeviceStatus_To_resource_AllocatedDeviceStatus
 	out.Pool = in.Pool
 	out.Device = in.Device
 	out.Conditions = *(*[]v1.Condition)(unsafe.Pointer(&in.Conditions))
-	out.Data = in.Data
+	out.Data = (*runtime.RawExtension)(unsafe.Pointer(in.Data))
 	out.NetworkData = (*resource.NetworkDeviceData)(unsafe.Pointer(in.NetworkData))
 	return nil
 }
@@ -404,7 +404,7 @@ func autoConvert_resource_AllocatedDeviceStatus_To_v1beta1_AllocatedDeviceStatus
 	out.Pool = in.Pool
 	out.Device = in.Device
 	out.Conditions = *(*[]v1.Condition)(unsafe.Pointer(&in.Conditions))
-	out.Data = in.Data
+	out.Data = (*runtime.RawExtension)(unsafe.Pointer(in.Data))
 	out.NetworkData = (*resourcev1beta1.NetworkDeviceData)(unsafe.Pointer(in.NetworkData))
 	return nil
 }

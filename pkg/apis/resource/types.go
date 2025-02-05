@@ -993,6 +993,24 @@ type ResourceClaimTemplateList struct {
 	Items []ResourceClaimTemplate
 }
 
+const (
+	// AllocatedDeviceStatusMaxConditions represents the maximum number of
+	// conditions in a device status.
+	AllocatedDeviceStatusMaxConditions int = 8
+	// AllocatedDeviceStatusDataMaxLength represents the maximum length of the
+	// raw data in the Data field in a device status.
+	AllocatedDeviceStatusDataMaxLength int = 10 * 1024
+	// NetworkDeviceDataMaxIPs represents the maximum number of IPs in the networkData
+	// field in a device status.
+	NetworkDeviceDataMaxIPs int = 16
+	// NetworkDeviceDataInterfaceNameMaxLength represents the maximum number of characters
+	// for the networkData.interfaceName field in a device status.
+	NetworkDeviceDataInterfaceNameMaxLength int = 256
+	// NetworkDeviceDataHardwareAddressMaxLength represents the maximum number of characters
+	// for the networkData.hardwareAddress field in a device status.
+	NetworkDeviceDataHardwareAddressMaxLength int = 128
+)
+
 // AllocatedDeviceStatus contains the status of an allocated device, if the
 // driver chooses to report it. This may include driver-specific information.
 type AllocatedDeviceStatus struct {
@@ -1037,7 +1055,7 @@ type AllocatedDeviceStatus struct {
 	// The length of the raw data must be smaller or equal to 10 Ki.
 	//
 	// +optional
-	Data runtime.RawExtension
+	Data *runtime.RawExtension
 
 	// NetworkData contains network-related information specific to the device.
 	//

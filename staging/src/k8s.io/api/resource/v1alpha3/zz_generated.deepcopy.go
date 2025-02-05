@@ -38,7 +38,11 @@ func (in *AllocatedDeviceStatus) DeepCopyInto(out *AllocatedDeviceStatus) {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
-	in.Data.DeepCopyInto(&out.Data)
+	if in.Data != nil {
+		in, out := &in.Data, &out.Data
+		*out = new(runtime.RawExtension)
+		(*in).DeepCopyInto(*out)
+	}
 	if in.NetworkData != nil {
 		in, out := &in.NetworkData, &out.NetworkData
 		*out = new(NetworkDeviceData)

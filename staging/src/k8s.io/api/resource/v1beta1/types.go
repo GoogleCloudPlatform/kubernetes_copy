@@ -1007,6 +1007,24 @@ type ResourceClaimTemplateList struct {
 	Items []ResourceClaimTemplate `json:"items" protobuf:"bytes,2,rep,name=items"`
 }
 
+const (
+	// AllocatedDeviceStatusMaxConditions represents the maximum number of
+	// conditions in a device status.
+	AllocatedDeviceStatusMaxConditions int = 8
+	// AllocatedDeviceStatusDataMaxLength represents the maximum length of the
+	// raw data in the Data field in a device status.
+	AllocatedDeviceStatusDataMaxLength int = 10 * 1024
+	// NetworkDeviceDataMaxIPs represents the maximum number of IPs in the networkData
+	// field in a device status.
+	NetworkDeviceDataMaxIPs int = 16
+	// NetworkDeviceDataInterfaceNameMaxLength represents the maximum number of characters
+	// for the networkData.interfaceName field in a device status.
+	NetworkDeviceDataInterfaceNameMaxLength int = 256
+	// NetworkDeviceDataHardwareAddressMaxLength represents the maximum number of characters
+	// for the networkData.hardwareAddress field in a device status.
+	NetworkDeviceDataHardwareAddressMaxLength int = 128
+)
+
 // AllocatedDeviceStatus contains the status of an allocated device, if the
 // driver chooses to report it. This may include driver-specific information.
 type AllocatedDeviceStatus struct {
@@ -1039,6 +1057,8 @@ type AllocatedDeviceStatus struct {
 	// If the device has been configured according to the class and claim
 	// config references, the `Ready` condition should be True.
 	//
+	// Must not contain more than 8 entries.
+	//
 	// +optional
 	// +listType=map
 	// +listMapKey=type
@@ -1049,7 +1069,7 @@ type AllocatedDeviceStatus struct {
 	// The length of the raw data must be smaller or equal to 10 Ki.
 	//
 	// +optional
-	Data runtime.RawExtension `json:"data,omitempty" protobuf:"bytes,5,opt,name=data"`
+	Data *runtime.RawExtension `json:"data,omitempty" protobuf:"bytes,5,opt,name=data"`
 
 	// NetworkData contains network-related information specific to the device.
 	//
@@ -1075,6 +1095,8 @@ type NetworkDeviceData struct {
 	// The IPs are in the CIDR notation, which includes both the address and the
 	// associated subnet mask.
 	// e.g.: "192.0.2.5/24" for IPv4 and "2001:db8::5/64" for IPv6.
+	//
+	// Must not contain more than 16 entries.
 	//
 	// +optional
 	// +listType=atomic
