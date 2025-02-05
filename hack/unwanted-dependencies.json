@@ -14,6 +14,7 @@
       "github.com/bketelsen/crypt": "unused, crypto",
       "github.com/containerd/cgroups": "standardize on single cgroups library from runc, refer #128157",
       "github.com/davecgh/go-spew": "refer to #103942",
+      "github.com/evanphx/json-patch/v5": "refer to #91622#issuecomment-637087847",
       "github.com/form3tech-oss/jwt-go": "unmaintained, archive mode",
       "github.com/getsentry/raven-go": "unmaintained, archive mode",
       "github.com/go-bindata/go-bindata": "refer to #99829",
