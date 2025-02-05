@@ -691,17 +691,17 @@ compute-etcd-variables
 # Setup authentication tokens and kubeconfigs for kube-controller-manager and kube-scheduler,
 # only if their kubeconfigs don't already exist as this script could be running on reboot.
 if [[ ! -f "${KUBE_ROOT}/k8s_auth_data/kube-controller-manager/kubeconfig" ]]; then
-	KUBE_CONTROLLER_MANAGER_TOKEN=$(dd if=/dev/urandom bs=128 count=1 2>/dev/null | base64 | tr -d "=+/" | dd bs=32 count=1 2>/dev/null)
+	KUBE_CONTROLLER_MANAGER_TOKEN=$(dd if=/dev/urandom bs=128 count=1 2>/dev/null | base64 | LC_CTYPE=C tr -d "=+/" | dd bs=32 count=1 2>/dev/null)
 	echo "${KUBE_CONTROLLER_MANAGER_TOKEN},system:kube-controller-manager,uid:system:kube-controller-manager" >> "${KUBE_ROOT}/k8s_auth_data/known_tokens.csv"
 	create-kubecontrollermanager-kubeconfig
 fi
 if [[ ! -f "${KUBE_ROOT}/k8s_auth_data/kube-scheduler/kubeconfig" ]]; then
-	KUBE_SCHEDULER_TOKEN=$(dd if=/dev/urandom bs=128 count=1 2>/dev/null | base64 | tr -d "=+/" | dd bs=32 count=1 2>/dev/null)
+	KUBE_SCHEDULER_TOKEN=$(dd if=/dev/urandom bs=128 count=1 2>/dev/null | base64 | LC_CTYPE=C tr -d "=+/" | dd bs=32 count=1 2>/dev/null)
 	echo "${KUBE_SCHEDULER_TOKEN},system:kube-scheduler,uid:system:kube-scheduler" >> "${KUBE_ROOT}/k8s_auth_data/known_tokens.csv"
 	create-kubescheduler-kubeconfig
 fi
 
-ADDON_MANAGER_TOKEN=$(dd if=/dev/urandom bs=128 count=1 2>/dev/null | base64 | tr -d "=+/" | dd bs=32 count=1 2>/dev/null)
+ADDON_MANAGER_TOKEN=$(dd if=/dev/urandom bs=128 count=1 2>/dev/null | base64 | LC_CTYPE=C tr -d "=+/" | dd bs=32 count=1 2>/dev/null)
 echo "${ADDON_MANAGER_TOKEN},system:addon-manager,admin,system:masters" >> "${KUBE_ROOT}/k8s_auth_data/known_tokens.csv"
 create-addonmanager-kubeconfig
 

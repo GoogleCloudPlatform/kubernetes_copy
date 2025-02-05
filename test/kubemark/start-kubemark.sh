@@ -42,7 +42,7 @@ INTERNAL_KUBECONFIG="${RESOURCE_DIRECTORY}/kubeconfig-internal.kubemark"
 
 # Generate a random 6-digit alphanumeric tag for the kubemark image.
 # Used to uniquify image builds across different invocations of this script.
-KUBEMARK_IMAGE_TAG=$(head /dev/urandom | tr -dc 'a-z0-9' | fold -w 6 | head -n 1)
+KUBEMARK_IMAGE_TAG=$(head /dev/urandom | LC_CTYPE=C tr -dc 'a-z0-9' | fold -w 6 | head -n 1)
 
 # Create a docker image for hollow-node and upload it to the appropriate docker registry.
 function create-and-upload-hollow-node-image {
@@ -229,7 +229,7 @@ function resize-node-objects {
 
   annotation_size_bytes="${KUBEMARK_NODE_OBJECT_SIZE_BYTES}"
   echo "Annotating node objects with ${annotation_size_bytes} byte label"
-  label=$( (< /dev/urandom tr -dc 'a-zA-Z0-9' | fold -w "$annotation_size_bytes"; true) | head -n 1)
+  label=$( (LC_CTYPE=C < /dev/urandom tr -dc 'a-zA-Z0-9' | fold -w "$annotation_size_bytes"; true) | head -n 1)
   "${KUBECTL}" --kubeconfig="${LOCAL_KUBECONFIG}" get nodes -o name \
     | xargs -P50 -r -I% "${KUBECTL}" --kubeconfig="${LOCAL_KUBECONFIG}" annotate --overwrite % label="$label"
   echo "Annotating node objects completed"
