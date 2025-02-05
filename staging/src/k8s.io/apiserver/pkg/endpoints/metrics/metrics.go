@@ -136,10 +136,27 @@ var (
 		},
 		[]string{"verb", "group", "version", "resource", "subresource", "scope", "component"},
 	)
-	fieldValidationRequestLatencies = compbasemetrics.NewHistogramVec(
+	// Deprecated: fieldValidationRequestLatenciesDeprecated is deprecated,
+	// and will be removed at v1.34. Please use fieldValidationRequestLatencies instead.
+	fieldValidationRequestLatenciesDeprecated = compbasemetrics.NewHistogramVec(
 		&compbasemetrics.HistogramOpts{
 			Name: "field_validation_request_duration_seconds",
 			Help: "Response latency distribution in seconds for each field validation value",
+			// This metric is supplementary to the requestLatencies metric.
+			// It measures request durations for the various field validation
+			// values.
+			Buckets: []float64{0.05, 0.1, 0.2, 0.4, 0.6, 0.8, 1.0, 1.25, 1.5, 2, 3,
+				4, 5, 6, 8, 10, 15, 20, 30, 45, 60},
+			StabilityLevel:    compbasemetrics.ALPHA,
+			DeprecatedVersion: "1.33.0",
+		},
+		[]string{"field_validation"},
+	)
+	fieldValidationRequestLatencies = compbasemetrics.NewHistogramVec(
+		&compbasemetrics.HistogramOpts{
+			Subsystem: APIServerComponent,
+			Name:      "field_validation_request_duration_seconds",
+			Help:      "Response latency distribution in seconds for each field validation value",
 			// This metric is supplementary to the requestLatencies metric.
 			// It measures request durations for the various field validation
 			// values.
@@ -304,6 +321,7 @@ var (
 		requestSloLatencies,
 		requestSliLatencies,
 		fieldValidationRequestLatencies,
+		fieldValidationRequestLatenciesDeprecated,
 		responseSizes,
 		TLSHandshakeErrors,
 		WatchEvents,
@@ -598,6 +616,9 @@ func MonitorRequest(req *http.Request, verb, group, version, resource, subresour
 	requestLatencies.WithContext(req.Context()).WithLabelValues(reportedVerb, dryRun, group, version, resource, subresource, scope, component).Observe(elapsedSeconds)
 	fieldValidation := cleanFieldValidation(req.URL)
 	fieldValidationRequestLatencies.WithContext(req.Context()).WithLabelValues(fieldValidation)
+	// we intentionally keep them with the deprecation and will remove at v1.34.
+	//nolint:staticcheck
+	fieldValidationRequestLatenciesDeprecated.WithContext(req.Context()).WithLabelValues(fieldValidation)
 
 	if wd, ok := request.LatencyTrackersFrom(req.Context()); ok {
 		sliLatency := elapsedSeconds - (wd.MutatingWebhookTracker.GetLatency() + wd.ValidatingWebhookTracker.GetLatency() + wd.APFQueueWaitTracker.GetLatency()).Seconds()
