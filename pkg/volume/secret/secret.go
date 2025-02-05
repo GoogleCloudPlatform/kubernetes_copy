@@ -72,7 +72,7 @@ func (plugin *secretPlugin) GetPluginName() string {
 func (plugin *secretPlugin) GetVolumeName(spec *volume.Spec) (string, error) {
 	volumeSource, _ := getVolumeSource(spec)
 	if volumeSource == nil {
-		return "", fmt.Errorf("Spec does not reference a Secret volume type")
+		return "", fmt.Errorf("spec does not reference a Secret volume type")
 	}
 
 	return volumeSource.SecretName, nil
