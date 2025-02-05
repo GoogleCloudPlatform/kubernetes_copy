@@ -242,6 +242,10 @@ func (mounter *Mounter) IsLikelyNotMountPoint(file string) (bool, error) {
 	if stat.Mode()&os.ModeSymlink != 0 {
 		return false, err
 	}
+	// go1.23 behavior change: https://github.com/golang/go/issues/63703#issuecomment-2535941458
+	if stat.Mode()&os.ModeIrregular != 0 {
+		return false, err
+	}
 	return true, nil
 }
 
@@ -328,31 +332,4 @@ func ListVolumesOnDisk(diskID string) (volumeIDs []string, err error) {
 
 	volumeIds := strings.Split(strings.TrimSpace(string(output)), "\r\n")
 	return volumeIds, nil
-}
-
-// getAllParentLinks walks all symbolic links and return all the parent targets recursively
-func getAllParentLinks(path string) ([]string, error) {
-	const maxIter = 255
-	links := []string{}
-	for {
-		links = append(links, path)
-		if len(links) > maxIter {
-			return links, fmt.Errorf("unexpected length of parent links: %v", links)
-		}
-
-		fi, err := os.Lstat(path)
-		if err != nil {
-			return links, fmt.Errorf("Lstat: %v", err)
-		}
-		if fi.Mode()&os.ModeSymlink == 0 {
-			break
-		}
-
-		path, err = os.Readlink(path)
-		if err != nil {
-			return links, fmt.Errorf("Readlink error: %v", err)
-		}
-	}
-
-	return links, nil
 }

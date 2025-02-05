@@ -27,7 +27,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"k8s.io/utils/exec/testing"
+	testingexec "k8s.io/utils/exec/testing"
 )
 
 func makeLink(link, target string) error {
@@ -193,7 +193,26 @@ func TestIsLikelyNotMountPoint(t *testing.T) {
 				}
 				return removeLink(targeLinkPath)
 			},
-			true,
+			false,
+			false,
+		},
+		{
+			"junction",
+			"targetDir",
+			func(base, fileName, targetLinkName string) error {
+				target := filepath.Join(base, targetLinkName)
+				if err := os.Mkdir(target, 0o750); err != nil {
+					return err
+				}
+
+				// create a Junction file type on Windows
+				junction := filepath.Join(base, fileName)
+				if output, err := exec.Command("cmd", "/c", "mklink", "/J", junction, target).CombinedOutput(); err != nil {
+					return fmt.Errorf("mklink failed: %v, link(%q) target(%q) output: %q", err, junction, target, string(output))
+				}
+				return nil
+			},
+			false,
 			false,
 		},
 	}
@@ -207,7 +226,7 @@ func TestIsLikelyNotMountPoint(t *testing.T) {
 
 		filePath := filepath.Join(base, test.fileName)
 		result, err := mounter.IsLikelyNotMountPoint(filePath)
-		assert.Equal(t, result, test.expectedResult, "Expect result not equal with IsLikelyNotMountPoint(%s) return: %q, expected: %q",
+		assert.Equal(t, test.expectedResult, result, "Expect result not equal with IsLikelyNotMountPoint(%s) return: %q, expected: %q",
 			filePath, result, test.expectedResult)
 
 		if test.expectError {
