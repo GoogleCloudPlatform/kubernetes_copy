@@ -739,8 +739,9 @@ func (nc *Controller) monitorNodeHealth(ctx context.Context) error {
 			pods, err := nc.getPodsAssignedToNode(node.Name)
 			if err != nil {
 				utilruntime.HandleError(fmt.Errorf("unable to list pods of node %v: %v", node.Name, err))
-				if currentReadyCondition.Status != v1.ConditionTrue && observedReadyCondition.Status == v1.ConditionTrue {
-					// If error happened during node status transition (Ready -> NotReady)
+				if (currentReadyCondition.Status != v1.ConditionTrue && observedReadyCondition.Status == v1.ConditionTrue) ||
+					(currentReadyCondition.Status == v1.ConditionUnknown && observedReadyCondition.Status != currentReadyCondition.Status) {
+					// If error happened during node status transition (Ready -> NotReady, Ready | NotReady -> Unknown )
 					// we need to mark node for retry to force MarkPodsNotReady execution
 					// in the next iteration.
 					nc.nodesToRetry.Store(node.Name, struct{}{})
@@ -751,7 +752,13 @@ func (nc *Controller) monitorNodeHealth(ctx context.Context) error {
 
 			_, needsRetry := nc.nodesToRetry.Load(node.Name)
 			switch {
-			case currentReadyCondition.Status != v1.ConditionTrue && observedReadyCondition.Status == v1.ConditionTrue:
+			// 1. when node is shutting down, the status update and evicted containers is asynchronously.
+			// if primary controller manager is on the current node, it may not be able to observe the 'true' condition change.
+			// after the controller manager re-elects the primary, should handle the transition from 'false' to 'unknown' condition for node.
+			// More info see: https://github.com/kubernetes/kubernetes/issues/109998.
+			// 2. this would be preferable to have an edge-triggered behavior.
+			case currentReadyCondition.Status != v1.ConditionTrue && observedReadyCondition.Status == v1.ConditionTrue,
+				currentReadyCondition.Status == v1.ConditionUnknown && observedReadyCondition.Status != currentReadyCondition.Status:
 				// Report node event only once when status changed.
 				controllerutil.RecordNodeStatusChange(logger, nc.recorder, node, "NodeNotReady")
 				fallthrough

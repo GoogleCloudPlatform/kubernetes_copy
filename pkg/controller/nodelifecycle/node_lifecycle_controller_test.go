@@ -1225,6 +1225,102 @@ func TestMonitorNodeHealthUpdateStatus(t *testing.T) {
 			expectedNodes:           nil,
 			expectedPodStatusUpdate: false,
 		},
+		// Node created long time ago, with status updated to False by kubelet, and then with status updated by kubelet exceeds grace period.
+		// Expect Unknown status posted from node controller.
+		{
+			fakeNodeHandler: &testutil.FakeNodeHandler{
+				Existing: []*v1.Node{
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:              "node0",
+							CreationTimestamp: metav1.Date(2012, 1, 1, 0, 0, 0, 0, time.UTC),
+						},
+						Status: v1.NodeStatus{
+							Conditions: []v1.NodeCondition{
+								{
+									Type:   v1.NodeReady,
+									Status: v1.ConditionFalse,
+									// Node status hasn't been updated for 1hr.
+									LastHeartbeatTime:  metav1.Date(2015, 1, 1, 12, 0, 0, 0, time.UTC),
+									LastTransitionTime: metav1.Date(2015, 1, 1, 12, 0, 0, 0, time.UTC),
+								},
+							},
+							Capacity: v1.ResourceList{
+								v1.ResourceName(v1.ResourceCPU):    resource.MustParse("10"),
+								v1.ResourceName(v1.ResourceMemory): resource.MustParse("10G"),
+							},
+						},
+					},
+				},
+				Clientset: fake.NewSimpleClientset(&v1.PodList{Items: []v1.Pod{*testutil.NewPod("pod0", "node0")}}),
+			},
+			timeToPass:           1 * time.Hour,
+			expectedRequestCount: 3, // (List+)List+Update
+			newNodeStatus: v1.NodeStatus{
+				Conditions: []v1.NodeCondition{
+					{
+						Type:   v1.NodeReady,
+						Status: v1.ConditionFalse,
+						// Node status hasn't been updated for 1hr.
+						LastHeartbeatTime:  metav1.Date(2015, 1, 1, 12, 0, 0, 0, time.UTC),
+						LastTransitionTime: metav1.Date(2015, 1, 1, 12, 0, 0, 0, time.UTC),
+					},
+				},
+				Capacity: v1.ResourceList{
+					v1.ResourceName(v1.ResourceCPU):    resource.MustParse("10"),
+					v1.ResourceName(v1.ResourceMemory): resource.MustParse("10G"),
+				},
+			},
+			expectedNodes: []*v1.Node{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:              "node0",
+						CreationTimestamp: metav1.Date(2012, 1, 1, 0, 0, 0, 0, time.UTC),
+					},
+					Status: v1.NodeStatus{
+						Conditions: []v1.NodeCondition{
+							{
+								Type:               v1.NodeReady,
+								Status:             v1.ConditionUnknown,
+								Reason:             "NodeStatusUnknown",
+								Message:            "Kubelet stopped posting node status.",
+								LastHeartbeatTime:  metav1.Date(2015, 1, 1, 12, 0, 0, 0, time.UTC),
+								LastTransitionTime: metav1.Time{Time: metav1.Date(2015, 1, 1, 12, 0, 0, 0, time.UTC).Add(time.Hour)},
+							},
+							{
+								Type:               v1.NodeMemoryPressure,
+								Status:             v1.ConditionUnknown,
+								Reason:             "NodeStatusNeverUpdated",
+								Message:            "Kubelet never posted node status.",
+								LastHeartbeatTime:  metav1.Date(2012, 1, 1, 0, 0, 0, 0, time.UTC), // should default to node creation time if condition was never updated
+								LastTransitionTime: metav1.Time{Time: metav1.Date(2015, 1, 1, 12, 0, 0, 0, time.UTC).Add(time.Hour)},
+							},
+							{
+								Type:               v1.NodeDiskPressure,
+								Status:             v1.ConditionUnknown,
+								Reason:             "NodeStatusNeverUpdated",
+								Message:            "Kubelet never posted node status.",
+								LastHeartbeatTime:  metav1.Date(2012, 1, 1, 0, 0, 0, 0, time.UTC), // should default to node creation time if condition was never updated
+								LastTransitionTime: metav1.Time{Time: metav1.Date(2015, 1, 1, 12, 0, 0, 0, time.UTC).Add(time.Hour)},
+							},
+							{
+								Type:               v1.NodePIDPressure,
+								Status:             v1.ConditionUnknown,
+								Reason:             "NodeStatusNeverUpdated",
+								Message:            "Kubelet never posted node status.",
+								LastHeartbeatTime:  metav1.Date(2012, 1, 1, 0, 0, 0, 0, time.UTC), // should default to node creation time if condition was never updated
+								LastTransitionTime: metav1.Time{Time: metav1.Date(2015, 1, 1, 12, 0, 0, 0, time.UTC).Add(time.Hour)},
+							},
+						},
+						Capacity: v1.ResourceList{
+							v1.ResourceName(v1.ResourceCPU):    resource.MustParse("10"),
+							v1.ResourceName(v1.ResourceMemory): resource.MustParse("10G"),
+						},
+					},
+				},
+			},
+			expectedPodStatusUpdate: true,
+		},
 	}
 	tCtx := ktesting.Init(t)
 	for i, item := range table {
@@ -1933,6 +2029,53 @@ func TestMonitorNodeHealthMarkPodsNotReady(t *testing.T) {
 			},
 			expectedPodStatusUpdate: true,
 		},
+		// Node created long time ago, with status(false) updated by kubelet exceeds grace period.
+		// Expect pods status updated and Unknown node status posted from node controller
+		{
+			fakeNodeHandler: &testutil.FakeNodeHandler{
+				Existing: []*v1.Node{
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:              "node0",
+							CreationTimestamp: metav1.Date(2012, 1, 1, 0, 0, 0, 0, time.UTC),
+						},
+						Status: v1.NodeStatus{
+							Conditions: []v1.NodeCondition{
+								{
+									Type:   v1.NodeReady,
+									Status: v1.ConditionFalse,
+									// Node status hasn't been updated for 1hr.
+									LastHeartbeatTime:  metav1.Date(2015, 1, 1, 12, 0, 0, 0, time.UTC),
+									LastTransitionTime: metav1.Date(2015, 1, 1, 12, 0, 0, 0, time.UTC),
+								},
+							},
+							Capacity: v1.ResourceList{
+								v1.ResourceName(v1.ResourceCPU):    resource.MustParse("10"),
+								v1.ResourceName(v1.ResourceMemory): resource.MustParse("10G"),
+							},
+						},
+					},
+				},
+				Clientset: fake.NewSimpleClientset(&v1.PodList{Items: []v1.Pod{*testutil.NewPod("pod0", "node0")}}),
+			},
+			timeToPass: 1 * time.Minute,
+			newNodeStatus: v1.NodeStatus{
+				Conditions: []v1.NodeCondition{
+					{
+						Type:   v1.NodeReady,
+						Status: v1.ConditionFalse,
+						// Node status hasn't been updated for 1hr.
+						LastHeartbeatTime:  metav1.Date(2015, 1, 1, 12, 0, 0, 0, time.UTC),
+						LastTransitionTime: metav1.Date(2015, 1, 1, 12, 0, 0, 0, time.UTC),
+					},
+				},
+				Capacity: v1.ResourceList{
+					v1.ResourceName(v1.ResourceCPU):    resource.MustParse("10"),
+					v1.ResourceName(v1.ResourceMemory): resource.MustParse("10G"),
+				},
+			},
+			expectedPodStatusUpdate: true,
+		},
 	}
 
 	tCtx := ktesting.Init(t)
@@ -2233,6 +2376,43 @@ func TestMonitorNodeHealthMarkPodsNotReadyRetry(t *testing.T) {
 				{
 					timeToPass: 1 * time.Minute,
 					newNodes:   makeNodes(v1.ConditionFalse, timePlusTwoMinutes, timePlusTwoMinutes),
+				},
+			},
+			expectedPodStatusUpdates: 1,
+		},
+		// Node created long time ago, with status(false) updated by kubelet exceeds grace period.
+		// First monitorNodeHealth check will fail to list pods.
+		// Second monitorNodeHealth check will update pod status to NotReady (retry).
+		{
+			desc: "unsuccessful pod list on 'false' status node, retry 2 required",
+			fakeNodeHandler: &testutil.FakeNodeHandler{
+				Clientset: fake.NewSimpleClientset(&v1.PodList{Items: []v1.Pod{*testutil.NewPod("pod0", "node0")}}),
+			},
+			fakeGetPodsAssignedToNode: func(c *fake.Clientset) func(string) ([]*v1.Pod, error) {
+				i := 0
+				f := fakeGetPodsAssignedToNode(c)
+				return func(nodeName string) ([]*v1.Pod, error) {
+					i++
+					switch i {
+					case 1, 2:
+						return nil, fmt.Errorf("fake error")
+					default:
+					}
+					return f(nodeName)
+				}
+			},
+			nodeIterations: []nodeIteration{
+				{
+					timeToPass: 0,
+					newNodes:   makeNodes(v1.ConditionFalse, timeNow, timeNow),
+				},
+				{
+					timeToPass: 1 * time.Minute,
+					newNodes:   makeNodes(v1.ConditionFalse, timeNow, timeNow),
+				},
+				{
+					timeToPass: 1 * time.Minute,
+					newNodes:   makeNodes(v1.ConditionUnknown, timePlusTwoMinutes, timePlusTwoMinutes),
 				},
 			},
 			expectedPodStatusUpdates: 1,
