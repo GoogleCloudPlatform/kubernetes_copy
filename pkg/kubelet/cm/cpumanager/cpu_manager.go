@@ -97,6 +97,9 @@ type Manager interface {
 	// GetAllCPUs returns all the CPUs known by cpumanager, as reported by the
 	// hardware discovery. Maps to the CPU capacity.
 	GetAllCPUs() cpuset.CPUSet
+
+	// SyncMachineInfo updates the manager with latest machineinfo.
+	SyncMachineInfo(machineInfo *cadvisorapi.MachineInfo) error
 }
 
 type manager struct {
@@ -286,6 +289,15 @@ func (m *manager) RemoveContainer(containerID string) error {
 		return err
 	}
 
+	return nil
+}
+
+func (m *manager) SyncMachineInfo(machineInfo *cadvisorapi.MachineInfo) error {
+	topology, err := topology.Discover(machineInfo)
+	if err != nil {
+		return err
+	}
+	m.topology = topology
 	return nil
 }
 

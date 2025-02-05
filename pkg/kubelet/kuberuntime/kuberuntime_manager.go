@@ -176,6 +176,9 @@ type kubeGenericRuntimeManager struct {
 
 	// Root directory used to store pod logs
 	podLogsDirectory string
+
+	// getCachedMachineInfo is function to return the latest cached machine info.
+	getCachedMachineInfo func() (*cadvisorapi.MachineInfo, error)
 }
 
 // KubeGenericRuntime is a interface contains interfaces for container runtime and command.
@@ -219,6 +222,7 @@ func NewKubeGenericRuntimeManager(
 	memoryThrottlingFactor float64,
 	podPullingTimeRecorder images.ImagePodPullingTimeRecorder,
 	tracerProvider trace.TracerProvider,
+	getCachedMachineInfo func() (*cadvisorapi.MachineInfo, error),
 ) (KubeGenericRuntime, error) {
 	ctx := context.Background()
 	runtimeService = newInstrumentedRuntimeService(runtimeService)
@@ -248,6 +252,7 @@ func NewKubeGenericRuntimeManager(
 		getNodeAllocatable:     getNodeAllocatable,
 		memoryThrottlingFactor: memoryThrottlingFactor,
 		podLogsDirectory:       podLogsDirectory,
+		getCachedMachineInfo:   getCachedMachineInfo,
 	}
 
 	typedVersion, err := kubeRuntimeManager.getTypedVersion(ctx)
@@ -336,7 +341,11 @@ func (m *kubeGenericRuntimeManager) Version(ctx context.Context) (kubecontainer.
 // runtime. Implementation is expected to update this cache periodically.
 // This may be different from the runtime engine's version.
 func (m *kubeGenericRuntimeManager) APIVersion() (kubecontainer.Version, error) {
-	versionObject, err := m.versionCache.Get(m.machineInfo.MachineID)
+	machineInfo := m.machineInfo
+	if m.getCachedMachineInfo != nil {
+		machineInfo, _ = m.getCachedMachineInfo()
+	}
+	versionObject, err := m.versionCache.Get(machineInfo.MachineID)
 	if err != nil {
 		return nil, err
 	}

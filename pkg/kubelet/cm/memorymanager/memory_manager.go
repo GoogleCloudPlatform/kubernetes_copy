@@ -92,6 +92,8 @@ type Manager interface {
 
 	// GetMemory returns the memory allocated by a container from NUMA nodes
 	GetMemory(podUID, containerName string) []state.Block
+
+	SyncMachineInfo(policyName string, machineInfo *cadvisorapi.MachineInfo, nodeAllocatableReservation v1.ResourceList, reservedMemory []kubeletconfig.MemoryReservation, affinity topologymanager.Store) error
 }
 
 type manager struct {
@@ -133,44 +135,9 @@ var _ Manager = &manager{}
 
 // NewManager returns new instance of the memory manager
 func NewManager(policyName string, machineInfo *cadvisorapi.MachineInfo, nodeAllocatableReservation v1.ResourceList, reservedMemory []kubeletconfig.MemoryReservation, stateFileDirectory string, affinity topologymanager.Store) (Manager, error) {
-	var policy Policy
-
-	switch policyType(policyName) {
-
-	case policyTypeNone:
-		policy = NewPolicyNone()
-
-	case policyTypeStatic:
-		if runtime.GOOS == "windows" {
-			return nil, fmt.Errorf("policy %q is not available on Windows", policyTypeStatic)
-		}
-
-		systemReserved, err := getSystemReservedMemory(machineInfo, nodeAllocatableReservation, reservedMemory)
-		if err != nil {
-			return nil, err
-		}
-
-		policy, err = NewPolicyStatic(machineInfo, systemReserved, affinity)
-		if err != nil {
-			return nil, err
-		}
-
-	case policyTypeBestEffort:
-		if runtime.GOOS == "windows" {
-			systemReserved, err := getSystemReservedMemory(machineInfo, nodeAllocatableReservation, reservedMemory)
-			if err != nil {
-				return nil, err
-			}
-			policy, err = NewPolicyBestEffort(machineInfo, systemReserved, affinity)
-			if err != nil {
-				return nil, err
-			}
-		} else {
-			return nil, fmt.Errorf("policy %q is not available for platform %q", policyTypeBestEffort, runtime.GOOS)
-		}
-
-	default:
-		return nil, fmt.Errorf("unknown policy: %q", policyName)
+	policy, err := createPolicy(policyName, machineInfo, nodeAllocatableReservation, reservedMemory, affinity)
+	if err != nil {
+		return nil, err
 	}
 
 	manager := &manager{
@@ -308,6 +275,61 @@ func (m *manager) GetTopologyHints(pod *v1.Pod, container *v1.Container) map[str
 	m.removeStaleState()
 	// Delegate to active policy
 	return m.policy.GetTopologyHints(m.state, pod, container)
+}
+
+// SyncMachineInfo will reinitialize the memory manager with latest machine info
+func (m *manager) SyncMachineInfo(policyName string, machineInfo *cadvisorapi.MachineInfo, nodeAllocatableReservation v1.ResourceList, reservedMemory []kubeletconfig.MemoryReservation, affinity topologymanager.Store) error {
+	m.Lock()
+	defer m.Unlock()
+	policy, err := createPolicy(policyName, machineInfo, nodeAllocatableReservation, reservedMemory, affinity)
+	if err != nil {
+		return err
+	}
+	m.policy = policy
+	return nil
+}
+
+func createPolicy(policyName string, machineInfo *cadvisorapi.MachineInfo, nodeAllocatableReservation v1.ResourceList, reservedMemory []kubeletconfig.MemoryReservation, affinity topologymanager.Store) (Policy, error) {
+	var policy Policy
+
+	switch policyType(policyName) {
+
+	case policyTypeNone:
+		policy = NewPolicyNone()
+
+	case policyTypeStatic:
+		if runtime.GOOS == "windows" {
+			return nil, fmt.Errorf("policy %q is not available on Windows", policyTypeStatic)
+		}
+
+		systemReserved, err := getSystemReservedMemory(machineInfo, nodeAllocatableReservation, reservedMemory)
+		if err != nil {
+			return nil, err
+		}
+
+		policy, err = NewPolicyStatic(machineInfo, systemReserved, affinity)
+		if err != nil {
+			return nil, err
+		}
+
+	case policyTypeBestEffort:
+		if runtime.GOOS == "windows" {
+			systemReserved, err := getSystemReservedMemory(machineInfo, nodeAllocatableReservation, reservedMemory)
+			if err != nil {
+				return nil, err
+			}
+			policy, err = NewPolicyBestEffort(machineInfo, systemReserved, affinity)
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			return nil, fmt.Errorf("policy %q is not available for platform %q", policyTypeBestEffort, runtime.GOOS)
+		}
+
+	default:
+		return nil, fmt.Errorf("unknown policy: %q", policyName)
+	}
+	return policy, nil
 }
 
 // TODO: move the method to the upper level, to re-use it under the CPU and memory managers

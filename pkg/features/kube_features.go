@@ -862,6 +862,13 @@ const (
 	//
 	// Enables specifying resources at pod-level.
 	PodLevelResources featuregate.Feature = "PodLevelResources"
+
+	// owner: @karthik-k-n
+	// key: https://kep.k8s.io/3953
+	// alpha: 1.33
+	//
+	// Enables hot plug of node compute resources
+	NodeResourceHotPlug featuregate.Feature = "NodeResourceHotPlug"
 )
 
 func init() {

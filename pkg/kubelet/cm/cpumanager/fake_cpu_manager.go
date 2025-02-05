@@ -17,6 +17,7 @@ limitations under the License.
 package cpumanager
 
 import (
+	cadvisorapi "github.com/google/cadvisor/info/v1"
 	"k8s.io/api/core/v1"
 	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/kubelet/cm/containermap"
@@ -88,6 +89,10 @@ func (m *fakeManager) GetCPUAffinity(podUID, containerName string) cpuset.CPUSet
 func (m *fakeManager) GetAllCPUs() cpuset.CPUSet {
 	klog.InfoS("GetAllCPUs")
 	return cpuset.CPUSet{}
+}
+
+func (m *fakeManager) SyncMachineInfo(_ *cadvisorapi.MachineInfo) error {
+	return nil
 }
 
 // NewFakeManager creates empty/fake cpu manager

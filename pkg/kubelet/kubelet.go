@@ -21,6 +21,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"k8s.io/kubernetes/pkg/kubelet/noderesource"
 	"math"
 	"net"
 	"net/http"
@@ -744,6 +745,7 @@ func NewMainKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 		*kubeCfg.MemoryThrottlingFactor,
 		kubeDeps.PodStartupLatencyTracker,
 		kubeDeps.TracerProvider,
+		klet.GetCachedMachineInfo,
 	)
 	if err != nil {
 		return nil, err
@@ -1030,6 +1032,9 @@ func NewMainKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 			return nil, fmt.Errorf("create health checker: %w", err)
 		}
 	}
+
+	klet.nodeResourceManager = noderesource.NewNodeResourceManager(klet, klet.cadvisor)
+
 	return klet, nil
 }
 
@@ -1426,6 +1431,8 @@ type Kubelet struct {
 
 	// Health check kubelet
 	healthChecker watchdog.HealthChecker
+
+	nodeResourceManager noderesource.Manager
 }
 
 // ListPodStats is delegated to StatsProvider, which implements stats.Provider interface
@@ -1788,6 +1795,10 @@ func (kl *Kubelet) Run(updates <-chan kubetypes.PodUpdate) {
 
 	if utilfeature.DefaultFeatureGate.Enabled(features.SystemdWatchdog) {
 		kl.healthChecker.Start()
+	}
+
+	if utilfeature.DefaultFeatureGate.Enabled(features.NodeResourceHotPlug) {
+		kl.nodeResourceManager.Start()
 	}
 
 	kl.syncLoop(ctx, updates, kl)
@@ -2562,7 +2573,12 @@ func (kl *Kubelet) syncLoopIteration(ctx context.Context, configCh <-chan kubety
 			// We do not apply the optimization by updating the status directly, but can do it later
 			handler.HandlePodSyncs(pods)
 		}
-
+	case machineInfo := <-kl.nodeResourceManager.MachineInfo():
+		kl.setCachedMachineInfo(machineInfo)
+		// Resync the resource managers
+		if err := kl.containerManager.ResyncComponents(machineInfo); err != nil {
+			klog.ErrorS(err, "Failed to resync resource managers with machine info update")
+		}
 	case <-housekeepingCh:
 		if !kl.sourcesReady.AllReady() {
 			// If the sources aren't ready or volume manager has not yet synced the states,
