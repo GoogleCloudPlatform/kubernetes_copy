@@ -774,3 +774,95 @@ function kube::codegen::gen_register() {
             "${input_pkgs[@]}"
     fi
 }
+
+
+# Generate register code
+#
+# USAGE: kube::codegen::prerelease [FLAGS] <input-dir>
+# <input-dir>
+#   The root directory under which to search for Go files which request code to
+#   be generated.  This must be a local path, not a Go package.
+#
+#   See note at the top about package structure below that.
+#
+# FLAGS:
+#
+#   --boilerplate <string = path_to_kube_codegen_boilerplate>
+#     An optional override for the header file to insert into generated files.
+#
+function kube::codegen::prerelease() {
+    local in_dir=""
+    local boilerplate="${KUBE_CODEGEN_ROOT}/hack/boilerplate.go.txt"
+    local v="${KUBE_VERBOSE:-0}"
+
+    while [ "$#" -gt 0 ]; do
+        case "$1" in
+            "--boilerplate")
+                boilerplate="$2"
+                shift 2
+                ;;
+            *)
+                if [[ "$1" =~ ^-- ]]; then
+                    echo "unknown argument: $1" >&2
+                    return 1
+                fi
+                if [ -n "$in_dir" ]; then
+                    echo "too many arguments: $1 (already have $in_dir)" >&2
+                    return 1
+                fi
+                in_dir="$1"
+                shift
+                ;;
+        esac
+    done
+
+    if [ -z "${in_dir}" ]; then
+        echo "input-dir argument is required" >&2
+        return 1
+    fi
+
+    (
+        # To support running this from anywhere, first cd into this directory,
+        # and then install with forced module mode on and fully qualified name.
+        cd "${KUBE_CODEGEN_ROOT}"
+        BINS=(
+            prerelease-lifecycle-gen
+        )
+        # shellcheck disable=2046 # printf word-splitting is intentional
+        GO111MODULE=on go install $(printf "k8s.io/code-generator/cmd/%s " "${BINS[@]}")
+    )
+    # Go installs in $GOBIN if defined, and $GOPATH/bin otherwise
+    gobin="${GOBIN:-$(go env GOPATH)/bin}"
+
+    # Prerelease lifecycle
+    #
+    local input_pkgs=()
+    while read -r dir; do
+        pkg="$(cd "${dir}" && GO111MODULE=on go list -find .)"
+        input_pkgs+=("${pkg}")
+    done < <(
+        ( kube::codegen::internal::grep -l --null \
+            -e '^\s*//\s*+k8s:prerelease-lifecycle-gen=' \
+            -r "${in_dir}" \
+            --include '*.go' \
+            || true \
+        ) | while read -r -d $'\0' F; do dirname "${F}"; done \
+          | LC_ALL=C sort -u
+    )
+
+    if [ "${#input_pkgs[@]}" != 0 ]; then
+        echo "Generating prerelease lifecycle code for ${#input_pkgs[@]} targets"
+
+        kube::codegen::internal::findz \
+            "${in_dir}" \
+            -type f \
+            -name zz_generated.prerelease-lifecycle.go \
+            | xargs -0 rm -f
+
+        "${gobin}/prerelease-lifecycle-gen" \
+            -v "${v}" \
+            --output-file zz_generated.prerelease-lifecycle.go \
+            --go-header-file "${boilerplate}" \
+            "${input_pkgs[@]}"
+    fi
+}
