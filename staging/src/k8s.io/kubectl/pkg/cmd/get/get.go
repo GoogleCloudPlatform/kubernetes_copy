@@ -459,6 +459,11 @@ func (o *GetOptions) Run(f cmdutil.Factory, args []string) error {
 		chunkSize = 0
 	}
 
+	var isAll bool = false
+	if len(args) == 1 && args[0] == "all" {
+		isAll = true
+	}
+
 	r := f.NewBuilder().
 		Unstructured().
 		NamespaceParam(o.Namespace).DefaultNamespace().AllNamespaces(o.AllNamespaces).
@@ -479,6 +484,10 @@ func (o *GetOptions) Run(f cmdutil.Factory, args []string) error {
 	}
 	if err := r.Err(); err != nil {
 		return err
+	}
+
+	if isAll {
+		r.IgnoreErrors(apierrors.IsForbidden)
 	}
 
 	if !o.IsHumanReadablePrinter {
