@@ -27,6 +27,7 @@ import (
 	unversionedvalidation "k8s.io/apimachinery/pkg/apis/meta/v1/validation"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/kubernetes/pkg/apis/apps"
@@ -549,6 +550,11 @@ func ValidateDeploymentStrategy(strategy *apps.DeploymentStrategy, fldPath *fiel
 	return allErrs
 }
 
+var supportedDeploymentPodReplacementPolicies = sets.NewString(
+	string(apps.TerminationStarted),
+	string(apps.TerminationComplete),
+)
+
 // ValidateRollback validates given RollbackConfig.
 func ValidateRollback(rollback *apps.RollbackConfig, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
@@ -593,6 +599,9 @@ func ValidateDeploymentSpec(spec, oldSpec *apps.DeploymentSpec, fldPath *field.P
 		if *spec.ProgressDeadlineSeconds <= spec.MinReadySeconds {
 			allErrs = append(allErrs, field.Invalid(fldPath.Child("progressDeadlineSeconds"), spec.ProgressDeadlineSeconds, "must be greater than minReadySeconds"))
 		}
+	}
+	if spec.PodReplacementPolicy != nil && !supportedDeploymentPodReplacementPolicies.Has(string(*spec.PodReplacementPolicy)) {
+		allErrs = append(allErrs, field.NotSupported(fldPath.Child("podReplacementPolicy"), *spec.PodReplacementPolicy, supportedDeploymentPodReplacementPolicies.List()))
 	}
 	return allErrs
 }

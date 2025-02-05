@@ -22,23 +22,37 @@ import (
 
 	apps "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/client-go/kubernetes/fake"
 	core "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/record"
+	featuregatetesting "k8s.io/component-base/featuregate/testing"
 	"k8s.io/klog/v2/ktesting"
+	"k8s.io/kubernetes/pkg/features"
+	"k8s.io/utils/ptr"
 )
 
 func TestDeploymentController_reconcileNewReplicaSet(t *testing.T) {
 	tests := []struct {
-		deploymentReplicas  int32
-		maxSurge            intstr.IntOrString
-		oldReplicas         int32
-		newReplicas         int32
-		scaleExpected       bool
-		expectedNewReplicas int32
+		name                                 string
+		enableDeploymentPodReplacementPolicy bool
+
+		deploymentReplicas     int32
+		maxSurge               intstr.IntOrString
+		podReplacementPolicy   *apps.DeploymentPodReplacementPolicy
+		oldReplicas            int32
+		newReplicas            int32
+		oldTerminatingReplicas *int32
+		newTerminatingReplicas *int32
+		oldStatusReplicas      int32
+		newStatusReplicas      int32
+		isNewRSUnsynced        bool
+		scaleExpected          bool
+		expectedNewReplicas    int32
+		expectedScaleErr       bool
 	}{
 		{
-			// Should not scale up.
+			name:               "should not scale up when old replica set is fully saturated",
 			deploymentReplicas: 10,
 			maxSurge:           intstr.FromInt32(0),
 			oldReplicas:        10,
@@ -46,6 +60,7 @@ func TestDeploymentController_reconcileNewReplicaSet(t *testing.T) {
 			scaleExpected:      false,
 		},
 		{
+			name:                "should scale up according to the maxSurge when old replica set is fully saturated",
 			deploymentReplicas:  10,
 			maxSurge:            intstr.FromInt32(2),
 			oldReplicas:         10,
@@ -54,6 +69,7 @@ func TestDeploymentController_reconcileNewReplicaSet(t *testing.T) {
 			expectedNewReplicas: 2,
 		},
 		{
+			name:                "should scale up according to the maxSurge",
 			deploymentReplicas:  10,
 			maxSurge:            intstr.FromInt32(2),
 			oldReplicas:         5,
@@ -62,6 +78,7 @@ func TestDeploymentController_reconcileNewReplicaSet(t *testing.T) {
 			expectedNewReplicas: 7,
 		},
 		{
+			name:               "should not scale when maxSurge is fully saturated",
 			deploymentReplicas: 10,
 			maxSurge:           intstr.FromInt32(2),
 			oldReplicas:        10,
@@ -69,7 +86,7 @@ func TestDeploymentController_reconcileNewReplicaSet(t *testing.T) {
 			scaleExpected:      false,
 		},
 		{
-			// Should scale down.
+			name:                "should scale down when there are replicas above maxSurge",
 			deploymentReplicas:  10,
 			maxSurge:            intstr.FromInt32(2),
 			oldReplicas:         2,
@@ -77,47 +94,170 @@ func TestDeploymentController_reconcileNewReplicaSet(t *testing.T) {
 			scaleExpected:       true,
 			expectedNewReplicas: 10,
 		},
+		{
+			name:                                 "should scale up according to the maxSurge with empty policy and ignore terminating pods",
+			enableDeploymentPodReplacementPolicy: true,
+			deploymentReplicas:                   10,
+			maxSurge:                             intstr.FromInt32(2),
+			oldReplicas:                          5,
+			newReplicas:                          0,
+			oldTerminatingReplicas:               ptr.To[int32](1),
+			newTerminatingReplicas:               ptr.To[int32](10),
+			scaleExpected:                        true,
+			expectedNewReplicas:                  7,
+		},
+		{
+			name:                                 "should scale up according to the maxSurge with TerminationStarted policy and ignore terminating pods",
+			enableDeploymentPodReplacementPolicy: true,
+			deploymentReplicas:                   10,
+			maxSurge:                             intstr.FromInt32(2),
+			podReplacementPolicy:                 ptr.To(apps.TerminationStarted),
+			oldReplicas:                          5,
+			newReplicas:                          0,
+			oldTerminatingReplicas:               ptr.To[int32](1),
+			newTerminatingReplicas:               ptr.To[int32](10),
+			scaleExpected:                        true,
+			expectedNewReplicas:                  7,
+		},
+		{
+			name:                                 "should scale up according to the terminating pods with TerminationComplete policy",
+			enableDeploymentPodReplacementPolicy: true,
+			deploymentReplicas:                   10,
+			maxSurge:                             intstr.FromInt32(0),
+			podReplacementPolicy:                 ptr.To(apps.TerminationComplete),
+			oldReplicas:                          5,
+			newReplicas:                          1,
+			oldTerminatingReplicas:               ptr.To[int32](0),
+			newTerminatingReplicas:               ptr.To[int32](1),
+			scaleExpected:                        true,
+			expectedNewReplicas:                  4,
+		},
+		{
+			name:                                 "should scale up according to the terminating pods with TerminationComplete policy and unsynced new RS",
+			enableDeploymentPodReplacementPolicy: true,
+			deploymentReplicas:                   10,
+			maxSurge:                             intstr.FromInt32(0),
+			podReplacementPolicy:                 ptr.To(apps.TerminationComplete),
+			oldReplicas:                          5,
+			newReplicas:                          1,
+			oldTerminatingReplicas:               ptr.To[int32](1),
+			newTerminatingReplicas:               nil,
+			isNewRSUnsynced:                      true,
+			scaleExpected:                        true,
+			expectedNewReplicas:                  4,
+		},
+		{
+			name:                                 "should error when scaling up according to the terminating pods with TerminationComplete policy and broken new RS (unknown terminatingReplicas)",
+			enableDeploymentPodReplacementPolicy: true,
+			deploymentReplicas:                   10,
+			maxSurge:                             intstr.FromInt32(0),
+			podReplacementPolicy:                 ptr.To(apps.TerminationComplete),
+			oldReplicas:                          5,
+			newReplicas:                          1,
+			oldTerminatingReplicas:               ptr.To[int32](1),
+			// This should not happen during a normal operation (functioning replica set controller and no 3rd party status tampering).
+			newTerminatingReplicas: nil,
+			expectedScaleErr:       true,
+		},
+		{
+			name:                                 "should scale up according to the status pods with TerminationComplete policy",
+			enableDeploymentPodReplacementPolicy: true,
+			deploymentReplicas:                   10,
+			maxSurge:                             intstr.FromInt32(0),
+			podReplacementPolicy:                 ptr.To(apps.TerminationComplete),
+			oldReplicas:                          5,
+			newReplicas:                          1,
+			oldStatusReplicas:                    6,
+			newStatusReplicas:                    1,
+			oldTerminatingReplicas:               ptr.To[int32](0),
+			newTerminatingReplicas:               ptr.To[int32](0),
+			scaleExpected:                        true,
+			expectedNewReplicas:                  4,
+		},
+		{
+			name:                                 "should scale up according to the maxSurge and terminating and status pods with TerminationComplete policy",
+			enableDeploymentPodReplacementPolicy: true,
+			deploymentReplicas:                   10,
+			maxSurge:                             intstr.FromInt32(2),
+			podReplacementPolicy:                 ptr.To(apps.TerminationComplete),
+			oldReplicas:                          5,
+			newReplicas:                          0,
+			oldTerminatingReplicas:               ptr.To[int32](1),
+			newTerminatingReplicas:               ptr.To[int32](2),
+			newStatusReplicas:                    1, // this is expected to terminate
+			scaleExpected:                        true,
+			expectedNewReplicas:                  3,
+		},
+		{
+			name:                                 "should not scale up according to the maxSurge due to terminating pods with TerminationComplete policy",
+			enableDeploymentPodReplacementPolicy: true,
+			deploymentReplicas:                   10,
+			maxSurge:                             intstr.FromInt32(2),
+			podReplacementPolicy:                 ptr.To(apps.TerminationComplete),
+			oldReplicas:                          5,
+			newReplicas:                          0,
+			oldTerminatingReplicas:               ptr.To[int32](1),
+			newTerminatingReplicas:               ptr.To[int32](10),
+			scaleExpected:                        false,
+			expectedNewReplicas:                  0,
+		},
 	}
 
-	for i := range tests {
-		test := tests[i]
-		t.Logf("executing scenario %d", i)
-		newRS := rs("foo-v2", test.newReplicas, nil, noTimestamp)
-		oldRS := rs("foo-v2", test.oldReplicas, nil, noTimestamp)
-		allRSs := []*apps.ReplicaSet{newRS, oldRS}
-		maxUnavailable := intstr.FromInt32(0)
-		deployment := newDeployment("foo", test.deploymentReplicas, nil, &test.maxSurge, &maxUnavailable, map[string]string{"foo": "bar"})
-		fake := fake.Clientset{}
-		controller := &DeploymentController{
-			client:        &fake,
-			eventRecorder: &record.FakeRecorder{},
-		}
-		_, ctx := ktesting.NewTestContext(t)
-		ctx, cancel := context.WithCancel(ctx)
-		defer cancel()
-		scaled, err := controller.reconcileNewReplicaSet(ctx, allRSs, newRS, deployment)
-		if err != nil {
-			t.Errorf("unexpected error: %v", err)
-			continue
-		}
-		if !test.scaleExpected {
-			if scaled || len(fake.Actions()) > 0 {
-				t.Errorf("unexpected scaling: %v", fake.Actions())
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.DeploymentPodReplacementPolicy, test.enableDeploymentPodReplacementPolicy)
+			_, ctx := ktesting.NewTestContext(t)
+			ctx, cancel := context.WithCancel(ctx)
+			defer cancel()
+
+			newRS := newRSWithFullStatus("foo-v2", test.newReplicas, apps.ReplicaSetStatus{
+				Replicas:            test.newStatusReplicas,
+				TerminatingReplicas: test.newTerminatingReplicas,
+			}, nil, nil, noTimestamp)
+			if !test.isNewRSUnsynced {
+				newRS.Status.ObservedGeneration = 1
 			}
-			continue
-		}
-		if test.scaleExpected && !scaled {
-			t.Errorf("expected scaling to occur")
-			continue
-		}
-		if len(fake.Actions()) != 1 {
-			t.Errorf("expected 1 action during scale, got: %v", fake.Actions())
-			continue
-		}
-		updated := fake.Actions()[0].(core.UpdateAction).GetObject().(*apps.ReplicaSet)
-		if e, a := test.expectedNewReplicas, *(updated.Spec.Replicas); e != a {
-			t.Errorf("expected update to %d replicas, got %d", e, a)
-		}
+			oldRS := newRSWithFullStatus("foo-v1", test.oldReplicas, apps.ReplicaSetStatus{
+				ObservedGeneration:  1,
+				Replicas:            test.oldStatusReplicas,
+				TerminatingReplicas: test.oldTerminatingReplicas,
+			}, nil, nil, noTimestamp)
+
+			allRSs := []*apps.ReplicaSet{newRS, oldRS}
+			maxUnavailable := intstr.FromInt32(0)
+			deployment := newDeployment("foo", test.deploymentReplicas, nil, &test.maxSurge, &maxUnavailable, map[string]string{"foo": "bar"})
+			deployment.Spec.PodReplacementPolicy = test.podReplacementPolicy
+			fake := fake.Clientset{}
+			controller := &DeploymentController{
+				client:        &fake,
+				eventRecorder: &record.FakeRecorder{},
+			}
+			scaled, err := controller.reconcileNewReplicaSet(ctx, allRSs, newRS, deployment)
+			if err != nil {
+				if !test.expectedScaleErr {
+					t.Errorf("unexpected error: %v", err)
+				}
+				return
+			}
+			if !test.scaleExpected {
+				if scaled || len(fake.Actions()) > 0 {
+					t.Errorf("unexpected scaling: %v", fake.Actions())
+				}
+				return
+			}
+			if test.scaleExpected && !scaled {
+				t.Errorf("expected scaling to occur")
+				return
+			}
+			if len(fake.Actions()) != 1 {
+				t.Errorf("expected 1 action during scale, got: %v", fake.Actions())
+				return
+			}
+			updated := fake.Actions()[0].(core.UpdateAction).GetObject().(*apps.ReplicaSet)
+			if e, a := test.expectedNewReplicas, *(updated.Spec.Replicas); e != a {
+				t.Errorf("expected update to %d replicas, got %d", e, a)
+			}
+		})
 	}
 }
 

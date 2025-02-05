@@ -19,6 +19,7 @@ limitations under the License.
 package v1
 
 import (
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/client-go/applyconfigurations/core/v1"
 	metav1 "k8s.io/client-go/applyconfigurations/meta/v1"
 )
@@ -34,6 +35,7 @@ type DeploymentSpecApplyConfiguration struct {
 	RevisionHistoryLimit    *int32                                    `json:"revisionHistoryLimit,omitempty"`
 	Paused                  *bool                                     `json:"paused,omitempty"`
 	ProgressDeadlineSeconds *int32                                    `json:"progressDeadlineSeconds,omitempty"`
+	PodReplacementPolicy    *appsv1.DeploymentPodReplacementPolicy    `json:"podReplacementPolicy,omitempty"`
 }
 
 // DeploymentSpecApplyConfiguration constructs a declarative configuration of the DeploymentSpec type for use with
@@ -103,5 +105,13 @@ func (b *DeploymentSpecApplyConfiguration) WithPaused(value bool) *DeploymentSpe
 // If called multiple times, the ProgressDeadlineSeconds field is set to the value of the last call.
 func (b *DeploymentSpecApplyConfiguration) WithProgressDeadlineSeconds(value int32) *DeploymentSpecApplyConfiguration {
 	b.ProgressDeadlineSeconds = &value
+	return b
+}
+
+// WithPodReplacementPolicy sets the PodReplacementPolicy field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the PodReplacementPolicy field is set to the value of the last call.
+func (b *DeploymentSpecApplyConfiguration) WithPodReplacementPolicy(value appsv1.DeploymentPodReplacementPolicy) *DeploymentSpecApplyConfiguration {
+	b.PodReplacementPolicy = &value
 	return b
 }

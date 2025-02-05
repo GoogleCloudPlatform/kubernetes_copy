@@ -81,6 +81,11 @@ func (deploymentStrategy) PrepareForCreate(ctx context.Context, obj runtime.Obje
 	deployment.Status = apps.DeploymentStatus{}
 	deployment.Generation = 1
 
+	// drop disabled field
+	if !utilfeature.DefaultFeatureGate.Enabled(features.DeploymentPodReplacementPolicy) {
+		deployment.Spec.PodReplacementPolicy = nil
+	}
+
 	pod.DropDisabledTemplateFields(&deployment.Spec.Template, nil)
 }
 
@@ -116,6 +121,11 @@ func (deploymentStrategy) PrepareForUpdate(ctx context.Context, obj, old runtime
 	newDeployment := obj.(*apps.Deployment)
 	oldDeployment := old.(*apps.Deployment)
 	newDeployment.Status = oldDeployment.Status
+
+	// drop disabled field
+	if !utilfeature.DefaultFeatureGate.Enabled(features.DeploymentPodReplacementPolicy) && oldDeployment.Spec.PodReplacementPolicy == nil {
+		newDeployment.Spec.PodReplacementPolicy = nil
+	}
 
 	pod.DropDisabledTemplateFields(&newDeployment.Spec.Template, &oldDeployment.Spec.Template)
 

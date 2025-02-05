@@ -162,7 +162,9 @@ const (
 	// owner: @atiratree
 	// kep: http://kep.k8s.io/3973
 	//
-	// Deployments and replica sets can now also track terminating pods via .status.terminatingReplicas.
+	// A new deployment field, .spec.podReplacementPolicy, can be used to determine whether to replace
+	// terminating or terminated pods in deployments with new pods. Deployments and replica sets
+	// can now also track terminating pods via .status.terminatingReplicas.
 	DeploymentPodReplacementPolicy featuregate.Feature = "DeploymentPodReplacementPolicy"
 
 	// owner: @elezar

@@ -1794,7 +1794,8 @@
     "minReadySeconds": 5,
     "revisionHistoryLimit": 6,
     "paused": true,
-    "progressDeadlineSeconds": 9
+    "progressDeadlineSeconds": 9,
+    "podReplacementPolicy": "podReplacementPolicyValue"
   },
   "status": {
     "observedGeneration": 1,
