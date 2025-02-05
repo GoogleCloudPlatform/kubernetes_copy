@@ -124,7 +124,10 @@ func (c *cgroupV2impl) getCgroupCPUConfig(cgroupPath string) (*ResourceConfig, e
 	if errWeight != nil {
 		return nil, fmt.Errorf("failed to read CPU weight for cgroup %v: %w", cgroupPath, errWeight)
 	}
-	cpuShares := cpuWeightToCPUShares(cpuWeight)
+	cpuShares, err := cmutil.CPUWeightToCPUShares(cpuWeight)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert cgroup v1 CPU weight %d to v2 CPU shares: %w", cpuWeight, err)
+	}
 	return &ResourceConfig{CPUShares: &cpuShares, CPUQuota: &cpuLimit, CPUPeriod: &cpuPeriod}, nil
 }
 
@@ -162,16 +165,4 @@ func readUnifiedControllers(path string) (sets.Set[string], error) {
 func (c *cgroupV2impl) buildCgroupUnifiedPath(name CgroupName) string {
 	cgroupFsAdaptedName := c.Name(name)
 	return path.Join(cmutil.CgroupRoot, cgroupFsAdaptedName)
-}
-
-// Convert cgroup v1 cpu.shares value to cgroup v2 cpu.weight
-// https://github.com/kubernetes/enhancements/tree/master/keps/sig-node/2254-cgroup-v2#phase-1-convert-from-cgroups-v1-settings-to-v2
-func cpuSharesToCPUWeight(cpuShares uint64) uint64 {
-	return uint64((((cpuShares - 2) * 9999) / 262142) + 1)
-}
-
-// Convert cgroup v2 cpu.weight value to cgroup v1 cpu.shares
-// https://github.com/kubernetes/enhancements/tree/master/keps/sig-node/2254-cgroup-v2#phase-1-convert-from-cgroups-v1-settings-to-v2
-func cpuWeightToCPUShares(cpuWeight uint64) uint64 {
-	return uint64((((cpuWeight - 1) * 262142) / 9999) + 2)
 }

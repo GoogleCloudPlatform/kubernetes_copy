@@ -21,6 +21,7 @@ package cm
 
 import (
 	"errors"
+	pointer "k8s.io/utils/ptr"
 	"os"
 	"path"
 	"testing"
@@ -127,16 +128,21 @@ func TestCgroupMountValidationMultipleSubsystem(t *testing.T) {
 }
 
 func TestGetCpuWeight(t *testing.T) {
-	assert.Equal(t, uint64(0), getCPUWeight(nil))
+	weight, err := getCPUWeight(nil)
+	req := require.New(t)
+	req.NoError(err)
+	req.Equal(uint64(0), weight)
 
-	v := uint64(2)
-	assert.Equal(t, uint64(1), getCPUWeight(&v))
+	weight, err = getCPUWeight(pointer.To(uint64(2)))
+	req.NoError(err)
+	req.Equal(uint64(1), weight)
 
-	v = uint64(262144)
-	assert.Equal(t, uint64(10000), getCPUWeight(&v))
+	weight, err = getCPUWeight(pointer.To(uint64(262144)))
+	req.NoError(err)
+	req.Equal(uint64(10000), weight)
 
-	v = uint64(1000000000)
-	assert.Equal(t, uint64(10000), getCPUWeight(&v))
+	_, err = getCPUWeight(pointer.To(uint64(1000000000)))
+	req.Error(err)
 }
 
 func TestSoftRequirementsValidationSuccess(t *testing.T) {

@@ -20,9 +20,12 @@ limitations under the License.
 package cm
 
 import (
+	"github.com/stretchr/testify/require"
 	"path"
 	"reflect"
 	"testing"
+
+	"k8s.io/kubernetes/pkg/kubelet/cm/util"
 )
 
 // TestNewCgroupName tests confirms that #68416 is fixed
@@ -206,7 +209,11 @@ func TestCpuSharesToCPUWeight(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		if actual := cpuSharesToCPUWeight(testCase.cpuShares); actual != testCase.expectedCpuWeight {
+		actual, err := util.CPUSharesToCPUWeight(testCase.cpuShares)
+		req := require.New(t)
+		req.NoError(err)
+
+		if actual != testCase.expectedCpuWeight {
 			t.Errorf("cpuShares: %v, expectedCpuWeight: %v, actualCpuWeight: %v",
 				testCase.cpuShares, testCase.expectedCpuWeight, actual)
 		}
@@ -245,7 +252,11 @@ func TestCpuWeightToCPUShares(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		if actual := cpuWeightToCPUShares(testCase.cpuWeight); actual != testCase.expectedCpuShares {
+		actual, err := util.CPUWeightToCPUShares(testCase.cpuWeight)
+		req := require.New(t)
+		req.NoError(err)
+
+		if actual != testCase.expectedCpuShares {
 			t.Errorf("cpuWeight: %v, expectedCpuShares: %v, actualCpuShares: %v",
 				testCase.cpuWeight, testCase.expectedCpuShares, actual)
 		}

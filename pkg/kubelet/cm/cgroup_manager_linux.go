@@ -32,6 +32,7 @@ import (
 	libcontainerconfigs "github.com/opencontainers/runc/libcontainer/configs"
 	"k8s.io/klog/v2"
 	v1helper "k8s.io/kubernetes/pkg/apis/core/v1/helper"
+	"k8s.io/kubernetes/pkg/kubelet/cm/util"
 
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -264,14 +265,12 @@ func (m *cgroupCommon) SetCgroupConfig(name CgroupName, resourceConfig *Resource
 }
 
 // getCPUWeight converts from the range [2, 262144] to [1, 10000]
-func getCPUWeight(cpuShares *uint64) uint64 {
+func getCPUWeight(cpuShares *uint64) (uint64, error) {
 	if cpuShares == nil {
-		return 0
+		return 0, nil
 	}
-	if *cpuShares >= 262144 {
-		return 10000
-	}
-	return 1 + ((*cpuShares-2)*9999)/262142
+
+	return util.CPUSharesToCPUWeight(*cpuShares)
 }
 
 var (
@@ -292,7 +291,11 @@ func (m *cgroupCommon) toResources(resourceConfig *ResourceConfig) *libcontainer
 	}
 	if resourceConfig.CPUShares != nil {
 		if libcontainercgroups.IsCgroup2UnifiedMode() {
-			resources.CpuWeight = getCPUWeight(resourceConfig.CPUShares)
+			var err error
+			resources.CpuWeight, err = getCPUWeight(resourceConfig.CPUShares)
+			if err != nil {
+				klog.ErrorS(err, "error converting from cgroup v1 CPU shares to v2 CPU shares")
+			}
 		} else {
 			resources.CpuShares = *resourceConfig.CPUShares
 		}

@@ -33,6 +33,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kubeletconfig "k8s.io/kubernetes/pkg/kubelet/apis/config"
 	"k8s.io/kubernetes/pkg/kubelet/cm"
+	"k8s.io/kubernetes/pkg/kubelet/cm/util"
 	"k8s.io/kubernetes/pkg/kubelet/stats/pidlimit"
 	admissionapi "k8s.io/pod-security-admission/api"
 
@@ -212,11 +213,6 @@ func destroyTemporaryCgroupsForReservation(cgroupManager cm.CgroupManager) error
 	return cgroupManager.Destroy(cgroupConfig)
 }
 
-// convertSharesToWeight converts from cgroup v1 cpu.shares to cgroup v2 cpu.weight
-func convertSharesToWeight(shares int64) int64 {
-	return 1 + ((shares-2)*9999)/262142
-}
-
 func runTest(ctx context.Context, f *framework.Framework) error {
 	var oldCfg *kubeletconfig.KubeletConfiguration
 	subsystems, err := cm.GetCgroupSubsystems()
@@ -327,7 +323,11 @@ func runTest(ctx context.Context, f *framework.Framework) error {
 		shares := int64(cm.MilliCPUToShares(allocatableCPU.MilliValue()))
 		if IsCgroup2UnifiedMode() {
 			// convert to the cgroup v2 cpu.weight value
-			if err := expectFileValToEqual(filepath.Join(subsystems.MountPoints["cpu"], cgroupName, "cpu.weight"), convertSharesToWeight(shares), 10); err != nil {
+			cpuShares, err := util.CPUSharesToCPUWeight(uint64(shares))
+			if err != nil {
+				return err
+			}
+			if err := expectFileValToEqual(filepath.Join(subsystems.MountPoints["cpu"], cgroupName, "cpu.weight"), int64(cpuShares), 10); err != nil {
 				return err
 			}
 		} else {
@@ -373,7 +373,11 @@ func runTest(ctx context.Context, f *framework.Framework) error {
 	kubeReservedCPU := resource.MustParse(currentConfig.KubeReserved[string(v1.ResourceCPU)])
 	shares := int64(cm.MilliCPUToShares(kubeReservedCPU.MilliValue()))
 	if IsCgroup2UnifiedMode() {
-		if err := expectFileValToEqual(filepath.Join(subsystems.MountPoints["cpu"], cgroupPath, "cpu.weight"), convertSharesToWeight(shares), 10); err != nil {
+		cpuShares, err := util.CPUSharesToCPUWeight(uint64(shares))
+		if err != nil {
+			return err
+		}
+		if err := expectFileValToEqual(filepath.Join(subsystems.MountPoints["cpu"], cgroupPath, "cpu.weight"), int64(cpuShares), 10); err != nil {
 			return err
 		}
 	} else {
@@ -402,7 +406,11 @@ func runTest(ctx context.Context, f *framework.Framework) error {
 	systemReservedCPU := resource.MustParse(currentConfig.SystemReserved[string(v1.ResourceCPU)])
 	shares = int64(cm.MilliCPUToShares(systemReservedCPU.MilliValue()))
 	if IsCgroup2UnifiedMode() {
-		if err := expectFileValToEqual(filepath.Join(subsystems.MountPoints["cpu"], cgroupPath, "cpu.weight"), convertSharesToWeight(shares), 10); err != nil {
+		cpuShares, err := util.CPUSharesToCPUWeight(uint64(shares))
+		if err != nil {
+			return err
+		}
+		if err := expectFileValToEqual(filepath.Join(subsystems.MountPoints["cpu"], cgroupPath, "cpu.weight"), int64(cpuShares), 10); err != nil {
 			return err
 		}
 	} else {
