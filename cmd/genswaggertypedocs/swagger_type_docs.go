@@ -34,10 +34,11 @@ var (
 )
 
 func main() {
+	logger := klog.Background()
 	flag.Parse()
 
 	if *typeSrc == "" {
-		klog.Fatalf("Please define -s flag as it is the source file")
+		logger.Error(nil, "Please define -s flag as it is the source file")
 	}
 
 	var funcOut io.Writer
@@ -46,7 +47,7 @@ func main() {
 	} else {
 		file, err := os.Create(*functionDest)
 		if err != nil {
-			klog.Fatalf("Couldn't open %v: %v", *functionDest, err)
+			logger.Error(err, "Couldn't open.", "destination", *functionDest)
 		}
 		defer file.Close()
 		funcOut = file
