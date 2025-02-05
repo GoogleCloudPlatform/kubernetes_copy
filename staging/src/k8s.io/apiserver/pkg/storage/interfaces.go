@@ -146,21 +146,18 @@ func (p *Preconditions) Check(key string, obj runtime.Object) error {
 				err))
 	}
 	if p.UID != nil && *p.UID != objMeta.GetUID() {
-		err := fmt.Sprintf(
-			"Precondition failed: UID in precondition: %v, UID in object meta: %v",
-			*p.UID,
-			objMeta.GetUID())
-		return NewInvalidObjError(key, err)
+		return NewPreconditionError(key, PreconditionUID, string(*p.UID), string(objMeta.GetUID()))
 	}
 	if p.ResourceVersion != nil && *p.ResourceVersion != objMeta.GetResourceVersion() {
-		err := fmt.Sprintf(
-			"Precondition failed: ResourceVersion in precondition: %v, ResourceVersion in object meta: %v",
-			*p.ResourceVersion,
-			objMeta.GetResourceVersion())
-		return NewInvalidObjError(key, err)
+		return NewPreconditionError(key, PreconditionResourceVersion, *p.ResourceVersion, objMeta.GetResourceVersion())
 	}
 	return nil
 }
+
+const (
+	PreconditionUID             = "UID"
+	PreconditionResourceVersion = "ResourceVersion"
+)
 
 // Interface offers a common interface for object marshaling/unmarshaling operations and
 // hides all the storage-related operations behind it.
