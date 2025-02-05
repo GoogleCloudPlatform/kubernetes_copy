@@ -41,11 +41,10 @@ import (
 )
 
 const (
-	modifyPollInterval               = 2 * time.Second
-	setVACWaitPeriod                 = 30 * time.Second
-	modifyingConditionSyncWaitPeriod = 2 * time.Minute
-	modifyVolumeWaitPeriod           = 10 * time.Minute
-	vacCleanupWaitPeriod             = 30 * time.Second
+	modifyPollInterval     = 2 * time.Second
+	setVACWaitPeriod       = 30 * time.Second
+	modifyVolumeWaitPeriod = 10 * time.Minute
+	vacCleanupWaitPeriod   = 30 * time.Second
 )
 
 type volumeModifyTestSuite struct {
@@ -227,6 +226,46 @@ func (v *volumeModifyTestSuite) DefineTests(driver storageframework.TestDriver, 
 		err = e2epv.WaitForPersistentVolumeClaimModified(ctx, f.ClientSet, l.resource.Pvc, modifyVolumeWaitPeriod)
 		framework.ExpectNoError(err, "While waiting for PVC to have expected VAC")
 	})
+
+	ginkgo.It("should recover from invalid target VAC by updating PVC to new valid VAC", func(ctx context.Context) {
+		init(ctx, false /* volume created without VAC */)
+		ginkgo.DeferCleanup(cleanup)
+
+		// Create VAC with unsupported parameter
+		invalidVAC := MakeInvalidVAC(l.config)
+		_, err := f.ClientSet.StorageV1beta1().VolumeAttributesClasses().Create(ctx, invalidVAC, metav1.CreateOptions{})
+		framework.ExpectNoError(err, "While creating new VolumeAttributesClass")
+		ginkgo.DeferCleanup(CleanupVAC, invalidVAC, f.ClientSet, vacCleanupWaitPeriod)
+
+		ginkgo.By("Creating a pod with dynamically provisioned volume")
+		podConfig := e2epod.Config{
+			NS:            f.Namespace.Name,
+			PVCs:          []*v1.PersistentVolumeClaim{l.resource.Pvc},
+			SeLinuxLabel:  e2epod.GetLinuxLabel(),
+			NodeSelection: l.config.ClientNodeSelection,
+			ImageID:       e2epod.GetDefaultTestImageID(),
+		}
+		pod, err := e2epod.CreateSecPodWithNodeSelection(ctx, f.ClientSet, &podConfig, f.Timeouts.PodStart)
+		ginkgo.DeferCleanup(e2epod.DeletePodWithWait, f.ClientSet, pod)
+		framework.ExpectNoError(err, "While creating pod for modifying")
+
+		ginkgo.By("Attempting to modify PVC via VolumeAttributeClass that contains unsupported parameters")
+		newPVC := SetPVCVACName(ctx, l.resource.Pvc, invalidVAC.Name, f.ClientSet, setVACWaitPeriod)
+		l.resource.Pvc = newPVC
+		gomega.Expect(l.resource.Pvc).NotTo(gomega.BeNil())
+
+		ginkgo.By("Waiting for modification to fail")
+		err = e2epv.WaitForPersistentVolumeClaimModificationFailure(ctx, f.ClientSet, l.resource.Pvc, modifyVolumeWaitPeriod)
+		framework.ExpectNoError(err, "While waiting for PVC to have conditions")
+
+		ginkgo.By("Modifying PVC to new valid VAC")
+		l.resource.Pvc = SetPVCVACName(ctx, l.resource.Pvc, l.vac.Name, f.ClientSet, setVACWaitPeriod)
+		gomega.Expect(l.resource.Pvc).NotTo(gomega.BeNil())
+
+		ginkgo.By("Checking PVC status")
+		err = e2epv.WaitForPersistentVolumeClaimModified(ctx, f.ClientSet, l.resource.Pvc, modifyVolumeWaitPeriod)
+		framework.ExpectNoError(err, "While waiting for PVC to have expected VAC")
+	})
 }
 
 // SetPVCVACName sets the VolumeAttributesClassName on a PVC object
@@ -244,6 +283,15 @@ func SetPVCVACName(ctx context.Context, origPVC *v1.PersistentVolumeClaim, name 
 	}, timeout, modifyPollInterval).Should(gomega.Succeed())
 
 	return patchedPVC
+}
+
+func MakeInvalidVAC(config *storageframework.PerTestConfig) *storagev1beta1.VolumeAttributesClass {
+	return storageframework.CopyVolumeAttributesClass(&storagev1beta1.VolumeAttributesClass{
+		DriverName: config.GetUniqueDriverName(),
+		Parameters: map[string]string{
+			"xxInvalidParameterKey": "xxInvalidParameterValue",
+		},
+	}, config.Framework.Namespace.Name, "e2e-vac-invalid")
 }
 
 func CleanupVAC(ctx context.Context, vac *storagev1beta1.VolumeAttributesClass, c clientset.Interface, timeout time.Duration) {
