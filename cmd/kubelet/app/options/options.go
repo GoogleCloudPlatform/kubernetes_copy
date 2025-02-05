@@ -25,7 +25,6 @@ import (
 
 	"github.com/spf13/pflag"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
@@ -117,16 +116,6 @@ type KubeletFlags struct {
 	// This will cause the kubelet to listen to inotify events on the lock file,
 	// releasing it and exiting when another process tries to open that file.
 	ExitOnLockContention bool
-	// DEPRECATED FLAGS
-	// minimumGCAge is the minimum age for a finished container before it is
-	// garbage collected.
-	MinimumGCAge metav1.Duration
-	// maxPerPodContainerCount is the maximum number of old instances to
-	// retain per container. Each container takes up some disk space.
-	MaxPerPodContainerCount int32
-	// maxContainerCount is the maximum number of old instances of containers
-	// to retain globally. Each container takes up some disk space.
-	MaxContainerCount int32
 	// registerSchedulable tells the kubelet to register the node as
 	// schedulable. Won't have any effect if register-node is false.
 	// DEPRECATED: use registerWithTaints instead
@@ -141,9 +130,6 @@ func NewKubeletFlags() *KubeletFlags {
 		ContainerRuntimeOptions: *NewContainerRuntimeOptions(),
 		CertDirectory:           "/var/lib/kubelet/pki",
 		RootDirectory:           filepath.Clean(defaultRootDir),
-		MaxContainerCount:       -1,
-		MaxPerPodContainerCount: 1,
-		MinimumGCAge:            metav1.Duration{Duration: 0},
 		RegisterSchedulable:     true,
 		NodeLabels:              make(map[string]string),
 	}
@@ -310,11 +296,6 @@ func (f *KubeletFlags) AddFlags(mainfs *pflag.FlagSet) {
 	fs.BoolVar(&f.ExitOnLockContention, "exit-on-lock-contention", f.ExitOnLockContention, "Whether kubelet should exit upon lock-file contention.")
 
 	// DEPRECATED FLAGS
-	fs.DurationVar(&f.MinimumGCAge.Duration, "minimum-container-ttl-duration", f.MinimumGCAge.Duration, "Minimum age for a finished container before it is garbage collected.  Examples: '300ms', '10s' or '2h45m'")
-	fs.MarkDeprecated("minimum-container-ttl-duration", "Use --eviction-hard or --eviction-soft instead. Will be removed in a future version.")
-	fs.Int32Var(&f.MaxPerPodContainerCount, "maximum-dead-containers-per-container", f.MaxPerPodContainerCount, "Maximum number of old instances to retain per container.  Each container takes up some disk space.")
-	fs.MarkDeprecated("maximum-dead-containers-per-container", "Use --eviction-hard or --eviction-soft instead. Will be removed in a future version.")
-	fs.Int32Var(&f.MaxContainerCount, "maximum-dead-containers", f.MaxContainerCount, "Maximum number of old instances of containers to retain globally.  Each container takes up some disk space. To disable, set to a negative number.")
 	fs.MarkDeprecated("maximum-dead-containers", "Use --eviction-hard or --eviction-soft instead. Will be removed in a future version.")
 	fs.BoolVar(&f.RegisterSchedulable, "register-schedulable", f.RegisterSchedulable, "Register the node as schedulable. Won't have any effect if register-node is false.")
 	fs.MarkDeprecated("register-schedulable", "will be removed in a future version")

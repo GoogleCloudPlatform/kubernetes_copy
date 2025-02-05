@@ -72,10 +72,6 @@ func TestGetContainersToDeleteInPodWithFilter(t *testing.T) {
 			1,
 			[]*kubecontainer.Status{pod.ContainerStatuses[2], pod.ContainerStatuses[1]},
 		},
-		{
-			2,
-			[]*kubecontainer.Status{pod.ContainerStatuses[1]},
-		},
 	}
 
 	for _, test := range testCases {

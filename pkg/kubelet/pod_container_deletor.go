@@ -34,8 +34,7 @@ const (
 type containerStatusbyCreatedList []*kubecontainer.Status
 
 type podContainerDeletor struct {
-	worker           chan<- kubecontainer.ContainerID
-	containersToKeep int
+	worker chan<- kubecontainer.ContainerID
 }
 
 func (a containerStatusbyCreatedList) Len() int      { return len(a) }
@@ -44,7 +43,7 @@ func (a containerStatusbyCreatedList) Less(i, j int) bool {
 	return a[i].CreatedAt.After(a[j].CreatedAt)
 }
 
-func newPodContainerDeletor(runtime kubecontainer.Runtime, containersToKeep int) *podContainerDeletor {
+func newPodContainerDeletor(runtime kubecontainer.Runtime) *podContainerDeletor {
 	buffer := make(chan kubecontainer.ContainerID, containerDeletorBufferLimit)
 	go wait.Until(func() {
 		for {
@@ -56,8 +55,7 @@ func newPodContainerDeletor(runtime kubecontainer.Runtime, containersToKeep int)
 	}, 0, wait.NeverStop)
 
 	return &podContainerDeletor{
-		worker:           buffer,
-		containersToKeep: containersToKeep,
+		worker: buffer,
 	}
 }
 
@@ -101,7 +99,7 @@ func getContainersToDeleteInPod(filterContainerID string, podStatus *kubecontain
 
 // deleteContainersInPod issues container deletion requests for containers selected by getContainersToDeleteInPod.
 func (p *podContainerDeletor) deleteContainersInPod(filterContainerID string, podStatus *kubecontainer.PodStatus, removeAll bool) {
-	containersToKeep := p.containersToKeep
+	containersToKeep := 1
 	if removeAll {
 		containersToKeep = 0
 		filterContainerID = ""

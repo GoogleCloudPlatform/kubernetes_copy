@@ -200,17 +200,17 @@ func (_c *MockRuntime_DeleteContainer_Call) RunAndReturn(run func(context.Contex
 	return _c
 }
 
-// GarbageCollect provides a mock function with given fields: ctx, gcPolicy, allSourcesReady, evictNonDeletedPods
-func (_m *MockRuntime) GarbageCollect(ctx context.Context, gcPolicy container.GCPolicy, allSourcesReady bool, evictNonDeletedPods bool) error {
-	ret := _m.Called(ctx, gcPolicy, allSourcesReady, evictNonDeletedPods)
+// GarbageCollect provides a mock function with given fields: ctx, allSourcesReady, evictNonDeletedPods
+func (_m *MockRuntime) GarbageCollect(ctx context.Context, allSourcesReady bool, evictNonDeletedPods bool) error {
+	ret := _m.Called(ctx, allSourcesReady, evictNonDeletedPods)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GarbageCollect")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, container.GCPolicy, bool, bool) error); ok {
-		r0 = rf(ctx, gcPolicy, allSourcesReady, evictNonDeletedPods)
+	if rf, ok := ret.Get(0).(func(context.Context, bool, bool) error); ok {
+		r0 = rf(ctx, allSourcesReady, evictNonDeletedPods)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -225,16 +225,15 @@ type MockRuntime_GarbageCollect_Call struct {
 
 // GarbageCollect is a helper method to define mock.On call
 //   - ctx context.Context
-//   - gcPolicy container.GCPolicy
 //   - allSourcesReady bool
 //   - evictNonDeletedPods bool
-func (_e *MockRuntime_Expecter) GarbageCollect(ctx interface{}, gcPolicy interface{}, allSourcesReady interface{}, evictNonDeletedPods interface{}) *MockRuntime_GarbageCollect_Call {
-	return &MockRuntime_GarbageCollect_Call{Call: _e.mock.On("GarbageCollect", ctx, gcPolicy, allSourcesReady, evictNonDeletedPods)}
+func (_e *MockRuntime_Expecter) GarbageCollect(ctx interface{}, allSourcesReady interface{}, evictNonDeletedPods interface{}) *MockRuntime_GarbageCollect_Call {
+	return &MockRuntime_GarbageCollect_Call{Call: _e.mock.On("GarbageCollect", ctx, allSourcesReady, evictNonDeletedPods)}
 }
 
-func (_c *MockRuntime_GarbageCollect_Call) Run(run func(ctx context.Context, gcPolicy container.GCPolicy, allSourcesReady bool, evictNonDeletedPods bool)) *MockRuntime_GarbageCollect_Call {
+func (_c *MockRuntime_GarbageCollect_Call) Run(run func(ctx context.Context, allSourcesReady bool, evictNonDeletedPods bool)) *MockRuntime_GarbageCollect_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(container.GCPolicy), args[2].(bool), args[3].(bool))
+		run(args[0].(context.Context), args[1].(bool), args[2].(bool))
 	})
 	return _c
 }
@@ -244,7 +243,7 @@ func (_c *MockRuntime_GarbageCollect_Call) Return(_a0 error) *MockRuntime_Garbag
 	return _c
 }
 
-func (_c *MockRuntime_GarbageCollect_Call) RunAndReturn(run func(context.Context, container.GCPolicy, bool, bool) error) *MockRuntime_GarbageCollect_Call {
+func (_c *MockRuntime_GarbageCollect_Call) RunAndReturn(run func(context.Context, bool, bool) error) *MockRuntime_GarbageCollect_Call {
 	_c.Call.Return(run)
 	return _c
 }

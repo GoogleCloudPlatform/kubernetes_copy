@@ -96,7 +96,7 @@ type Runtime interface {
 	// that are terminated, but not deleted will be evicted.  Otherwise, only deleted pods
 	// will be GC'd.
 	// TODO: Revisit this method and make it cleaner.
-	GarbageCollect(ctx context.Context, gcPolicy GCPolicy, allSourcesReady bool, evictNonDeletedPods bool) error
+	GarbageCollect(ctx context.Context, allSourcesReady bool, evictNonDeletedPods bool) error
 	// SyncPod syncs the running pod into the desired pod.
 	SyncPod(ctx context.Context, pod *v1.Pod, podStatus *PodStatus, pullSecrets []v1.Secret, backOff *flowcontrol.Backoff) PodSyncResult
 	// KillPod kills all the containers of a pod. Pod may be nil, running pod must not be.

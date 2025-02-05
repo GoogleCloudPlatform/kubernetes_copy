@@ -401,7 +401,7 @@ func (f *FakeRuntime) RemoveImage(_ context.Context, image kubecontainer.ImageSp
 	return f.Err
 }
 
-func (f *FakeRuntime) GarbageCollect(_ context.Context, gcPolicy kubecontainer.GCPolicy, ready bool, evictNonDeletedPods bool) error {
+func (f *FakeRuntime) GarbageCollect(_ context.Context, ready bool, evictNonDeletedPods bool) error {
 	f.Lock()
 	defer f.Unlock()
 

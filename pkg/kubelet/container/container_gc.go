@@ -18,24 +18,8 @@ package container
 
 import (
 	"context"
-	"fmt"
-	"time"
-
 	"k8s.io/klog/v2"
 )
-
-// GCPolicy specifies a policy for garbage collecting containers.
-type GCPolicy struct {
-	// Minimum age at which a container can be garbage collected, zero for no limit.
-	MinAge time.Duration
-
-	// Max number of dead containers any single pod (UID, container name) pair is
-	// allowed to have, less than zero for no limit.
-	MaxPerPodContainer int
-
-	// Max number of total dead containers, less than zero for no limit.
-	MaxContainers int
-}
 
 // GC manages garbage collection of dead containers.
 //
@@ -58,31 +42,23 @@ type realContainerGC struct {
 	// Container runtime
 	runtime Runtime
 
-	// Policy for garbage collection.
-	policy GCPolicy
-
 	// sourcesReadyProvider provides the readiness of kubelet configuration sources.
 	sourcesReadyProvider SourcesReadyProvider
 }
 
 // NewContainerGC creates a new instance of GC with the specified policy.
-func NewContainerGC(runtime Runtime, policy GCPolicy, sourcesReadyProvider SourcesReadyProvider) (GC, error) {
-	if policy.MinAge < 0 {
-		return nil, fmt.Errorf("invalid minimum garbage collection age: %v", policy.MinAge)
-	}
-
+func NewContainerGC(runtime Runtime, sourcesReadyProvider SourcesReadyProvider) (GC, error) {
 	return &realContainerGC{
 		runtime:              runtime,
-		policy:               policy,
 		sourcesReadyProvider: sourcesReadyProvider,
 	}, nil
 }
 
 func (cgc *realContainerGC) GarbageCollect(ctx context.Context) error {
-	return cgc.runtime.GarbageCollect(ctx, cgc.policy, cgc.sourcesReadyProvider.AllReady(), false)
+	return cgc.runtime.GarbageCollect(ctx, cgc.sourcesReadyProvider.AllReady(), false)
 }
 
 func (cgc *realContainerGC) DeleteAllUnusedContainers(ctx context.Context) error {
 	klog.InfoS("Attempting to delete unused containers")
-	return cgc.runtime.GarbageCollect(ctx, cgc.policy, cgc.sourcesReadyProvider.AllReady(), true)
+	return cgc.runtime.GarbageCollect(ctx, cgc.sourcesReadyProvider.AllReady(), true)
 }

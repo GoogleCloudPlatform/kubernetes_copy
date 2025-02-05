@@ -1701,8 +1701,8 @@ func (m *kubeGenericRuntimeManager) GetContainerStatus(ctx context.Context, id k
 }
 
 // GarbageCollect removes dead containers using the specified container gc policy.
-func (m *kubeGenericRuntimeManager) GarbageCollect(ctx context.Context, gcPolicy kubecontainer.GCPolicy, allSourcesReady bool, evictNonDeletedPods bool) error {
-	return m.containerGC.GarbageCollect(ctx, gcPolicy, allSourcesReady, evictNonDeletedPods)
+func (m *kubeGenericRuntimeManager) GarbageCollect(ctx context.Context, allSourcesReady bool, evictNonDeletedPods bool) error {
+	return m.containerGC.GarbageCollect(ctx, allSourcesReady, evictNonDeletedPods)
 }
 
 // UpdatePodCIDR is just a passthrough method to update the runtimeConfig of the shim

@@ -26,7 +26,6 @@ import (
 	"k8s.io/klog/v2"
 	"k8s.io/mount-utils"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/record"
 	internalapi "k8s.io/cri-api/pkg/apis"
@@ -156,9 +155,6 @@ func GetHollowKubeletConfig(opt *HollowKubeletOptions) (*options.KubeletFlags, *
 	f := options.NewKubeletFlags()
 	f.RootDirectory = testRootDir
 	f.HostnameOverride = opt.NodeName
-	f.MinimumGCAge = metav1.Duration{Duration: 1 * time.Minute}
-	f.MaxContainerCount = 100
-	f.MaxPerPodContainerCount = 2
 	f.NodeLabels = opt.NodeLabels
 	f.RegisterSchedulable = true
 

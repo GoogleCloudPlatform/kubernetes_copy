@@ -114,10 +114,11 @@ func (a sandboxByCreated) Len() int           { return len(a) }
 func (a sandboxByCreated) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a sandboxByCreated) Less(i, j int) bool { return a[i].createTime.After(a[j].createTime) }
 
-// enforceMaxContainersPerEvictUnit enforces MaxPerPodContainer for each evictUnit.
-func (cgc *containerGC) enforceMaxContainersPerEvictUnit(ctx context.Context, evictUnits containersByEvictUnit, MaxContainers int) {
+// retainLatestContainerPerEvictUnit ensures only the most recent container is kept per evictUnit,
+// removing all older containers.
+func (cgc *containerGC) retainLatestContainerPerEvictUnit(ctx context.Context, evictUnits containersByEvictUnit) {
 	for key := range evictUnits {
-		toRemove := len(evictUnits[key]) - MaxContainers
+		toRemove := len(evictUnits[key]) - 1
 
 		if toRemove > 0 {
 			evictUnits[key] = cgc.removeOldestN(ctx, evictUnits[key], toRemove)
@@ -185,24 +186,17 @@ func (cgc *containerGC) removeSandbox(ctx context.Context, sandboxID string) {
 	}
 }
 
-// evictableContainers gets all containers that are evictable. Evictable containers are: not running
-// and created more than MinAge ago.
-func (cgc *containerGC) evictableContainers(ctx context.Context, minAge time.Duration) (containersByEvictUnit, error) {
+// evictableContainers gets all containers that are evictable. Evictable containers are: not running.
+func (cgc *containerGC) evictableContainers(ctx context.Context) (containersByEvictUnit, error) {
 	containers, err := cgc.manager.getKubeletContainers(ctx, true)
 	if err != nil {
 		return containersByEvictUnit{}, err
 	}
 
 	evictUnits := make(containersByEvictUnit)
-	newestGCTime := time.Now().Add(-minAge)
 	for _, container := range containers {
 		// Prune out running containers.
 		if container.State == runtimeapi.ContainerState_CONTAINER_RUNNING {
-			continue
-		}
-
-		createdAt := time.Unix(0, container.CreatedAt)
-		if newestGCTime.Before(createdAt) {
 			continue
 		}
 
@@ -210,7 +204,7 @@ func (cgc *containerGC) evictableContainers(ctx context.Context, minAge time.Dur
 		containerInfo := containerGCInfo{
 			id:         container.Id,
 			name:       container.Metadata.Name,
-			createTime: createdAt,
+			createTime: time.Unix(0, container.CreatedAt),
 			unknown:    container.State == runtimeapi.ContainerState_CONTAINER_UNKNOWN,
 		}
 		key := evictUnit{
@@ -224,9 +218,9 @@ func (cgc *containerGC) evictableContainers(ctx context.Context, minAge time.Dur
 }
 
 // evict all containers that are evictable
-func (cgc *containerGC) evictContainers(ctx context.Context, gcPolicy kubecontainer.GCPolicy, allSourcesReady bool, evictNonDeletedPods bool) error {
+func (cgc *containerGC) evictContainers(ctx context.Context, allSourcesReady bool, evictNonDeletedPods bool) error {
 	// Separate containers by evict units.
-	evictUnits, err := cgc.evictableContainers(ctx, gcPolicy.MinAge)
+	evictUnits, err := cgc.evictableContainers(ctx)
 	if err != nil {
 		return err
 	}
@@ -241,32 +235,9 @@ func (cgc *containerGC) evictContainers(ctx context.Context, gcPolicy kubecontai
 		}
 	}
 
-	// Enforce max containers per evict unit.
-	if gcPolicy.MaxPerPodContainer >= 0 {
-		cgc.enforceMaxContainersPerEvictUnit(ctx, evictUnits, gcPolicy.MaxPerPodContainer)
-	}
+	// only the most recent container is kept per evictUnit
+	cgc.retainLatestContainerPerEvictUnit(ctx, evictUnits)
 
-	// Enforce max total number of containers.
-	if gcPolicy.MaxContainers >= 0 && evictUnits.NumContainers() > gcPolicy.MaxContainers {
-		// Leave an equal number of containers per evict unit (min: 1).
-		numContainersPerEvictUnit := gcPolicy.MaxContainers / evictUnits.NumEvictUnits()
-		if numContainersPerEvictUnit < 1 {
-			numContainersPerEvictUnit = 1
-		}
-		cgc.enforceMaxContainersPerEvictUnit(ctx, evictUnits, numContainersPerEvictUnit)
-
-		// If we still need to evict, evict oldest first.
-		numContainers := evictUnits.NumContainers()
-		if numContainers > gcPolicy.MaxContainers {
-			flattened := make([]containerGCInfo, 0, numContainers)
-			for key := range evictUnits {
-				flattened = append(flattened, evictUnits[key]...)
-			}
-			sort.Sort(byCreated(flattened))
-
-			cgc.removeOldestN(ctx, flattened, numContainers-gcPolicy.MaxContainers)
-		}
-	}
 	return nil
 }
 
@@ -405,12 +376,12 @@ func (cgc *containerGC) evictPodLogsDirectories(ctx context.Context, allSourcesR
 // * removes oldest dead containers by enforcing gcPolicy.MaxContainers.
 // * gets evictable sandboxes which are not ready and contains no containers.
 // * removes evictable sandboxes.
-func (cgc *containerGC) GarbageCollect(ctx context.Context, gcPolicy kubecontainer.GCPolicy, allSourcesReady bool, evictNonDeletedPods bool) error {
+func (cgc *containerGC) GarbageCollect(ctx context.Context, allSourcesReady bool, evictNonDeletedPods bool) error {
 	ctx, otelSpan := cgc.tracer.Start(ctx, "Containers/GarbageCollect")
 	defer otelSpan.End()
 	errors := []error{}
 	// Remove evictable containers
-	if err := cgc.evictContainers(ctx, gcPolicy, allSourcesReady, evictNonDeletedPods); err != nil {
+	if err := cgc.evictContainers(ctx, allSourcesReady, evictNonDeletedPods); err != nil {
 		errors = append(errors, err)
 	}
 
