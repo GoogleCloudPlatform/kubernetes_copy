@@ -126,5 +126,11 @@ func Funcs(codecs runtimeserializer.CodecFactory) []interface{} {
 				"AllBeta":  true,
 			}
 		},
+
+		// tokenAttributes field is only supported in v1 CredentialProvider
+		func(obj *kubeletconfig.CredentialProvider, c fuzz.Continue) {
+			c.FuzzNoCustom(obj)
+			obj.TokenAttributes = nil
+		},
 	}
 }

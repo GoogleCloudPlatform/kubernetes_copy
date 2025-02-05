@@ -990,9 +990,9 @@ func (_c *MockRuntime_ListPodSandboxMetrics_Call) RunAndReturn(run func(context.
 	return _c
 }
 
-// PullImage provides a mock function with given fields: ctx, image, pullSecrets, podSandboxConfig
-func (_m *MockRuntime) PullImage(ctx context.Context, image container.ImageSpec, pullSecrets []corev1.Secret, podSandboxConfig *v1.PodSandboxConfig) (string, error) {
-	ret := _m.Called(ctx, image, pullSecrets, podSandboxConfig)
+// PullImage provides a mock function with given fields: ctx, image, pullSecrets, podSandboxConfig, serviceAccountName
+func (_m *MockRuntime) PullImage(ctx context.Context, image container.ImageSpec, pullSecrets []corev1.Secret, podSandboxConfig *v1.PodSandboxConfig, serviceAccountName string) (string, error) {
+	ret := _m.Called(ctx, image, pullSecrets, podSandboxConfig, serviceAccountName)
 
 	if len(ret) == 0 {
 		panic("no return value specified for PullImage")
@@ -1000,17 +1000,17 @@ func (_m *MockRuntime) PullImage(ctx context.Context, image container.ImageSpec,
 
 	var r0 string
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, container.ImageSpec, []corev1.Secret, *v1.PodSandboxConfig) (string, error)); ok {
-		return rf(ctx, image, pullSecrets, podSandboxConfig)
+	if rf, ok := ret.Get(0).(func(context.Context, container.ImageSpec, []corev1.Secret, *v1.PodSandboxConfig, string) (string, error)); ok {
+		return rf(ctx, image, pullSecrets, podSandboxConfig, serviceAccountName)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, container.ImageSpec, []corev1.Secret, *v1.PodSandboxConfig) string); ok {
-		r0 = rf(ctx, image, pullSecrets, podSandboxConfig)
+	if rf, ok := ret.Get(0).(func(context.Context, container.ImageSpec, []corev1.Secret, *v1.PodSandboxConfig, string) string); ok {
+		r0 = rf(ctx, image, pullSecrets, podSandboxConfig, serviceAccountName)
 	} else {
 		r0 = ret.Get(0).(string)
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, container.ImageSpec, []corev1.Secret, *v1.PodSandboxConfig) error); ok {
-		r1 = rf(ctx, image, pullSecrets, podSandboxConfig)
+	if rf, ok := ret.Get(1).(func(context.Context, container.ImageSpec, []corev1.Secret, *v1.PodSandboxConfig, string) error); ok {
+		r1 = rf(ctx, image, pullSecrets, podSandboxConfig, serviceAccountName)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -1028,13 +1028,14 @@ type MockRuntime_PullImage_Call struct {
 //   - image container.ImageSpec
 //   - pullSecrets []corev1.Secret
 //   - podSandboxConfig *v1.PodSandboxConfig
-func (_e *MockRuntime_Expecter) PullImage(ctx interface{}, image interface{}, pullSecrets interface{}, podSandboxConfig interface{}) *MockRuntime_PullImage_Call {
-	return &MockRuntime_PullImage_Call{Call: _e.mock.On("PullImage", ctx, image, pullSecrets, podSandboxConfig)}
+//   - serviceAccountName string
+func (_e *MockRuntime_Expecter) PullImage(ctx interface{}, image interface{}, pullSecrets interface{}, podSandboxConfig interface{}, serviceAccountName interface{}) *MockRuntime_PullImage_Call {
+	return &MockRuntime_PullImage_Call{Call: _e.mock.On("PullImage", ctx, image, pullSecrets, podSandboxConfig, serviceAccountName)}
 }
 
-func (_c *MockRuntime_PullImage_Call) Run(run func(ctx context.Context, image container.ImageSpec, pullSecrets []corev1.Secret, podSandboxConfig *v1.PodSandboxConfig)) *MockRuntime_PullImage_Call {
+func (_c *MockRuntime_PullImage_Call) Run(run func(ctx context.Context, image container.ImageSpec, pullSecrets []corev1.Secret, podSandboxConfig *v1.PodSandboxConfig, serviceAccountName string)) *MockRuntime_PullImage_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(container.ImageSpec), args[2].([]corev1.Secret), args[3].(*v1.PodSandboxConfig))
+		run(args[0].(context.Context), args[1].(container.ImageSpec), args[2].([]corev1.Secret), args[3].(*v1.PodSandboxConfig), args[4].(string))
 	})
 	return _c
 }
@@ -1044,7 +1045,7 @@ func (_c *MockRuntime_PullImage_Call) Return(_a0 string, _a1 error) *MockRuntime
 	return _c
 }
 
-func (_c *MockRuntime_PullImage_Call) RunAndReturn(run func(context.Context, container.ImageSpec, []corev1.Secret, *v1.PodSandboxConfig) (string, error)) *MockRuntime_PullImage_Call {
+func (_c *MockRuntime_PullImage_Call) RunAndReturn(run func(context.Context, container.ImageSpec, []corev1.Secret, *v1.PodSandboxConfig, string) (string, error)) *MockRuntime_PullImage_Call {
 	_c.Call.Return(run)
 	return _c
 }

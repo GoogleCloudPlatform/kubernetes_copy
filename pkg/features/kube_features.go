@@ -384,6 +384,13 @@ const (
 	// separate filesystems.
 	KubeletSeparateDiskGC featuregate.Feature = "KubeletSeparateDiskGC"
 
+	// owner: @aramase
+	// kep: http://kep.k8s.io/4412
+	//
+	// Enable kubelet to send the service account token bound to the pod for which the image
+	// is being pulled to the credential provider plugin.
+	KubeletServiceAccountTokenForCredentialProviders featuregate.Feature = "KubeletServiceAccountTokenForCredentialProviders"
+
 	// owner: @sallyom
 	// kep: https://kep.k8s.io/2832
 	//

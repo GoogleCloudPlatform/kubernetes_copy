@@ -19,16 +19,17 @@ package plugin
 import (
 	"os"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/errors"
 	utiltesting "k8s.io/client-go/util/testing"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kubeletconfig "k8s.io/kubernetes/pkg/kubelet/apis/config"
+	"k8s.io/utils/ptr"
 )
 
 func Test_readCredentialProviderConfigFile(t *testing.T) {
@@ -337,6 +338,48 @@ providers:
 			config:    nil,
 			expectErr: `strict decoding error: unknown field "providers[0].unknownField"`,
 		},
+		{
+			name: "v1alpha1 config with token attributes should fail",
+			configData: `---
+kind: CredentialProviderConfig
+apiVersion: kubelet.config.k8s.io/v1alpha1
+providers:
+  - name: test
+    matchImages:
+    - "registry.io/foobar"
+    defaultCacheDuration: 10m
+    apiVersion: credentialprovider.kubelet.k8s.io/v1alpha1
+    tokenAttributes:
+      serviceAccountTokenAudience: audience
+    args:
+    - --v=5
+    env:
+    - name: FOO
+      value: BAR`,
+			config:    nil,
+			expectErr: `strict decoding error: unknown field "providers[0].tokenAttributes"`,
+		},
+		{
+			name: "v1beta1 config with token attributes should fail",
+			configData: `---
+kind: CredentialProviderConfig
+apiVersion: kubelet.config.k8s.io/v1beta1
+providers:
+  - name: test
+    matchImages:
+    - "registry.io/foobar"
+    defaultCacheDuration: 10m
+    apiVersion: credentialprovider.kubelet.k8s.io/v1beta1
+    tokenAttributes:
+      serviceAccountTokenAudience: audience
+    args:
+    - --v=5
+    env:
+    - name: FOO
+      value: BAR`,
+			config:    nil,
+			expectErr: `strict decoding error: unknown field "providers[0].tokenAttributes"`,
+		},
 	}
 
 	for _, testcase := range testcases {
@@ -347,17 +390,19 @@ providers:
 			}
 			defer utiltesting.CloseAndRemove(t, file)
 
-			_, err = file.WriteString(testcase.configData)
-			if err != nil {
+			if _, err = file.WriteString(testcase.configData); err != nil {
 				t.Fatal(err)
 			}
 
 			authConfig, err := readCredentialProviderConfigFile(file.Name())
-			if err != nil && len(testcase.expectErr) == 0 {
-				t.Fatal(err)
-			}
-
-			if err == nil && len(testcase.expectErr) > 0 {
+			if err != nil {
+				if len(testcase.expectErr) == 0 {
+					t.Fatal(err)
+				}
+				if !strings.Contains(err.Error(), testcase.expectErr) {
+					t.Fatalf("expected error %q but got %q", testcase.expectErr, err.Error())
+				}
+			} else if len(testcase.expectErr) > 0 {
 				t.Fatalf("expected error %q but got none", testcase.expectErr)
 			}
 
@@ -554,11 +599,166 @@ func Test_validateCredentialProviderConfig(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "token attributes set without KubeletServiceAccountTokenForCredentialProviders feature gate enabled",
+			config: &kubeletconfig.CredentialProviderConfig{
+				Providers: []kubeletconfig.CredentialProvider{
+					{
+						Name:                 "foobar",
+						MatchImages:          []string{"foobar.registry.io"},
+						DefaultCacheDuration: &metav1.Duration{Duration: time.Minute},
+						APIVersion:           "credentialprovider.kubelet.k8s.io/v1",
+						TokenAttributes: &kubeletconfig.ServiceAccountTokenAttributes{
+							ServiceAccountTokenAudience: "audience",
+							RequireServiceAccount:       ptr.To(true),
+						},
+					},
+				},
+			},
+			expectErr: `providers.tokenAttributes: Forbidden: tokenAttributes is not supported when KubeletServiceAccountTokenForCredentialProviders feature gate is disabled`,
+		},
+		{
+			name: "token attributes not nil but empty ServiceAccountTokenAudience",
+			config: &kubeletconfig.CredentialProviderConfig{
+				Providers: []kubeletconfig.CredentialProvider{
+					{
+						Name:                 "foobar",
+						MatchImages:          []string{"foobar.registry.io"},
+						DefaultCacheDuration: &metav1.Duration{Duration: time.Minute},
+						APIVersion:           "credentialprovider.kubelet.k8s.io/v1",
+						TokenAttributes: &kubeletconfig.ServiceAccountTokenAttributes{
+							ServiceAccountAnnotationKeys: []string{"prefix.io/annotation-1", "prefix.io/annotation-2"},
+							RequireServiceAccount:        ptr.To(true),
+						},
+					},
+				},
+			},
+			saTokenForCredentialProviders: true,
+			expectErr:                     `providers.tokenAttributes.serviceAccountTokenAudience: Required value: serviceAccountTokenAudience is required`,
+		},
+		{
+			name: "token attributes not nil but empty ServiceAccountTokenRequired",
+			config: &kubeletconfig.CredentialProviderConfig{
+				Providers: []kubeletconfig.CredentialProvider{
+					{
+						Name:                 "foobar",
+						MatchImages:          []string{"foobar.registry.io"},
+						DefaultCacheDuration: &metav1.Duration{Duration: time.Minute},
+						APIVersion:           "credentialprovider.kubelet.k8s.io/v1",
+						TokenAttributes: &kubeletconfig.ServiceAccountTokenAttributes{
+							ServiceAccountTokenAudience:  "audience",
+							ServiceAccountAnnotationKeys: []string{"prefix.io/annotation-1", "prefix.io/annotation-2"},
+						},
+					},
+				},
+			},
+			saTokenForCredentialProviders: true,
+			expectErr:                     `providers.tokenAttributes.requireServiceAccount: Required value: requireServiceAccount is required`,
+		},
+		{
+			name: "service account annotation keys not qualified name (same validation as metav1.ObjectMeta)",
+			config: &kubeletconfig.CredentialProviderConfig{
+				Providers: []kubeletconfig.CredentialProvider{
+					{
+						Name:                 "foobar",
+						MatchImages:          []string{"foobar.registry.io"},
+						DefaultCacheDuration: &metav1.Duration{Duration: time.Minute},
+						APIVersion:           "credentialprovider.kubelet.k8s.io/v1",
+						TokenAttributes: &kubeletconfig.ServiceAccountTokenAttributes{
+							ServiceAccountTokenAudience:  "audience",
+							RequireServiceAccount:        ptr.To(true),
+							ServiceAccountAnnotationKeys: []string{"cantendwithadash-", "now-with-dashes/simple"}, // first key is invalid
+						},
+					},
+				},
+			},
+			saTokenForCredentialProviders: true,
+			expectErr:                     `providers.tokenAttributes.serviceAccountAnnotationKeys: Invalid value: "cantendwithadash-": name part must consist of alphanumeric characters, '-', '_' or '.', and must start and end with an alphanumeric character (e.g. 'MyName',  or 'my.name',  or '123-abc', regex used for validation is '([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9]')`,
+		},
+		{
+			name: "duplicate service account annotation keys",
+			config: &kubeletconfig.CredentialProviderConfig{
+				Providers: []kubeletconfig.CredentialProvider{
+					{
+						Name:                 "foobar",
+						MatchImages:          []string{"foobar.registry.io"},
+						DefaultCacheDuration: &metav1.Duration{Duration: time.Minute},
+						APIVersion:           "credentialprovider.kubelet.k8s.io/v1",
+						TokenAttributes: &kubeletconfig.ServiceAccountTokenAttributes{
+							ServiceAccountTokenAudience:  "audience",
+							RequireServiceAccount:        ptr.To(true),
+							ServiceAccountAnnotationKeys: []string{"now-with-dashes/simple", "now-with-dashes/simple"},
+						},
+					},
+				},
+			},
+			saTokenForCredentialProviders: true,
+			expectErr:                     `providers.tokenAttributes.serviceAccountAnnotationKeys: Duplicate value: "now-with-dashes/simple"`,
+		},
+		{
+			name: "valid config with KubeletServiceAccountTokenForCredentialProviders feature gate enabled",
+			config: &kubeletconfig.CredentialProviderConfig{
+				Providers: []kubeletconfig.CredentialProvider{
+					{
+						Name:                 "foobar",
+						MatchImages:          []string{"foobar.registry.io"},
+						DefaultCacheDuration: &metav1.Duration{Duration: time.Minute},
+						APIVersion:           "credentialprovider.kubelet.k8s.io/v1",
+						TokenAttributes: &kubeletconfig.ServiceAccountTokenAttributes{
+							ServiceAccountTokenAudience:  "audience",
+							RequireServiceAccount:        ptr.To(true),
+							ServiceAccountAnnotationKeys: []string{"now-with-dashes/simple-1", "now-with-dashes/simple-2"},
+						},
+					},
+				},
+			},
+			saTokenForCredentialProviders: true,
+		},
+		{
+			name: "tokenAttributes set with credentialprovider.kubelet.k8s.io/v1alpha1 APIVersion",
+			config: &kubeletconfig.CredentialProviderConfig{
+				Providers: []kubeletconfig.CredentialProvider{
+					{
+						Name:                 "foobar",
+						MatchImages:          []string{"foobar.registry.io"},
+						DefaultCacheDuration: &metav1.Duration{Duration: time.Minute},
+						APIVersion:           "credentialprovider.kubelet.k8s.io/v1alpha1",
+						TokenAttributes: &kubeletconfig.ServiceAccountTokenAttributes{
+							ServiceAccountTokenAudience:  "audience",
+							RequireServiceAccount:        ptr.To(true),
+							ServiceAccountAnnotationKeys: []string{"now-with-dashes/simple"},
+						},
+					},
+				},
+			},
+			saTokenForCredentialProviders: true,
+			expectErr:                     `providers.tokenAttributes: Forbidden: tokenAttributes is only supported for credentialprovider.kubelet.k8s.io/v1 API version`,
+		},
+		{
+			name: "tokenAttributes set with credentialprovider.kubelet.k8s.io/v1beta1 APIVersion",
+			config: &kubeletconfig.CredentialProviderConfig{
+				Providers: []kubeletconfig.CredentialProvider{
+					{
+						Name:                 "foobar",
+						MatchImages:          []string{"foobar.registry.io"},
+						DefaultCacheDuration: &metav1.Duration{Duration: time.Minute},
+						APIVersion:           "credentialprovider.kubelet.k8s.io/v1beta1",
+						TokenAttributes: &kubeletconfig.ServiceAccountTokenAttributes{
+							ServiceAccountTokenAudience:  "audience",
+							RequireServiceAccount:        ptr.To(true),
+							ServiceAccountAnnotationKeys: []string{"now-with-dashes/simple"},
+						},
+					},
+				},
+			},
+			saTokenForCredentialProviders: true,
+			expectErr:                     `providers.tokenAttributes: Forbidden: tokenAttributes is only supported for credentialprovider.kubelet.k8s.io/v1 API version`,
+		},
 	}
 
 	for _, testcase := range testcases {
 		t.Run(testcase.name, func(t *testing.T) {
-			errs := validateCredentialProviderConfig(testcase.config).ToAggregate()
+			errs := validateCredentialProviderConfig(testcase.config, testcase.saTokenForCredentialProviders).ToAggregate()
 			if d := cmp.Diff(testcase.expectErr, errString(errs)); d != "" {
 				t.Fatalf("CredentialProviderConfig validation mismatch (-want +got):\n%s", d)
 			}

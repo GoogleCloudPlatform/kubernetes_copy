@@ -53,14 +53,31 @@ const cniConfig = `{
 const credentialGCPProviderConfig = `kind: CredentialProviderConfig
 apiVersion: kubelet.config.k8s.io/v1
 providers:
-  - name: gcp-credential-provider
-    apiVersion: credentialprovider.kubelet.k8s.io/v1
-    matchImages:
-    - "gcr.io"
-    - "*.gcr.io"
-    - "container.cloud.google.com"
-    - "*.pkg.dev"
-    defaultCacheDuration: 1m`
+ - name: gcp-credential-provider
+   apiVersion: credentialprovider.kubelet.k8s.io/v1
+   matchImages:
+   - "gcr.io"
+   - "*.gcr.io"
+   - "container.cloud.google.com"
+   - "*.pkg.dev"
+   defaultCacheDuration: 1m
+ - name: gcp-credential-provider-with-sa
+   apiVersion: credentialprovider.kubelet.k8s.io/v1
+   matchImages:
+   - "gcr.io"
+   - "*.gcr.io"
+   - "container.cloud.google.com"
+   - "*.pkg.dev"
+   defaultCacheDuration: 1m
+   tokenAttributes:
+     serviceAccountTokenAudience: test-audience
+     requireServiceAccount: true
+     serviceAccountAnnotationKeys:
+     - "domain.io/identity-id"
+     - "domain.io/identity-type"
+   env:
+   - name: PLUGIN_MODE
+     value: "serviceaccount"`
 
 const credentialAWSProviderConfig = `kind: CredentialProviderConfig
 apiVersion: kubelet.config.k8s.io/v1

@@ -46,6 +46,13 @@ func (in *AuthConfig) DeepCopy() *AuthConfig {
 func (in *CredentialProviderRequest) DeepCopyInto(out *CredentialProviderRequest) {
 	*out = *in
 	out.TypeMeta = in.TypeMeta
+	if in.ServiceAccountAnnotations != nil {
+		in, out := &in.ServiceAccountAnnotations, &out.ServiceAccountAnnotations
+		*out = make(map[string]string, len(*in))
+		for key, val := range *in {
+			(*out)[key] = val
+		}
+	}
 	return
 }
 

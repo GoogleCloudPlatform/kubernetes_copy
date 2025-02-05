@@ -34,7 +34,7 @@ type pullResult struct {
 }
 
 type imagePuller interface {
-	pullImage(context.Context, kubecontainer.ImageSpec, []v1.Secret, chan<- pullResult, *runtimeapi.PodSandboxConfig)
+	pullImage(context.Context, kubecontainer.ImageSpec, []v1.Secret, chan<- pullResult, *runtimeapi.PodSandboxConfig, string)
 }
 
 var _, _ imagePuller = &parallelImagePuller{}, &serialImagePuller{}
@@ -51,14 +51,14 @@ func newParallelImagePuller(imageService kubecontainer.ImageService, maxParallel
 	return &parallelImagePuller{imageService, make(chan struct{}, *maxParallelImagePulls)}
 }
 
-func (pip *parallelImagePuller) pullImage(ctx context.Context, spec kubecontainer.ImageSpec, pullSecrets []v1.Secret, pullChan chan<- pullResult, podSandboxConfig *runtimeapi.PodSandboxConfig) {
+func (pip *parallelImagePuller) pullImage(ctx context.Context, spec kubecontainer.ImageSpec, pullSecrets []v1.Secret, pullChan chan<- pullResult, podSandboxConfig *runtimeapi.PodSandboxConfig, serviceAccountName string) {
 	go func() {
 		if pip.tokens != nil {
 			pip.tokens <- struct{}{}
 			defer func() { <-pip.tokens }()
 		}
 		startTime := time.Now()
-		imageRef, err := pip.imageService.PullImage(ctx, spec, pullSecrets, podSandboxConfig)
+		imageRef, err := pip.imageService.PullImage(ctx, spec, pullSecrets, podSandboxConfig, serviceAccountName)
 		var size uint64
 		if err == nil && imageRef != "" {
 			// Getting the image size with best effort, ignoring the error.
@@ -88,27 +88,29 @@ func newSerialImagePuller(imageService kubecontainer.ImageService) imagePuller {
 }
 
 type imagePullRequest struct {
-	ctx              context.Context
-	spec             kubecontainer.ImageSpec
-	pullSecrets      []v1.Secret
-	pullChan         chan<- pullResult
-	podSandboxConfig *runtimeapi.PodSandboxConfig
+	ctx                context.Context
+	spec               kubecontainer.ImageSpec
+	pullSecrets        []v1.Secret
+	pullChan           chan<- pullResult
+	podSandboxConfig   *runtimeapi.PodSandboxConfig
+	serviceAccountName string
 }
 
-func (sip *serialImagePuller) pullImage(ctx context.Context, spec kubecontainer.ImageSpec, pullSecrets []v1.Secret, pullChan chan<- pullResult, podSandboxConfig *runtimeapi.PodSandboxConfig) {
+func (sip *serialImagePuller) pullImage(ctx context.Context, spec kubecontainer.ImageSpec, pullSecrets []v1.Secret, pullChan chan<- pullResult, podSandboxConfig *runtimeapi.PodSandboxConfig, serviceAccountName string) {
 	sip.pullRequests <- &imagePullRequest{
-		ctx:              ctx,
-		spec:             spec,
-		pullSecrets:      pullSecrets,
-		pullChan:         pullChan,
-		podSandboxConfig: podSandboxConfig,
+		ctx:                ctx,
+		spec:               spec,
+		pullSecrets:        pullSecrets,
+		pullChan:           pullChan,
+		podSandboxConfig:   podSandboxConfig,
+		serviceAccountName: serviceAccountName,
 	}
 }
 
 func (sip *serialImagePuller) processImagePullRequests() {
 	for pullRequest := range sip.pullRequests {
 		startTime := time.Now()
-		imageRef, err := sip.imageService.PullImage(pullRequest.ctx, pullRequest.spec, pullRequest.pullSecrets, pullRequest.podSandboxConfig)
+		imageRef, err := sip.imageService.PullImage(pullRequest.ctx, pullRequest.spec, pullRequest.pullSecrets, pullRequest.podSandboxConfig, pullRequest.serviceAccountName)
 		var size uint64
 		if err == nil && imageRef != "" {
 			// Getting the image size with best effort, ignoring the error.
