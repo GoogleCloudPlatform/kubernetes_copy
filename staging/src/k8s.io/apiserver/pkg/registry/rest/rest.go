@@ -382,6 +382,16 @@ type StorageVersionProvider interface {
 	StorageVersion() runtime.GroupVersioner
 }
 
+// HubGroupVersionProvider is an optional interface that a store can implement
+// if it wishes to override the hub group-version. Otherwise, the default is
+// the runtime.APIVersionInternal version with a matching group. This is useful
+// for non-etcd storage implementations that still utilize the common patch
+// handler: k8s.io/apiserver/pkg/endpoints/handlers/patch.go but do not use a
+// runtime.APIVersionInternal
+type HubGroupVersionProvider interface {
+	HubGroupVersion() runtime.GroupVersioner
+}
+
 // ResetFieldsStrategy is an optional interface that a storage object can
 // implement if it wishes to provide the fields reset by its strategies.
 type ResetFieldsStrategy interface {

@@ -235,16 +235,16 @@ func (a *APIInstaller) newWebService() *restful.WebService {
 	return ws
 }
 
-// calculate the storage gvk, the gvk objects are converted to before persisted to the etcd.
-func getStorageVersionKind(storageVersioner runtime.GroupVersioner, storage rest.Storage, typer runtime.ObjectTyper) (schema.GroupVersionKind, error) {
+// calculate the target gvk for a group of kinds
+func getTargetGroupVersionForKinds(versioner runtime.GroupVersioner, storage rest.Storage, typer runtime.ObjectTyper) (schema.GroupVersionKind, error) {
 	object := storage.New()
 	fqKinds, _, err := typer.ObjectKinds(object)
 	if err != nil {
 		return schema.GroupVersionKind{}, err
 	}
-	gvk, ok := storageVersioner.KindForGroupVersionKinds(fqKinds)
+	gvk, ok := versioner.KindForGroupVersionKinds(fqKinds)
 	if !ok {
-		return schema.GroupVersionKind{}, fmt.Errorf("cannot find the storage version kind for %v", reflect.TypeOf(object))
+		return schema.GroupVersionKind{}, fmt.Errorf("cannot find the target version kind for %v", reflect.TypeOf(object))
 	}
 	return gvk, nil
 }
@@ -344,6 +344,7 @@ func (a *APIInstaller) registerResourceHandlers(path string, storage rest.Storag
 	connecter, isConnecter := storage.(rest.Connecter)
 	storageMeta, isMetadata := storage.(rest.StorageMetadata)
 	storageVersionProvider, isStorageVersionProvider := storage.(rest.StorageVersionProvider)
+	hubGroupVersionProvider, isHubGroupVersionProvider := storage.(rest.HubGroupVersionProvider)
 	gvAcceptor, _ := storage.(rest.GroupVersionAcceptor)
 	if !isMetadata {
 		storageMeta = defaultStorageMetadata{}
@@ -487,11 +488,21 @@ func (a *APIInstaller) registerResourceHandlers(path string, storage rest.Storag
 		isStorageVersionProvider &&
 		storageVersionProvider.StorageVersion() != nil {
 		versioner := storageVersionProvider.StorageVersion()
-		gvk, err := getStorageVersionKind(versioner, storage, a.group.Typer)
+		gvk, err := getTargetGroupVersionForKinds(versioner, storage, a.group.Typer)
 		if err != nil {
 			return nil, nil, err
 		}
 		apiResource.StorageVersionHash = discovery.StorageVersionHash(gvk.Group, gvk.Version, gvk.Kind)
+	}
+
+	hubGroupVersion := schema.GroupVersion{Group: fqKindToRegister.Group, Version: runtime.APIVersionInternal}
+	if isHubGroupVersionProvider && hubGroupVersionProvider.HubGroupVersion() != nil {
+		versioner := hubGroupVersionProvider.HubGroupVersion()
+		gvk, err := getTargetGroupVersionForKinds(versioner, storage, a.group.Typer)
+		if err != nil {
+			return nil, nil, err
+		}
+		hubGroupVersion = gvk.GroupVersion()
 	}
 
 	// Get the list of actions for the given scope.
@@ -600,7 +611,7 @@ func (a *APIInstaller) registerResourceHandlers(path string, storage rest.Storag
 		storageVersionProvider.StorageVersion() != nil {
 
 		versioner := storageVersionProvider.StorageVersion()
-		encodingGVK, err := getStorageVersionKind(versioner, storage, a.group.Typer)
+		encodingGVK, err := getTargetGroupVersionForKinds(versioner, storage, a.group.Typer)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -675,7 +686,7 @@ func (a *APIInstaller) registerResourceHandlers(path string, storage rest.Storag
 
 		AcceptsGroupVersionDelegate: gvAcceptor,
 
-		HubGroupVersion: schema.GroupVersion{Group: fqKindToRegister.Group, Version: runtime.APIVersionInternal},
+		HubGroupVersion: hubGroupVersion,
 
 		MetaGroupVersion: metav1.SchemeGroupVersion,
 
