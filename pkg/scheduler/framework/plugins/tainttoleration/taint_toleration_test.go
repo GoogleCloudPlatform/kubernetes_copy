@@ -31,18 +31,6 @@ import (
 	tf "k8s.io/kubernetes/pkg/scheduler/testing/framework"
 )
 
-var statusCmpOpts = []cmp.Option{
-	cmp.Comparer(func(s1 *framework.Status, s2 *framework.Status) bool {
-		if s1 == nil || s2 == nil {
-			return s1.IsSuccess() && s2.IsSuccess()
-		}
-		if s1.Code() == framework.Error {
-			return s1.AsError().Error() == s2.AsError().Error()
-		}
-		return s1.Code() == s2.Code() && s1.Plugin() == s2.Plugin() && s1.Message() == s2.Message()
-	}),
-}
-
 func nodeWithTaints(nodeName string, taints []v1.Taint) *v1.Node {
 	return &v1.Node{
 		ObjectMeta: metav1.ObjectMeta{
@@ -360,7 +348,7 @@ func TestTaintTolerationFilter(t *testing.T) {
 				t.Fatalf("creating plugin: %v", err)
 			}
 			gotStatus := p.(framework.FilterPlugin).Filter(ctx, nil, test.pod, nodeInfo)
-			if diff := cmp.Diff(test.wantStatus, gotStatus, statusCmpOpts...); diff != "" {
+			if diff := cmp.Diff(test.wantStatus, gotStatus); diff != "" {
 				t.Errorf("Unexpected status (-want,+got):\n%s", diff)
 			}
 		})
