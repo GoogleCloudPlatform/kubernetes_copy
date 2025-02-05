@@ -32,6 +32,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	statsapi "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
+	"k8s.io/utils/ptr"
 
 	evictionapi "k8s.io/kubernetes/pkg/kubelet/eviction/api"
 	kubetypes "k8s.io/kubernetes/pkg/kubelet/types"
@@ -1453,7 +1454,7 @@ func TestMakeSignalObservations(t *testing.T) {
 	if res.CmpInt64(int64(allocatableMemoryCapacity)) != 0 {
 		t.Errorf("Expected Threshold %v to be equal to value %v", res.Value(), allocatableMemoryCapacity)
 	}
-	actualObservations, statsFunc := makeSignalObservations(fakeStats)
+	actualObservations, statsFunc := makeSignalObservations(fakeStats, 0)
 	allocatableMemQuantity, found := actualObservations[evictionapi.SignalAllocatableMemoryAvailable]
 	if !found {
 		t.Errorf("Expected allocatable memory observation, but didn't find one")
@@ -1567,6 +1568,16 @@ func TestThresholdsMet(t *testing.T) {
 			Quantity: quantityMustParse("500Mi"),
 		},
 	}
+	addFakeCapacity := func(observations signalObservations) signalObservations {
+		for sig := range observations {
+			obs := observations[sig]
+			if obs.capacity == nil {
+				obs.capacity = ptr.To(resource.MustParse("123Gi"))
+				observations[sig] = obs
+			}
+		}
+		return observations
+	}
 	testCases := map[string]struct {
 		enforceMinReclaim bool
 		thresholds        []evictionapi.Threshold
@@ -1621,6 +1632,7 @@ func TestThresholdsMet(t *testing.T) {
 		},
 	}
 	for testName, testCase := range testCases {
+		testCase.observations = addFakeCapacity(testCase.observations)
 		actual := thresholdsMet(testCase.thresholds, testCase.observations, testCase.enforceMinReclaim)
 		if !thresholdList(actual).Equal(thresholdList(testCase.result)) {
 			t.Errorf("Test case: %s, expected: %v, actual: %v", testName, testCase.result, actual)

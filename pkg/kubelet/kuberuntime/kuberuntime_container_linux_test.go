@@ -43,6 +43,7 @@ import (
 	"k8s.io/kubernetes/pkg/apis/scheduling"
 	"k8s.io/kubernetes/pkg/features"
 	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
+	"k8s.io/kubernetes/pkg/kubelet/util/swap"
 	"k8s.io/utils/ptr"
 )
 
@@ -985,7 +986,7 @@ func TestGenerateLinuxContainerResourcesWithSwap(t *testing.T) {
 	}
 
 	calcSwapForBurstablePods := func(containerMemoryRequest int64) int64 {
-		swapSize, err := calcSwapForBurstablePods(containerMemoryRequest, int64(m.machineInfo.MemoryCapacity), int64(m.machineInfo.SwapCapacity))
+		swapSize, err := swap.CalcSwapForBurstablePods(containerMemoryRequest, int64(m.machineInfo.MemoryCapacity), int64(m.machineInfo.SwapCapacity))
 		assert.NoError(t, err)
 
 		return swapSize

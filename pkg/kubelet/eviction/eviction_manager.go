@@ -19,6 +19,7 @@ package eviction
 import (
 	"context"
 	"fmt"
+	"k8s.io/kubernetes/pkg/kubelet/util/swap"
 	"runtime"
 	"sort"
 	"sync"
@@ -238,6 +239,40 @@ func (m *managerImpl) IsUnderPIDPressure() bool {
 	return hasNodeCondition(m.nodeConditions, v1.NodePIDPressure)
 }
 
+func calcAccessibleSwap(pods []*v1.Pod, nodeTotalMemory, totalPodsSwapAvailable uint64) (uint64, error) {
+	klog.V(5).InfoS("calculating accessible swap", "node memory capacity", nodeTotalMemory, "swap capacity", totalPodsSwapAvailable)
+
+	accessibleSwap := uint64(0)
+	for _, pod := range pods {
+		if v1qos.GetPodQOS(pod) != v1.PodQOSBurstable {
+			klog.V(5).InfoS("Accessible swap: skipping since is not of burstable QoS", "pod", pod.Name, "qos", v1qos.GetPodQOS(pod))
+			continue
+		}
+
+		podAccessibleSwap := uint64(0)
+		for _, container := range pod.Spec.Containers {
+			if container.Resources.Requests.Memory() == nil {
+				klog.V(5).InfoS("Accessible swap: skipping since has no memory request", "pod", pod.Name, "container", container.Name)
+				continue
+			}
+
+			containerMemRequest := container.Resources.Requests.Memory()
+			containerAccessibleSwap, err := swap.CalcSwapForBurstablePods(containerMemRequest.Value(), int64(nodeTotalMemory), int64(totalPodsSwapAvailable))
+			if err != nil {
+				return 0, err
+			}
+
+			klog.V(5).InfoS("Accessible swap", "pod", pod.Name, "container", container.Name, "container request", containerMemRequest.String(), "accessible swap", containerAccessibleSwap)
+			podAccessibleSwap += uint64(containerAccessibleSwap)
+		}
+		klog.V(5).InfoS("pod accessible swap", "name", pod.Name, "accessible swap", podAccessibleSwap)
+		accessibleSwap += podAccessibleSwap
+	}
+
+	klog.V(5).InfoS("Node's accessible swap", "number of pods", len(pods), "accessible swap", accessibleSwap)
+	return accessibleSwap, nil
+}
+
 // synchronize is the main control loop that enforces eviction thresholds.
 // Returns the pod that was killed, or nil if no pod was killed.
 func (m *managerImpl) synchronize(diskInfoProvider DiskInfoProvider, podFunc ActivePodsFunc) ([]*v1.Pod, error) {
@@ -302,8 +337,24 @@ func (m *managerImpl) synchronize(diskInfoProvider DiskInfoProvider, podFunc Act
 		}
 	}
 
+	accessibleSwap := uint64(0)
+	if utilfeature.DefaultFeatureGate.Enabled(features.NodeSwap) {
+		if summary != nil && summary.Node.Memory != nil && summary.Node.Swap != nil && summary.Node.Memory.AvailableBytes != nil &&
+			summary.Node.Memory.WorkingSetBytes != nil && summary.Node.Swap.SwapUsageBytes != nil && summary.Node.Swap.SwapAvailableBytes != nil {
+			nodeTotalMemory := *summary.Node.Memory.AvailableBytes + *summary.Node.Memory.WorkingSetBytes
+			nodeTotalSwap := *summary.Node.Swap.SwapAvailableBytes + *summary.Node.Swap.SwapUsageBytes
+			accessibleSwap, err = calcAccessibleSwap(activePods, nodeTotalMemory, nodeTotalSwap)
+			if err != nil {
+				klog.ErrorS(err, "Eviction manager: failed to calculate accessible swap")
+			}
+		} else {
+			klog.InfoS("Summary stats do not contain node and swap capacity, skipping accessible swap calculation and assuming no swap available")
+		}
+		klog.InfoS("Accessible swap", "accessibleSwap", accessibleSwap)
+	}
+
 	// make observations and get a function to derive pod usage stats relative to those observations.
-	observations, statsFunc := makeSignalObservations(summary)
+	observations, statsFunc := makeSignalObservations(summary, accessibleSwap)
 	debugLogObservations("observations", observations)
 
 	// determine the set of thresholds met independent of grace period
@@ -379,7 +430,7 @@ func (m *managerImpl) synchronize(diskInfoProvider DiskInfoProvider, podFunc Act
 	m.recorder.Eventf(m.nodeRef, v1.EventTypeWarning, "EvictionThresholdMet", "Attempting to reclaim %s", resourceToReclaim)
 
 	// check if there are node-level resources we can reclaim to reduce pressure before evicting end-user pods.
-	if m.reclaimNodeLevelResources(ctx, thresholdToReclaim.Signal, resourceToReclaim) {
+	if m.reclaimNodeLevelResources(ctx, thresholdToReclaim.Signal, resourceToReclaim, accessibleSwap) {
 		klog.InfoS("Eviction manager: able to reduce resource pressure without evicting pods.", "resourceName", resourceToReclaim)
 		return nil, nil
 	}
@@ -464,7 +515,7 @@ func (m *managerImpl) waitForPodsCleanup(podCleanedUpFunc PodCleanedUpFunc, pods
 }
 
 // reclaimNodeLevelResources attempts to reclaim node level resources.  returns true if thresholds were satisfied and no pod eviction is required.
-func (m *managerImpl) reclaimNodeLevelResources(ctx context.Context, signalToReclaim evictionapi.Signal, resourceToReclaim v1.ResourceName) bool {
+func (m *managerImpl) reclaimNodeLevelResources(ctx context.Context, signalToReclaim evictionapi.Signal, resourceToReclaim v1.ResourceName, accessibleSwap uint64) bool {
 	nodeReclaimFuncs := m.signalToNodeReclaimFuncs[signalToReclaim]
 	for _, nodeReclaimFunc := range nodeReclaimFuncs {
 		// attempt to reclaim the pressured resource.
@@ -481,7 +532,7 @@ func (m *managerImpl) reclaimNodeLevelResources(ctx context.Context, signalToRec
 		}
 
 		// make observations and get a function to derive pod usage stats relative to those observations.
-		observations, _ := makeSignalObservations(summary)
+		observations, _ := makeSignalObservations(summary, accessibleSwap)
 		debugLogObservations("observations after resource reclaim", observations)
 
 		// evaluate all thresholds independently of their grace period to see if with
