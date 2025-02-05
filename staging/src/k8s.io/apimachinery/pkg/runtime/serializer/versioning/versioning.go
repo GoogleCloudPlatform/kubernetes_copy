@@ -229,21 +229,42 @@ func (c *codec) doEncode(obj runtime.Object, w io.Writer, memAlloc runtime.Memor
 	case *runtime.Unknown:
 		return encodeFn(obj, w)
 	case runtime.Unstructured:
-		// An unstructured list can contain objects of multiple group version kinds. don't short-circuit just
-		// because the top-level type matches our desired destination type. actually send the object to the converter
-		// to give it a chance to convert the list items if needed.
-		if _, ok := obj.(*unstructured.UnstructuredList); !ok {
-			// avoid conversion roundtrip if GVK is the right one already or is empty (yes, this is a hack, but the old behaviour we rely on in kubectl)
-			objGVK := obj.GetObjectKind().GroupVersionKind()
-			if len(objGVK.Version) == 0 {
-				return encodeFn(obj, w)
-			}
-			targetGVK, ok := c.encodeVersion.KindForGroupVersionKinds([]schema.GroupVersionKind{objGVK})
-			if !ok {
-				return runtime.NewNotRegisteredGVKErrForTarget(c.originalSchemeName, objGVK, c.encodeVersion)
-			}
-			if targetGVK == objGVK {
-				return encodeFn(obj, w)
+		if c.encodeVersion != nil {
+			if list, ok := obj.(*unstructured.UnstructuredList); !ok {
+				// avoid conversion roundtrip if GVK is the right one already or is empty (yes, this is a hack, but the old behaviour we rely on in kubectl)
+				objGVK := obj.GetObjectKind().GroupVersionKind()
+				if len(objGVK.Version) == 0 {
+					return encodeFn(obj, w)
+				}
+				targetGVK, ok := c.encodeVersion.KindForGroupVersionKinds([]schema.GroupVersionKind{objGVK})
+				if !ok {
+					return runtime.NewNotRegisteredGVKErrForTarget(c.originalSchemeName, objGVK, c.encodeVersion)
+				}
+				if targetGVK == objGVK {
+					return encodeFn(obj, w)
+				}
+			} else {
+				// avoid conversion roundtrip if list and items GVK match target
+				objGVK := obj.GetObjectKind().GroupVersionKind()
+				if len(objGVK.Version) != 0 {
+					targetGVK, ok := c.encodeVersion.KindForGroupVersionKinds([]schema.GroupVersionKind{objGVK})
+					if ok {
+						targetGV := targetGVK.GroupVersion()
+						if targetGV == objGVK.GroupVersion() {
+							allItemGVKSame := true
+							for _, item := range list.Items {
+								// compare group&version
+								if item.GetObjectKind().GroupVersionKind().GroupVersion() != targetGV {
+									allItemGVKSame = false
+									break
+								}
+							}
+							if allItemGVKSame {
+								return encodeFn(obj, w)
+							}
+						}
+					}
+				}
 			}
 		}
 	}
