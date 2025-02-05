@@ -1,5 +1,5 @@
-//go:build !linux
-// +build !linux
+//go:build !linux && !windows
+// +build !linux,!windows
 
 /*
 Copyright 2020 The Kubernetes Authors.
@@ -19,7 +19,40 @@ limitations under the License.
 
 package e2enode
 
+import (
+	"context"
+	"fmt"
+
+	"k8s.io/klog/v2"
+	"k8s.io/kubernetes/test/e2e/framework"
+)
+
 // IsCgroup2UnifiedMode returns whether we are running in cgroup v2 unified mode.
 func IsCgroup2UnifiedMode() bool {
 	return false
+}
+
+func restartKubelet(ctx context.Context, running bool) {
+}
+
+// mustStopKubelet will kill the running kubelet, and returns a func that will restart the process again
+func mustStopKubelet(ctx context.Context, f *framework.Framework) func(ctx context.Context) {
+	return func(ctx context.Context) {}
+}
+
+func stopContainerRuntime() error {
+	return fmt.Errorf("stopContainerRuntime is not supported on unsupport platform yet")
+}
+
+func startContainerRuntime() error {
+	return fmt.Errorf("stopContainerRuntime is not supported on unsupport platform yet")
+}
+
+func deleteStateFile(stateFileName string) {
+}
+
+func systemValidation(systemSpecFile *string) {
+	klog.Warningf("system spec validation is not supported on platform other than linux yet")
+
+	return
 }

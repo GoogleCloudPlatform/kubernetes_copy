@@ -1,6 +1,3 @@
-//go:build linux
-// +build linux
-
 /*
 Copyright 2016 The Kubernetes Authors.
 
@@ -24,19 +21,16 @@ package e2enode
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"flag"
 	"fmt"
 
 	"os"
 	"os/exec"
-	"syscall"
 	"testing"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	utilyaml "k8s.io/apimachinery/pkg/util/yaml"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	clientset "k8s.io/client-go/kubernetes"
 	cliflag "k8s.io/component-base/cli/flag"
@@ -51,7 +45,6 @@ import (
 	"k8s.io/kubernetes/test/e2e_node/criproxy"
 	"k8s.io/kubernetes/test/e2e_node/services"
 	e2enodetestingmanifests "k8s.io/kubernetes/test/e2e_node/testing-manifests"
-	system "k8s.io/system-validators/validators"
 
 	// define and freeze constants
 	_ "k8s.io/kubernetes/test/e2e/feature"
@@ -153,10 +146,6 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-// When running the containerized conformance test, we'll mount the
-// host root filesystem as readonly to /rootfs.
-const rootfs = "/rootfs"
-
 func TestE2eNode(t *testing.T) {
 	// Make sure we are not limited by sshd when it comes to open files
 	if err := rlimit.SetNumFiles(1000000); err != nil {
@@ -175,30 +164,7 @@ func TestE2eNode(t *testing.T) {
 	}
 	if *systemValidateMode {
 		// If system-validate-mode is specified, only run system validation in current process.
-		spec := &system.DefaultSysSpec
-		if *systemSpecFile != "" {
-			var err error
-			spec, err = loadSystemSpecFromFile(*systemSpecFile)
-			if err != nil {
-				klog.Exitf("Failed to load system spec: %v", err)
-			}
-		}
-		if framework.TestContext.NodeConformance {
-			// Chroot to /rootfs to make system validation can check system
-			// as in the root filesystem.
-			// TODO(random-liu): Consider to chroot the whole test process to make writing
-			// test easier.
-			if err := syscall.Chroot(rootfs); err != nil {
-				klog.Exitf("chroot %q failed: %v", rootfs, err)
-			}
-		}
-		warns, errs := system.ValidateSpec(*spec, "remote")
-		if len(warns) != 0 {
-			klog.Warningf("system validation warns: %v", warns)
-		}
-		if len(errs) != 0 {
-			klog.Exitf("system validation failed: %v", errs)
-		}
+		systemValidation(systemSpecFile)
 		return
 	}
 
@@ -415,24 +381,6 @@ func getAPIServerClient() (*clientset.Clientset, error) {
 		return nil, fmt.Errorf("failed to create client: %w", err)
 	}
 	return client, nil
-}
-
-// loadSystemSpecFromFile returns the system spec from the file with the
-// filename.
-func loadSystemSpecFromFile(filename string) (*system.SysSpec, error) {
-	b, err := os.ReadFile(filename)
-	if err != nil {
-		return nil, err
-	}
-	data, err := utilyaml.ToJSON(b)
-	if err != nil {
-		return nil, err
-	}
-	spec := new(system.SysSpec)
-	if err := json.Unmarshal(data, spec); err != nil {
-		return nil, err
-	}
-	return spec, nil
 }
 
 // isNodeReady returns true if a node is ready; false otherwise.

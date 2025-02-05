@@ -81,6 +81,11 @@ func (a *APIServer) Start(ctx context.Context) error {
 	o.Authentication.TokenFile.TokenFile = tokenFilePath
 	o.Admission.GenericAdmission.DisablePlugins = []string{"ServiceAccount", "TaintNodesByCondition"}
 
+	err = os.Mkdir("/tmp", 0755)
+	if err != nil && !errors.Is(err, os.ErrExist) {
+		return fmt.Errorf("create temp dir failed: %w", err)
+	}
+
 	saSigningKeyFile, err := os.CreateTemp("/tmp", "insecure_test_key")
 	if err != nil {
 		return fmt.Errorf("create temp file failed: %w", err)

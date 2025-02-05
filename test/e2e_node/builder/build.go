@@ -22,6 +22,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"k8s.io/klog/v2"
@@ -137,7 +138,16 @@ func getK8sBin(bin string) (string, error) {
 
 // GetKubeletServerBin returns the path of kubelet binary.
 func GetKubeletServerBin() string {
-	bin, err := getK8sBin("kubelet")
+	var kubeletServer string
+
+	switch runtime.GOOS {
+	case "windows":
+		kubeletServer = "kubelet.exe"
+	default:
+		kubeletServer = "kubelet"
+	}
+
+	bin, err := getK8sBin(kubeletServer)
 	if err != nil {
 		klog.Fatalf("Could not locate kubelet binary %v.", err)
 	}
