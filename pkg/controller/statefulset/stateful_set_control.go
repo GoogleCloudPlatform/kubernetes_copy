@@ -565,7 +565,7 @@ func (ssc *defaultStatefulSetControl) updateStatefulSet(
 		// If the ordinal could not be parsed (ord < 0), ignore the Pod.
 	}
 
-	// for any empty indices in the sequence [0,set.Spec.Replicas) create a new Pod at the correct revision
+	// for any empty indices in the sequence [start,end] create a new Pod at the correct revision
 	start, end := getStartOrdinal(set), getEndOrdinal(set)
 	for ord := start; ord <= end; ord++ {
 		replicaIdx := ord - start
