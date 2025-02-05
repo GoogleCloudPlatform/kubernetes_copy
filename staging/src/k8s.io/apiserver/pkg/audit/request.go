@@ -53,6 +53,10 @@ func LogRequestMetadata(ctx context.Context, req *http.Request, requestReceivedT
 	ev.UserAgent = maybeTruncateUserAgent(req)
 	ev.Level = level
 
+	if req.TLS != nil && len(req.TLS.PeerCertificates) > 0 {
+		ev.TLSExpiration = metav1.NewMicroTime(req.TLS.PeerCertificates[0].NotAfter)
+	}
+
 	ips := utilnet.SourceIPs(req)
 	ev.SourceIPs = make([]string, len(ips))
 	for i := range ips {

@@ -58674,6 +58674,12 @@ func schema_pkg_apis_audit_v1_Event(ref common.ReferenceCallback) common.OpenAPI
 							},
 						},
 					},
+					"tlsExpiration": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Time indicates the expiration date of peerCertificates.",
+							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.MicroTime"),
+						},
+					},
 				},
 				Required: []string{"level", "auditID", "stage", "requestURI", "verb", "user"},
 			},

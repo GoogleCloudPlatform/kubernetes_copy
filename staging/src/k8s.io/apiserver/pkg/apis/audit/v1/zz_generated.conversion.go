@@ -129,6 +129,7 @@ func autoConvert_v1_Event_To_audit_Event(in *Event, out *audit.Event, s conversi
 	out.RequestReceivedTimestamp = in.RequestReceivedTimestamp
 	out.StageTimestamp = in.StageTimestamp
 	out.Annotations = *(*map[string]string)(unsafe.Pointer(&in.Annotations))
+	out.TLSExpiration = in.TLSExpiration
 	return nil
 }
 
@@ -154,6 +155,7 @@ func autoConvert_audit_Event_To_v1_Event(in *audit.Event, out *Event, s conversi
 	out.RequestReceivedTimestamp = in.RequestReceivedTimestamp
 	out.StageTimestamp = in.StageTimestamp
 	out.Annotations = *(*map[string]string)(unsafe.Pointer(&in.Annotations))
+	out.TLSExpiration = in.TLSExpiration
 	return nil
 }
 

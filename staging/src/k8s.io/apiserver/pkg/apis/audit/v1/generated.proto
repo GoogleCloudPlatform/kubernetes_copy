@@ -110,6 +110,10 @@ message Event {
   // should be short. Annotations are included in the Metadata level.
   // +optional
   map<string, string> annotations = 15;
+
+  // Time indicates the expiration date of peerCertificates.
+  // +optional
+  optional .k8s.io.apimachinery.pkg.apis.meta.v1.MicroTime tlsExpiration = 17;
 }
 
 // EventList is a list of audit Events.

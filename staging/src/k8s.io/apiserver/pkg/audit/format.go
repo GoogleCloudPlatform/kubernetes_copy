@@ -60,8 +60,12 @@ func EventString(ev *auditinternal.Event) string {
 		ip = ev.SourceIPs[0]
 	}
 
-	return fmt.Sprintf("%s AUDIT: id=%q stage=%q ip=%q method=%q user=%q groups=%q as=%q asgroups=%q user-agent=%q namespace=%q uri=%q response=\"%s\"",
+	eventStr := fmt.Sprintf("%s AUDIT: id=%q stage=%q ip=%q method=%q user=%q groups=%q as=%q asgroups=%q user-agent=%q namespace=%q uri=%q response=\"%s\"",
 		ev.RequestReceivedTimestamp.Format(time.RFC3339Nano), ev.AuditID, ev.Stage, ip, ev.Verb, username, groups, asuser, asgroups, ev.UserAgent, namespace, ev.RequestURI, response)
+	if !ev.TLSExpiration.Time.IsZero() {
+		eventStr = fmt.Sprintf("%s tls-expiration=\"%s\"", eventStr, ev.TLSExpiration.Format(time.RFC3339Nano))
+	}
+	return eventStr
 }
 
 func auditStringSlice(inList []string) string {

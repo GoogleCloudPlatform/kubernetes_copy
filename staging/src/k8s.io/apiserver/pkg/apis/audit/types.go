@@ -145,6 +145,9 @@ type Event struct {
 	// should be short. Annotations are included in the Metadata level.
 	// +optional
 	Annotations map[string]string
+
+	// TLSExpiration indicates the expiration date of peerCertificates.
+	TLSExpiration metav1.MicroTime
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

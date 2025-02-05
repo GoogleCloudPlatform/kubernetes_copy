@@ -71,6 +71,7 @@ func (in *Event) DeepCopyInto(out *Event) {
 			(*out)[key] = val
 		}
 	}
+	in.TLSExpiration.DeepCopyInto(&out.TLSExpiration)
 	return
 }
 

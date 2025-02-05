@@ -140,6 +140,10 @@ type Event struct {
 	// should be short. Annotations are included in the Metadata level.
 	// +optional
 	Annotations map[string]string `json:"annotations,omitempty" protobuf:"bytes,15,rep,name=annotations"`
+
+	// Time indicates the expiration date of peerCertificates.
+	// +optional
+	TLSExpiration metav1.MicroTime `json:"tlsExpiration" protobuf:"bytes,17,opt,name=tlsExpiration"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
