@@ -38,11 +38,8 @@ import (
 	utilnet "k8s.io/utils/net"
 )
 
-var (
-	// The default dns opt strings.
-	defaultDNSOptions = []string{"ndots:5"}
-)
 
+var DNSDefaultNdots int
 type podDNSType int
 
 const (
@@ -409,7 +406,8 @@ func (c *Configurer) GetPodDNS(pod *v1.Pod) (*runtimeapi.DNSConfig, error) {
 				dnsConfig.Servers = append(dnsConfig.Servers, ip.String())
 			}
 			dnsConfig.Searches = c.generateSearchesForDNSClusterFirst(dnsConfig.Searches, pod)
-			dnsConfig.Options = defaultDNSOptions
+			defaultndots := fmt.Sprintf("ndots:%d", DNSDefaultNdots)
+			dnsConfig.Options = []string{defaultndots}
 			break
 		}
 		// clusterDNS is not known. Pod with ClusterDNSFirst Policy cannot be created.
