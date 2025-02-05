@@ -30,8 +30,9 @@ type MessageCountMap map[string]int
 // necessarily have singular semantic meaning.
 // The aggregate can be used with `errors.Is()` to check for the occurrence of
 // a specific error type.
-// Errors.As() is not supported, because the caller presumably cares about a
-// specific error of potentially multiple that match the given type.
+// It can also be used with `errors.As()` but that doesn't allow multiple
+// errors of the given type to be distinguished. `Unwrap()` should be used if
+// specific errors need to be extracted.
 type Aggregate interface {
 	error
 	Errors() []error
@@ -121,6 +122,11 @@ func (agg aggregate) visit(f func(err error) bool) bool {
 	}
 
 	return false
+}
+
+// Unwrap is part of the error interface.
+func (agg aggregate) Unwrap() []error {
+	return agg.Errors()
 }
 
 // Errors is part of the Aggregate interface.

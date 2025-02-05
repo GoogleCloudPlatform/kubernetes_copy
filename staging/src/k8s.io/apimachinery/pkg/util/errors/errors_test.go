@@ -432,6 +432,54 @@ func TestAggregateGoroutines(t *testing.T) {
 	}
 }
 
+type firstTestError struct{}
+
+func (e firstTestError) Error() string {
+	return "first test error"
+}
+
+type secondTestError struct{}
+
+func (e secondTestError) Error() string {
+	return "second test error"
+}
+
+type thirdTestError struct{}
+
+func (e thirdTestError) Error() string {
+	return "third test error"
+}
+
+func TestGoUnwrapping(t *testing.T) {
+	testErrors := []error{
+		firstTestError{},
+		secondTestError{},
+	}
+	agg := NewAggregate(testErrors)
+
+	if !errors.Is(agg, firstTestError{}) {
+		t.Errorf("Expected %v to be a firstTestError", agg)
+	}
+
+	if !errors.Is(agg, secondTestError{}) {
+		t.Errorf("Expected %v to be a secondTestError", agg)
+	}
+
+	if errors.Is(agg, thirdTestError{}) {
+		t.Errorf("Did not expect %v to be a thirdTestError", agg)
+	}
+
+	var firstError firstTestError
+	if !errors.As(agg, &firstError) {
+		t.Errorf("Unable to extract firstTestError from %v", agg)
+	}
+
+	var secondError secondTestError
+	if !errors.As(agg, &secondError) {
+		t.Errorf("Unable to extract secondTestError from %v", agg)
+	}
+}
+
 type alwaysMatchingError struct{}
 
 func (_ alwaysMatchingError) Error() string {
