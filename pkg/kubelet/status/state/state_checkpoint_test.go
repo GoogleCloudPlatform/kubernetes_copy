@@ -110,11 +110,9 @@ func Test_stateCheckpoint_storeState(t *testing.T) {
 			originalSC, err := NewStateCheckpoint(testDir, testCheckpoint)
 			require.NoError(t, err)
 
-			for podUID, containerAlloc := range tt.args.podResourceAllocation {
-				for containerName, alloc := range containerAlloc {
-					err = originalSC.SetContainerResourceAllocation(podUID, containerName, alloc)
-					require.NoError(t, err)
-				}
+			for podUID, alloc := range tt.args.podResourceAllocation {
+				err = originalSC.SetPodResourceAllocation(podUID, alloc)
+				require.NoError(t, err)
 			}
 
 			actual := originalSC.GetPodResourceAllocation()

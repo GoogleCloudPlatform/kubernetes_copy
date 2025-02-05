@@ -47,6 +47,7 @@ type Reader interface {
 
 type writer interface {
 	SetContainerResourceAllocation(podUID string, containerName string, alloc v1.ResourceRequirements) error
+	SetPodResourceAllocation(podUID string, alloc map[string]v1.ResourceRequirements) error
 	SetPodResizeStatus(podUID string, resizeStatus v1.PodResizeStatus)
 	Delete(podUID string, containerName string) error
 }

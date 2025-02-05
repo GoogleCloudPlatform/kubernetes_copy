@@ -296,13 +296,15 @@ func (m *manager) GetPodResizeStatus(podUID types.UID) v1.PodResizeStatus {
 func (m *manager) SetPodAllocation(pod *v1.Pod) error {
 	m.podStatusesLock.RLock()
 	defer m.podStatusesLock.RUnlock()
+
+	podAlloc := make(map[string]v1.ResourceRequirements)
+
 	for _, container := range pod.Spec.Containers {
 		alloc := *container.Resources.DeepCopy()
-		if err := m.state.SetContainerResourceAllocation(string(pod.UID), container.Name, alloc); err != nil {
-			return err
-		}
+		podAlloc[container.Name] = alloc
 	}
-	return nil
+
+	return m.state.SetPodResourceAllocation(string(pod.UID), podAlloc)
 }
 
 // SetPodResizeStatus checkpoints the last resizing decision for the pod.
