@@ -203,3 +203,119 @@ func TestByImageSizeLess(t *testing.T) {
 		}
 	}
 }
+
+func buildPodsByPriority() PodsByPriority {
+	helperPriorities := []int32{
+		int32(200),
+		int32(100),
+	}
+	return []*v1.Pod{
+		{
+			Spec: v1.PodSpec{
+				Priority: &helperPriorities[0],
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "critical1",
+				Namespace: v1.NamespaceDefault,
+				CreationTimestamp: metav1.Time{
+					Time: time.Now(),
+				},
+			},
+		},
+		{
+			Spec: v1.PodSpec{
+				Priority: &helperPriorities[0],
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "critical2",
+				Namespace: v1.NamespaceDefault,
+				CreationTimestamp: metav1.Time{
+					Time: time.Now().Add(time.Hour * 1),
+				},
+			},
+		},
+		{
+			Spec: v1.PodSpec{
+				Priority: &helperPriorities[1],
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "lowpriority",
+				Namespace: v1.NamespaceDefault,
+				CreationTimestamp: metav1.Time{
+					Time: time.Now(),
+				},
+			},
+		},
+		{
+			Spec: v1.PodSpec{
+				Priority: nil,
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "nopriority",
+				Namespace: v1.NamespaceDefault,
+				CreationTimestamp: metav1.Time{
+					Time: time.Now(),
+				},
+			},
+		},
+	}
+}
+
+func TestPodsByPriorityLen(t *testing.T) {
+	fooTests := []struct {
+		pods PodsByPriority
+		el   int
+	}{
+		{[]*v1.Pod{}, 0},
+		{buildPodsByPriority(), 4},
+		{[]*v1.Pod{nil}, 1},
+		{nil, 0},
+	}
+
+	for _, fooTest := range fooTests {
+		r := fooTest.pods.Len()
+		if r != fooTest.el {
+			t.Errorf("returned %d but expected %d for the len of ByImageSize=%v", r, fooTest.el, fooTest.pods)
+		}
+	}
+}
+
+func TestPodsByPrioritySwap(t *testing.T) {
+	fooTests := []struct {
+		pods PodsByPriority
+		i    int
+		j    int
+	}{
+		{buildPodsByPriority(), 0, 1},
+		{buildPodsByPriority(), 0, 2},
+	}
+	for _, fooTest := range fooTests {
+		fooi := fooTest.pods[fooTest.i]
+		fooj := fooTest.pods[fooTest.j]
+		fooTest.pods.Swap(fooTest.i, fooTest.j)
+		if fooi.GetName() != fooTest.pods[fooTest.j].GetName() || fooj.GetName() != fooTest.pods[fooTest.i].GetName() {
+			t.Errorf("failed to swap for %v", fooTest)
+		}
+	}
+}
+
+func TestPodsByPriorityLess(t *testing.T) {
+	fooTests := []struct {
+		pods PodsByPriority
+		i    int
+		j    int
+		er   bool
+	}{
+		{buildPodsByPriority(), 0, 2, true},
+		{buildPodsByPriority(), 2, 1, false},
+		{buildPodsByPriority(), 0, 1, true},
+		{buildPodsByPriority(), 3, 2, false},
+		{buildPodsByPriority(), 0, 3, true},
+	}
+	for _, fooTest := range fooTests {
+		result := PodsByPriority.Less(fooTest.pods, fooTest.i, fooTest.j)
+		if result != fooTest.er {
+			t.Errorf("returned %t but expected %t for the foo=%v", result, fooTest.er, fooTest.pods)
+		}
+	}
+}

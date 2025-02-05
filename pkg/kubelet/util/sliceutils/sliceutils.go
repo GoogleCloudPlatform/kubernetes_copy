@@ -49,3 +49,37 @@ func (a ByImageSize) Less(i, j int) bool {
 }
 func (a ByImageSize) Len() int      { return len(a) }
 func (a ByImageSize) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+
+// PodsByPriority makes an array of pods sortable by their priority
+// in descending order, and then by their creation timestamps in
+// ascending order
+type PodsByPriority []*v1.Pod
+
+func (s PodsByPriority) Len() int {
+	return len(s)
+}
+
+func (s PodsByPriority) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
+
+func (s PodsByPriority) Less(i, j int) bool {
+	iPrio := getPodPriority(s[i])
+	jPrio := getPodPriority(s[j])
+
+	if iPrio > jPrio {
+		return true
+	}
+	if iPrio == jPrio {
+		return s[i].CreationTimestamp.Before(&s[j].CreationTimestamp)
+	}
+	return false
+}
+
+func getPodPriority(pod *v1.Pod) int32 {
+	if pod == nil || pod.Spec.Priority == nil {
+		return 0
+	}
+
+	return *pod.Spec.Priority
+}

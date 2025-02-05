@@ -807,14 +807,21 @@ func TestHandlePortConflicts(t *testing.T) {
 	spec := v1.PodSpec{NodeName: string(kl.nodeName), Containers: []v1.Container{{Ports: []v1.ContainerPort{{HostPort: 80}}}}}
 	pods := []*v1.Pod{
 		podWithUIDNameNsSpec("123456789", "newpod", "foo", spec),
+		podWithUIDNameNsSpec("555555555", "nopriopod", "foo", spec),
 		podWithUIDNameNsSpec("987654321", "oldpod", "foo", spec),
 	}
+	// Add priorities to 2 pods
+	priority := int32(10)
+	pods[0].Spec.Priority = &priority
+	pods[2].Spec.Priority = &priority
 	// Make sure the Pods are in the reverse order of creation time.
+	pods[2].CreationTimestamp = metav1.NewTime(time.Now())
 	pods[1].CreationTimestamp = metav1.NewTime(time.Now())
 	pods[0].CreationTimestamp = metav1.NewTime(time.Now().Add(1 * time.Second))
 	// The newer pod should be rejected.
-	notfittingPod := pods[0]
-	fittingPod := pods[1]
+	notfittingPod1 := pods[0]
+	notfittingPod2 := pods[1]
+	fittingPod := pods[2]
 	kl.podWorkers.(*fakePodWorkers).running = map[types.UID]bool{
 		pods[0].UID: true,
 		pods[1].UID: true,
@@ -823,7 +830,8 @@ func TestHandlePortConflicts(t *testing.T) {
 	kl.HandlePodAdditions(pods)
 
 	// Check pod status stored in the status map.
-	checkPodStatus(t, kl, notfittingPod, v1.PodFailed)
+	checkPodStatus(t, kl, notfittingPod1, v1.PodFailed)
+	checkPodStatus(t, kl, notfittingPod2, v1.PodFailed)
 	checkPodStatus(t, kl, fittingPod, v1.PodPending)
 }
 
