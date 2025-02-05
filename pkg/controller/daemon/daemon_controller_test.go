@@ -1640,6 +1640,52 @@ func TestNodeAffinityDaemonLaunchesPods(t *testing.T) {
 	}
 }
 
+// RequiredDuringSchedulingIgnoredDuringExecution means that if the node labels change after Kubernetes schedules the Pod, the Pod continues to run.
+func TestNodeAffinityAndChangeNodeLabels(t *testing.T) {
+	logger, _ := ktesting.NewTestContext(t)
+	for _, strategy := range updateStrategies() {
+		daemon := newDaemonSet("foo")
+		daemon.Spec.UpdateStrategy = *strategy
+		daemon.Spec.Template.Spec.Affinity = &v1.Affinity{
+			NodeAffinity: &v1.NodeAffinity{
+				RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
+					NodeSelectorTerms: []v1.NodeSelectorTerm{
+						{
+							MatchExpressions: []v1.NodeSelectorRequirement{
+								{
+									Key:      "color",
+									Operator: v1.NodeSelectorOpIn,
+									Values:   []string{simpleNodeLabel["color"]},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+		_, ctx := ktesting.NewTestContext(t)
+
+		manager, podControl, _, err := newTestController(ctx, daemon)
+		if err != nil {
+			t.Fatalf("error creating DaemonSetsController: %v", err)
+		}
+		node1 := newNode("node-1", simpleNodeLabel)
+		node2 := newNode("node-2", simpleNodeLabel)
+		manager.nodeStore.Add(node1)
+		manager.nodeStore.Add(node2)
+		err = manager.dsStore.Add(daemon)
+		if err != nil {
+			t.Fatal(err)
+		}
+		expectSyncDaemonSets(t, manager, daemon, podControl, 2, 0, 0)
+		oldNode := node1.DeepCopy()
+		node1.Labels = nil
+		manager.updateNode(logger, oldNode, node1)
+		manager.nodeStore.Add(newNode("node-3", nil))
+		expectSyncDaemonSets(t, manager, daemon, podControl, 2, 0, 0)
+	}
+}
+
 func TestNumberReadyStatus(t *testing.T) {
 	for _, strategy := range updateStrategies() {
 		ds := newDaemonSet("foo")
@@ -2284,7 +2330,7 @@ func TestNodeShouldRunDaemonPod(t *testing.T) {
 			shouldContinueRunning: true,
 		},
 		{
-			predicateName: "ErrPodAffinityNotMatch",
+			predicateName: "PodAffinityNotMatchDuringExecution",
 			ds: &apps.DaemonSet{
 				Spec: apps.DaemonSetSpec{
 					Selector: &metav1.LabelSelector{MatchLabels: simpleDaemonSetLabel},
@@ -2315,7 +2361,7 @@ func TestNodeShouldRunDaemonPod(t *testing.T) {
 				},
 			},
 			shouldRun:             false,
-			shouldContinueRunning: false,
+			shouldContinueRunning: true,
 		},
 		{
 			predicateName: "ShouldRunDaemonPod",
@@ -2472,6 +2518,36 @@ func TestUpdateNode(t *testing.T) {
 				return 0
 			},
 			shouldEnqueue: false,
+			expectedCreates: func() int {
+				return 1
+			},
+		},
+		{
+			test:    "Node labels changed, ds with NodeAffinity ",
+			oldNode: newNode("node1", simpleNodeLabel),
+			newNode: newNode("node1", simpleNodeLabel2),
+			ds: func() *apps.DaemonSet {
+				ds := newDaemonSet("ds")
+				ds.Spec.Template.Spec.Affinity = &v1.Affinity{
+					NodeAffinity: &v1.NodeAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
+							NodeSelectorTerms: []v1.NodeSelectorTerm{
+								{
+									MatchExpressions: []v1.NodeSelectorRequirement{
+										{
+											Key:      "color",
+											Operator: v1.NodeSelectorOpIn,
+											Values:   []string{"blue"},
+										},
+									},
+								},
+							},
+						},
+					},
+				}
+				return ds
+			}(),
+			shouldEnqueue: true,
 			expectedCreates: func() int {
 				return 1
 			},

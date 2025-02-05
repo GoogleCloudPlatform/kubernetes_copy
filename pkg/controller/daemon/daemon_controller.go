@@ -1289,8 +1289,14 @@ func NodeShouldRunDaemonPod(node *v1.Node, ds *apps.DaemonSet) (bool, bool) {
 	}
 
 	taints := node.Spec.Taints
-	fitsNodeName, fitsNodeAffinity, fitsTaints := predicates(pod, node, taints)
-	if !fitsNodeName || !fitsNodeAffinity {
+	fitsNodeName := len(pod.Spec.NodeName) == 0 || pod.Spec.NodeName == node.Name
+	if !fitsNodeName {
+		return false, false
+	}
+
+	fitsNodeName, fitsNodeSelector, fitsNodeAffinity, fitsTaints := predicates(pod, node, taints)
+
+	if !fitsNodeName || !fitsNodeSelector {
 		return false, false
 	}
 
@@ -1302,14 +1308,35 @@ func NodeShouldRunDaemonPod(node *v1.Node, ds *apps.DaemonSet) (bool, bool) {
 		return false, !hasUntoleratedTaint
 	}
 
+	if !fitsNodeAffinity {
+		// IgnoredDuringExecution means that if the node labels change after Kubernetes schedules the Pod, the Pod continues to run.
+		return false, true
+	}
+
 	return true, true
 }
 
 // predicates checks if a DaemonSet's pod can run on a node.
-func predicates(pod *v1.Pod, node *v1.Node, taints []v1.Taint) (fitsNodeName, fitsNodeAffinity, fitsTaints bool) {
+func predicates(pod *v1.Pod, node *v1.Node, taints []v1.Taint) (fitsNodeName, fitsNodeSelector, fitsNodeAffinity, fitsTaints bool) {
 	fitsNodeName = len(pod.Spec.NodeName) == 0 || pod.Spec.NodeName == node.Name
+
+	if len(pod.Spec.NodeSelector) > 0 {
+		selector := labels.SelectorFromSet(pod.Spec.NodeSelector)
+		fitsNodeSelector = selector.Matches(labels.Set(node.Labels))
+	} else {
+		fitsNodeSelector = true
+	}
+
+	if pod.Spec.Affinity != nil &&
+		pod.Spec.Affinity.NodeAffinity != nil &&
+		pod.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution != nil {
+		affinity := nodeaffinity.NewLazyErrorNodeSelector(pod.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution)
+		fitsNodeAffinity, _ = affinity.Match(node)
+	} else {
+		fitsNodeAffinity = true
+	}
+
 	// Ignore parsing errors for backwards compatibility.
-	fitsNodeAffinity, _ = nodeaffinity.GetRequiredNodeAffinity(pod).Match(node)
 	_, hasUntoleratedTaint := v1helper.FindMatchingUntoleratedTaint(taints, pod.Spec.Tolerations, func(t *v1.Taint) bool {
 		return t.Effect == v1.TaintEffectNoExecute || t.Effect == v1.TaintEffectNoSchedule
 	})
