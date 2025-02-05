@@ -62,4 +62,14 @@ type Response struct {
 	Audiences Audiences
 	// User is the UserInfo associated with the authentication context.
 	User user.Info
+	// IsProxiedAuthentication is set to true by authenticators that rely on a
+	// layer 7 reverse proxy in front of the API server to perform authentication.
+	// This means that the API server is not directly connected to the real client,
+	// and must delegate any connection level protections to the authenticating proxy.
+	// From this API server's perspective, when a protocol like HTTP/2 is used,
+	// the client is a proxy multiplexing many concurrent operations, including
+	// long-running ones, into one HTTP/2 connection into this API server.  Therefore,
+	// it is not possible for this API server to safely make decisions about individual
+	// requests since they may share the same underling HTTP/2 connection.
+	IsProxiedAuthentication bool
 }

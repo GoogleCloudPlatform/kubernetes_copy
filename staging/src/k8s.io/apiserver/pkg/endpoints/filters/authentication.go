@@ -112,7 +112,7 @@ func withAuthentication(handler http.Handler, auth authenticator.Request, failed
 		// Do not allow unauthenticated clients to keep these
 		// connections open (i.e. basically degrade them to the
 		// performance of http1 with keep-alive disabled).
-		if utilfeature.DefaultFeatureGate.Enabled(genericfeatures.UnauthenticatedHTTP2DOSMitigation) && req.ProtoMajor == 2 && isAnonymousUser(resp.User) {
+		if shouldCloseAnonymousHTTP2Request(req, resp) {
 			// limit this connection to just this request,
 			// and then send a GOAWAY and tear down the TCP connection
 			// https://github.com/golang/net/commit/97aa3a539ec716117a9d15a4659a911f50d13c3c
@@ -155,6 +155,13 @@ func audiencesAreAcceptable(apiAuds, responseAudiences authenticator.Audiences) 
 	}
 
 	return len(apiAuds.Intersect(responseAudiences)) > 0
+}
+
+func shouldCloseAnonymousHTTP2Request(req *http.Request, resp *authenticator.Response) bool {
+	return utilfeature.DefaultFeatureGate.Enabled(genericfeatures.UnauthenticatedHTTP2DOSMitigation) &&
+		req.ProtoMajor == 2 &&
+		!resp.IsProxiedAuthentication &&
+		isAnonymousUser(resp.User)
 }
 
 func isAnonymousUser(u user.Info) bool {

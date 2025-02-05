@@ -137,6 +137,7 @@ func (a *requestHeaderAuthRequestHandler) AuthenticateRequest(req *http.Request)
 			Groups: groups,
 			Extra:  extra,
 		},
+		IsProxiedAuthentication: true,
 	}, true, nil
 }
 
