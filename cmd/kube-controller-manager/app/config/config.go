@@ -21,11 +21,15 @@ import (
 	clientset "k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/component-base/zpages/flagz"
 	kubectrlmgrconfig "k8s.io/kubernetes/pkg/controller/apis/config"
 )
 
 // Config is the main context object for the controller manager.
 type Config struct {
+	// Flagz is the Reader interface to get flags for the flagz page.
+	Flagz flagz.Reader
+
 	ComponentConfig kubectrlmgrconfig.KubeControllerManagerConfiguration
 
 	SecureServing *apiserver.SecureServingInfo

@@ -64,6 +64,8 @@ import (
 	"k8s.io/component-base/term"
 	utilversion "k8s.io/component-base/version"
 	"k8s.io/component-base/version/verflag"
+	zpagesfeatures "k8s.io/component-base/zpages/features"
+	"k8s.io/component-base/zpages/flagz"
 	genericcontrollermanager "k8s.io/controller-manager/app"
 	"k8s.io/controller-manager/controller"
 	"k8s.io/controller-manager/pkg/clientbuilder"
@@ -91,6 +93,8 @@ const (
 	ControllerStartJitter = 1.0
 	// ConfigzName is the name used for register kube-controller manager /configz, same with GroupName.
 	ConfigzName = "kubecontrollermanager.config.k8s.io"
+	// KubeControllerManager defines variable used internally when referring to kube-controller-manager component
+	KubeControllerManager = "kube-controller-manager"
 )
 
 // NewControllerManagerCommand creates a *cobra.Command object with default parameters
@@ -212,6 +216,11 @@ func Run(ctx context.Context, c *config.CompletedConfig) error {
 	if c.SecureServing != nil {
 		unsecuredMux = genericcontrollermanager.NewBaseHandler(&c.ComponentConfig.Generic.Debugging, healthzHandler)
 		slis.SLIMetricsWithReset{}.Install(unsecuredMux)
+		if utilfeature.DefaultFeatureGate.Enabled(zpagesfeatures.ComponentFlagz) {
+			if c.Flagz != nil {
+				flagz.Install(unsecuredMux, KubeControllerManager, c.Flagz)
+			}
+		}
 
 		handler := genericcontrollermanager.BuildHandlerChain(unsecuredMux, &c.Authorization, &c.Authentication)
 		// TODO: handle stoppedCh and listenerStoppedCh returned by c.SecureServing.Serve

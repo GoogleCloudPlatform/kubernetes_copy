@@ -41,6 +41,7 @@ import (
 	logsapi "k8s.io/component-base/logs/api/v1"
 	"k8s.io/component-base/metrics"
 	utilversion "k8s.io/component-base/version"
+	"k8s.io/component-base/zpages/flagz"
 	cmoptions "k8s.io/controller-manager/options"
 	"k8s.io/klog/v2"
 	kubectrlmgrconfigv1alpha1 "k8s.io/kube-controller-manager/config/v1alpha1"
@@ -507,6 +508,10 @@ func (s KubeControllerManagerOptions) Config(allControllers []string, disabledBy
 		return nil, err
 	}
 	s.Metrics.Apply()
+
+	c.Flagz = flagz.NamedFlagSetsReader{
+		FlagSets: s.Flags(allControllers, disabledByDefaultControllers, controllerAliases),
+	}
 
 	return c, nil
 }
