@@ -98,6 +98,180 @@ func TestEqualities(t *testing.T) {
 	}
 }
 
+func TestPublicEqualities(t *testing.T) {
+	e := Equalities{}
+
+	type Foo struct {
+		X int
+	}
+
+	type PrivateFoo struct {
+		X int
+		y int
+	}
+
+	type NestedFoo struct {
+		X Foo
+	}
+
+	type NestedPrivateFoo struct {
+		X PrivateFoo
+	}
+
+	type MapFoo struct {
+		X map[string]Foo
+	}
+
+	type NestedMapFoo struct {
+		X MapFoo
+	}
+
+	type Case struct {
+		name          string
+		a, b          interface{}
+		options       *DeepEqualOptions
+		shouldBeEqual bool
+		shouldPanic   bool
+	}
+
+	table := []Case{
+		{"equal values are considered equal", 1, 1, &DeepEqualOptions{}, true, false},
+		{"unequal values are not considered equal", 1, 2, &DeepEqualOptions{}, false, false},
+		{"equal structs are considered equal", Foo{1}, Foo{1}, &DeepEqualOptions{}, true, false},
+		{"unequal structs are not considered equal", Foo{2}, Foo{1}, &DeepEqualOptions{}, false, false},
+
+		{"structs with unexported fields panic", PrivateFoo{1, 1}, PrivateFoo{1, 1}, &DeepEqualOptions{}, true, true},
+
+		{
+			"structs with unexported fields do not panic when ignoring unexported fields",
+			PrivateFoo{1, 1}, PrivateFoo{1, 1},
+			&DeepEqualOptions{IgnoreUnexportedFields: true},
+			true, false,
+		},
+
+		{"nested structs are considered equal", NestedFoo{Foo{1}}, NestedFoo{Foo{1}}, &DeepEqualOptions{}, true, false},
+		{"nested structs are not considered equal", NestedFoo{Foo{1}}, NestedFoo{Foo{2}}, &DeepEqualOptions{}, false, false},
+
+		{
+			"nested structs with unexported fields panic",
+			NestedPrivateFoo{PrivateFoo{1, 1}}, NestedPrivateFoo{PrivateFoo{1, 1}},
+			&DeepEqualOptions{},
+			false, true,
+		},
+		{
+			"nested structs with unexported fields do not panic when ignored unexported fields",
+			NestedPrivateFoo{PrivateFoo{1, 1}}, NestedPrivateFoo{PrivateFoo{1, 1}},
+			&DeepEqualOptions{IgnoreUnexportedFields: true},
+			true, false,
+		},
+
+		{
+			"same-type maps are considered equal",
+			map[string]string{"foo": "bar"},
+			map[string]string{"foo": "bar"},
+			&DeepEqualOptions{}, true, false,
+		},
+		{
+			"same-type maps are not considered equal",
+			map[string]string{"foo": "bar"},
+			map[string]string{"foo": "foo"},
+			&DeepEqualOptions{}, false, false,
+		},
+		{
+			"different-type maps are not considered equal",
+			map[string]string{"foo": "bar"},
+			map[string]interface{}{"foo": 123},
+			&DeepEqualOptions{}, false, false,
+		},
+
+		{
+			"slices of structs are considered equal",
+			[]Foo{{1}, {1}}, []Foo{{1}, {1}},
+			&DeepEqualOptions{}, true, false,
+		},
+		{
+			"slices of structs are not considered equal",
+			[]Foo{{1}, {1}}, []Foo{{1}, {2}},
+			&DeepEqualOptions{}, false, false,
+		},
+		{
+			"slices of structs are not considered equal, variant 2",
+			[]Foo{{2}, {1}}, []Foo{{1}, {2}},
+			&DeepEqualOptions{}, false, false,
+		},
+
+		{
+			"slices of nested structs are considered equal",
+			[]NestedFoo{{Foo{1}}},
+			[]NestedFoo{{Foo{1}}},
+			&DeepEqualOptions{}, true, false,
+		},
+		{
+			"slices of nested structs are considered equal, variant 2",
+			[]NestedFoo{{Foo{1}}, {Foo{2}}},
+			[]NestedFoo{{Foo{1}}, {Foo{2}}},
+			&DeepEqualOptions{}, true, false,
+		},
+		{
+			"slices of nested structs are not considered equal",
+			[]NestedFoo{{Foo{1}}, {Foo{2}}},
+			[]NestedFoo{{Foo{2}}, {Foo{1}}},
+			&DeepEqualOptions{}, false, false,
+		},
+
+		{
+			"slices of nested structs with unexported fields panic",
+			[]NestedPrivateFoo{{PrivateFoo{1, 1}}},
+			[]NestedPrivateFoo{{PrivateFoo{1, 1}}},
+			&DeepEqualOptions{}, true, true,
+		},
+		{
+			"slices of nested structs with unexported fields do not panic when ignore unexported fields",
+			[]NestedPrivateFoo{{PrivateFoo{1, 1}}},
+			[]NestedPrivateFoo{{PrivateFoo{1, 1}}},
+			&DeepEqualOptions{IgnoreUnexportedFields: true}, true, false,
+		},
+		{
+			"slices of nested structs with unexported fields do not panic when ignore unexported fields, variant 2",
+			[]NestedPrivateFoo{{PrivateFoo{1, 1}}},
+			[]NestedPrivateFoo{{PrivateFoo{2, 1}}},
+			&DeepEqualOptions{IgnoreUnexportedFields: true}, false, false,
+		},
+		{
+			"slices of nested structs with unexported fields do not panic when ignore unexported fields, variant 3",
+			[]NestedPrivateFoo{{PrivateFoo{2, 1}}},
+			[]NestedPrivateFoo{{PrivateFoo{2, 2}}},
+			&DeepEqualOptions{IgnoreUnexportedFields: true}, true, false,
+		},
+	}
+
+	for _, testCase := range table {
+		func(tc *Case) {
+
+			defer func() {
+				r := recover()
+				if r == nil && tc.shouldPanic {
+					t.Errorf("%s: did not panic but should have", tc.name)
+				}
+
+				if r != nil && !tc.shouldPanic {
+					panic(r)
+				}
+			}()
+
+			eq := e.DeepEqualWithOptions(tc.a, tc.b, tc.options)
+
+			if eq && !tc.shouldBeEqual {
+				t.Errorf("%s: expected inequality but got equality for %v and %v", tc.name, tc.a, tc.b)
+			}
+
+			if !eq && tc.shouldBeEqual {
+				t.Errorf("%s: expected equality but got inequality for %v and %v", tc.name, tc.a, tc.b)
+			}
+		}(&testCase)
+	}
+}
+
 func TestDerivatives(t *testing.T) {
 	e := Equalities{}
 	type Bar struct {
