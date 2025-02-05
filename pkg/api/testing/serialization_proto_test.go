@@ -122,7 +122,7 @@ func TestProtobufRoundTrip(t *testing.T) {
 func BenchmarkEncodeCodecProtobuf(b *testing.B) {
 	items := benchmarkItems(b)
 	width := len(items)
-	s := protobuf.NewSerializer(nil, nil)
+	s := protobuf.NewSerializer(nil, nil, protobuf.SerializerOptions{})
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		if _, err := runtime.Encode(s, &items[i%width]); err != nil {
@@ -143,7 +143,7 @@ func BenchmarkEncodeCodecFromInternalProtobuf(b *testing.B) {
 			b.Fatal(err)
 		}
 	}
-	s := protobuf.NewSerializer(nil, nil)
+	s := protobuf.NewSerializer(nil, nil, protobuf.SerializerOptions{})
 	codec := legacyscheme.Codecs.EncoderForVersion(s, v1.SchemeGroupVersion)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -204,7 +204,7 @@ func BenchmarkEncodeProtobufGeneratedMarshalList1000(b *testing.B) {
 func BenchmarkDecodeCodecToInternalProtobuf(b *testing.B) {
 	items := benchmarkItems(b)
 	width := len(items)
-	s := protobuf.NewSerializer(legacyscheme.Scheme, legacyscheme.Scheme)
+	s := protobuf.NewSerializer(legacyscheme.Scheme, legacyscheme.Scheme, protobuf.SerializerOptions{})
 	encoder := legacyscheme.Codecs.EncoderForVersion(s, v1.SchemeGroupVersion)
 	var encoded [][]byte
 	for i := range items {

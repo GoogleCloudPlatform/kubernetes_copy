@@ -438,7 +438,7 @@ func TestRouting(t *testing.T) {
 							if e, a := "application/vnd.kubernetes.protobuf", result.Header.Get("Content-Type"); e != a {
 								t.Errorf("expected Content-Type %v, got %v", e, a)
 							}
-							if _, _, err := protobuf.NewSerializer(Scheme, Scheme).Decode(content, nil, status); err != nil {
+							if _, _, err := protobuf.NewSerializer(Scheme, Scheme, protobuf.SerializerOptions{}).Decode(content, nil, status); err != nil {
 								t.Fatal(err)
 							}
 						default:

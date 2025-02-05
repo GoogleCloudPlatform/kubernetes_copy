@@ -20,11 +20,13 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"math/bits"
 	"net/http"
 	"reflect"
 
 	"github.com/gogo/protobuf/proto"
 
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -71,11 +73,12 @@ func IsNotMarshalable(err error) bool {
 // NewSerializer creates a Protobuf serializer that handles encoding versioned objects into the proper wire form. If a typer
 // is passed, the encoded object will have group, version, and kind fields set. If typer is nil, the objects will be written
 // as-is (any type info passed with the object will be used).
-func NewSerializer(creater runtime.ObjectCreater, typer runtime.ObjectTyper) *Serializer {
+func NewSerializer(creater runtime.ObjectCreater, typer runtime.ObjectTyper, opts SerializerOptions) *Serializer {
 	return &Serializer{
 		prefix:  protoEncodingPrefix,
 		creater: creater,
 		typer:   typer,
+		options: opts,
 	}
 }
 
@@ -84,6 +87,12 @@ type Serializer struct {
 	prefix  []byte
 	creater runtime.ObjectCreater
 	typer   runtime.ObjectTyper
+
+	options SerializerOptions
+}
+
+type SerializerOptions struct {
+	StreamingCollections bool
 }
 
 var _ runtime.Serializer = &Serializer{}
@@ -207,6 +216,12 @@ func (s *Serializer) doEncode(obj runtime.Object, w io.Writer, memAlloc runtime.
 				Kind:       kind.Kind,
 				APIVersion: kind.GroupVersion().String(),
 			},
+		}
+	}
+	if s.options.StreamingCollections {
+		_, listMeta, items, err := meta.GetListMeta(obj)
+		if err == nil {
+			return streamingEncodeListUnknown(w, unk, listMeta, items)
 		}
 	}
 
@@ -492,4 +507,119 @@ func (lengthDelimitedFramer) NewFrameWriter(w io.Writer) io.Writer {
 // NewFrameReader implements stream framing for this serializer
 func (lengthDelimitedFramer) NewFrameReader(r io.ReadCloser) io.ReadCloser {
 	return framer.NewLengthDelimitedFrameReader(r)
+}
+
+func streamingEncodeListUnknown(w io.Writer, unk runtime.Unknown, listMeta metav1.ListMeta, items []runtime.Object) error {
+	_, err := w.Write(protoEncodingPrefix)
+	if err != nil {
+		return err
+	}
+	_, err = encodeValue(w, []byte{0xa}, &unk.TypeMeta)
+	if err != nil {
+		return err
+	}
+	_, err = w.Write([]byte{0x12})
+	if err != nil {
+		return err
+	}
+	size := sizeWithHeader(&listMeta) + itemsSize(items)
+	_, err = writeVarintGenerated(w, size)
+	if err != nil {
+		return err
+	}
+	encodedSize, err := streamingEncodeList(w, listMeta, items)
+	if err != nil {
+		return err
+	}
+	if encodedSize != size {
+		return fmt.Errorf("the size value was %d, but encoding wrote %d bytes to data", size, encodedSize)
+	}
+	_, err = encodeValue(w, []byte{0x1a}, unk.ContentEncoding)
+	if err != nil {
+		return err
+	}
+	_, err = encodeValue(w, []byte{0x22}, unk.ContentType)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func streamingEncodeList(w io.Writer, listMeta metav1.ListMeta, items []runtime.Object) (size int, err error) {
+	size, err = encodeValue(w, []byte{0xa}, &listMeta)
+	if err != nil {
+		return size, err
+	}
+	for _, item := range items {
+		n, err := encodeValue(w, []byte{0x12}, item)
+		size += n
+		if err != nil {
+			return size, err
+		}
+	}
+	return size, nil
+}
+
+func encodeValue(w io.Writer, field []byte, value any) (size int, err error) {
+	size, err = w.Write(field)
+	if err != nil {
+		return size, err
+	}
+	switch v := value.(type) {
+	case proto.Marshaler:
+		data, err := v.Marshal()
+		if err != nil {
+			return size, err
+		}
+		n, err := writeVarintGenerated(w, len(data))
+		if err != nil {
+			return size, err
+		}
+		size += n
+		n, err = w.Write(data)
+		size += n
+		return size, err
+	case string:
+		n, err := writeVarintGenerated(w, len(v))
+		size += n
+		if err != nil {
+			return size, err
+		}
+		n, err = w.Write([]byte(v))
+		size += n
+		return size, err
+	default:
+		return size, errNotMarshalable{reflect.TypeOf(value)}
+	}
+}
+
+func itemsSize(items []runtime.Object) (size int) {
+	for _, item := range items {
+		sizer, _ := item.(proto.Sizer)
+		size += sizeWithHeader(sizer)
+	}
+	return size
+}
+
+func sizeWithHeader(sizer proto.Sizer) int {
+	l := sizer.Size()
+	return 1 + l + sovGenerated(uint64(l))
+}
+
+func sovGenerated(v uint64) int {
+	return (bits.Len64(v|1) + 6) / 7
+}
+
+func writeVarintGenerated(w io.Writer, v int) (size int, err error) {
+	for v >= 1<<7 {
+		n, err := w.Write([]byte{uint8(v&0x7f | 0x80)})
+		size += n
+		if err != nil {
+			return size, err
+		}
+		v >>= 7
+	}
+	n, err := w.Write([]byte{uint8(v)})
+	size += n
+	return size, err
 }

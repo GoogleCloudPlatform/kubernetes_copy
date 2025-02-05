@@ -1312,6 +1312,12 @@
     lockToDefault: false
     preRelease: Alpha
     version: "1.30"
+- name: StreamingCollectionEncodingToProtobuf
+  versionedSpecs:
+  - default: true
+    lockToDefault: false
+    preRelease: Beta
+    version: "1.33"
 - name: StrictCostEnforcementForVAP
   versionedSpecs:
   - default: false

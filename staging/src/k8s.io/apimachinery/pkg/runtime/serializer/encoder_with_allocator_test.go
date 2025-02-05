@@ -29,11 +29,11 @@ import (
 )
 
 func BenchmarkProtobufEncoder(b *testing.B) {
-	benchmarkEncodeFor(b, protobuf.NewSerializer(nil, nil))
+	benchmarkEncodeFor(b, protobuf.NewSerializer(nil, nil, protobuf.SerializerOptions{}))
 }
 
 func BenchmarkProtobufEncodeWithAllocator(b *testing.B) {
-	benchmarkEncodeWithAllocatorFor(b, protobuf.NewSerializer(nil, nil))
+	benchmarkEncodeWithAllocatorFor(b, protobuf.NewSerializer(nil, nil, protobuf.SerializerOptions{}))
 }
 
 func BenchmarkRawProtobufEncoder(b *testing.B) {

@@ -3549,7 +3549,7 @@ func TestDefaultStorageEncoding(t *testing.T) {
 	featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, "AllAlpha", true)
 	featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, "AllBeta", true)
 
-	protobufRecognizer := protobuf.NewSerializer(runtime.NewScheme(), runtime.NewScheme())
+	protobufRecognizer := protobuf.NewSerializer(runtime.NewScheme(), runtime.NewScheme(), protobuf.SerializerOptions{})
 	var recognizersByGroup map[string]recognizer.RecognizingDecoder
 	{
 		jsonRecognizer := jsonserializer.NewSerializerWithOptions(jsonserializer.DefaultMetaFactory, runtime.NewScheme(), runtime.NewScheme(), jsonserializer.SerializerOptions{})
