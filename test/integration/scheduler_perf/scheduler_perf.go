@@ -1661,6 +1661,7 @@ func runWorkload(tCtx ktesting.TContext, tc *testCase, w *workload, informerFact
 					tCtx.Fatalf("op %d: unable to find GVR for %v: %v", opIndex, gvk, err)
 				}
 				gvr := mapping.Resource
+
 				// Distinguish cluster-scoped with namespaced API objects.
 				var dynRes dynamic.ResourceInterface
 				if mapping.Scope.Name() == meta.RESTScopeNameNamespace {
@@ -1671,6 +1672,19 @@ func runWorkload(tCtx ktesting.TContext, tc *testCase, w *workload, informerFact
 
 				churnFns = append(churnFns, func(name string) string {
 					if name != "" {
+						// If the target object is a pod, wait until it is scheduled in order to measure acculately.
+						if gvr == v1.SchemeGroupVersion.WithResource("pods") {
+							err := wait.PollUntilContextTimeout(tCtx, 1*time.Second, 10*time.Minute, true, func(ctx context.Context) (bool, error) {
+								pod, err := podInformer.Lister().Pods(namespace).Get(name)
+								if err != nil {
+									return false, err
+								}
+								return pod.Spec.NodeName != "", nil
+							})
+							if err != nil {
+								tCtx.Errorf("op %d: unable to wait for pod %v to be scheduled: %v", opIndex, name, err)
+							}
+						}
 						if err := dynRes.Delete(tCtx, name, metav1.DeleteOptions{}); err != nil && !errors.Is(err, context.Canceled) {
 							tCtx.Errorf("op %d: unable to delete %v: %v", opIndex, name, err)
 						}
