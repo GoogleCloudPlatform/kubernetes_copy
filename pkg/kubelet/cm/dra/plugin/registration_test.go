@@ -19,7 +19,6 @@ package plugin
 import (
 	"sort"
 	"strings"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -37,7 +36,6 @@ import (
 	drapbv1alpha4 "k8s.io/kubelet/pkg/apis/dra/v1alpha4"
 	drapb "k8s.io/kubelet/pkg/apis/dra/v1beta1"
 	"k8s.io/kubernetes/test/utils/ktesting"
-	"k8s.io/utils/ptr"
 )
 
 const (
@@ -126,18 +124,13 @@ func TestRegistrationHandler(t *testing.T) {
 			// Stand-alone kubelet has no connection to an
 			// apiserver, so faking one is optional.
 			var client kubernetes.Interface
-			var deleteCollectionForDriver atomic.Pointer[string]
 			if test.withClient {
+				expectedSliceFields := fields.Set{"spec.nodeName": nodeName}
 				fakeClient := fake.NewClientset(slice)
 				fakeClient.AddReactor("delete-collection", "resourceslices", func(action cgotesting.Action) (bool, runtime.Object, error) {
 					deleteAction := action.(cgotesting.DeleteCollectionAction)
 					restrictions := deleteAction.GetListRestrictions()
-					sliceFields := fields.Set{"spec.nodeName": nodeName}
-					forDriver := deleteCollectionForDriver.Load()
-					if forDriver != nil {
-						sliceFields["spec.driver"] = *forDriver
-					}
-					fieldsSelector := fields.SelectorFromSet(sliceFields)
+					fieldsSelector := fields.SelectorFromSet(expectedSliceFields)
 					// The order of field requirements is random because it comes
 					// from a map. We need to sort.
 					normalize := func(selector string) string {
@@ -152,6 +145,12 @@ func TestRegistrationHandler(t *testing.T) {
 					// Delete doesn't return an error if already deleted, which is what
 					// we need here (no error when nothing to delete).
 					err := fakeClient.Tracker().Delete(resourceapi.SchemeGroupVersion.WithResource("resourceslices"), "", slice.Name)
+
+					// Set expected slice fields for the next call of this reactor.
+					// The reactor will be called next time when resourceslices object is deleted
+					// by the kubelet after plugin deregistration.
+					expectedSliceFields = fields.Set{"spec.nodeName": nodeName, "spec.driver": test.pluginName}
+
 					return true, nil, err
 				})
 				client = fakeClient
@@ -211,9 +210,6 @@ func TestRegistrationHandler(t *testing.T) {
 				// Nop.
 				handler.DeRegisterPlugin(test.pluginName)
 
-				// Deleted by the kubelet after deregistration, now specifically
-				// for that plugin (checked by the fake client reactor).
-				deleteCollectionForDriver.Store(ptr.To(test.pluginName))
 				requireNoSlices()
 			})
 			assert.Equal(t, test.endpoint, plugin.endpoint, "plugin endpoint")
