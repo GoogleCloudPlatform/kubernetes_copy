@@ -68,23 +68,23 @@ func (b *backend) ProcessEvents(events ...*auditinternal.Event) bool {
 }
 
 func (b *backend) logEvent(ev *auditinternal.Event) bool {
-	line := ""
+	var err error
+	var line []byte
 	switch b.format {
 	case FormatLegacy:
-		line = audit.EventString(ev) + "\n"
+		line = []byte(audit.EventString(ev) + "\n")
 	case FormatJson:
-		bs, err := runtime.Encode(b.encoder, ev)
+		line, err = runtime.Encode(b.encoder, ev)
 		if err != nil {
 			audit.HandlePluginError(PluginName, err, ev)
 			return false
 		}
-		line = string(bs[:])
 	default:
 		audit.HandlePluginError(PluginName, fmt.Errorf("log format %q is not in list of known formats (%s)",
 			b.format, strings.Join(AllowedFormats, ",")), ev)
 		return false
 	}
-	if _, err := fmt.Fprint(b.out, line); err != nil {
+	if _, err := b.out.Write(line); err != nil {
 		audit.HandlePluginError(PluginName, err, ev)
 		return false
 	}

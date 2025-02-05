@@ -18,6 +18,7 @@ package log
 
 import (
 	"bytes"
+	"fmt"
 	"reflect"
 	"regexp"
 	"testing"
@@ -160,5 +161,58 @@ func TestLogEventsJson(t *testing.T) {
 				t.Errorf("The result event should be the same with the original one, \noriginal: \n%#v\n result: \n%#v, apiVersion: %s", event, result, version)
 			}
 		}
+	}
+}
+
+func BenchmarkLogEvents(b *testing.B) {
+	sampleEvents := []*auditinternal.Event{
+		{
+			AuditID: types.UID(uuid.New().String()),
+		},
+		{
+			AuditID: types.UID(uuid.New().String()),
+			Level:   auditinternal.LevelMetadata,
+			ObjectRef: &auditinternal.ObjectReference{
+				Resource:    "foo",
+				APIVersion:  "v1",
+				Subresource: "bar",
+			},
+		},
+		{
+			ResponseStatus: &metav1.Status{
+				Code: 200,
+			},
+			RequestURI: "/apis/rbac.authorization.k8s.io/v1/roles",
+			SourceIPs: []string{
+				"127.0.0.1",
+			},
+			RequestReceivedTimestamp: metav1.NewMicroTime(time.Now()),
+			AuditID:                  types.UID(uuid.New().String()),
+			Stage:                    auditinternal.StageRequestReceived,
+			Verb:                     "get",
+			User: authnv1.UserInfo{
+				Username: "admin",
+				Groups: []string{
+					"system:masters",
+					"system:authenticated",
+				},
+			},
+			UserAgent: "kube-admin",
+			ObjectRef: &auditinternal.ObjectReference{
+				Namespace: "default",
+			},
+		},
+	}
+	var buf bytes.Buffer
+	backend := NewBackend(&buf, FormatJson, auditv1.SchemeGroupVersion)
+	for index, event := range sampleEvents {
+		b.Run(fmt.Sprintf("sample=%d", index), func(b *testing.B) {
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				backend.ProcessEvents(event)
+			}
+			b.StopTimer()
+		})
 	}
 }
