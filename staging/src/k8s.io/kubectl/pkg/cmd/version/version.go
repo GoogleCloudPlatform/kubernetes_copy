@@ -53,8 +53,9 @@ var (
 
 // Options is a struct to support version command
 type Options struct {
-	ClientOnly bool
-	Output     string
+	ClientOnly       bool
+	Output           string
+	CheckVersionSkew bool
 
 	args []string
 
@@ -87,6 +88,7 @@ func NewCmdVersion(f cmdutil.Factory, ioStreams genericiooptions.IOStreams) *cob
 	}
 	cmd.Flags().BoolVar(&o.ClientOnly, "client", o.ClientOnly, "If true, shows client version only (no server required).")
 	cmd.Flags().StringVarP(&o.Output, "output", "o", o.Output, "One of 'yaml' or 'json'.")
+	cmd.Flags().BoolVar(&o.CheckVersionSkew, "check-version-skew", o.CheckVersionSkew, "If true, returns an error if the client version exceeds the supported minor version skew of +/-1 relative to the server.")
 	return cmd
 }
 
@@ -110,7 +112,7 @@ func (o *Options) Complete(f cmdutil.Factory, cmd *cobra.Command, args []string)
 // Validate validates the provided options
 func (o *Options) Validate() error {
 	if len(o.args) != 0 {
-		return errors.New(fmt.Sprintf("extra arguments: %v", o.args))
+		return fmt.Errorf("extra arguments: %v", o.args)
 	}
 
 	if o.Output != "" && o.Output != "yaml" && o.Output != "json" {
@@ -162,11 +164,14 @@ func (o *Options) Run() error {
 	}
 
 	if versionInfo.ServerVersion != nil {
-		if err := printVersionSkewWarning(o.ErrOut, *versionInfo.ClientVersion, *versionInfo.ServerVersion); err != nil {
+		warningMessage, err := printVersionSkewWarning(o.ErrOut, *versionInfo.ClientVersion, *versionInfo.ServerVersion)
+		if err != nil {
 			return err
 		}
+		if o.CheckVersionSkew && warningMessage != "" {
+			return fmt.Errorf("CheckVersionSkew: %q", warningMessage)
+		}
 	}
-
 	return serverErr
 }
 
