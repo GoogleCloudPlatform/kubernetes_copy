@@ -298,6 +298,14 @@ func warningsForPodSpecAndMeta(fieldPath *field.Path, podSpec *api.PodSpec, meta
 					fldPath.Child("ports").Index(i), port))
 			}
 			k := fmt.Sprintf("%d/%s", port.ContainerPort, port.Protocol)
+			// Check for duplicate port names
+			for _, others := range allPorts {
+				for _, otherPort := range others {
+					if len(port.Name) > 0 && port.Name == otherPort.port.Name {
+						warnings = append(warnings, fmt.Sprintf("%s: duplicate port name with %s", fldPath.Child("ports").Index(i), otherPort.field))
+					}
+				}
+			}
 			if others, found := allPorts[k]; found {
 				// Someone else has this protcol+port, but it still might not be a conflict.
 				for _, other := range others {

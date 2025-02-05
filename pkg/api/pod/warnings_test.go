@@ -1446,13 +1446,52 @@ func TestWarnings(t *testing.T) {
 			},
 		},
 		{
+			name: "duplicate container port names",
+			template: &api.PodTemplateSpec{Spec: api.PodSpec{
+				Containers: []api.Container{{
+					Name: "foo",
+					Ports: []api.ContainerPort{
+						{Name: "a", ContainerPort: 80, Protocol: api.ProtocolTCP},
+					},
+				}, {
+					Name: "foo",
+					Ports: []api.ContainerPort{
+						{Name: "a", ContainerPort: 81, Protocol: api.ProtocolTCP},
+					},
+				}},
+			}},
+			expected: []string{
+				`spec.containers[1].ports[0]: duplicate port name with spec.containers[0].ports[0]`,
+			},
+		},
+		{
+			name: "duplicate container port names between init containers and containers",
+			template: &api.PodTemplateSpec{Spec: api.PodSpec{
+				InitContainers: []api.Container{{
+					Name: "foo",
+					Ports: []api.ContainerPort{
+						{Name: "a", ContainerPort: 80, Protocol: api.ProtocolTCP},
+					},
+				}},
+				Containers: []api.Container{{
+					Name: "foo",
+					Ports: []api.ContainerPort{
+						{Name: "a", ContainerPort: 81, Protocol: api.ProtocolTCP},
+					},
+				}},
+			}},
+			expected: []string{
+				`spec.containers[0].ports[0]: duplicate port name with spec.initContainers[0].ports[0]`,
+			},
+		},
+		{
 			name: "create duplicate container ports in two containers",
 			template: &api.PodTemplateSpec{Spec: api.PodSpec{
 				Containers: []api.Container{
 					{
 						Name: "foo1",
 						Ports: []api.ContainerPort{
-							{ContainerPort: 80, HostPort: 80, Protocol: api.ProtocolUDP},
+							{Name: "a", ContainerPort: 80, HostPort: 80, Protocol: api.ProtocolUDP},
 							{ContainerPort: 180, HostPort: 80, Protocol: api.ProtocolUDP},
 							{ContainerPort: 80, HostPort: 80, Protocol: api.ProtocolUDP},
 						},
@@ -1461,7 +1500,7 @@ func TestWarnings(t *testing.T) {
 						Name: "foo",
 						Ports: []api.ContainerPort{
 							{ContainerPort: 80, HostPort: 80, Protocol: api.ProtocolUDP},
-							{ContainerPort: 80, HostPort: 80, Protocol: api.ProtocolUDP},
+							{Name: "a", ContainerPort: 80, HostPort: 80, Protocol: api.ProtocolUDP},
 						},
 					}},
 			}},
@@ -1472,6 +1511,7 @@ func TestWarnings(t *testing.T) {
 				`spec.containers[1].ports[1]: duplicate port definition with spec.containers[0].ports[0]`,
 				`spec.containers[1].ports[1]: duplicate port definition with spec.containers[0].ports[2]`,
 				`spec.containers[1].ports[1]: duplicate port definition with spec.containers[1].ports[0]`,
+				`spec.containers[1].ports[1]: duplicate port name with spec.containers[0].ports[0]`,
 			},
 		},
 		{
