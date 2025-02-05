@@ -51,6 +51,7 @@ var apiVersionPriorities = merge(controlplaneapiserver.DefaultGenericAPIServiceP
 	{Group: "node.k8s.io", Version: "v1"}:             {Group: 16300, Version: 15},
 	{Group: "node.k8s.io", Version: "v1alpha1"}:       {Group: 16300, Version: 1},
 	{Group: "node.k8s.io", Version: "v1beta1"}:        {Group: 16300, Version: 9},
+	{Group: "resource.k8s.io", Version: "v1beta2"}:    {Group: 16200, Version: 15},
 	{Group: "resource.k8s.io", Version: "v1beta1"}:    {Group: 16200, Version: 9},
 	{Group: "resource.k8s.io", Version: "v1alpha3"}:   {Group: 16200, Version: 1},
 	// Append a new group to the end of the list if unsure.

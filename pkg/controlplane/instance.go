@@ -50,6 +50,7 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	resourcev1alpha3 "k8s.io/api/resource/v1alpha3"
 	resourcev1beta1 "k8s.io/api/resource/v1beta1"
+	resourcev1beta2 "k8s.io/api/resource/v1beta2"
 	schedulingapiv1 "k8s.io/api/scheduling/v1"
 	storageapiv1 "k8s.io/api/storage/v1"
 	storageapiv1alpha1 "k8s.io/api/storage/v1alpha1"
@@ -463,6 +464,7 @@ var (
 		flowcontrolv1beta3.SchemeGroupVersion,
 		networkingapiv1beta1.SchemeGroupVersion,
 		resourcev1beta1.SchemeGroupVersion,
+		resourcev1beta2.SchemeGroupVersion,
 	}
 
 	// alphaAPIGroupVersionsDisabledByDefault holds the alpha APIs we have.  They are always disabled by default.

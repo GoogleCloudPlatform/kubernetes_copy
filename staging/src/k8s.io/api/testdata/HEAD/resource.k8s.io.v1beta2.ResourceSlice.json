@@ -1,0 +1,100 @@
+{
+  "kind": "ResourceSlice",
+  "apiVersion": "resource.k8s.io/v1beta2",
+  "metadata": {
+    "name": "nameValue",
+    "generateName": "generateNameValue",
+    "namespace": "namespaceValue",
+    "selfLink": "selfLinkValue",
+    "uid": "uidValue",
+    "resourceVersion": "resourceVersionValue",
+    "generation": 7,
+    "creationTimestamp": "2008-01-01T01:01:01Z",
+    "deletionTimestamp": "2009-01-01T01:01:01Z",
+    "deletionGracePeriodSeconds": 10,
+    "labels": {
+      "labelsKey": "labelsValue"
+    },
+    "annotations": {
+      "annotationsKey": "annotationsValue"
+    },
+    "ownerReferences": [
+      {
+        "apiVersion": "apiVersionValue",
+        "kind": "kindValue",
+        "name": "nameValue",
+        "uid": "uidValue",
+        "controller": true,
+        "blockOwnerDeletion": true
+      }
+    ],
+    "finalizers": [
+      "finalizersValue"
+    ],
+    "managedFields": [
+      {
+        "manager": "managerValue",
+        "operation": "operationValue",
+        "apiVersion": "apiVersionValue",
+        "time": "2004-01-01T01:01:01Z",
+        "fieldsType": "fieldsTypeValue",
+        "fieldsV1": {},
+        "subresource": "subresourceValue"
+      }
+    ]
+  },
+  "spec": {
+    "driver": "driverValue",
+    "pool": {
+      "name": "nameValue",
+      "generation": 2,
+      "resourceSliceCount": 3
+    },
+    "nodeName": "nodeNameValue",
+    "nodeSelector": {
+      "nodeSelectorTerms": [
+        {
+          "matchExpressions": [
+            {
+              "key": "keyValue",
+              "operator": "operatorValue",
+              "values": [
+                "valuesValue"
+              ]
+            }
+          ],
+          "matchFields": [
+            {
+              "key": "keyValue",
+              "operator": "operatorValue",
+              "values": [
+                "valuesValue"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "allNodes": true,
+    "devices": [
+      {
+        "name": "nameValue",
+        "basic": {
+          "attributes": {
+            "attributesKey": {
+              "int": 2,
+              "bool": true,
+              "string": "stringValue",
+              "version": "versionValue"
+            }
+          },
+          "capacity": {
+            "capacityKey": {
+              "value": "0"
+            }
+          }
+        }
+      }
+    ]
+  }
+}

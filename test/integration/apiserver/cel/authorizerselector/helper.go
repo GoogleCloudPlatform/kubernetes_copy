@@ -24,7 +24,7 @@ import (
 	"testing"
 
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
-	resourceapi "k8s.io/api/resource/v1beta1"
+	resourceapi "k8s.io/api/resource/v1beta2"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	extclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -49,7 +49,7 @@ func RunAuthzSelectorsLibraryTests(t *testing.T, featureEnabled bool) {
 	// Start the server with the desired feature enablement
 	server, err := apiservertesting.StartTestServer(t, nil, []string{
 		fmt.Sprintf("--feature-gates=AuthorizeNodeWithSelectors=%v,AuthorizeWithSelectors=%v", featureEnabled, featureEnabled),
-		"--runtime-config=resource.k8s.io/v1alpha3=true",
+		"--runtime-config=resource.k8s.io/v1beta2=true",
 	}, framework.SharedEtcd())
 	if err != nil {
 		t.Fatal(err)
@@ -179,7 +179,7 @@ func RunAuthzSelectorsLibraryTests(t *testing.T, featureEnabled bool) {
 						},
 					},
 				}
-				_, err := c.ResourceV1beta1().ResourceClaims("default").Create(context.TODO(), obj, metav1.CreateOptions{})
+				_, err := c.ResourceV1beta2().ResourceClaims("default").Create(context.TODO(), obj, metav1.CreateOptions{})
 				return err
 			},
 			// authorizer is not available to resource APIs

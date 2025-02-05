@@ -596,6 +596,37 @@ func GetEtcdStorageDataForNamespaceServedAt(namespace string, v string, removeAl
 		},
 		// --
 
+		// k8s.io/kubernetes/pkg/apis/resource/v1beta2
+		gvr("resource.k8s.io", "v1beta2", "deviceclasses"): {
+			Stub:              `{"metadata": {"name": "class3name"}}`,
+			ExpectedEtcdPath:  "/registry/deviceclasses/class3name",
+			ExpectedGVK:       gvkP("resource.k8s.io", "v1beta1", "DeviceClass"),
+			IntroducedVersion: "1.33",
+			RemovedVersion:    "1.39",
+		},
+		gvr("resource.k8s.io", "v1beta2", "resourceclaims"): {
+			Stub:              `{"metadata": {"name": "claim3name"}, "spec": {"devices": {"requests": [{"name": "req-0", "deviceClassName": "example-class", "allocationMode": "ExactCount", "count": 1}]}}}`,
+			ExpectedEtcdPath:  "/registry/resourceclaims/" + namespace + "/claim3name",
+			ExpectedGVK:       gvkP("resource.k8s.io", "v1beta1", "ResourceClaim"),
+			IntroducedVersion: "1.33",
+			RemovedVersion:    "1.39",
+		},
+		gvr("resource.k8s.io", "v1beta2", "resourceclaimtemplates"): {
+			Stub:              `{"metadata": {"name": "claimtemplate3name"}, "spec": {"spec": {"devices": {"requests": [{"name": "req-0", "deviceClassName": "example-class", "allocationMode": "ExactCount", "count": 1}]}}}}`,
+			ExpectedEtcdPath:  "/registry/resourceclaimtemplates/" + namespace + "/claimtemplate3name",
+			ExpectedGVK:       gvkP("resource.k8s.io", "v1beta1", "ResourceClaimTemplate"),
+			IntroducedVersion: "1.33",
+			RemovedVersion:    "1.39",
+		},
+		gvr("resource.k8s.io", "v1beta2", "resourceslices"): {
+			Stub:              `{"metadata": {"name": "node3slice"}, "spec": {"nodeName": "worker1", "driver": "dra.example.com", "pool": {"name": "worker1", "resourceSliceCount": 1}}}`,
+			ExpectedEtcdPath:  "/registry/resourceslices/node3slice",
+			ExpectedGVK:       gvkP("resource.k8s.io", "v1beta1", "ResourceSlice"),
+			IntroducedVersion: "1.33",
+			RemovedVersion:    "1.39",
+		},
+		// --
+
 		// k8s.io/apiserver/pkg/apis/apiserverinternal/v1alpha1
 		gvr("internal.apiserver.k8s.io", "v1alpha1", "storageversions"): {
 			Stub:             `{"metadata":{"name":"sv1.test"},"spec":{}}`,

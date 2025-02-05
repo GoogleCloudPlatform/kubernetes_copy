@@ -1,0 +1,66 @@
+apiVersion: resource.k8s.io/v1beta2
+kind: ResourceSlice
+metadata:
+  annotations:
+    annotationsKey: annotationsValue
+  creationTimestamp: "2008-01-01T01:01:01Z"
+  deletionGracePeriodSeconds: 10
+  deletionTimestamp: "2009-01-01T01:01:01Z"
+  finalizers:
+  - finalizersValue
+  generateName: generateNameValue
+  generation: 7
+  labels:
+    labelsKey: labelsValue
+  managedFields:
+  - apiVersion: apiVersionValue
+    fieldsType: fieldsTypeValue
+    fieldsV1: {}
+    manager: managerValue
+    operation: operationValue
+    subresource: subresourceValue
+    time: "2004-01-01T01:01:01Z"
+  name: nameValue
+  namespace: namespaceValue
+  ownerReferences:
+  - apiVersion: apiVersionValue
+    blockOwnerDeletion: true
+    controller: true
+    kind: kindValue
+    name: nameValue
+    uid: uidValue
+  resourceVersion: resourceVersionValue
+  selfLink: selfLinkValue
+  uid: uidValue
+spec:
+  allNodes: true
+  devices:
+  - basic:
+      attributes:
+        attributesKey:
+          bool: true
+          int: 2
+          string: stringValue
+          version: versionValue
+      capacity:
+        capacityKey:
+          value: "0"
+    name: nameValue
+  driver: driverValue
+  nodeName: nodeNameValue
+  nodeSelector:
+    nodeSelectorTerms:
+    - matchExpressions:
+      - key: keyValue
+        operator: operatorValue
+        values:
+        - valuesValue
+      matchFields:
+      - key: keyValue
+        operator: operatorValue
+        values:
+        - valuesValue
+  pool:
+    generation: 2
+    name: nameValue
+    resourceSliceCount: 3

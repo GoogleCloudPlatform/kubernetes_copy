@@ -20,7 +20,7 @@ nodes:
           v: "5"
     apiServer:
         extraArgs:
-          runtime-config: "resource.k8s.io/v1beta1=true"
+          runtime-config: "resource.k8s.io/v1beta1=true,resource.k8s.io/v1beta2=true"
   - |
     kind: InitConfiguration
     nodeRegistration:
