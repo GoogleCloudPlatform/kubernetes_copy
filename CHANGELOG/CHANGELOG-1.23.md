@@ -3302,23 +3302,7 @@ filename | sha512 hash
 
 ### API Change
 
-- #### Additional documentation e.g., KEPs (Kubernetes Enhancement Proposals), usage docs, etc.:
-  
-  <!--
-  This section can be blank if this pull request does not require a release note.
-  
-  When adding links which point to resources within git repositories, like
-  KEPs or supporting documentation, please reference a specific commit and avoid
-  linking directly to the master branch. This ensures that links reference a
-  specific point in time, rather than a document that may change over time.
-  
-  See here for guidance on getting permanent links to files: https://help.github.com/en/articles/getting-permanent-links-to-files
-  
-  Please use the following format for linking documentation:
-  - [KEP]: <link>
-  - [Usage]: <link>
-  - [Other doc]: <link>
-  --> (#104782, @kerthcet) [SIG Scheduling and Testing]
+- kube-scheduler: support for configuration file version `v1beta1` is removed. Update configuration files to v1beta2(xref: <https://github.com/kubernetes/enhancements/issues/2901>) or v1beta3 before upgrading to 1.23. (#104782, @kerthcet) [SIG Scheduling and Testing]
 - Ephemeral containers have reached beta maturity and are now available by default. (#105405, @verb) [SIG API Machinery, Apps, Node and Testing]
 - Introduce OS field in the Pod Spec (#104693, @ravisantoshgudimetla) [SIG API Machinery and Apps]
 - Introduce v1beta3 api for scheduler. This version 
@@ -3817,24 +3801,8 @@ filename | sha512 hash
 
 ### (No, really, you MUST read this before you upgrade)
 
- - #### Additional documentation e.g., KEPs (Kubernetes Enhancement Proposals), usage docs, etc.:
-  
-  <!--
-  This section can be blank if this pull request does not require a release note.
-  
-  When adding links which point to resources within git repositories, like
-  KEPs or supporting documentation, please reference a specific commit and avoid
-  linking directly to the master branch. This ensures that links reference a
-  specific point in time, rather than a document that may change over time.
-  
-  See here for guidance on getting permanent links to files: https://help.github.com/en/articles/getting-permanent-links-to-files
-  
-  Please use the following format for linking documentation:
-  - [KEP]: <link>
-  - [Usage]: <link>
-  - [Other doc]: <link>
-  --> ([#104389](https://github.com/kubernetes/kubernetes/pull/104389), [@saschagrunert](https://github.com/saschagrunert)) [SIG Node]
-  - Kubeadm: remove the deprecated flag --experimental-patches for the init|join|upgrade commands. The flag --patches is no longer allowed in a mixture with the flag --config. Please use the kubeadm configuration for setting patches for a node using {Init|Join}Configuration.patches. ([#104065](https://github.com/kubernetes/kubernetes/pull/104065), [@pacoxu](https://github.com/pacoxu)) [SIG Cluster Lifecycle]
+- support for the seccomp annotations `seccomp.security.alpha.kubernetes.io/pod` and `container.seccomp.security.alpha.kubernetes.io/[name]`, deprecated since 1.19, will be dropped in 1.25. Transition to using the `seccompProfile` API field. ([#104389](https://github.com/kubernetes/kubernetes/pull/104389), [@saschagrunert](https://github.com/saschagrunert)) [SIG Node]
+- Kubeadm: remove the deprecated flag --experimental-patches for the init|join|upgrade commands. The flag --patches is no longer allowed in a mixture with the flag --config. Please use the kubeadm configuration for setting patches for a node using {Init|Join}Configuration.patches. ([#104065](https://github.com/kubernetes/kubernetes/pull/104065), [@pacoxu](https://github.com/pacoxu)) [SIG Cluster Lifecycle]
  
 ## Changes by Kind
 

@@ -3276,23 +3276,7 @@ name | architectures
 
 ### API Change
 
-- **Additional documentation e.g., KEPs (Kubernetes Enhancement Proposals), usage docs, etc.**:
-  
-  <!--
-  This section can be blank if this pull request does not require a release note.
-  
-  When adding links which point to resources within git repositories, like
-  KEPs or supporting documentation, please reference a specific commit and avoid
-  linking directly to the master branch. This ensures that links reference a
-  specific point in time, rather than a document that may change over time.
-  
-  See here for guidance on getting permanent links to files: https://help.github.com/en/articles/getting-permanent-links-to-files
-  
-  Please use the following format for linking documentation:
-  - [KEP]: <link>
-  - [Usage]: <link>
-  - [Other doc]: <link>
-  --> ([#86139](https://github.com/kubernetes/kubernetes/pull/86139), [@jasimmons](https://github.com/jasimmons)) [SIG API Machinery, Apps, Architecture, Auth, Autoscaling, CLI, Contributor Experience, Instrumentation, Network, Node, Release, Scheduling, Storage and Testing]
+- Container `preStop` and `postStart` lifecycle handlers using `httpGet` now honor the specified `scheme` and `headers` fields. This enables setting custom headers and changing the scheme to `HTTPS`, consistent with container startup/readiness/liveness probe capabilities. Lifecycle handlers configured with `scheme: HTTPS` that encounter errors indicating the endpoint is actually using HTTP fall back to making the request over HTTP for compatibility with previous releases. When this happens, a `LifecycleHTTPFallback` event is recorded in the namespace of the pod and a `kubelet_lifecycle_handler_http_fallbacks_total` metric in the kubelet is incremented. Cluster administrators can opt out of the expanded lifecycle handler capabilities by setting `--feature-gates=ConsistentHTTPGetHandlers=false` in `kubelet`. ([#86139](https://github.com/kubernetes/kubernetes/pull/86139), [@jasimmons](https://github.com/jasimmons)) [SIG API Machinery, Apps, Architecture, Auth, Autoscaling, CLI, Contributor Experience, Instrumentation, Network, Node, Release, Scheduling, Storage and Testing]
 - Add percentageOfNodesToScore as a scheduler profile level parameter to API version v1. If a profile percentageOfNodesToScore is set, it will override global percentageOfNodesToScore. ([#112521](https://github.com/kubernetes/kubernetes/pull/112521), [@yuanchen8911](https://github.com/yuanchen8911)) [SIG API Machinery, Scheduling and Testing]
 - Kube-controller-manager supports '--concurrent-horizontal-pod-autoscaler-syncs' flag to set the number of horizontal pod autoscaler controller workers. ([#108501](https://github.com/kubernetes/kubernetes/pull/108501), [@zroubalik](https://github.com/zroubalik)) [SIG API Machinery, Apps and Autoscaling]
 - Kube-proxy: The "userspace" proxy mode (deprecated for over a year) is no longer supported on either Linux or Windows.  Users should use "iptables" or "ipvs" on Linux, or "kernelspace" on Windows. ([#112133](https://github.com/kubernetes/kubernetes/pull/112133), [@knabben](https://github.com/knabben)) [SIG API Machinery, Network, Scalability, Testing and Windows]

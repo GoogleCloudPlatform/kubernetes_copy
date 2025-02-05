@@ -3081,26 +3081,7 @@ filename | sha512 hash
 
 ### API Change
 
-- A new score extension for NodeResourcesFit plugin that merges the functionality of NodeResourcesLeastAllocated,NodeResourcesMostAllocated,RequestedToCapacityRatio plugins, which are marked as deprecated as of v1beta2. In v1beta1, the three plugins can still be used in v1beta1 but not at the same time with the score extension of NodeResourcesFit
-  ```
-  
-  #### Additional documentation e.g., KEPs (Kubernetes Enhancement Proposals), usage docs, etc.:
-  
-  <!--
-  This section can be blank if this pull request does not require a release note.
-  
-  When adding links which point to resources within git repositories, like
-  KEPs or supporting documentation, please reference a specific commit and avoid
-  linking directly to the master branch. This ensures that links reference a
-  specific point in time, rather than a document that may change over time.
-  
-  See here for guidance on getting permanent links to files: https://help.github.com/en/articles/getting-permanent-links-to-files
-  
-  Please use the following format for linking documentation:
-  - [KEP]: <link>
-  - [Usage]: <link>
-  - [Other doc]: <link>
-  --> ([#101822](https://github.com/kubernetes/kubernetes/pull/101822), [@yuzhiquan](https://github.com/yuzhiquan)) [SIG API Machinery, Apps, Auth, Cloud Provider, Instrumentation, Node, Scheduling, Storage and Testing]
+- A new score extension for NodeResourcesFit plugin that merges the functionality of NodeResourcesLeastAllocated,NodeResourcesMostAllocated,RequestedToCapacityRatio plugins, which are marked as deprecated as of v1beta2. In v1beta1, the three plugins can still be used in v1beta1 but not at the same time with the score extension of NodeResourcesFit. ([#101822](https://github.com/kubernetes/kubernetes/pull/101822), [@yuzhiquan](https://github.com/yuzhiquan)) [SIG API Machinery, Apps, Auth, Cloud Provider, Instrumentation, Node, Scheduling, Storage and Testing]
 - Add DataSourceRef alpha field to PVC spec, which allows contents other than PVCs and VolumeSnapshots to be data sources. ([#103276](https://github.com/kubernetes/kubernetes/pull/103276), [@bswartz](https://github.com/bswartz)) [SIG API Machinery, Apps and Storage]
 - Add PersistentVolumeClaimDeletePoilcy to StatefulSet API. ([#99378](https://github.com/kubernetes/kubernetes/pull/99378), [@mattcary](https://github.com/mattcary)) [SIG API Machinery and Apps]
 - Add distributed tracing to the kube-apiserver.  It is can be enabled with the feature gate: APIServerTracing=true ([#94942](https://github.com/kubernetes/kubernetes/pull/94942), [@dashpole](https://github.com/dashpole)) [SIG API Machinery, CLI, Cloud Provider, Cluster Lifecycle, Instrumentation, Node, Storage and Testing]

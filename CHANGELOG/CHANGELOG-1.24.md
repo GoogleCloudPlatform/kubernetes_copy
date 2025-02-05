@@ -203,7 +203,7 @@
   - [Changelog since v1.24.4](#changelog-since-v1244)
   - [Important Security Information](#important-security-information-3)
     - [CVE-2022-3172: Aggregated API server can cause clients to be redirected (SSRF)](#cve-2022-3172-aggregated-api-server-can-cause-clients-to-be-redirected-ssrf)
-    - [CVE-2021-25749: <code>runAsNonRoot</code> logic bypass for Windows containers](#cve-2021-25749-runasnonroot-logic-bypass-for-windows-containers)
+    - [CVE-2021-25749: runAsNonRoot logic bypass for Windows containers](#cve-2021-25749-runasnonroot-logic-bypass-for-windows-containers)
     - [Am I vulnerable?](#am-i-vulnerable)
       - [Affected Versions](#affected-versions)
     - [How do I mitigate this vulnerability?](#how-do-i-mitigate-this-vulnerability)
@@ -3240,23 +3240,10 @@ name | architectures
 
 ### Feature
 
-- **Additional documentation e.g., KEPs (Kubernetes Enhancement Proposals), usage docs, etc.**:
-  
-  <!--
-  This section can be blank if this pull request does not require a release note.
-  
-  When adding links which point to resources within git repositories, like
-  KEPs or supporting documentation, please reference a specific commit and avoid
-  linking directly to the master branch. This ensures that links reference a
-  specific point in time, rather than a document that may change over time.
-  
-  See here for guidance on getting permanent links to files: https://help.github.com/en/articles/getting-permanent-links-to-files
-  
-  Please use the following format for linking documentation:
-  - [KEP]: <link>
-  - [Usage]: <link>
-  - [Other doc]: <link>
-  --> ([#109024](https://github.com/kubernetes/kubernetes/pull/109024), [@stlaz](https://github.com/stlaz)) [SIG API Machinery and Instrumentation]
+- Kubernetes 1.24 is built with go1.18, which will no longer validate certificates signed with a SHA-1 hash algorithm by default. See <https://golang.org/doc/go1.18#sha1> for more details. If you are using certificates like this in admission or conversion webhooks or in aggregated API servers, you should replace those certificates as soon as possible, since SHA-1 is no longer considered secure. If you cannot replace those certificates before upgrading to Kubernetes 1.24, or do not know whether you have certificates like this, you can:
+ - temporarily re-enable honoring SHA-1 certificates by setting the `GODEBUG=x509sha1=1` environment variable when starting kube-apiserver
+ - monitor `apiserver_kube_aggregator_x509_insecure_sha1_total` and `apiserver_webhooks_x509_insecure_sha1_total` metrics in `kube-apiserver`, added in v1.24; non-zero values for these metrics indicate connections to aggregated API servers or webhooks are encountering SHA-1 certificates, and will stop working in the future when go removes SHA-1 support completely
+ - if metrics indicate SHA-1 certificates are being encountered, information about the specific hosts serving those certificates is available in the kube-apiserver log, containing `invalid-cert.kubernetes.io`, and in the kube-apiserver audit log, with an `insecure-sha1.invalid-cert.kubernetes.io/$hostname` audit annotation. ([#109024](https://github.com/kubernetes/kubernetes/pull/109024), [@stlaz](https://github.com/stlaz)) [SIG API Machinery and Instrumentation]
 - Adds `OpenAPIV3SchemaInterface` to `DiscoveryClient` and its variants for fetching OpenAPI v3 schema documents. ([#108992](https://github.com/kubernetes/kubernetes/pull/108992), [@alexzielenski](https://github.com/alexzielenski)) [SIG API Machinery, Architecture, CLI, Cloud Provider, Cluster Lifecycle and Instrumentation]
 - Allow kubectl to manage resources by filename patterns without the shell expanding it first ([#102265](https://github.com/kubernetes/kubernetes/pull/102265), [@danielrodriguez](https://github.com/danielrodriguez)) [SIG CLI]
 - An alpha flag --subresource is added to get, patch, edit replace kubectl commands to fetch and update status and scale subresources. ([#99556](https://github.com/kubernetes/kubernetes/pull/99556), [@nikhita](https://github.com/nikhita)) [SIG API Machinery, CLI and Testing]

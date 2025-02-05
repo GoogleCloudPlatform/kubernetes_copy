@@ -3259,23 +3259,7 @@ name | architectures
 
 ### Feature
 
-- #### Additional documentation e.g., KEPs (Kubernetes Enhancement Proposals), usage docs, etc.:
-  
-  <!--
-  This section can be blank if this pull request does not require a release note.
-  
-  When adding links which point to resources within git repositories, like
-  KEPs or supporting documentation, please reference a specific commit and avoid
-  linking directly to the master branch. This ensures that links reference a
-  specific point in time, rather than a document that may change over time.
-  
-  See here for guidance on getting permanent links to files: https://help.github.com/en/articles/getting-permanent-links-to-files
-  
-  Please use the following format for linking documentation:
-  - [KEP]: <link>
-  - [Usage]: <link>
-  - [Other doc]: <link>
-  --> ([#113428](https://github.com/kubernetes/kubernetes/pull/113428), [@mengjiao-liu](https://github.com/mengjiao-liu)) [SIG API Machinery, Apps, Instrumentation and Testing]
+- Migrated the CronJob controller (within `kube-controller-manager`) to use [contextual logging](https://k8s.io/docs/concepts/cluster-administration/system-logs/#contextual-logging). ([#113428](https://github.com/kubernetes/kubernetes/pull/113428), [@mengjiao-liu](https://github.com/mengjiao-liu)) [SIG API Machinery, Apps, Instrumentation and Testing]
 - Add e2e test to node expand volume with secret ([#115451](https://github.com/kubernetes/kubernetes/pull/115451), [@zhucan](https://github.com/zhucan)) [SIG Storage and Testing]
 - Added NewVolumeManagerReconstruction feature gate and enable it by default to enable updated discovery of mounted volumes during kubelet startup. Please watch for kubelet getting stuck at startup and / or not unmounting volumes from deleted Pods and report any issues in this area. ([#115268](https://github.com/kubernetes/kubernetes/pull/115268), [@jsafrane](https://github.com/jsafrane)) [SIG Node and Storage]
 - Added metrics for volume reconstruction during kubelet startup. ([#115965](https://github.com/kubernetes/kubernetes/pull/115965), [@jsafrane](https://github.com/jsafrane)) [SIG Node and Storage]

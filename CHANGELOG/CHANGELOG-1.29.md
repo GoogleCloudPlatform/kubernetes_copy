@@ -2793,23 +2793,8 @@ name | architectures
 
 ### Feature
 
-- #### Additional documentation e.g., KEPs (Kubernetes Enhancement Proposals), usage docs, etc.:
-  
-  <!--
-  This section can be blank if this pull request does not require a release note.
-  
-  When adding links which point to resources within git repositories, like
-  KEPs or supporting documentation, please reference a specific commit and avoid
-  linking directly to the master branch. This ensures that links reference a
-  specific point in time, rather than a document that may change over time.
-  
-  See here for guidance on getting permanent links to files: https://help.github.com/en/articles/getting-permanent-links-to-files
-  
-  Please use the following format for linking documentation:
-  - [KEP]: <link>
-  - [Usage]: <link>
-  - [Other doc]: <link>
-  --> ([#119517](https://github.com/kubernetes/kubernetes/pull/119517), [@sanposhiho](https://github.com/sanposhiho)) [SIG Node, Scheduling and Testing]
+- The scheduler gets new statuses Pending, which are used to achieve efficient enqueueing in the scheduling queue.
+  - QueueingHintFn interface gets simplified by introducing a new status Pending - the returning value is changed to have only Queue and QueueSkip. The scheduling queue determines whether it should treat Queue as QueueAfterBackoff or QueueImmediately via the reason why the Pod was rejected. ([#119517](https://github.com/kubernetes/kubernetes/pull/119517), [@sanposhiho](https://github.com/sanposhiho)) [SIG Node, Scheduling and Testing]
 - --interactive flag in kubectl delete will be visible to all users by default. ([#120416](https://github.com/kubernetes/kubernetes/pull/120416), [@ardaguclu](https://github.com/ardaguclu)) [SIG CLI and Testing]
 - Add container filesystem to the ImageFsInfoResponse. ([#120914](https://github.com/kubernetes/kubernetes/pull/120914), [@kannon92](https://github.com/kannon92)) [SIG Node and Testing]
 - Add job_pods_creation_total metrics for tracking Pods created by the Job controller labeled by events which triggered the Pod creation ([#121481](https://github.com/kubernetes/kubernetes/pull/121481), [@dejanzele](https://github.com/dejanzele)) [SIG Apps and Testing]
@@ -3329,23 +3314,7 @@ name | architectures
 
 ### Deprecation
 
-- #### Additional documentation e.g., KEPs (Kubernetes Enhancement Proposals), usage docs, etc.:
-  
-  <!--
-  This section can be blank if this pull request does not require a release note.
-  
-  When adding links which point to resources within git repositories, like
-  KEPs or supporting documentation, please reference a specific commit and avoid
-  linking directly to the master branch. This ensures that links reference a
-  specific point in time, rather than a document that may change over time.
-  
-  See here for guidance on getting permanent links to files: https://help.github.com/en/articles/getting-permanent-links-to-files
-  
-  Please use the following format for linking documentation:
-  - [KEP]: <link>
-  - [Usage]: <link>
-  - [Other doc]: <link>
-  --> ([#119495](https://github.com/kubernetes/kubernetes/pull/119495), [@bzsuni](https://github.com/bzsuni)) [SIG API Machinery]
+- The `flowcontrol.apiserver.k8s.io/v1beta2` API version of `FlowSchema` and `PriorityLevelConfiguration` is no longer served in v1.29. Migrate manifests and API clients to use the `flowcontrol.apiserver.k8s.io/v1beta3` API version, available since v1.26. More information is at https://kubernetes.io/docs/reference/using-api/deprecation-guide/#flowcontrol-resources-v129. ([#119495](https://github.com/kubernetes/kubernetes/pull/119495), [@bzsuni](https://github.com/bzsuni)) [SIG API Machinery]
 
 ### API Change
 
