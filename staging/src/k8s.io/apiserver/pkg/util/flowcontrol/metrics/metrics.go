@@ -114,7 +114,7 @@ var (
 			Namespace: namespace,
 			Subsystem: subsystem,
 			Name:      "priority_level_seat_utilization",
-			Help:      "Observations, at the end of every nanosecond, of utilization of seats for any stage of execution (but only initial stage for WATCHes)",
+			Help:      "Observations, at the end of every nanosecond, of utilization of seats for any stage of execution (but only initial stage for WATCHes); denominator is current seat limit or max(1, round(server seat limit/10))",
 			// Buckets for both 0.99 and 1.0 mean PromQL's histogram_quantile will reveal saturation
 			Buckets:        []float64{0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99, 1},
 			ConstLabels:    map[string]string{phase: "executing"},
@@ -128,7 +128,7 @@ var (
 			Namespace: namespace,
 			Subsystem: subsystem,
 			Name:      "priority_level_request_utilization",
-			Help:      "Observations, at the end of every nanosecond, of number of requests (as a fraction of the relevant limit) waiting or in any stage of execution (but only initial stage for WATCHes)",
+			Help:      "Observations, at the end of every nanosecond, of number of requests waiting or in any stage of execution (but only initial stage for WATCHes); denominator for waiting is max(1, QueueLengthLimit) X max(1, DesiredNumQueues), for executing is current seat limit if that is not zero otherwise max(1, round(server seat limit/10))",
 			// For executing: the denominator will be seats, so this metric will skew low.
 			// For waiting: total queue capacity is generally quite generous, so this metric will skew low.
 			Buckets:        []float64{0, 0.001, 0.003, 0.01, 0.03, 0.1, 0.25, 0.5, 0.75, 1},
@@ -376,7 +376,7 @@ var (
 			Namespace: namespace,
 			Subsystem: subsystem,
 			Name:      "demand_seats",
-			Help:      "Observations, at the end of every nanosecond, of (the number of seats each priority level could use) / (nominal number of seats for that level)",
+			Help:      "Observations, at the end of every nanosecond, of (the number of seats each priority level could use) / (current seat limit for that level if that is not zero otherwise max(1, round(server seat limit/10.0)))",
 			// Rationale for the bucket boundaries:
 			// For 0--1, evenly spaced and not too many;
 			// For 1--2, roughly powers of sqrt(sqrt(2));

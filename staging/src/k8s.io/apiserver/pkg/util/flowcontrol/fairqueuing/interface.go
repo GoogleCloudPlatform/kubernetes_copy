@@ -36,7 +36,7 @@ type QueueSetFactory interface {
 	// The denominator for the waiting phase is
 	// max(1, QueuingConfig.QueueLengthLimit) X max(1, QueuingConfig.DesiredNumQueues).
 	// The RatioedGauge observes number of seats occupied through all phases of execution.
-	// The denominator for all the ratioed concurrency gauges is supplied later in the DispatchingConfig.
+	// The denominator for both ratioed gauges of execution is supplied later in the DispatchingConfig.
 	// The Gauge observes the seat demand (executing + queued seats).
 	BeginConstruction(QueuingConfig, metrics.RatioedGaugePair, metrics.RatioedGauge, metrics.Gauge) (QueueSetCompleter, error)
 }

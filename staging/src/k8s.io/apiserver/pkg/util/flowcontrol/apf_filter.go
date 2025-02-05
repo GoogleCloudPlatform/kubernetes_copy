@@ -137,10 +137,13 @@ type TestableConfig struct {
 	// ServerConcurrencyLimit for the controller to enforce
 	ServerConcurrencyLimit int
 
-	// GaugeVec for metrics about requests, broken down by phase and priority_level
+	// GaugeVec for metrics about requests, broken down by phase and priority_level.
+	// Denominator for waiting phase is max(1, QueueLengthLimit) X max(1, DesiredNumQueues).
+	// Denominator for executing phase is currentCL or max(1, round(1, serverCL/10).
 	ReqsGaugeVec metrics.RatioedGaugeVec
 
-	// RatioedGaugePairVec for metrics about seats occupied by all phases of execution
+	// RatioedGaugePairVec for metrics about seats occupied by all phases of execution.
+	// Denominator is currentCL or max(1, round(1, serverCL/10).
 	ExecSeatsGaugeVec metrics.RatioedGaugeVec
 
 	// QueueSetFactory for the queuing implementation

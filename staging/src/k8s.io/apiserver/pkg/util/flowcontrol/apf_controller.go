@@ -119,10 +119,15 @@ type RequestDigest struct {
 // this type and cfgMeal follow the convention that the suffix
 // "Locked" means that the caller must hold the configController lock.
 type configController struct {
-	name              string // varies in tests of fighting controllers
-	clock             clock.PassiveClock
-	queueSetFactory   fq.QueueSetFactory
-	reqsGaugeVec      metrics.RatioedGaugeVec
+	name            string // varies in tests of fighting controllers
+	clock           clock.PassiveClock
+	queueSetFactory fq.QueueSetFactory
+
+	// Denominator for waiting phase is max(1, QueueLengthLimit) X max(1, DesiredNumQueues).
+	// Denominator for executing phase is currentCL or max(1, round(1, serverCL/10).
+	reqsGaugeVec metrics.RatioedGaugeVec
+
+	// Denominator is currentCL or max(1, round(1, serverCL/10).
 	execSeatsGaugeVec metrics.RatioedGaugeVec
 
 	// How this controller appears in an ObjectMeta ManagedFieldsEntry.Manager
@@ -220,16 +225,19 @@ type priorityLevelState struct {
 	// returned StartFunction
 	numPending int
 
-	// Observers tracking number of requests waiting, executing
+	// Observers tracking number of requests waiting, executing.
+	// Denominator for waiting phase is max(1, QueuingConfig.QueueLengthLimit) X max(1, QueuingConfig.DesiredNumQueues).
+	// Denominator for executing phase is currentCL or max(1, round(1, serverCL/10).
 	reqsGaugePair metrics.RatioedGaugePair
 
 	// Observer of number of seats occupied throughout execution
+	// Denominator is currentCL or max(1, round(1, serverCL/10).
 	execSeatsObs metrics.RatioedGauge
 
 	// Integrator of seat demand, reset every CurrentCL adjustment period
 	seatDemandIntegrator fq.Integrator
 
-	// Gauge of seat demand / nominalCL
+	// Gauge of seat demand / (currentCL or max(1, round(serverCL/10.0)))
 	seatDemandRatioedGauge metrics.RatioedGauge
 
 	// seatDemandStats is derived from periodically examining the seatDemandIntegrator.

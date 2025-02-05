@@ -56,8 +56,10 @@ type promiseFactoryFactory func(*queueSet) promiseFactory
 // `*queueSetCompleter` implements QueueSetCompleter.  Exactly one of
 // the fields `factory` and `theSet` is non-nil.
 type queueSetCompleter struct {
-	factory              *queueSetFactory
-	reqsGaugePair        metrics.RatioedGaugePair
+	factory *queueSetFactory
+	// The denominator for the executing phase is the DispatchingConfig.ConcurrencyDenominator.
+	reqsGaugePair metrics.RatioedGaugePair
+	// The denominator is the DispatchingConfig.ConcurrencyDenominator.
 	execSeatsGauge       metrics.RatioedGauge
 	seatDemandIntegrator metrics.Gauge
 	theSet               *queueSet
@@ -86,8 +88,11 @@ type queueSet struct {
 	clock                    eventclock.Interface
 	estimatedServiceDuration time.Duration
 
-	reqsGaugePair metrics.RatioedGaugePair // .RequestsExecuting covers regular phase only
+	// Denominator for executing phase is DispatchingConfig.ConcurrencyDenominator.
+	// .RequestsExecuting covers regular phase only.
+	reqsGaugePair metrics.RatioedGaugePair
 
+	// Denominator is DispatchingConfig.ConcurrencyDenominator.
 	execSeatsGauge metrics.RatioedGauge // for all phases of execution
 
 	seatDemandIntegrator metrics.Gauge
