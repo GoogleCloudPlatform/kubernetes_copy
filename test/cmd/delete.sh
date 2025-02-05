@@ -18,15 +18,20 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
+# Function to create namespaces
+create_namespaces() {
+  ns_one="namespace-$(date +%s)-${RANDOM}"
+  ns_two="namespace-$(date +%s)-${RANDOM}"
+  kubectl create namespace "${ns_one}"
+  kubectl create namespace "${ns_two}"
+}
+
 # Runs tests related to kubectl delete --all-namespaces.
 run_kubectl_delete_allnamespaces_tests() {
   set -o nounset
   set -o errexit
 
-  ns_one="namespace-$(date +%s)-${RANDOM}"
-  ns_two="namespace-$(date +%s)-${RANDOM}"
-  kubectl create namespace "${ns_one}"
-  kubectl create namespace "${ns_two}"
+  create_namespaces
 
   kubectl create configmap "one" --namespace="${ns_one}"
   kubectl create configmap "two" --namespace="${ns_two}"
@@ -58,10 +63,7 @@ run_kubectl_delete_interactive_tests() {
   set -o nounset
   set -o errexit
 
-  ns_one="namespace-$(date +%s)-${RANDOM}"
-  ns_two="namespace-$(date +%s)-${RANDOM}"
-  kubectl create namespace "${ns_one}"
-  kubectl create namespace "${ns_two}"
+  create_namespaces
 
   # create configmaps
   kubectl create configmap "one" --namespace="${ns_one}"
