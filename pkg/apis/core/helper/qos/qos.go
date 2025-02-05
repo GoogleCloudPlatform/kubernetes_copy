@@ -107,47 +107,10 @@ func ComputePodQOS(pod *core.Pod) core.PodQOSClass {
 			}
 		}
 	} else {
-		// note, ephemeral containers are not considered for QoS as they cannot define resources
-		allContainers := []core.Container{}
-		allContainers = append(allContainers, pod.Spec.Containers...)
-		allContainers = append(allContainers, pod.Spec.InitContainers...)
-		for _, container := range allContainers {
-			// process requests
-			for name, quantity := range container.Resources.Requests {
-				if !isSupportedQoSComputeResource(name) {
-					continue
-				}
-				if quantity.Cmp(zeroQuantity) == 1 {
-					delta := quantity.DeepCopy()
-					if _, exists := requests[name]; !exists {
-						requests[name] = delta
-					} else {
-						delta.Add(requests[name])
-						requests[name] = delta
-					}
-				}
-			}
-			// process limits
-			qosLimitsFound := sets.NewString()
-			for name, quantity := range container.Resources.Limits {
-				if !isSupportedQoSComputeResource(name) {
-					continue
-				}
-				if quantity.Cmp(zeroQuantity) == 1 {
-					qosLimitsFound.Insert(string(name))
-					delta := quantity.DeepCopy()
-					if _, exists := limits[name]; !exists {
-						limits[name] = delta
-					} else {
-						delta.Add(limits[name])
-						limits[name] = delta
-					}
-				}
-			}
-
-			if !qosLimitsFound.HasAll(string(core.ResourceMemory), string(core.ResourceCPU)) {
-				isGuaranteed = false
-			}
+		for _, container := range getAllContainers(pod) {
+			// Use a logical AND operation to accumulate the isGuaranteed status,
+			// ensuring that all containers must meet the Guaranteed condition.
+			isGuaranteed = processContainerResources(container, &requests, &limits) && isGuaranteed
 		}
 	}
 
@@ -155,17 +118,37 @@ func ComputePodQOS(pod *core.Pod) core.PodQOSClass {
 		return core.PodQOSBestEffort
 	}
 	// Check if requests match limits for all resources.
-	if isGuaranteed {
-		for name, req := range requests {
-			if lim, exists := limits[name]; !exists || lim.Cmp(req) != 0 {
-				isGuaranteed = false
-				break
-			}
-		}
-	}
-	if isGuaranteed &&
-		len(requests) == len(limits) {
+	if isGuaranteed && areRequestsMatchingLimits(requests, limits) {
 		return core.PodQOSGuaranteed
 	}
 	return core.PodQOSBurstable
+}
+
+// processContainerResources processes the resources of a single container and updates the provided requests and limits lists.
+func processContainerResources(container core.Container, requests, limits *core.ResourceList) bool {
+	isGuaranteed := true
+	processResourceList(*requests, container.Resources.Requests)
+	qosLimitsFound := getQOSResources(container.Resources.Limits)
+	processResourceList(*limits, container.Resources.Limits)
+	if !qosLimitsFound.HasAll(string(core.ResourceMemory), string(core.ResourceCPU)) {
+		isGuaranteed = false
+	}
+	return isGuaranteed
+}
+
+func getAllContainers(pod *core.Pod) []core.Container {
+	allContainers := []core.Container{}
+	allContainers = append(allContainers, pod.Spec.Containers...)
+	allContainers = append(allContainers, pod.Spec.InitContainers...)
+	return allContainers
+}
+
+// areRequestsMatchingLimits checks if all resource requests match their respective limits.
+func areRequestsMatchingLimits(requests, limits core.ResourceList) bool {
+	for name, req := range requests {
+		if lim, exists := limits[name]; !exists || lim.Cmp(req) != 0 {
+			return false
+		}
+	}
+	return len(requests) == len(limits)
 }

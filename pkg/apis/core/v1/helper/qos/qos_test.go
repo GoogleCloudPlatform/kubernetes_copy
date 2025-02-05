@@ -32,17 +32,20 @@ import (
 
 func TestComputePodQOS(t *testing.T) {
 	testCases := []struct {
+		name                     string
 		pod                      *v1.Pod
 		expected                 v1.PodQOSClass
 		podLevelResourcesEnabled bool
 	}{
 		{
+			name: "Single Guaranteed Container",
 			pod: newPod("guaranteed", []v1.Container{
 				newContainer("guaranteed", getResourceList("100m", "100Mi"), getResourceList("100m", "100Mi")),
 			}),
 			expected: v1.PodQOSGuaranteed,
 		},
 		{
+			name: "Two Guaranteed Containers",
 			pod: newPod("guaranteed-guaranteed", []v1.Container{
 				newContainer("guaranteed", getResourceList("100m", "100Mi"), getResourceList("100m", "100Mi")),
 				newContainer("guaranteed", getResourceList("100m", "100Mi"), getResourceList("100m", "100Mi")),
@@ -50,6 +53,7 @@ func TestComputePodQOS(t *testing.T) {
 			expected: v1.PodQOSGuaranteed,
 		},
 		{
+			name: "Two BestEffort Containers",
 			pod: newPod("best-effort-best-effort", []v1.Container{
 				newContainer("best-effort", getResourceList("", ""), getResourceList("", "")),
 				newContainer("best-effort", getResourceList("", ""), getResourceList("", "")),
@@ -57,12 +61,14 @@ func TestComputePodQOS(t *testing.T) {
 			expected: v1.PodQOSBestEffort,
 		},
 		{
+			name: "Single BestEffort Container",
 			pod: newPod("best-effort", []v1.Container{
 				newContainer("best-effort", getResourceList("", ""), getResourceList("", "")),
 			}),
 			expected: v1.PodQOSBestEffort,
 		},
 		{
+			name: "BestEffort and Burstable Containers",
 			pod: newPod("best-effort-burstable", []v1.Container{
 				newContainer("best-effort", getResourceList("", ""), getResourceList("", "")),
 				newContainer("burstable", getResourceList("1", ""), getResourceList("2", "")),
@@ -70,6 +76,7 @@ func TestComputePodQOS(t *testing.T) {
 			expected: v1.PodQOSBurstable,
 		},
 		{
+			name: "BestEffort and Guaranteed Containers",
 			pod: newPod("best-effort-guaranteed", []v1.Container{
 				newContainer("best-effort", getResourceList("", ""), getResourceList("", "")),
 				newContainer("guaranteed", getResourceList("10m", "100Mi"), getResourceList("10m", "100Mi")),
@@ -77,18 +84,21 @@ func TestComputePodQOS(t *testing.T) {
 			expected: v1.PodQOSBurstable,
 		},
 		{
+			name: "Burstable CPU, Guaranteed Memory",
 			pod: newPod("burstable-cpu-guaranteed-memory", []v1.Container{
 				newContainer("burstable", getResourceList("", "100Mi"), getResourceList("", "100Mi")),
 			}),
 			expected: v1.PodQOSBurstable,
 		},
 		{
+			name: "Burstable Without Limits",
 			pod: newPod("burstable-no-limits", []v1.Container{
 				newContainer("burstable", getResourceList("100m", "100Mi"), getResourceList("", "")),
 			}),
 			expected: v1.PodQOSBurstable,
 		},
 		{
+			name: "Burstable and Guaranteed Containers",
 			pod: newPod("burstable-guaranteed", []v1.Container{
 				newContainer("burstable", getResourceList("1", "100Mi"), getResourceList("2", "100Mi")),
 				newContainer("guaranteed", getResourceList("100m", "100Mi"), getResourceList("100m", "100Mi")),
@@ -96,6 +106,7 @@ func TestComputePodQOS(t *testing.T) {
 			expected: v1.PodQOSBurstable,
 		},
 		{
+			name: "Burstable Containers With Unbounded But Requests Match Limits",
 			pod: newPod("burstable-unbounded-but-requests-match-limits", []v1.Container{
 				newContainer("burstable", getResourceList("100m", "100Mi"), getResourceList("200m", "200Mi")),
 				newContainer("burstable-unbounded", getResourceList("100m", "100Mi"), getResourceList("", "")),
@@ -103,24 +114,28 @@ func TestComputePodQOS(t *testing.T) {
 			expected: v1.PodQOSBurstable,
 		},
 		{
+			name: "Burstable Container 1",
 			pod: newPod("burstable-1", []v1.Container{
 				newContainer("burstable", getResourceList("10m", "100Mi"), getResourceList("100m", "200Mi")),
 			}),
 			expected: v1.PodQOSBurstable,
 		},
 		{
+			name: "Burstable Container 2",
 			pod: newPod("burstable-2", []v1.Container{
 				newContainer("burstable", getResourceList("0", "0"), getResourceList("100m", "200Mi")),
 			}),
 			expected: v1.PodQOSBurstable,
 		},
 		{
+			name: "BestEffort Container With HugePages",
 			pod: newPod("best-effort-hugepages", []v1.Container{
 				newContainer("best-effort", addResource("hugepages-2Mi", "1Gi", getResourceList("0", "0")), addResource("hugepages-2Mi", "1Gi", getResourceList("0", "0"))),
 			}),
 			expected: v1.PodQOSBestEffort,
 		},
 		{
+			name: "Init Container with BestEffort Main and Burstable Init",
 			pod: newPodWithInitContainers("init-container",
 				[]v1.Container{
 					newContainer("best-effort", getResourceList("", ""), getResourceList("", "")),
@@ -131,6 +146,7 @@ func TestComputePodQOS(t *testing.T) {
 			expected: v1.PodQOSBurstable,
 		},
 		{
+			name: "Guaranteed Pod-Level Resources",
 			pod: newPodWithResources(
 				"guaranteed-with-pod-level-resources",
 				[]v1.Container{
@@ -142,6 +158,7 @@ func TestComputePodQOS(t *testing.T) {
 			podLevelResourcesEnabled: true,
 		},
 		{
+			name: "Guaranteed Pod and Container-Level Resources",
 			pod: newPodWithResources(
 				"guaranteed-with-pod-and-container-level-resources",
 				[]v1.Container{
@@ -153,6 +170,7 @@ func TestComputePodQOS(t *testing.T) {
 			podLevelResourcesEnabled: true,
 		},
 		{
+			name: "Burstable Pod-Level Resources",
 			pod: newPodWithResources(
 				"burstable-with-pod-level-resources",
 				[]v1.Container{
@@ -164,6 +182,7 @@ func TestComputePodQOS(t *testing.T) {
 			podLevelResourcesEnabled: true,
 		},
 		{
+			name: "Burstable Pod and Container-Level Resources",
 			pod: newPodWithResources(
 				"burstable-with-pod-and-container-level-resources",
 				[]v1.Container{
@@ -175,6 +194,7 @@ func TestComputePodQOS(t *testing.T) {
 			podLevelResourcesEnabled: true,
 		},
 		{
+			name: "Burstable Pod and Container-Level Requests",
 			pod: newPodWithResources(
 				"burstable-with-pod-and-container-level-requests",
 				[]v1.Container{
@@ -186,6 +206,7 @@ func TestComputePodQOS(t *testing.T) {
 			podLevelResourcesEnabled: true,
 		},
 		{
+			name: "Burstable Pod and Container-Level Resources 2",
 			pod: newPodWithResources(
 				"burstable-with-pod-and-container-level-resources-2",
 				[]v1.Container{
@@ -198,19 +219,24 @@ func TestComputePodQOS(t *testing.T) {
 			podLevelResourcesEnabled: true,
 		},
 	}
-	for id, testCase := range testCases {
-		featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.PodLevelResources, testCase.podLevelResourcesEnabled)
-		if actual := ComputePodQOS(testCase.pod); testCase.expected != actual {
-			t.Errorf("[%d]: invalid qos pod %s, expected: %s, actual: %s", id, testCase.pod.Name, testCase.expected, actual)
-		}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.PodLevelResources, testCase.podLevelResourcesEnabled)
+			if actual := ComputePodQOS(testCase.pod); testCase.expected != actual {
+				t.Errorf("[%v]: invalid qos pod %s, expected: %s, actual: %s", testCase.name, testCase.pod.Name, testCase.expected, actual)
+			}
 
-		// Convert v1.Pod to core.Pod, and then check against `core.helper.ComputePodQOS`.
-		pod := core.Pod{}
-		corev1.Convert_v1_Pod_To_core_Pod(testCase.pod, &pod, nil)
+			// Convert v1.Pod to core.Pod, and then check against `core.helper.ComputePodQOS`.
+			pod := core.Pod{}
+			err := corev1.Convert_v1_Pod_To_core_Pod(testCase.pod, &pod, nil)
+			if err != nil {
+				t.Errorf("[%v]: unexpected convert v1 pod to core pod error: %v", testCase.name, err)
+			}
 
-		if actual := qos.ComputePodQOS(&pod); core.PodQOSClass(testCase.expected) != actual {
-			t.Errorf("[%d]: conversion invalid qos pod %s, expected: %s, actual: %s", id, testCase.pod.Name, testCase.expected, actual)
-		}
+			if actual := qos.ComputePodQOS(&pod); core.PodQOSClass(testCase.expected) != actual {
+				t.Errorf("[%v]: conversion invalid qos pod %s, expected: %s, actual: %s", testCase.name, testCase.pod.Name, testCase.expected, actual)
+			}
+		})
 	}
 }
 
