@@ -647,6 +647,10 @@ func (r *crdHandler) getOrCreateServingInfoFor(uid types.UID, name string) (*crd
 
 	structuralSchemas := map[string]*structuralschema.Structural{}
 	for _, v := range crd.Spec.Versions {
+		if !v.Served {
+			continue
+		}
+
 		val, err := apiextensionshelpers.GetSchemaForVersion(crd, v.Name)
 		if err != nil {
 			utilruntime.HandleError(err)
@@ -701,6 +705,10 @@ func (r *crdHandler) getOrCreateServingInfoFor(uid types.UID, name string) (*crd
 	// Create replicasPathInCustomResource
 	replicasPathInCustomResource := managedfields.ResourcePathMappings{}
 	for _, v := range crd.Spec.Versions {
+		if !v.Served {
+			continue
+		}
+
 		subresources, err := apiextensionshelpers.GetSubresourcesForVersion(crd, v.Name)
 		if err != nil {
 			utilruntime.HandleError(err)
@@ -720,6 +728,10 @@ func (r *crdHandler) getOrCreateServingInfoFor(uid types.UID, name string) (*crd
 	}
 
 	for _, v := range crd.Spec.Versions {
+		if !v.Served {
+			continue
+		}
+
 		// In addition to Unstructured objects (Custom Resources), we also may sometimes need to
 		// decode unversioned Options objects, so we delegate to parameterScheme for such types.
 		parameterScheme := runtime.NewScheme()
