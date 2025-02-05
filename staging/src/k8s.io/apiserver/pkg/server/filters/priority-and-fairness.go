@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"runtime"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -34,6 +33,7 @@ import (
 	utilflowcontrol "k8s.io/apiserver/pkg/util/flowcontrol"
 	fcmetrics "k8s.io/apiserver/pkg/util/flowcontrol/metrics"
 	flowcontrolrequest "k8s.io/apiserver/pkg/util/flowcontrol/request"
+	utilpanic "k8s.io/apiserver/pkg/util/panic"
 	"k8s.io/klog/v2"
 	utilsclock "k8s.io/utils/clock"
 )
@@ -218,8 +218,9 @@ func (h *priorityAndFairnessHandler) Handle(w http.ResponseWriter, r *http.Reque
 			watchInitializationSignal.Wait()
 		}
 
-		// Ensure that an item can be put to resultCh asynchronously.
-		resultCh := make(chan interface{}, 1)
+		// Used to relay a panic from the forked goroutine below back to this
+		// goroutine to be propagated further up the stack to the normal catcher.
+		invoker := utilpanic.NewInvoker()
 
 		// Call Handle in a separate goroutine.
 		// The reason for it is that from APF point of view, the request processing
@@ -228,23 +229,9 @@ func (h *priorityAndFairnessHandler) Handle(w http.ResponseWriter, r *http.Reque
 		// call finishes much faster and for performance reasons we want to reduce
 		// the number of running goroutines - so we run the shorter thing in a
 		// dedicated goroutine and the actual watch handler in the main one.
-		go func() {
-			defer func() {
-				err := recover()
-				// do not wrap the sentinel ErrAbortHandler panic value
-				if err != nil && err != http.ErrAbortHandler {
-					// Same as stdlib http server code. Manually allocate stack
-					// trace buffer size to prevent excessively large logs
-					const size = 64 << 10
-					buf := make([]byte, size)
-					buf = buf[:runtime.Stack(buf, false)]
-					err = fmt.Sprintf("%v\n%s", err, buf)
-				}
-
-				// Ensure that the result is put into resultCh independently of the panic.
-				resultCh <- err
-			}()
-
+		// InvokeWithPanicProtection will capture the panic value and the stacktrace
+		// into a new error object so it can be passed to the request handler goroutine
+		go invoker.InvokeWithPanicProtection(func() {
 			// We create handleCtx with an adjusted deadline, for two reasons.
 			// One is to limit the time the request waits before its execution starts.
 			// The other reason for it is that Handle() underneath may start additional goroutine
@@ -262,29 +249,30 @@ func (h *priorityAndFairnessHandler) Handle(w http.ResponseWriter, r *http.Reque
 			// executes or is rejected. In the latter case, the function will return
 			// without calling the passed `execute` function.
 			h.fcIfc.Handle(handleCtx, digest, noteFn, estimateWork, queueNote, execute)
-		}()
+		})
 
 		select {
 		case <-shouldStartWatchCh:
-			func() {
-				// TODO: if both goroutines panic, propagate the stack traces from both
-				// goroutines so they are logged properly:
-				defer func() {
-					// Protect from the situation when request will not reach storage layer
-					// and the initialization signal will not be send.
-					// It has to happen before waiting on the resultCh below.
-					watchInitializationSignal.Signal()
-					// TODO: Consider finishing the request as soon as Handle call panics.
-					if err := <-resultCh; err != nil {
-						panic(err)
-					}
-				}()
+			// WrapPanic will ensure:
+			// a) the request handler waits until the spawned
+			// goroutine finishes its run.
+			// b) if both goroutines, the request handler (this goroutine)
+			// and the spawned goroutine panic, then the panic from the spawned
+			// goroutine will not be forgotten, it will be included in the
+			// panic re-thrown
+			invoker.WrapPanic(func() {
+				// Protect from the situation when request will not reach storage layer
+				// and the initialization signal will not be send.
+				// It has to happen before waiting on the resultCh below.
+				defer watchInitializationSignal.Signal()
+
 				watchCtx := utilflowcontrol.WithInitializationSignal(ctx, watchInitializationSignal)
 				watchReq = r.WithContext(watchCtx)
 				h.handler.ServeHTTP(w, watchReq)
-			}()
-		case err := <-resultCh:
+			})
+		case err := <-invoker.Done():
 			if err != nil {
+				// only the spawned goroutine panicked
 				panic(err)
 			}
 		}
