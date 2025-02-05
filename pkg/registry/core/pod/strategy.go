@@ -94,6 +94,7 @@ func (podStrategy) PrepareForCreate(ctx context.Context, obj runtime.Object) {
 
 	applySchedulingGatedCondition(pod)
 	mutatePodAffinity(pod)
+	mutateTopologySpreadConstraints(pod)
 	applyAppArmorVersionSkew(ctx, pod)
 }
 
@@ -813,6 +814,25 @@ func mutatePodAffinity(pod *api.Pod) {
 		for i := range affinity.RequiredDuringSchedulingIgnoredDuringExecution {
 			applyMatchLabelKeysAndMismatchLabelKeys(&affinity.RequiredDuringSchedulingIgnoredDuringExecution[i], pod.Labels)
 		}
+	}
+}
+
+func applyMatchLabelKeys(constraint *api.TopologySpreadConstraint, labels map[string]string) {
+	if len(constraint.MatchLabelKeys) == 0 || constraint.LabelSelector == nil {
+		// If LabelSelector is nil, we don't need to apply label keys to it because nil-LabelSelector is match none.
+		return
+	}
+
+	applyLabelKeysToLabelSelector(constraint.LabelSelector, constraint.MatchLabelKeys, metav1.LabelSelectorOpIn, labels)
+}
+
+func mutateTopologySpreadConstraints(pod *api.Pod) {
+	if !utilfeature.DefaultFeatureGate.Enabled(features.MatchLabelKeysInPodTopologySpread) || pod.Spec.TopologySpreadConstraints == nil {
+		return
+	}
+	topologySpreadConstraints := pod.Spec.TopologySpreadConstraints
+	for i := range topologySpreadConstraints {
+		applyMatchLabelKeys(&topologySpreadConstraints[i], pod.Labels)
 	}
 }
 

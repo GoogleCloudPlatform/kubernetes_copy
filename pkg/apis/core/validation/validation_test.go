@@ -22748,15 +22748,22 @@ func TestValidateTopologySpreadConstraints(t *testing.T) {
 			MatchLabelKeys:    []string{"foo"},
 			LabelSelector: &metav1.LabelSelector{
 				MatchExpressions: []metav1.LabelSelectorRequirement{
+					// This one should be created from MatchLabelKeys.
 					{
 						Key:      "foo",
 						Operator: metav1.LabelSelectorOpNotIn,
-						Values:   []string{"value1", "value2"},
+						Values:   []string{"value1"},
+					},
+					{
+						Key:      "foo",
+						Operator: metav1.LabelSelectorOpNotIn,
+						Values:   []string{"value2", "value3"},
 					},
 				},
 			},
 		}},
-		wantFieldErrors: field.ErrorList{field.Invalid(fieldPathMatchLabelKeys.Index(0), "foo", "exists in both matchLabelKeys and labelSelector")},
+		// TODO: This expected message is not perfect, and will be fixed in #129900.
+		wantFieldErrors: field.ErrorList{field.Invalid(subFldPath0.Index(0), "foo", "exists in both matchLabelKeys and labelSelector")},
 	}, {
 		name: "key in MatchLabelKeys is forbidden to be specified when labelSelector is not set",
 		constraints: []core.TopologySpreadConstraint{{

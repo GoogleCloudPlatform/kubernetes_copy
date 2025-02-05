@@ -7848,7 +7848,7 @@ func validateTopologySpreadConstraints(constraints []core.TopologySpreadConstrai
 		if err := validateNodeInclusionPolicy(subFldPath.Child("nodeTaintsPolicy"), constraint.NodeTaintsPolicy); err != nil {
 			allErrs = append(allErrs, err)
 		}
-		allErrs = append(allErrs, validateMatchLabelKeysInTopologySpread(subFldPath.Child("matchLabelKeys"), constraint.MatchLabelKeys, constraint.LabelSelector)...)
+		allErrs = append(allErrs, validateMatchLabelKeysAndMismatchLabelKeys(subFldPath, constraint.MatchLabelKeys, nil, constraint.LabelSelector)...)
 		if !opts.AllowInvalidTopologySpreadConstraintLabelSelector {
 			allErrs = append(allErrs, unversionedvalidation.ValidateLabelSelector(constraint.LabelSelector, unversionedvalidation.LabelSelectorValidationOptions{AllowInvalidLabelValueInSelector: false}, subFldPath.Child("labelSelector"))...)
 		}
@@ -7971,36 +7971,6 @@ func validateMatchLabelKeysAndMismatchLabelKeys(fldPath *field.Path, matchLabelK
 	for i, k := range matchLabelKeys {
 		if mismatchLabelKeysSet.Has(k) {
 			allErrs = append(allErrs, field.Invalid(fldPath.Child("matchLabelKeys").Index(i), k, "exists in both matchLabelKeys and mismatchLabelKeys"))
-		}
-	}
-
-	return allErrs
-}
-
-// validateMatchLabelKeysInTopologySpread tests that the elements are a valid label name and are not already included in labelSelector.
-func validateMatchLabelKeysInTopologySpread(fldPath *field.Path, matchLabelKeys []string, labelSelector *metav1.LabelSelector) field.ErrorList {
-	if len(matchLabelKeys) == 0 {
-		return nil
-	}
-
-	var allErrs field.ErrorList
-	labelSelectorKeys := sets.Set[string]{}
-
-	if labelSelector != nil {
-		for key := range labelSelector.MatchLabels {
-			labelSelectorKeys.Insert(key)
-		}
-		for _, matchExpression := range labelSelector.MatchExpressions {
-			labelSelectorKeys.Insert(matchExpression.Key)
-		}
-	} else {
-		allErrs = append(allErrs, field.Forbidden(fldPath, "must not be specified when labelSelector is not set"))
-	}
-
-	for i, key := range matchLabelKeys {
-		allErrs = append(allErrs, unversionedvalidation.ValidateLabelName(key, fldPath.Index(i))...)
-		if labelSelectorKeys.Has(key) {
-			allErrs = append(allErrs, field.Invalid(fldPath.Index(i), key, "exists in both matchLabelKeys and labelSelector"))
 		}
 	}
 
