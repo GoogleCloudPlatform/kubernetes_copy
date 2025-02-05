@@ -1154,6 +1154,330 @@ var _ = SIGDescribe(framework.WithNodeConformance(), "Containers Lifecycle", fun
 			})
 		})
 	})
+
+	ginkgo.When("a pod is terminating because ActiveDeadlineSeconds expires", func() {
+		regular1 := "regular-1"
+
+		testPod := func() *v1.Pod {
+			return &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-pod",
+				},
+				Spec: v1.PodSpec{
+					RestartPolicy:                 v1.RestartPolicyNever,
+					TerminationGracePeriodSeconds: ptr.To(int64(100)),
+					ActiveDeadlineSeconds:         ptr.To(int64(10)),
+					Containers: []v1.Container{
+						{
+							Name:  regular1,
+							Image: imageutils.GetE2EImage(imageutils.BusyBox),
+							Command: ExecCommand(regular1, execCommand{
+								Delay:              100,
+								TerminationSeconds: 15,
+								ExitCode:           0,
+							}),
+							LivenessProbe: &v1.Probe{
+								ProbeHandler: v1.ProbeHandler{
+									Exec: &v1.ExecAction{
+										Command: ExecCommand(prefixedName(LivenessPrefix, regular1), execCommand{
+											ExitCode:      0,
+											ContainerName: regular1,
+										}),
+									},
+								},
+								InitialDelaySeconds: 1,
+								PeriodSeconds:       1,
+								FailureThreshold:    1,
+							},
+						},
+					},
+				},
+			}
+		}
+
+		f.It("should execute readiness probe while in preStop, but not liveness", f.WithNodeConformance(), func(ctx context.Context) {
+			client := e2epod.NewPodClient(f)
+			podSpec := testPod()
+
+			ginkgo.By("creating a pod with a readiness probe and a preStop hook")
+			podSpec.Spec.Containers[0].Lifecycle = &v1.Lifecycle{
+				PreStop: &v1.LifecycleHandler{
+					Exec: &v1.ExecAction{
+						Command: ExecCommand(prefixedName(PreStopPrefix, regular1), execCommand{
+							Delay:         10,
+							ExitCode:      0,
+							ContainerName: regular1,
+						}),
+					},
+				},
+			}
+			podSpec.Spec.Containers[0].ReadinessProbe = &v1.Probe{
+				ProbeHandler: v1.ProbeHandler{
+					Exec: &v1.ExecAction{
+						Command: ExecCommand(prefixedName(ReadinessPrefix, regular1), execCommand{
+							ExitCode:      0,
+							ContainerName: regular1,
+						}),
+					},
+				},
+				InitialDelaySeconds: 1,
+				PeriodSeconds:       1,
+			}
+
+			preparePod(podSpec)
+
+			podSpec = client.Create(ctx, podSpec)
+
+			ginkgo.By("Waiting for the pod to complete")
+			err := e2epod.WaitForPodNoLongerRunningInNamespace(ctx, f.ClientSet, podSpec.Name, podSpec.Namespace)
+			framework.ExpectNoError(err)
+
+			ginkgo.By("Parsing results")
+			podSpec, err = client.Get(ctx, podSpec.Name, metav1.GetOptions{})
+			framework.ExpectNoError(err)
+			results := parseOutput(ctx, f, podSpec)
+
+			ginkgo.By("Analyzing results")
+			// FIXME ExpectNoError: Fix #124648 so that readiness probe will be stopped after preStop
+			// readiness probes are called during pod termination
+			err = results.RunTogetherLhsFirst(prefixedName(PreStopPrefix, regular1), prefixedName(ReadinessPrefix, regular1))
+			gomega.Expect(err).To(gomega.HaveOccurred())
+			// liveness probes are not called during pod termination
+			err = results.RunTogetherLhsFirst(prefixedName(PreStopPrefix, regular1), prefixedName(LivenessPrefix, regular1))
+			gomega.Expect(err).To(gomega.HaveOccurred())
+		})
+
+		f.It("should continue running liveness probes for restartable init containers and restart them while in preStop", f.WithNodeConformance(), func(ctx context.Context) {
+			client := e2epod.NewPodClient(f)
+			podSpec := testPod()
+			restartableInit1 := "restartable-init-1"
+
+			ginkgo.By("creating a pod with a restartable init container and a preStop hook")
+			podSpec.Spec.InitContainers = []v1.Container{{
+				RestartPolicy: &containerRestartPolicyAlways,
+				Name:          restartableInit1,
+				Image:         imageutils.GetE2EImage(imageutils.BusyBox),
+				Command: ExecCommand(restartableInit1, execCommand{
+					Delay:              100,
+					TerminationSeconds: 1,
+					ExitCode:           0,
+				}),
+				LivenessProbe: &v1.Probe{
+					ProbeHandler: v1.ProbeHandler{
+						Exec: &v1.ExecAction{
+							Command: ExecCommand(prefixedName(LivenessPrefix, restartableInit1), execCommand{
+								ExitCode:      1,
+								ContainerName: restartableInit1,
+							}),
+						},
+					},
+					InitialDelaySeconds: 12, // Start probing after preStop starts
+					PeriodSeconds:       1,
+					FailureThreshold:    1,
+				},
+			}}
+			podSpec.Spec.Containers[0].Lifecycle = &v1.Lifecycle{
+				PreStop: &v1.LifecycleHandler{
+					Exec: &v1.ExecAction{
+						Command: ExecCommand(prefixedName(PreStopPrefix, regular1), execCommand{
+							Delay:         40,
+							ExitCode:      0,
+							ContainerName: regular1,
+						}),
+					},
+				},
+			}
+
+			preparePod(podSpec)
+
+			podSpec = client.Create(ctx, podSpec)
+
+			ginkgo.By("Waiting for the pod to complete")
+			err := e2epod.WaitForPodNoLongerRunningInNamespace(ctx, f.ClientSet, podSpec.Name, podSpec.Namespace)
+			framework.ExpectNoError(err)
+
+			ginkgo.By("Parsing results")
+			podSpec, err = client.Get(ctx, podSpec.Name, metav1.GetOptions{})
+			framework.ExpectNoError(err)
+			results := parseOutput(ctx, f, podSpec)
+
+			ginkgo.By("Analyzing results")
+			// FIXME ExpectNoError: Fix #124648 so that liveness probe will be stopped after preStop
+			// liveness probes are called for restartable init containers during pod termination
+			err = results.RunTogetherLhsFirst(prefixedName(PreStopPrefix, regular1), prefixedName(LivenessPrefix, restartableInit1))
+			gomega.Expect(err).To(gomega.HaveOccurred())
+			// FIXME ExpectNoError: this will be implemented in KEP 4438
+			// restartable init containers are restarted during pod termination
+			err = results.RunTogetherLhsFirst(prefixedName(PreStopPrefix, regular1), restartableInit1)
+			gomega.Expect(err).To(gomega.HaveOccurred())
+		})
+	})
+
+	ginkgo.When("a pod is terminating because of deletion request", func() {
+		regular1 := "regular-1"
+
+		testPod := func() *v1.Pod {
+			return &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-pod",
+				},
+				Spec: v1.PodSpec{
+					RestartPolicy:                 v1.RestartPolicyNever,
+					TerminationGracePeriodSeconds: ptr.To(int64(100)),
+					Containers: []v1.Container{
+						{
+							Name:  regular1,
+							Image: imageutils.GetE2EImage(imageutils.BusyBox),
+							Command: ExecCommand(regular1, execCommand{
+								Delay:              100,
+								TerminationSeconds: 15,
+								ExitCode:           0,
+							}),
+							LivenessProbe: &v1.Probe{
+								ProbeHandler: v1.ProbeHandler{
+									Exec: &v1.ExecAction{
+										Command: ExecCommand(prefixedName(LivenessPrefix, regular1), execCommand{
+											ExitCode:      0,
+											ContainerName: regular1,
+										}),
+									},
+								},
+								InitialDelaySeconds: 1,
+								PeriodSeconds:       1,
+								FailureThreshold:    1,
+							},
+							Lifecycle: &v1.Lifecycle{
+								PreStop: &v1.LifecycleHandler{
+									Exec: &v1.ExecAction{
+										Command: ExecCommand(prefixedName(PreStopPrefix, regular1), execCommand{
+											Delay:         15,
+											ExitCode:      0,
+											ContainerName: regular1,
+										}),
+									},
+								},
+							},
+						},
+					},
+				},
+			}
+		}
+
+		f.It("should execute readiness probe while in preStop, but not liveness", f.WithNodeConformance(), func(ctx context.Context) {
+			client := e2epod.NewPodClient(f)
+			podSpec := testPod()
+
+			ginkgo.By("creating a pod with a readiness probe and a preStop hook")
+			podSpec.Spec.Containers[0].ReadinessProbe = &v1.Probe{
+				ProbeHandler: v1.ProbeHandler{
+					Exec: &v1.ExecAction{
+						Command: ExecCommand(prefixedName(ReadinessPrefix, regular1), execCommand{
+							ExitCode:      0,
+							ContainerName: regular1,
+						}),
+					},
+				},
+				InitialDelaySeconds: 1,
+				PeriodSeconds:       1,
+			}
+
+			preparePod(podSpec)
+
+			podSpec = client.Create(ctx, podSpec)
+
+			ginkgo.By("Waiting for the pod to be initialized and run")
+			err := e2epod.WaitForPodRunningInNamespace(ctx, f.ClientSet, podSpec)
+			framework.ExpectNoError(err)
+
+			ginkgo.By("deleting the pod")
+			err = client.Delete(ctx, podSpec.Name, metav1.DeleteOptions{})
+			framework.ExpectNoError(err)
+
+			// Sleep expecting thet the preStop wiil complete and the container will get into TerminationSeconds window.
+			time.Sleep(25 * time.Second)
+
+			// Obtain logs before the pod has been deleted.
+			ginkgo.By("Parsing results")
+			podSpec, err = client.Get(ctx, podSpec.Name, metav1.GetOptions{})
+			framework.ExpectNoError(err)
+			results := parseOutput(ctx, f, podSpec)
+
+			ginkgo.By("waiting for the pod to disappear")
+			err = e2epod.WaitForPodNotFoundInNamespace(ctx, f.ClientSet, podSpec.Name, podSpec.Namespace, 120*time.Second)
+			framework.ExpectNoError(err)
+
+			ginkgo.By("Analyzing results")
+			// readiness probes are called during pod termination
+			framework.ExpectNoError(results.RunTogetherLhsFirst(prefixedName(PreStopPrefix, regular1), prefixedName(ReadinessPrefix, regular1)))
+			// liveness probes are not called during pod termination
+			err = results.RunTogetherLhsFirst(prefixedName(PreStopPrefix, regular1), prefixedName(LivenessPrefix, regular1))
+			gomega.Expect(err).To(gomega.HaveOccurred())
+		})
+
+		f.It("should continue running liveness probes for restartable init containers and restart them while in preStop", f.WithNodeConformance(), func(ctx context.Context) {
+			client := e2epod.NewPodClient(f)
+			podSpec := testPod()
+			restartableInit1 := "restartable-init-1"
+
+			ginkgo.By("creating a pod with a restartable init container and a preStop hook")
+			podSpec.Spec.InitContainers = []v1.Container{{
+				RestartPolicy: &containerRestartPolicyAlways,
+				Name:          restartableInit1,
+				Image:         imageutils.GetE2EImage(imageutils.BusyBox),
+				Command: ExecCommand(restartableInit1, execCommand{
+					Delay:              100,
+					TerminationSeconds: 1,
+					ExitCode:           0,
+				}),
+				LivenessProbe: &v1.Probe{
+					ProbeHandler: v1.ProbeHandler{
+						Exec: &v1.ExecAction{
+							Command: ExecCommand(prefixedName(LivenessPrefix, restartableInit1), execCommand{
+								ExitCode:      1,
+								ContainerName: restartableInit1,
+							}),
+						},
+					},
+					InitialDelaySeconds: 8, // Start probing after preStop starts
+					PeriodSeconds:       1,
+					FailureThreshold:    1,
+				},
+			}}
+
+			preparePod(podSpec)
+
+			podSpec = client.Create(ctx, podSpec)
+
+			ginkgo.By("Waiting for the pod to be initialized and run")
+			err := e2epod.WaitForPodRunningInNamespace(ctx, f.ClientSet, podSpec)
+			framework.ExpectNoError(err)
+
+			ginkgo.By("deleting the pod")
+			err = client.Delete(ctx, podSpec.Name, metav1.DeleteOptions{})
+			framework.ExpectNoError(err)
+
+			// Sleep expecting thet the preStop wiil complete and the container will get into TerminationSeconds window.
+			time.Sleep(25 * time.Second)
+
+			// Obtain logs before the pod has been deleted.
+			ginkgo.By("Parsing results")
+			podSpec, err = client.Get(ctx, podSpec.Name, metav1.GetOptions{})
+			framework.ExpectNoError(err)
+			results := parseOutput(ctx, f, podSpec)
+
+			ginkgo.By("waiting for the pod to disappear")
+			err = e2epod.WaitForPodNotFoundInNamespace(ctx, f.ClientSet, podSpec.Name, podSpec.Namespace, 120*time.Second)
+			framework.ExpectNoError(err)
+
+			ginkgo.By("Analyzing results")
+			// liveness probes are called for restartable init containers during pod termination
+			framework.ExpectNoError(results.RunTogetherLhsFirst(prefixedName(PreStopPrefix, regular1), prefixedName(LivenessPrefix, restartableInit1)))
+			// FIXME ExpectNoError: this will be implemented in KEP 4438
+			// restartable init containers are restarted during pod termination
+			err = results.RunTogetherLhsFirst(prefixedName(PreStopPrefix, regular1), restartableInit1)
+			gomega.Expect(err).To(gomega.HaveOccurred())
+		})
+	})
 })
 
 var _ = SIGDescribe(framework.WithSerial(), "Containers Lifecycle", func() {
