@@ -162,16 +162,26 @@ func (dc *DeploymentController) getNewReplicaSet(ctx context.Context, d *apps.De
 		}
 
 		// Should use the revision in existingNewRS's annotation, since it set by before
-		needsUpdate := deploymentutil.SetDeploymentRevision(d, rsCopy.Annotations[deploymentutil.RevisionAnnotation])
-		// If no other Progressing condition has been recorded and we need to estimate the progress
-		// of this deployment then it is likely that old users started caring about progress. In that
-		// case we need to take into account the first time we noticed their new replica set.
+		revisionHasChanged := deploymentutil.SetDeploymentRevision(d, rsCopy.Annotations[deploymentutil.RevisionAnnotation])
+		needsUpdate := revisionHasChanged
 		cond := deploymentutil.GetDeploymentCondition(d.Status, apps.DeploymentProgressing)
-		if deploymentutil.HasProgressDeadline(d) && cond == nil {
-			msg := fmt.Sprintf("Found new replica set %q", rsCopy.Name)
-			condition := deploymentutil.NewDeploymentCondition(apps.DeploymentProgressing, v1.ConditionTrue, deploymentutil.FoundNewRSReason, msg)
-			deploymentutil.SetDeploymentCondition(&d.Status, *condition)
-			needsUpdate = true
+		if deploymentutil.HasProgressDeadline(d) {
+			if cond == nil {
+				// If no other Progressing condition has been recorded and we need to estimate the progress
+				// of this deployment then it is likely that old users started caring about progress. In that
+				// case we need to take into account the first time we noticed their new replica set.
+				msg := fmt.Sprintf("Found new replica set %q", rsCopy.Name)
+				condition := deploymentutil.NewDeploymentCondition(apps.DeploymentProgressing, v1.ConditionTrue, deploymentutil.FoundNewRSReason, msg)
+				deploymentutil.SetDeploymentCondition(&d.Status, *condition)
+				needsUpdate = true
+			} else if revisionHasChanged {
+				// We have to reset the progress and ProgressDeadlineExceeded timeout when rolling out a new
+				// replica set (revision changes).
+				msg := fmt.Sprintf("ReplicaSet %q is progressing.", rsCopy.Name)
+				condition := deploymentutil.NewDeploymentCondition(apps.DeploymentProgressing, v1.ConditionTrue, deploymentutil.ReplicaSetUpdatedReason, msg)
+				deploymentutil.SetDeploymentCondition(&d.Status, *condition)
+				needsUpdate = true
+			}
 		}
 
 		if needsUpdate {
