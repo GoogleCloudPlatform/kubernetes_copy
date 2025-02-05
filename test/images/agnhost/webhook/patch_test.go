@@ -22,7 +22,7 @@ import (
 	"reflect"
 	"testing"
 
-	jsonpatch "gopkg.in/evanphx/json-patch.v4"
+	jsonpatch "github.com/evanphx/json-patch/v5"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )

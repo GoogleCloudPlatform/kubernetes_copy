@@ -25,10 +25,10 @@ import (
 	"reflect"
 	"strconv"
 
+	jsonpatch "github.com/evanphx/json-patch/v5"
 	"github.com/google/cel-go/common/types"
 	"github.com/google/cel-go/common/types/traits"
 	"google.golang.org/protobuf/types/known/structpb"
-	jsonpatch "gopkg.in/evanphx/json-patch.v4"
 
 	admissionv1 "k8s.io/api/admission/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"

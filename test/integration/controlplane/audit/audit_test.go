@@ -46,7 +46,7 @@ import (
 	"k8s.io/kubernetes/test/integration/framework"
 	"k8s.io/kubernetes/test/utils"
 
-	jsonpatch "gopkg.in/evanphx/json-patch.v4"
+	jsonpatch "github.com/evanphx/json-patch/v5"
 )
 
 const (

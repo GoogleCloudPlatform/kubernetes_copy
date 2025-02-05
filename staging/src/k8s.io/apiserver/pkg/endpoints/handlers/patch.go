@@ -23,8 +23,8 @@ import (
 	"strings"
 	"time"
 
+	jsonpatch "github.com/evanphx/json-patch/v5"
 	"go.opentelemetry.io/otel/attribute"
-	jsonpatch "gopkg.in/evanphx/json-patch.v4"
 	kjson "sigs.k8s.io/json"
 
 	"k8s.io/apimachinery/pkg/api/errors"

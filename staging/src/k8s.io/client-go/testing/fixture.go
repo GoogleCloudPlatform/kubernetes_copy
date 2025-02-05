@@ -25,7 +25,7 @@ import (
 	"strings"
 	"sync"
 
-	jsonpatch "gopkg.in/evanphx/json-patch.v4"
+	jsonpatch "github.com/evanphx/json-patch/v5"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"

@@ -21,8 +21,8 @@ import (
 	"fmt"
 	"io"
 
+	jsonpatch "github.com/evanphx/json-patch/v5"
 	"github.com/spf13/cobra"
-	jsonpatch "gopkg.in/evanphx/json-patch.v4"
 	"k8s.io/klog/v2"
 
 	"k8s.io/apimachinery/pkg/api/meta"

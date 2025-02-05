@@ -35,13 +35,13 @@ import (
 	"time"
 
 	"github.com/coreos/go-systemd/v22/daemon"
+	jsonpatch "github.com/evanphx/json-patch/v5"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/metric/noop"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	jsonpatch "gopkg.in/evanphx/json-patch.v4"
 
 	"k8s.io/klog/v2"
 	"k8s.io/mount-utils"

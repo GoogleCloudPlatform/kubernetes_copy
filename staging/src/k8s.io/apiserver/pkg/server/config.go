@@ -32,9 +32,9 @@ import (
 	"sync/atomic"
 	"time"
 
+	jsonpatch "github.com/evanphx/json-patch/v5"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/cryptobyte"
-	jsonpatch "gopkg.in/evanphx/json-patch.v4"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"

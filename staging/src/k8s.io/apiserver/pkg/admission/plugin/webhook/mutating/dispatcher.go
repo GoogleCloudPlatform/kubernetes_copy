@@ -24,8 +24,8 @@ import (
 	"fmt"
 	"time"
 
+	jsonpatch "github.com/evanphx/json-patch/v5"
 	"go.opentelemetry.io/otel/attribute"
-	jsonpatch "gopkg.in/evanphx/json-patch.v4"
 
 	admissionv1 "k8s.io/api/admission/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
