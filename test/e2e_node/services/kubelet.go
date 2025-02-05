@@ -118,7 +118,7 @@ func baseKubeConfiguration(cfgPath string) (*kubeletconfig.KubeletConfiguration,
 		}
 
 		// The following values should match the contents of
-		// test/e2e_node/jenkins/default-kubelet-config.yaml. We can't use go embed
+		// test/e2e_node/cos-init/default-kubelet-config.yaml. We can't use go embed
 		// here to fallback as default config lives in a parallel directory.
 		// TODO(endocrimes): Remove fallback for lack of kubelet config when all
 		//                   uses of e2e_node switch to providing one (or move to

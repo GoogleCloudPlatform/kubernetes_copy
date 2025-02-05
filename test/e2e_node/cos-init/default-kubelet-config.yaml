@@ -1,0 +1,27 @@
+apiVersion: kubelet.config.k8s.io/v1beta1
+kind: KubeletConfiguration
+cgroupDriver: cgroupfs
+cgroupRoot: /
+
+# Assign a fixed CIDR to the node because we do not run a node controller
+# This MUST be in sync with IPs in:
+# - cluster/gce/config-test.sh and
+# - test/e2e_node/conformance/run_test.sh
+podCIDR: "10.100.0.0/24"
+
+# Aggregate volumes frequently to reduce test wait times
+volumeStatsAggPeriod: 10s
+# Check files frequently to reduce test wait times
+fileCheckFrequency: 10s
+
+evictionPressureTransitionPeriod: 30s
+evictionHard:
+  memory.available: 250Mi
+  nodefs.available: 10%
+  nodefs.inodesFree: 5%
+evictionMinimumReclaim:
+  nodefs.available: 5%
+  nodefs.inodesFree: 5%
+
+serializeImagePulls: false
+

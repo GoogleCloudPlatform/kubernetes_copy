@@ -56,7 +56,7 @@ runtime_config=${RUNTIME_CONFIG:-}
 ssh_user=${SSH_USER:-"${USER}"}
 ssh_key=${SSH_KEY:-}
 ssh_options=${SSH_OPTIONS:-}
-kubelet_config_file=${KUBELET_CONFIG_FILE:-"test/e2e_node/jenkins/default-kubelet-config.yaml"}
+kubelet_config_file=${KUBELET_CONFIG_FILE:-"test/e2e_node/cos-init/default-kubelet-config.yaml"}
 
 # If set, the command executed will be:
 # - `dlv exec` if set to "delve"
@@ -130,7 +130,7 @@ if [ "${remote}" = true ] && [ "${remote_mode}" = gce ] ; then
     gci_image=$(gcloud compute images list --project "${image_project}" \
     --no-standard-images --filter="name ~ 'cos-beta.*'" --format="table[no-heading](name)")
     images=${gci_image}
-    metadata="user-data<${KUBE_ROOT}/test/e2e_node/jenkins/gci-init.yaml,gci-update-strategy=update_disabled"
+    metadata="user-data<${KUBE_ROOT}/test/e2e_node/cos-init/gci-init.yaml,gci-update-strategy=update_disabled"
   fi
   instance_prefix=${INSTANCE_PREFIX:-"test"}
   cleanup=${CLEANUP:-"true"}

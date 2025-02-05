@@ -1,0 +1,17 @@
+#cloud-config
+
+runcmd:
+  - mount /tmp /tmp -o remount,exec,suid
+  - usermod -a -G docker jenkins
+  - mkdir -p /var/lib/kubelet
+  - mkdir -p /home/kubernetes/containerized_mounter/rootfs
+  - mount --bind /home/kubernetes/containerized_mounter/ /home/kubernetes/containerized_mounter/
+  - mount -o remount, exec /home/kubernetes/containerized_mounter/
+  - wget https://storage.googleapis.com/kubernetes-release/gci-mounter/mounter.tar -O /tmp/mounter.tar
+  - tar xvf /tmp/mounter.tar -C /home/kubernetes/containerized_mounter/rootfs
+  - mkdir -p /home/kubernetes/containerized_mounter/rootfs/var/lib/kubelet
+  - mount --rbind /var/lib/kubelet /home/kubernetes/containerized_mounter/rootfs/var/lib/kubelet
+  - mount --make-rshared /home/kubernetes/containerized_mounter/rootfs/var/lib/kubelet
+  - mount --bind /proc /home/kubernetes/containerized_mounter/rootfs/proc
+  - mount --bind /dev /home/kubernetes/containerized_mounter/rootfs/dev
+  - rm /tmp/mounter.tar
