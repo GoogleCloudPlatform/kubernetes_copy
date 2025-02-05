@@ -609,7 +609,9 @@ func (j *joinData) Client() (clientset.Interface, error) {
 			AppendReactor(dryRun.GetKubeadmConfigReactor()).
 			AppendReactor(dryRun.GetKubeadmCertsReactor()).
 			AppendReactor(dryRun.GetKubeProxyConfigReactor()).
-			AppendReactor(dryRun.GetKubeletConfigReactor())
+			AppendReactor(dryRun.GetKubeletConfigReactor()).
+			AppendReactor(dryRun.GetNodeReactor()).
+			AppendReactor(dryRun.PatchNodeReactor())
 
 		j.client = dryRun.FakeClient()
 		return j.client, nil
