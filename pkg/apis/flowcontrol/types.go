@@ -457,6 +457,14 @@ type LimitedPriorityLevelConfiguration struct {
 	// When this field is left `nil`, the limit is effectively infinite.
 	// +optional
 	BorrowingLimitPercent *int32
+
+	// `weight` gives this priority level more or less priority in the borrowing
+	// of concurrency.
+	// The default configuration objects use values in the range 10--100.
+	// Must be in the range 1--1000.
+	// The default value is 30.
+	// +optional
+	Weight *int32
 }
 
 // ExemptPriorityLevelConfiguration describes the configurable aspects

@@ -513,6 +513,14 @@ type LimitedPriorityLevelConfiguration struct {
 	// When this field is left `nil`, the limit is effectively infinite.
 	// +optional
 	BorrowingLimitPercent *int32 `json:"borrowingLimitPercent,omitempty" protobuf:"varint,4,opt,name=borrowingLimitPercent"`
+
+	// `weight` gives this priority level more or less priority in the borrowing
+	// of concurrency.
+	// The default configuration objects use values in the range 10--100.
+	// Must be in the range 1--1000.
+	// The default value is 30.
+	// +optional
+	Weight *int32 `json:"weight,omitempty" protobuf:"varint,5,opt,name=weight"`
 }
 
 // ExemptPriorityLevelConfiguration describes the configurable aspects

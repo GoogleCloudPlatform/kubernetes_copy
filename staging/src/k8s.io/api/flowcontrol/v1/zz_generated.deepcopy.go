@@ -253,6 +253,11 @@ func (in *LimitedPriorityLevelConfiguration) DeepCopyInto(out *LimitedPriorityLe
 		*out = new(int32)
 		**out = **in
 	}
+	if in.Weight != nil {
+		in, out := &in.Weight, &out.Weight
+		*out = new(int32)
+		**out = **in
+	}
 	return
 }
 

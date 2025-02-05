@@ -293,6 +293,11 @@
             "description": "`nominalConcurrencyShares` (NCS) contributes to the computation of the NominalConcurrencyLimit (NominalCL) of this level. This is the number of execution seats available at this priority level. This is used both for requests dispatched from this priority level as well as requests dispatched from other priority levels borrowing seats from this level. The server's concurrency limit (ServerCL) is divided among the Limited priority levels in proportion to their NCS values:\n\nNominalCL(i)  = ceil( ServerCL * NCS(i) / sum_ncs ) sum_ncs = sum[priority level k] NCS(k)\n\nBigger numbers mean a larger nominal concurrency limit, at the expense of every other priority level.\n\nIf not specified, this field defaults to a value of 30.\n\nSetting this field to zero supports the construction of a \"jail\" for this priority level that is used to hold some request(s)",
             "format": "int32",
             "type": "integer"
+          },
+          "weight": {
+            "description": "`weight` gives this priority level more or less priority in the borrowing of concurrency. The default configuration objects use values in the range 10--100. Must be in the range 1--1000. The default value is 30.",
+            "format": "int32",
+            "type": "integer"
           }
         },
         "type": "object"

@@ -19,6 +19,7 @@ package bootstrap
 import (
 	coordinationv1 "k8s.io/api/coordination/v1"
 	corev1 "k8s.io/api/core/v1"
+	eventsv1 "k8s.io/api/events/v1"
 	flowcontrol "k8s.io/api/flowcontrol/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apiserver/pkg/authentication/serviceaccount"
@@ -62,6 +63,8 @@ var (
 		// built-in workloads such as "deployments", "replicasets" and other low-level custom workload which
 		// is important for the cluster.
 		SuggestedPriorityLevelConfigurationWorkloadHigh,
+		// "events" is used for requests that create/update/delete Event objects.
+		SuggestedPriorityLevelConfigurationEvent,
 		// "workload-low" is used by those workloads with lower priority which availability only has a
 		// minor impact on the cluster.
 		SuggestedPriorityLevelConfigurationWorkloadLow,
@@ -70,6 +73,7 @@ var (
 	}
 	SuggestedFlowSchemas = []*flowcontrol.FlowSchema{
 		SuggestedFlowSchemaSystemNodes,               // references "system" priority-level
+		SuggestedFlowSchemaEvents,                    // references "events" priority-level
 		SuggestedFlowSchemaSystemNodeHigh,            // references "node-high" priority-level
 		SuggestedFlowSchemaProbes,                    // references "exempt" priority-level
 		SuggestedFlowSchemaSystemLeaderElection,      // references "leader-election" priority-level
@@ -105,6 +109,7 @@ var (
 				LimitResponse: flowcontrol.LimitResponse{
 					Type: flowcontrol.LimitResponseTypeReject,
 				},
+				Weight: ptr.To(int32(10)),
 			},
 		})
 )
@@ -183,6 +188,7 @@ var (
 						QueueLengthLimit: 50,
 					},
 				},
+				Weight: ptr.To(int32(100)),
 			},
 		})
 	SuggestedPriorityLevelConfigurationNodeHigh = newPriorityLevelConfiguration(
@@ -200,6 +206,7 @@ var (
 						QueueLengthLimit: 50,
 					},
 				},
+				Weight: ptr.To(int32(100)),
 			},
 		})
 	// leader-election priority-level
@@ -218,6 +225,7 @@ var (
 						QueueLengthLimit: 50,
 					},
 				},
+				Weight: ptr.To(int32(100)),
 			},
 		})
 	// workload-high priority-level
@@ -236,6 +244,21 @@ var (
 						QueueLengthLimit: 50,
 					},
 				},
+				Weight: ptr.To(int32(60)),
+			},
+		})
+	// event priority-level. This is a relatively low priority configuration, loss of events
+	// is a relatively low harm thing.
+	SuggestedPriorityLevelConfigurationEvent = newPriorityLevelConfiguration(
+		"event",
+		flowcontrol.PriorityLevelConfigurationSpec{
+			Type: flowcontrol.PriorityLevelEnablementLimited,
+			Limited: &flowcontrol.LimitedPriorityLevelConfiguration{
+				NominalConcurrencyShares: ptr.To(int32(5)),
+				LendablePercent:          ptr.To(int32(0)),
+				BorrowingLimitPercent:    ptr.To(int32(100)),
+				LimitResponse:            flowcontrol.LimitResponse{Type: flowcontrol.LimitResponseTypeReject},
+				Weight:                   ptr.To(int32(10)),
 			},
 		})
 	// workload-low priority-level
@@ -254,6 +277,7 @@ var (
 						QueueLengthLimit: 50,
 					},
 				},
+				Weight: ptr.To(int32(30)),
 			},
 		})
 	// global-default priority-level
@@ -272,6 +296,7 @@ var (
 						QueueLengthLimit: 50,
 					},
 				},
+				Weight: ptr.To(int32(10)),
 			},
 		})
 )
@@ -372,6 +397,21 @@ var (
 					[]string{flowcontrol.VerbAll},
 					[]string{coordinationv1.GroupName},
 					[]string{"leases"},
+					[]string{flowcontrol.NamespaceEvery},
+					false),
+			},
+		},
+	)
+	SuggestedFlowSchemaEvents = newFlowSchema(
+		"events", SuggestedPriorityLevelConfigurationEvent.Name, 450,
+		flowcontrol.FlowDistinguisherMethodByUserType,
+		flowcontrol.PolicyRulesWithSubjects{
+			Subjects: groups(user.AllAuthenticated), // the nodes group
+			ResourceRules: []flowcontrol.ResourcePolicyRule{
+				resourceRule(
+					[]string{"create", "update", "patch", "delete"},
+					[]string{corev1.GroupName, eventsv1.GroupName},
+					[]string{"events"},
 					[]string{flowcontrol.NamespaceEvery},
 					false),
 			},

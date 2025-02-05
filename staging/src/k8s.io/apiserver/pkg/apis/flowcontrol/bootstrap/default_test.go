@@ -17,9 +17,11 @@ limitations under the License.
 package bootstrap
 
 import (
+	"fmt"
 	"testing"
 
 	flowcontrol "k8s.io/api/flowcontrol/v1"
+	"k8s.io/utils/ptr"
 )
 
 func TestBootstrapPriorityLevelConfigurationWithBorrowing(t *testing.T) {
@@ -27,6 +29,7 @@ func TestBootstrapPriorityLevelConfigurationWithBorrowing(t *testing.T) {
 		name                    string
 		nominalSharesExpected   int32
 		lendablePercentexpected int32
+		borrowingLimitPercent   *int32
 	}{
 		{
 			name:                    "leader-election",
@@ -47,6 +50,12 @@ func TestBootstrapPriorityLevelConfigurationWithBorrowing(t *testing.T) {
 			name:                    "workload-high",
 			nominalSharesExpected:   40,
 			lendablePercentexpected: 50,
+		},
+		{
+			name:                    "event",
+			nominalSharesExpected:   5,
+			lendablePercentexpected: 0,
+			borrowingLimitPercent:   ptr.To(int32(100)),
 		},
 		{
 			name:                    "workload-low",
@@ -93,10 +102,10 @@ func TestBootstrapPriorityLevelConfigurationWithBorrowing(t *testing.T) {
 			t.Errorf("bootstrap PriorityLevelConfiguration %q: expected NominalConcurrencyShares: %d, but got: %d", test.name, test.nominalSharesExpected, bootstrapPL.Spec.Limited.NominalConcurrencyShares)
 		}
 		if test.lendablePercentexpected != *bootstrapPL.Spec.Limited.LendablePercent {
-			t.Errorf("bootstrap PriorityLevelConfiguration %q: expected NominalConcurrencyShares: %d, but got: %d", test.name, test.lendablePercentexpected, bootstrapPL.Spec.Limited.LendablePercent)
+			t.Errorf("bootstrap PriorityLevelConfiguration %q: expected NominalConcurrencyShares: %d, but got: %d", test.name, test.lendablePercentexpected, *bootstrapPL.Spec.Limited.LendablePercent)
 		}
-		if bootstrapPL.Spec.Limited.BorrowingLimitPercent != nil {
-			t.Errorf("bootstrap PriorityLevelConfiguration %q: expected BorrowingLimitPercent to be nil, but got: %d", test.name, *bootstrapPL.Spec.Limited.BorrowingLimitPercent)
+		if !ptr.Equal(test.borrowingLimitPercent, bootstrapPL.Spec.Limited.BorrowingLimitPercent) {
+			t.Errorf("bootstrap PriorityLevelConfiguration %q: expected BorrowingLimitPercent to be %s, but got: %s", test.name, fmtPtr(test.borrowingLimitPercent), fmtPtr(bootstrapPL.Spec.Limited.BorrowingLimitPercent))
 		}
 	}
 
@@ -121,4 +130,11 @@ func TestBootstrapPriorityLevelConfigurationWithBorrowing(t *testing.T) {
 	if exemptPL.Spec.Exempt.LendablePercent != nil && *exemptPL.Spec.Exempt.LendablePercent != 0 {
 		t.Errorf("Expected exempt priority level to have LendablePercent==0 but got %d instead", *exemptPL.Spec.Exempt.LendablePercent)
 	}
+}
+
+func fmtPtr[Base any](ptr *Base) string {
+	if ptr == nil {
+		return "nil"
+	}
+	return fmt.Sprintf("&%v", *ptr)
 }

@@ -26,6 +26,8 @@ import (
 // floating-point imprecision
 const fpSlack = 1e-10
 
+const MaxWeight = 1000
+
 // TestConcAlloc tests computeConcurrencyAllocation with a bunch of randomly generated cases.
 func TestConcAlloc(t *testing.T) {
 	rands := rand.New(rand.NewSource(1234567890))
@@ -51,6 +53,7 @@ func test1ConcAlloc(t *testing.T, rands *rand.Rand) {
 				classes[j].lowerBound = x
 				classes[j].target = x + 2*rands.Float64()
 				classes[j].upperBound = x + 3*rands.Float64()
+				classes[j].weight = float64(1 + rands.Intn(MaxWeight))
 				lowSum += classes[j].lowerBound
 				highSum += classes[j].upperBound
 			})
@@ -62,6 +65,7 @@ func test1ConcAlloc(t *testing.T, rands *rand.Rand) {
 				classes[j].upperBound = x
 				classes[j].lowerBound = x * math.Max(0, 1.25*rands.Float64()-1)
 				classes[j].target = classes[j].lowerBound + rands.Float64()
+				classes[j].weight = float64(1 + rands.Intn(MaxWeight))
 				lowSum += classes[j].lowerBound
 				highSum += classes[j].upperBound
 			})
@@ -72,6 +76,7 @@ func test1ConcAlloc(t *testing.T, rands *rand.Rand) {
 				classes[j].lowerBound = x
 				classes[j].target = x + 2*rands.Float64()
 				classes[j].upperBound = x + 3*rands.Float64()
+				classes[j].weight = float64(1 + rands.Intn(MaxWeight))
 				lowSum += classes[j].lowerBound
 				highSum += classes[j].upperBound
 			}
@@ -81,7 +86,7 @@ func test1ConcAlloc(t *testing.T, rands *rand.Rand) {
 	}
 	for rands.Float64() < 0.25 {
 		// Add a class with a target of zero
-		classes = append(classes, allocProblemItem{target: 0, upperBound: rands.Float64() + 0.00001})
+		classes = append(classes, allocProblemItem{target: 0, allocWeight: allocWeight{weight: float64(1 + rands.Intn(MaxWeight))}, upperBound: rands.Float64() + 0.00001})
 		highSum += classes[probLen].upperBound
 		if probLen > 1 {
 			m := rands.Intn(probLen)
@@ -89,7 +94,7 @@ func test1ConcAlloc(t *testing.T, rands *rand.Rand) {
 		}
 		probLen = len(classes)
 	}
-	allocs, fairProp, err := computeConcurrencyAllocation(requiredSum, classes)
+	allocs, delta, err := computeConcurrencyAllocation(requiredSum, classes)
 	var actualSumF float64
 	for _, item := range allocs {
 		actualSumF += item
@@ -97,34 +102,42 @@ func test1ConcAlloc(t *testing.T, rands *rand.Rand) {
 	expectErr := lowSum-requiredSumF > fpSlack || requiredSumF-highSum > fpSlack
 	if err != nil {
 		if expectErr {
-			t.Logf("For requiredSum=%v, %s classes=%#+v expected error and got %#+v", requiredSum, style, classes, err)
+			t.Logf("Success for requiredSum=%v, %s classes=%#+v expected error and got %#+v", requiredSum, style, classes, err)
 			return
 		}
-		t.Fatalf("For requiredSum=%v, %s classes=%#+v got unexpected error %#+v", requiredSum, style, classes, err)
+		t.Fatalf("Fail for requiredSum=%v, %s classes=%#+v got unexpected error %#+v", requiredSum, style, classes, err)
 	}
 	if expectErr {
-		t.Fatalf("Expected error from requiredSum=%v, %s classes=%#+v but got solution %v, %v instead", requiredSum, style, classes, allocs, fairProp)
+		t.Fatalf("Fail for from requiredSum=%v, %s classes=%#+v: expected error but got solution %v, %v instead", requiredSum, style, classes, allocs, delta)
 	}
+	var failed bool
 	rd := f64RelDiff(requiredSumF, actualSumF)
 	if rd > fpSlack {
-		t.Fatalf("For requiredSum=%v, %s classes=%#+v got solution %v, %v which has sum %v", requiredSum, style, classes, allocs, fairProp, actualSumF)
+		failed = true
+		t.Errorf("Fail for requiredSum=%v, %s classes=%#+v got solution %v, %v which has sum %v", requiredSum, style, classes, allocs, delta, actualSumF)
 	}
 	for idx, item := range classes {
 		target := math.Max(item.target, MinTarget)
-		alloc := fairProp * target
+		alloc := item.proportionForDelta(delta) * target
 		if alloc <= item.lowerBound {
 			if allocs[idx] != item.lowerBound {
-				t.Fatalf("For requiredSum=%v, %s classes=%#+v got solution %v, %v in which item %d should be its lower bound but is not", requiredSum, style, classes, allocs, fairProp, idx)
+				failed = true
+				t.Errorf("Fail for requiredSum=%v, %s classes=%#+v got solution %v, %v in which item %d should be its lower bound but is not", requiredSum, style, classes, allocs, delta, idx)
 			}
 		} else if alloc >= item.upperBound {
 			if allocs[idx] != item.upperBound {
-				t.Fatalf("For requiredSum=%v, %s classes=%#+v got solution %v, %v in which item %d should be its upper bound but is not", requiredSum, style, classes, allocs, fairProp, idx)
+				failed = true
+				t.Errorf("Fail for requiredSum=%v, %s classes=%#+v got solution %v, %v in which item %d should be its upper bound but is not", requiredSum, style, classes, allocs, delta, idx)
 			}
 		} else if f64RelDiff(alloc, allocs[idx]) > fpSlack {
-			t.Fatalf("For requiredSum=%v, %s classes=%#+v got solution %v, %v in which item %d got alloc %v should be %v (which is proportional to its target) but is not", requiredSum, style, classes, allocs, fairProp, idx, allocs[idx], alloc)
+			failed = true
+			t.Errorf("Fail for requiredSum=%v, %s classes=%#+v got solution %v, %v in which item %d got alloc %v should be %v (which is proportional to its target) but is not", requiredSum, style, classes, allocs, delta, idx, allocs[idx], alloc)
 		}
 	}
-	t.Logf("For requiredSum=%v, %s classes=%#+v got solution %v, %v", requiredSum, style, classes, allocs, fairProp)
+	if failed {
+		t.FailNow()
+	}
+	t.Logf("Success for requiredSum=%v, %s classes=%#+v got solution %v, %v", requiredSum, style, classes, allocs, delta)
 }
 
 // partition64 calls consume n times, passing ints [0,n) and floats that sum to x
