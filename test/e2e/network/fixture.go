@@ -18,6 +18,7 @@ package network
 
 import (
 	"context"
+	appsv1 "k8s.io/api/apps/v1"
 
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -25,7 +26,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/uuid"
 	clientset "k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/util/retry"
 	imageutils "k8s.io/kubernetes/test/utils/image"
 
 	"github.com/onsi/ginkgo/v2"
@@ -40,10 +40,10 @@ type TestFixture struct {
 	TestID string
 	Labels map[string]string
 
-	rcs      map[string]bool
-	services map[string]bool
-	Name     string
-	Image    string
+	deployments map[string]bool
+	services    map[string]bool
+	Name        string
+	Image       string
 }
 
 // NewServerTest creates a new TestFixture for the tests.
@@ -57,7 +57,7 @@ func NewServerTest(client clientset.Interface, namespace string, serviceName str
 		"testid": t.TestID,
 	}
 
-	t.rcs = make(map[string]bool)
+	t.deployments = make(map[string]bool)
 	t.services = make(map[string]bool)
 
 	t.Name = "webserver"
@@ -84,13 +84,12 @@ func (t *TestFixture) BuildServiceSpec() *v1.Service {
 	return service
 }
 
-// CreateRC creates a replication controller and records it for cleanup.
-func (t *TestFixture) CreateRC(rc *v1.ReplicationController) (*v1.ReplicationController, error) {
-	rc, err := t.Client.CoreV1().ReplicationControllers(t.Namespace).Create(context.TODO(), rc, metav1.CreateOptions{})
+func (t *TestFixture) CreateDeployment(deployment *appsv1.Deployment) (*appsv1.Deployment, error) {
+	deployment, err := t.Client.AppsV1().Deployments(t.Namespace).Create(context.TODO(), deployment, metav1.CreateOptions{})
 	if err == nil {
-		t.rcs[rc.Name] = true
+		t.deployments[deployment.Name] = true
 	}
-	return rc, err
+	return deployment, err
 }
 
 // CreateService creates a service, and record it for cleanup
@@ -114,33 +113,10 @@ func (t *TestFixture) DeleteService(serviceName string) error {
 // Cleanup cleans all ReplicationControllers and Services which this object holds.
 func (t *TestFixture) Cleanup() []error {
 	var errs []error
-	for rcName := range t.rcs {
-		ginkgo.By("stopping RC " + rcName + " in namespace " + t.Namespace)
-		err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-			// First, resize the RC to 0.
-			old, err := t.Client.CoreV1().ReplicationControllers(t.Namespace).Get(context.TODO(), rcName, metav1.GetOptions{})
-			if err != nil {
-				if apierrors.IsNotFound(err) {
-					return nil
-				}
-				return err
-			}
-			x := int32(0)
-			old.Spec.Replicas = &x
-			if _, err := t.Client.CoreV1().ReplicationControllers(t.Namespace).Update(context.TODO(), old, metav1.UpdateOptions{}); err != nil {
-				if apierrors.IsNotFound(err) {
-					return nil
-				}
-				return err
-			}
-			return nil
-		})
+	for deploymentName := range t.deployments {
+		ginkgo.By("deleting deployment " + deploymentName + " in namespace " + t.Namespace)
+		err := t.Client.AppsV1().Deployments(t.Namespace).Delete(context.TODO(), deploymentName, metav1.DeleteOptions{})
 		if err != nil {
-			errs = append(errs, err)
-		}
-		// TODO(mikedanese): Wait.
-		// Then, delete the RC altogether.
-		if err := t.Client.CoreV1().ReplicationControllers(t.Namespace).Delete(context.TODO(), rcName, metav1.DeleteOptions{}); err != nil {
 			if !apierrors.IsNotFound(err) {
 				errs = append(errs, err)
 			}

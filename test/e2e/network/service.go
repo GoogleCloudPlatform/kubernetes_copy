@@ -1785,11 +1785,18 @@ var _ = common.SIGDescribe("Services", func() {
 				PublishNotReadyAddresses: true,
 			},
 		}
-		rcSpec := e2erc.ByNameContainer(t.Name, 1, t.Labels, v1.Container{
+
+		deploymentSpec := e2edeployment.NewDeployment(t.Name,
+			1,
+			t.Labels,
+			t.Name,
+			t.Image,
+			appsv1.RecreateDeploymentStrategyType)
+		deploymentSpec.Spec.Template.Spec.Containers[0] = v1.Container{
 			Args:  []string{"netexec", fmt.Sprintf("--http-port=%d", port)},
 			Name:  t.Name,
 			Image: t.Image,
-			Ports: []v1.ContainerPort{{ContainerPort: int32(port), Protocol: v1.ProtocolTCP}},
+			Ports: []v1.ContainerPort{{ContainerPort: port, Protocol: v1.ProtocolTCP}},
 			ReadinessProbe: &v1.Probe{
 				ProbeHandler: v1.ProbeHandler{
 					Exec: &v1.ExecAction{
@@ -1804,18 +1811,18 @@ var _ = common.SIGDescribe("Services", func() {
 					},
 				},
 			},
-		}, nil)
-		rcSpec.Spec.Template.Spec.TerminationGracePeriodSeconds = &terminateSeconds
+		}
+		deploymentSpec.Spec.Template.Spec.TerminationGracePeriodSeconds = &terminateSeconds
 
-		ginkgo.By(fmt.Sprintf("creating RC %v with selectors %v", rcSpec.Name, rcSpec.Spec.Selector))
-		_, err := t.CreateRC(rcSpec)
+		ginkgo.By(fmt.Sprintf("creating Deployment %v with selectors %v", deploymentSpec.Name, deploymentSpec.Spec.Selector))
+		_, err := t.CreateDeployment(deploymentSpec)
 		framework.ExpectNoError(err)
 
 		ginkgo.By(fmt.Sprintf("creating Service %v with selectors %v", service.Name, service.Spec.Selector))
 		_, err = t.CreateService(service)
 		framework.ExpectNoError(err)
 
-		ginkgo.By("Verifying pods for RC " + t.Name)
+		ginkgo.By("Verifying pods for Deployment " + t.Name)
 		framework.ExpectNoError(e2epod.VerifyPods(ctx, t.Client, t.Namespace, t.Name, false, 1))
 
 		svcName := fmt.Sprintf("%v.%v.svc.%v", serviceName, f.Namespace.Name, framework.TestContext.ClusterDNSDomain)
@@ -1838,7 +1845,10 @@ var _ = common.SIGDescribe("Services", func() {
 		}
 
 		ginkgo.By("Scaling down replication controller to zero")
-		e2erc.ScaleRC(ctx, f.ClientSet, f.ScalesGetter, t.Namespace, rcSpec.Name, 0, false)
+		_, err = e2edeployment.UpdateDeploymentWithRetries(f.ClientSet, t.Namespace, t.Name, func(deployment *appsv1.Deployment) {
+			deployment.Spec.Replicas = ptr.To[int32](0)
+		})
+		framework.ExpectNoError(err)
 
 		ginkgo.By("Update service to not tolerate unready services")
 		_, err = e2eservice.UpdateService(ctx, f.ClientSet, t.Namespace, t.ServiceName, func(s *v1.Service) {
@@ -1881,7 +1891,7 @@ var _ = common.SIGDescribe("Services", func() {
 		}
 
 		ginkgo.By("Remove pods immediately")
-		label := labels.SelectorFromSet(labels.Set(t.Labels))
+		label := labels.SelectorFromSet(t.Labels)
 		options := metav1.ListOptions{LabelSelector: label.String()}
 		podClient := t.Client.CoreV1().Pods(f.Namespace.Name)
 		pods, err := podClient.List(ctx, options)
