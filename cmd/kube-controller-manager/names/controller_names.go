@@ -33,7 +33,7 @@ package names
 // The following places should use the controller name constants, when:
 //  1. defining a new app.ControllerDescriptor so it can be used in app.NewControllerDescriptors or app.KnownControllers:
 //  2. used anywhere inside the controller itself:
-//     2.1. [TODO] logging should use a canonical controller name when referencing a controller (Eg. Starting X, Shutting down X)
+//     2.1. logging should use a canonical controller name when referencing a controller. Each controller gets instantiated with a context where the controller name is already included via WithName.
 //     2.2. [TODO] emitted events should have an EventSource.Component set to the controller name (usually when initializing an EventRecorder)
 //     2.3. [TODO] registering ControllerManagerMetrics with ControllerStarted and ControllerStopped
 //     2.4. [TODO] calling WaitForNamedCacheSync
