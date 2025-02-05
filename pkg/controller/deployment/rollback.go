@@ -30,7 +30,7 @@ import (
 )
 
 // rollback the deployment to the specified revision. In any case cleanup the rollback spec.
-func (dc *DeploymentController) rollback(ctx context.Context, d *apps.Deployment, rsList []*apps.ReplicaSet) error {
+func (dc *DeploymentController) rollback(ctx context.Context, d *apps.Deployment, rsList []*apps.ReplicaSet, rollbackTo *extensions.RollbackConfig) error {
 	logger := klog.FromContext(ctx)
 	newRS, allOldRSs, err := dc.getAllReplicaSetsAndSyncRevision(ctx, d, rsList, true)
 	if err != nil {
@@ -38,7 +38,6 @@ func (dc *DeploymentController) rollback(ctx context.Context, d *apps.Deployment
 	}
 
 	allRSs := append(allOldRSs, newRS)
-	rollbackTo := getRollbackTo(d)
 	// If rollback revision is 0, rollback to the last revision
 	if rollbackTo.Revision == 0 {
 		if rollbackTo.Revision = deploymentutil.LastRevision(logger, allRSs); rollbackTo.Revision == 0 {
