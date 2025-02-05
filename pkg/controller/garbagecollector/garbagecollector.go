@@ -510,10 +510,7 @@ func (gc *GarbageCollector) attemptToDeleteItem(ctx context.Context, item *node)
 		)
 		return nil
 	}
-	// TODO: It's only necessary to talk to the API server if this is a
-	// "virtual" node. The local graph could lag behind the real status, but in
-	// practice, the difference is small.
-	latest, err := gc.getObject(item.identity)
+	latest, err := gc.getMetadata(item.identity)
 	switch {
 	case errors.IsNotFound(err):
 		// the GraphBuilder can add "virtual" node for an owner that doesn't

@@ -31,35 +31,59 @@ import (
 
 // getMetadata tries getting object metadata from local cache, and sends GET request to apiserver when
 // local cache is not available or not latest.
-func (gc *GarbageCollector) getMetadata(apiVersion, kind, namespace, name string) (metav1.Object, error) {
-	apiResource, _, err := gc.apiResource(apiVersion, kind)
+func (gc *GarbageCollector) getMetadata(item objectReference) (metav1.Object, error) {
+	apiResource, namespaced, err := gc.apiResource(item.APIVersion, item.Kind)
 	if err != nil {
 		return nil, err
 	}
-	gc.dependencyGraphBuilder.monitorLock.RLock()
-	defer gc.dependencyGraphBuilder.monitorLock.RUnlock()
-	m, ok := gc.dependencyGraphBuilder.monitors[apiResource]
-	if !ok || m == nil {
-		// If local cache doesn't exist for mapping.Resource, send a GET request to API server
-		return gc.metadataClient.Resource(apiResource).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+	namespace := resourceDefaultNamespace(namespaced, item.Namespace)
+	if namespaced && len(namespace) == 0 {
+		// the type is namespaced, but we have no namespace coordinate.
+		// the only way this can happen is if a cluster-scoped object referenced this type as an owner.
+		return nil, namespacedOwnerOfClusterScopedObjectErr
 	}
-	key := name
-	if len(namespace) != 0 {
-		key = namespace + "/" + name
-	}
-	raw, exist, err := m.store.GetByKey(key)
+
+	obj, err := func() (metav1.Object, error) {
+		gc.dependencyGraphBuilder.monitorLock.RLock()
+		defer gc.dependencyGraphBuilder.monitorLock.RUnlock()
+		m, ok := gc.dependencyGraphBuilder.monitors[apiResource]
+		if !ok || m == nil {
+			return nil, fmt.Errorf("cache not found or not ready for resource %v", apiResource.String())
+		}
+		key := item.Name
+		if namespaced {
+			key = namespace + "/" + item.Name
+		}
+		raw, exist, err := m.store.GetByKey(key)
+		if err != nil {
+			return nil, err
+		}
+		if !exist {
+			return nil, fmt.Errorf("not found runtime.Object with uid: %v", item.UID)
+		}
+		obj, ok := raw.(runtime.Object)
+		if !ok {
+			return nil, fmt.Errorf("expect a runtime.Object, got %v", raw)
+		}
+		accessor, err := meta.Accessor(obj)
+		if err != nil {
+			return nil, err
+		}
+		if accessor.GetUID() != item.UID {
+			return nil, fmt.Errorf("expect uid: %v, got uid: %v", item.UID, accessor.GetUID())
+		}
+		return accessor, nil
+	}()
 	if err != nil {
-		return nil, err
+		// If local cache do not found, send a GET request to API server
+		if namespaced {
+			return gc.metadataClient.Resource(apiResource).Namespace(namespace).Get(context.TODO(), item.Name, metav1.GetOptions{})
+		} else {
+			return gc.metadataClient.Resource(apiResource).Get(context.TODO(), item.Name, metav1.GetOptions{})
+		}
 	}
-	if !exist {
-		// If local cache doesn't contain the object, send a GET request to API server
-		return gc.metadataClient.Resource(apiResource).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
-	}
-	obj, ok := raw.(runtime.Object)
-	if !ok {
-		return nil, fmt.Errorf("expect a runtime.Object, got %v", raw)
-	}
-	return meta.Accessor(obj)
+	return obj, nil
+
 }
 
 type objectForFinalizersPatch struct {
@@ -106,7 +130,7 @@ func (gc *GarbageCollector) patch(item *node, smp []byte, jmp jsonMergePatchFunc
 
 // Returns JSON merge patch that removes the ownerReferences matching ownerUIDs.
 func (gc *GarbageCollector) deleteOwnerRefJSONMergePatch(item *node, ownerUIDs ...types.UID) ([]byte, error) {
-	accessor, err := gc.getMetadata(item.identity.APIVersion, item.identity.Kind, item.identity.Namespace, item.identity.Name)
+	accessor, err := gc.getMetadata(item.identity)
 	if err != nil {
 		return nil, err
 	}
@@ -149,7 +173,7 @@ func (n *node) unblockOwnerReferencesStrategicMergePatch() ([]byte, error) {
 // Generate a JSON merge patch that unsets the BlockOwnerDeletion field of all
 // ownerReferences of node.
 func (gc *GarbageCollector) unblockOwnerReferencesJSONMergePatch(n *node) ([]byte, error) {
-	accessor, err := gc.getMetadata(n.identity.APIVersion, n.identity.Kind, n.identity.Namespace, n.identity.Name)
+	accessor, err := gc.getMetadata(n.identity)
 	if err != nil {
 		return nil, err
 	}
