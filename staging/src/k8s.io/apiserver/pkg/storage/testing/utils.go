@@ -189,9 +189,9 @@ func testCheckResultWithIgnoreFunc(t *testing.T, w watch.Interface, expectedEven
 			} else {
 				t.Fatalf("cannot receive correct event, expect no event, but get a event: %+v", event)
 			}
-		case <-time.After(100 * time.Millisecond):
-			// wait 100ms forcibly in order to receive watchEvents including bookmark event.
-			// we cannot guarantee that we will receive all bookmark events within 100ms,
+		case <-time.After(150 * time.Millisecond):
+			// wait 150ms forcibly in order to receive watchEvents including bookmark event.
+			// we cannot guarantee that we will receive all bookmark events within 150ms,
 			// but too large timeout value will lead to exceed the timeout of package test.
 			if checkIndex < len(expectedEvents) {
 				t.Fatalf("cannot receive enough events within specific time, rest expected events: %+v", expectedEvents[checkIndex:])
