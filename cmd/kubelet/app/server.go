@@ -689,6 +689,12 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 		// make a separate client for events
 		eventClientConfig := *clientConfig
 		eventClientConfig.QPS = float32(s.EventRecordQPS)
+
+		// If the value of EventRecordQPS is 0, there is no limit enforced
+		if int(eventClientConfig.QPS) == 0 {
+			eventClientConfig.QPS = float32(-1)
+		}
+
 		eventClientConfig.Burst = int(s.EventBurst)
 		kubeDeps.EventClient, err = v1core.NewForConfig(&eventClientConfig)
 		if err != nil {
