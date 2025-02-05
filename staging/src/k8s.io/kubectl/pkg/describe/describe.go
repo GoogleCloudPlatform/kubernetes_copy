@@ -4425,22 +4425,22 @@ func DescribeEvents(el *corev1.EventList, w PrefixWriter) {
 
 // DeploymentDescriber generates information about a deployment.
 type DeploymentDescriber struct {
-	client clientset.Interface
+	clientset.Interface
 }
 
 func (dd *DeploymentDescriber) Describe(namespace, name string, describerSettings DescriberSettings) (string, error) {
-	d, err := dd.client.AppsV1().Deployments(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+	d, err := dd.AppsV1().Deployments(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 	if err != nil {
 		return "", err
 	}
 
 	var events *corev1.EventList
 	if describerSettings.ShowEvents {
-		events, _ = searchEvents(dd.client.CoreV1(), d, describerSettings.ChunkSize)
+		events, _ = searchEvents(dd.CoreV1(), d, describerSettings.ChunkSize)
 	}
 
 	var oldRSs, newRSs []*appsv1.ReplicaSet
-	if _, oldResult, newResult, err := deploymentutil.GetAllReplicaSetsInChunks(d, dd.client.AppsV1(), describerSettings.ChunkSize); err == nil {
+	if _, oldResult, newResult, err := deploymentutil.GetAllReplicaSetsInChunks(d, dd.AppsV1(), describerSettings.ChunkSize); err == nil {
 		oldRSs = oldResult
 		if newResult != nil {
 			newRSs = append(newRSs, newResult)
@@ -4449,7 +4449,6 @@ func (dd *DeploymentDescriber) Describe(namespace, name string, describerSetting
 
 	return describeDeployment(d, oldRSs, newRSs, events)
 }
-
 func describeDeployment(d *appsv1.Deployment, oldRSs []*appsv1.ReplicaSet, newRSs []*appsv1.ReplicaSet, events *corev1.EventList) (string, error) {
 	selector, err := metav1.LabelSelectorAsSelector(d.Spec.Selector)
 	if err != nil {
