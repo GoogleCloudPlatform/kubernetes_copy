@@ -56,9 +56,9 @@ const (
 type FailurePolicyType string
 
 const (
-	// Ignore means that an error calling the webhook is ignored.
+	// Ignore means that an error calling the admission webhook or admission policy is ignored.
 	Ignore FailurePolicyType = "Ignore"
-	// Fail means that an error calling the webhook causes the admission to fail.
+	// Fail means that an error calling the admission webhook or admission policy causes resource admission to fail.
 	Fail FailurePolicyType = "Fail"
 )
 
@@ -67,9 +67,11 @@ const (
 type MatchPolicyType string
 
 const (
-	// Exact means requests should only be sent to the webhook if they exactly match a given rule.
+	// Exact means requests should only be sent to the admission webhook or admission policy if they exactly match a given rule.
 	Exact MatchPolicyType = "Exact"
-	// Equivalent means requests should be sent to the webhook if they modify a resource listed in rules via another API group or version.
+	// Equivalent means requests should be sent to the admission webhook or admission policy if they modify a resource listed
+	// in rules via an equivalent API group or version. For example, `autoscaling/v1` and `autoscaling/v2`
+	// HorizontalPodAutoscalers are equivalent: the same set of resources appear via both APIs.
 	Equivalent MatchPolicyType = "Equivalent"
 )
 
@@ -577,9 +579,9 @@ type MatchResources struct {
 	// Default to the empty LabelSelector, which matches everything.
 	// +optional
 	NamespaceSelector *metav1.LabelSelector `json:"namespaceSelector,omitempty" protobuf:"bytes,1,opt,name=namespaceSelector"`
-	// ObjectSelector decides whether to run the validation based on if the
+	// ObjectSelector decides whether to run the policy based on if the
 	// object has matching labels. objectSelector is evaluated against both
-	// the oldObject and newObject that would be sent to the cel validation, and
+	// the oldObject and newObject that would be sent to the policy's expression (CEL), and
 	// is considered to match if either object matches the selector. A null
 	// object (oldObject in the case of create, or newObject in the case of
 	// delete) or an object that cannot have labels (like a
@@ -590,12 +592,12 @@ type MatchResources struct {
 	// Default to the empty LabelSelector, which matches everything.
 	// +optional
 	ObjectSelector *metav1.LabelSelector `json:"objectSelector,omitempty" protobuf:"bytes,2,opt,name=objectSelector"`
-	// ResourceRules describes what operations on what resources/subresources the ValidatingAdmissionPolicy matches.
+	// ResourceRules describes what operations on what resources/subresources the admission policy matches.
 	// The policy cares about an operation if it matches _any_ Rule.
 	// +listType=atomic
 	// +optional
 	ResourceRules []NamedRuleWithOperations `json:"resourceRules,omitempty" protobuf:"bytes,3,rep,name=resourceRules"`
-	// ExcludeResourceRules describes what operations on what resources/subresources the ValidatingAdmissionPolicy should not care about.
+	// ExcludeResourceRules describes what operations on what resources/subresources the policy should not care about.
 	// The exclude rules take precedence over include rules (if a resource matches both, it is excluded)
 	// +listType=atomic
 	// +optional
@@ -606,12 +608,13 @@ type MatchResources struct {
 	// - Exact: match a request only if it exactly matches a specified rule.
 	// For example, if deployments can be modified via apps/v1, apps/v1beta1, and extensions/v1beta1,
 	// but "rules" only included `apiGroups:["apps"], apiVersions:["v1"], resources: ["deployments"]`,
-	// a request to apps/v1beta1 or extensions/v1beta1 would not be sent to the ValidatingAdmissionPolicy.
+	// the admission policy does not consider requests to apps/v1beta1 or extensions/v1beta1 API groups.
 	//
 	// - Equivalent: match a request if modifies a resource listed in rules, even via another API group or version.
 	// For example, if deployments can be modified via apps/v1, apps/v1beta1, and extensions/v1beta1,
 	// and "rules" only included `apiGroups:["apps"], apiVersions:["v1"], resources: ["deployments"]`,
-	// a request to apps/v1beta1 or extensions/v1beta1 would be converted to apps/v1 and sent to the ValidatingAdmissionPolicy.
+	// the admission policy **does** consider requests made to apps/v1beta1 or extensions/v1beta1
+	// API groups. The API server translates the request to a matched resource API if necessary.
 	//
 	// Defaults to "Equivalent"
 	// +optional
