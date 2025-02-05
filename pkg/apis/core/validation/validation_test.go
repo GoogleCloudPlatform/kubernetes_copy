@@ -25863,16 +25863,6 @@ func TestValidatePodResize(t *testing.T) {
 			new:  mkPod(core.ResourceList{}, core.ResourceList{}),
 			err:  "Pod QOS Class may not change as a result of resizing",
 		}, {
-			test: "windows pod, no resource change",
-			old:  mkPod(core.ResourceList{}, getResources("100m", "0", "1Gi", ""), podtest.SetOS(core.Windows)),
-			new:  mkPod(core.ResourceList{}, getResources("100m", "0", "1Gi", ""), podtest.SetOS(core.Windows)),
-			err:  "Forbidden: windows pods cannot be resized",
-		}, {
-			test: "windows pod, resource change",
-			old:  mkPod(core.ResourceList{}, getResources("100m", "0", "1Gi", ""), podtest.SetOS(core.Windows)),
-			new:  mkPod(core.ResourceList{}, getResources("200m", "0", "1Gi", ""), podtest.SetOS(core.Windows)),
-			err:  "Forbidden: windows pods cannot be resized",
-		}, {
 			test: "Pod QoS unchanged, burstable -> burstable, remove cpu limit",
 			old:  mkPod(core.ResourceList{}, getResources("100m", "100Mi", "", "")),
 			new:  mkPod(core.ResourceList{}, getResources("", "100Mi", "", "")),

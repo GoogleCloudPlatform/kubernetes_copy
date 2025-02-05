@@ -5599,11 +5599,6 @@ func ValidatePodResize(newPod, oldPod *core.Pod, opts PodValidationOptions) fiel
 		return field.ErrorList{field.Forbidden(field.NewPath(""), "static pods cannot be resized")}
 	}
 
-	// windows pods are not supported.
-	if oldPod.Spec.OS != nil && oldPod.Spec.OS.Name == core.Windows {
-		return field.ErrorList{field.Forbidden(field.NewPath(""), "windows pods cannot be resized")}
-	}
-
 	// Part 2: Validate that the changes between oldPod.Spec.Containers[].Resources and
 	// newPod.Spec.Containers[].Resources are allowed.
 	specPath := field.NewPath("spec")

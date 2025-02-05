@@ -247,13 +247,10 @@ var (
 		topologymanager.ErrorTopologyAffinity,
 		nodeshutdown.NodeShutdownNotAdmittedReason,
 	)
-
-	// This is exposed for unit tests.
-	goos = sysruntime.GOOS
 )
 
 func getContainerEtcHostsPath() string {
-	if goos == "windows" {
+	if sysruntime.GOOS == "windows" {
 		return windowsEtcHostsPath
 	}
 	return linuxEtcHostsPath
@@ -662,7 +659,7 @@ func NewMainKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 	klet.mirrorPodClient = kubepod.NewBasicMirrorClient(klet.kubeClient, string(nodeName), nodeLister)
 	klet.podManager = kubepod.NewBasicPodManager()
 
-	klet.statusManager = status.NewManager(klet.kubeClient, klet.podManager, klet, kubeDeps.PodStartupLatencyTracker, klet.getRootDir())
+	klet.statusManager = status.NewManager(klet.kubeClient, klet.podManager, klet, kubeDeps.PodStartupLatencyTracker, klet.getPodStatusDir())
 
 	klet.resourceAnalyzer = serverstats.NewResourceAnalyzer(klet, kubeCfg.VolumeStatsAggPeriod.Duration, kubeDeps.Recorder)
 
@@ -972,7 +969,7 @@ func NewMainKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 		opt(klet)
 	}
 
-	if goos == "linux" {
+	if sysruntime.GOOS == "linux" {
 		// AppArmor is a Linux kernel security module and it does not support other operating systems.
 		klet.appArmorValidator = apparmor.NewValidator()
 		klet.admitHandlers.AddPodAdmitHandler(lifecycle.NewAppArmorAdmitHandler(klet.appArmorValidator))
@@ -1596,7 +1593,7 @@ func (kl *Kubelet) initializeModules(ctx context.Context) error {
 		}
 	}
 
-	if goos == "windows" {
+	if sysruntime.GOOS == "windows" {
 		// On Windows we should not allow other users to read the logs directory
 		// to avoid allowing non-root containers from reading the logs of other containers.
 		if err := utilfs.Chmod(ContainerLogsDir, 0750); err != nil {
@@ -2840,10 +2837,6 @@ func isPodResizeInProgress(pod *v1.Pod, podStatus *kubecontainer.PodStatus) bool
 // pod should hold the desired (pre-allocated) spec.
 // Returns true if the resize can proceed.
 func (kl *Kubelet) canResizePod(pod *v1.Pod) (bool, v1.PodResizeStatus, string) {
-	if goos == "windows" {
-		return false, v1.PodResizeStatusInfeasible, "Resizing Windows pods is not supported"
-	}
-
 	if v1qos.GetPodQOS(pod) == v1.PodQOSGuaranteed && !utilfeature.DefaultFeatureGate.Enabled(features.InPlacePodVerticalScalingExclusiveCPUs) {
 		if utilfeature.DefaultFeatureGate.Enabled(features.CPUManager) {
 			if kl.containerManager.GetNodeConfig().CPUManagerPolicy == "static" {
