@@ -38,6 +38,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/apiserver/pkg/server"
 	"k8s.io/apiserver/pkg/server/healthz"
 	"k8s.io/apiserver/pkg/server/mux"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
@@ -140,7 +141,16 @@ controller, and serviceaccounts controller.`,
 			// add feature enablement metrics
 			fg := s.ComponentGlobalsRegistry.FeatureGateFor(featuregate.DefaultKubeComponent)
 			fg.(featuregate.MutableFeatureGate).AddMetrics()
-			return Run(context.Background(), c.Complete())
+
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			go func() {
+				stopCh := server.SetupSignalHandler()
+				<-stopCh
+				cancel()
+			}()
+
+			return Run(ctx, c.Complete())
 		},
 		Args: func(cmd *cobra.Command, args []string) error {
 			for _, arg := range args {
@@ -874,14 +884,15 @@ func leaderElectAndRun(ctx context.Context, c *config.CompletedConfig, lockIdent
 	}
 
 	leaderelection.RunOrDie(ctx, leaderelection.LeaderElectionConfig{
-		Lock:          rl,
-		LeaseDuration: c.ComponentConfig.Generic.LeaderElection.LeaseDuration.Duration,
-		RenewDeadline: c.ComponentConfig.Generic.LeaderElection.RenewDeadline.Duration,
-		RetryPeriod:   c.ComponentConfig.Generic.LeaderElection.RetryPeriod.Duration,
-		Callbacks:     callbacks,
-		WatchDog:      electionChecker,
-		Name:          leaseName,
-		Coordinated:   utilfeature.DefaultFeatureGate.Enabled(kubefeatures.CoordinatedLeaderElection),
+		Lock:            rl,
+		LeaseDuration:   c.ComponentConfig.Generic.LeaderElection.LeaseDuration.Duration,
+		RenewDeadline:   c.ComponentConfig.Generic.LeaderElection.RenewDeadline.Duration,
+		RetryPeriod:     c.ComponentConfig.Generic.LeaderElection.RetryPeriod.Duration,
+		ReleaseOnCancel: true,
+		Callbacks:       callbacks,
+		WatchDog:        electionChecker,
+		Name:            leaseName,
+		Coordinated:     utilfeature.DefaultFeatureGate.Enabled(kubefeatures.CoordinatedLeaderElection),
 	})
 
 	panic("unreachable")
