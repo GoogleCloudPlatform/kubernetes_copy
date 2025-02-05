@@ -55,6 +55,8 @@ type podContainerManagerImpl struct {
 	// cpuCFSQuotaPeriod is the cfs period value, cfs_period_us, setting per
 	// node for all containers in usec
 	cpuCFSQuotaPeriod uint64
+	// podContainerManager is the ContainerManager running on the machine
+	podContainerManager ContainerManager
 }
 
 // Make sure that podContainerManagerImpl implements the PodContainerManager interface
@@ -73,6 +75,11 @@ func (m *podContainerManagerImpl) EnsureExists(pod *v1.Pod) error {
 	// check if container already exist
 	alreadyExists := m.Exists(pod)
 	if !alreadyExists {
+		enforceCPULimits := m.enforceCPULimits
+		if utilfeature.DefaultFeatureGate.Enabled(kubefeatures.DisableCPUQuotaWithExclusiveCPUs) && m.podContainerManager.PodHasExclusiveCPUs(pod) {
+			klog.V(2).InfoS("Disabled CFS quota", "pod", klog.KObj(pod))
+			enforceCPULimits = false
+		}
 		enforceMemoryQoS := false
 		if utilfeature.DefaultFeatureGate.Enabled(kubefeatures.MemoryQoS) &&
 			libcontainercgroups.IsCgroup2UnifiedMode() {
@@ -82,7 +89,7 @@ func (m *podContainerManagerImpl) EnsureExists(pod *v1.Pod) error {
 		podContainerName, _ := m.GetPodContainerName(pod)
 		containerConfig := &CgroupConfig{
 			Name:               podContainerName,
-			ResourceParameters: ResourceConfigForPod(pod, m.enforceCPULimits, m.cpuCFSQuotaPeriod, enforceMemoryQoS),
+			ResourceParameters: ResourceConfigForPod(pod, enforceCPULimits, m.cpuCFSQuotaPeriod, enforceMemoryQoS),
 		}
 		if m.podPidsLimit > 0 {
 			containerConfig.ResourceParameters.PidsLimit = &m.podPidsLimit

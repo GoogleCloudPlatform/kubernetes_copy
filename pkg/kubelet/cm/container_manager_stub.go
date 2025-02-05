@@ -195,6 +195,14 @@ func (cm *containerManagerStub) Updates() <-chan resourceupdates.Update {
 	return nil
 }
 
+func (cm *containerManagerStub) PodHasExclusiveCPUs(pod *v1.Pod) bool {
+	return false
+}
+
+func (cm *containerManagerStub) ContainerHasExclusiveCPUs(pod *v1.Pod, container *v1.Container) bool {
+	return false
+}
+
 func NewStubContainerManager() ContainerManager {
 	return &containerManagerStub{shouldResetExtendedResourceCapacity: false}
 }

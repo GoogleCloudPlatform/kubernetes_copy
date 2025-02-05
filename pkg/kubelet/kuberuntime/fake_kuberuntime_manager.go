@@ -108,6 +108,7 @@ func newFakeKubeRuntimeManager(runtimeService internalapi.RuntimeService, imageS
 		startupManager:         proberesults.NewManager(),
 		machineInfo:            machineInfo,
 		osInterface:            osInterface,
+		containerManager:       cm.NewFakeContainerManager(),
 		runtimeHelper:          runtimeHelper,
 		runtimeService:         runtimeService,
 		imageService:           imageService,
