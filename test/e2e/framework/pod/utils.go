@@ -305,5 +305,8 @@ func IsPodOnCgroupv2Node(f *framework.Framework, pod *v1.Pod) bool {
 	if err != nil {
 		return false
 	}
-	return len(out) != 0
+	// Some tests mount host cgroup using HostPath for verifying pod cgroup values.
+	// In this case, "<mount path>/unified" is detected by "mount -t cgroup2" if cgroup hybrid mode is configured on the host.
+	// So, we need to see if "/sys/fs/cgroup" is contained in the output.
+	return strings.Contains(out, "/sys/fs/cgroup")
 }
