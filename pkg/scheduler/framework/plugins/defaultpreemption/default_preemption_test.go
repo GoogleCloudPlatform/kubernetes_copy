@@ -57,12 +57,10 @@ import (
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/defaultbinder"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/feature"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/interpodaffinity"
-	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/names"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/noderesources"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/podtopologyspread"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/queuesort"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/tainttoleration"
-	"k8s.io/kubernetes/pkg/scheduler/framework/preemption"
 	frameworkruntime "k8s.io/kubernetes/pkg/scheduler/framework/runtime"
 	"k8s.io/kubernetes/pkg/scheduler/metrics"
 	st "k8s.io/kubernetes/pkg/scheduler/testing"
@@ -433,13 +431,14 @@ func TestPostFilter(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			p := DefaultPreemption{
-				fh:        f,
-				podLister: informerFactory.Core().V1().Pods().Lister(),
-				pdbLister: getPDBLister(informerFactory),
-				args:      *getDefaultDefaultPreemptionArgs(),
+			pi, err := New(context.Background(), getDefaultDefaultPreemptionArgs(), f, feature.Features{})
+			if err != nil {
+				t.Fatal(err)
 			}
-			p.Evaluator = preemption.NewEvaluator(names.DefaultPreemption, f, &p, false)
+			p, ok := pi.(*DefaultPreemption)
+			if !ok {
+				t.Fatal("Unable to cast to DefaultPreemption")
+			}
 
 			state := framework.NewCycleState()
 			// Ensure <state> is populated.
@@ -1187,11 +1186,13 @@ func TestDryRunPreemption(t *testing.T) {
 			if tt.args == nil {
 				tt.args = getDefaultDefaultPreemptionArgs()
 			}
-			pl := &DefaultPreemption{
-				fh:        fwk,
-				podLister: informerFactory.Core().V1().Pods().Lister(),
-				pdbLister: getPDBLister(informerFactory),
-				args:      *tt.args,
+			pi, err := New(context.Background(), tt.args, fwk, feature.Features{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			pl, ok := pi.(*DefaultPreemption)
+			if !ok {
+				t.Fatal("Unable to cast to DefaultPreemption")
 			}
 
 			// Using 4 as a seed source to test getOffsetAndNumCandidates() deterministically.
@@ -1205,15 +1206,8 @@ func TestDryRunPreemption(t *testing.T) {
 				if _, status, _ := fwk.RunPreFilterPlugins(ctx, state, pod); !status.IsSuccess() {
 					t.Errorf("cycle %d: Unexpected PreFilter Status: %v", cycle, status)
 				}
-				pe := preemption.Evaluator{
-					PluginName: names.DefaultPreemption,
-					Handler:    pl.fh,
-					PodLister:  pl.podLister,
-					PdbLister:  pl.pdbLister,
-					Interface:  pl,
-				}
 				offset, numCandidates := pl.GetOffsetAndNumCandidates(int32(len(nodeInfos)))
-				got, _, _ := pe.DryRunPreemption(ctx, state, pod, nodeInfos, tt.pdbs, offset, numCandidates)
+				got, _, _ := pl.Evaluator.DryRunPreemption(ctx, state, pod, nodeInfos, tt.pdbs, offset, numCandidates)
 				// Sort the values (inner victims) and the candidate itself (by its NominatedNodeName).
 				for i := range got {
 					victims := got[i].Victims().Pods
@@ -1423,6 +1417,7 @@ func TestSelectBestCandidate(t *testing.T) {
 				"",
 				frameworkruntime.WithPodNominator(internalqueue.NewSchedulingQueue(nil, informerFactory)),
 				frameworkruntime.WithSnapshotSharedLister(snapshot),
+				frameworkruntime.WithInformerFactory(informerFactory),
 				frameworkruntime.WithLogger(logger),
 			)
 			if err != nil {
@@ -1439,22 +1434,17 @@ func TestSelectBestCandidate(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			pl := &DefaultPreemption{
-				fh:        fwk,
-				podLister: informerFactory.Core().V1().Pods().Lister(),
-				pdbLister: getPDBLister(informerFactory),
-				args:      *getDefaultDefaultPreemptionArgs(),
+			pi, err := New(context.Background(), getDefaultDefaultPreemptionArgs(), fwk, feature.Features{})
+			if err != nil {
+				t.Fatal(err)
 			}
-			pe := preemption.Evaluator{
-				PluginName: names.DefaultPreemption,
-				Handler:    pl.fh,
-				PodLister:  pl.podLister,
-				PdbLister:  pl.pdbLister,
-				Interface:  pl,
+			pl, ok := pi.(*DefaultPreemption)
+			if !ok {
+				t.Fatal("Unable to cast to DefaultPreemption")
 			}
 			offset, numCandidates := pl.GetOffsetAndNumCandidates(int32(len(nodeInfos)))
-			candidates, _, _ := pe.DryRunPreemption(ctx, state, tt.pod, nodeInfos, nil, offset, numCandidates)
-			s := pe.SelectCandidate(ctx, candidates)
+			candidates, _, _ := pl.Evaluator.DryRunPreemption(ctx, state, tt.pod, nodeInfos, nil, offset, numCandidates)
+			s := pl.Evaluator.SelectCandidate(ctx, candidates)
 			if s == nil || len(s.Name()) == 0 {
 				return
 			}
@@ -1532,18 +1522,33 @@ func TestPodEligibleToPreemptOthers(t *testing.T) {
 			for _, n := range test.nodes {
 				nodes = append(nodes, st.MakeNode().Name(n).Obj())
 			}
+			var pods []runtime.Object
+			pods = append(pods, test.pod)
+			for _, pod := range test.pods {
+				pods = append(pods, pod)
+			}
+			cs := clientsetfake.NewClientset(pods...)
+			informerFactory := informers.NewSharedInformerFactory(cs, 0)
 			registeredPlugins := []tf.RegisterPluginFunc{
 				tf.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
 				tf.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 			}
 			f, err := tf.NewFramework(ctx, registeredPlugins, "",
 				frameworkruntime.WithSnapshotSharedLister(internalcache.NewSnapshot(test.pods, nodes)),
+				frameworkruntime.WithInformerFactory(informerFactory),
 				frameworkruntime.WithLogger(logger),
 			)
 			if err != nil {
 				t.Fatal(err)
 			}
-			pl := DefaultPreemption{fh: f, fts: test.fts}
+			pi, err := New(context.Background(), getDefaultDefaultPreemptionArgs(), f, feature.Features{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			pl, ok := pi.(*DefaultPreemption)
+			if !ok {
+				t.Fatal("Unable to cast to DefaultPreemption")
+			}
 			if got, _ := pl.PodEligibleToPreemptOthers(ctx, test.pod, test.nominatedNodeStatus); got != test.expected {
 				t.Errorf("expected %t, got %t for pod: %s", test.expected, got, test.pod.Name)
 			}
@@ -1843,14 +1848,17 @@ func TestPreempt(t *testing.T) {
 					t.Errorf("Unexpected preFilterStatus: %v", s)
 				}
 				// Call preempt and check the expected results.
-				pl := DefaultPreemption{
-					fh:        fwk,
-					podLister: informerFactory.Core().V1().Pods().Lister(),
-					pdbLister: getPDBLister(informerFactory),
-					args:      *getDefaultDefaultPreemptionArgs(),
+				features := feature.Features{
+					EnableAsyncPreemption: asyncPreemptionEnabled,
 				}
-
-				pe := preemption.NewEvaluator(names.DefaultPreemption, pl.fh, &pl, asyncPreemptionEnabled)
+				pi, err := New(context.Background(), getDefaultDefaultPreemptionArgs(), fwk, features)
+				if err != nil {
+					t.Fatal(err)
+				}
+				pl, ok := pi.(*DefaultPreemption)
+				if !ok {
+					t.Fatal("Unable to cast to DefaultPreemption")
+				}
 
 				// so that these nodes are eligible for preemption, we set their status
 				// to Unschedulable.
@@ -1860,7 +1868,7 @@ func TestPreempt(t *testing.T) {
 					nodeToStatusMap.Set(n.Name, framework.NewStatus(framework.Unschedulable))
 				}
 
-				res, status := pe.Preempt(ctx, state, testPod, nodeToStatusMap)
+				res, status := pl.Evaluator.Preempt(ctx, state, testPod, nodeToStatusMap)
 				if !status.IsSuccess() && !status.IsRejected() {
 					t.Errorf("unexpected error in preemption: %v", status.AsError())
 				}
@@ -1933,7 +1941,7 @@ func TestPreempt(t *testing.T) {
 				mu.RUnlock()
 
 				// Call preempt again and make sure it doesn't preempt any more pods.
-				res, status = pe.Preempt(ctx, state, testPod, framework.NewDefaultNodeToStatus())
+				res, status = pl.Evaluator.Preempt(ctx, state, testPod, framework.NewDefaultNodeToStatus())
 				if !status.IsSuccess() && !status.IsRejected() {
 					t.Errorf("unexpected error in preemption: %v", status.AsError())
 				}

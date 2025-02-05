@@ -82,9 +82,8 @@ func GetEarliestPodStartTime(victims *extenderv1.Victims) *metav1.Time {
 }
 
 // MoreImportantPod return true when priority of the first pod is higher than
-// the second one. If two pods' priorities are equal, compare their StartTime.
-// It takes arguments of the type "interface{}" to be used with SortableList,
-// but expects those arguments to be *v1.Pod.
+// the second one. If two pods' priorities are equal, compare their StartTime,
+// treating the older pod as more important.
 func MoreImportantPod(pod1, pod2 *v1.Pod) bool {
 	p1 := corev1helpers.PodPriority(pod1)
 	p2 := corev1helpers.PodPriority(pod2)
