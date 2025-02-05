@@ -65,7 +65,7 @@ const (
 	// ErrReasonBindConflict is used for VolumeBindingNoMatch predicate error.
 	ErrReasonBindConflict ConflictReason = "node(s) didn't find available persistent volumes to bind"
 	// ErrReasonNodeConflict is used for VolumeNodeAffinityConflict predicate error.
-	ErrReasonNodeConflict ConflictReason = "node(s) had volume node affinity conflict"
+	ErrReasonNodeConflict ConflictReason = "node(s) didn't match PersistentVolume's node affinity/selector"
 	// ErrReasonNotEnoughSpace is used when a pod cannot start on a node because not enough storage space is available.
 	ErrReasonNotEnoughSpace = "node(s) did not have enough free storage"
 	// ErrReasonPVNotExist is used when a pod has one or more PVC(s) bound to non-existent persistent volume(s)"
