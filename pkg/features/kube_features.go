@@ -205,7 +205,6 @@ const (
 
 	// owner: @HirazawaUi
 	// kep: http://kep.k8s.io/4004
-	// Deprecated: v1.31 (default off)
 	//
 	// DisableNodeKubeProxyVersion disable the status.nodeInfo.kubeProxyVersion field of v1.Node
 	DisableNodeKubeProxyVersion featuregate.Feature = "DisableNodeKubeProxyVersion"

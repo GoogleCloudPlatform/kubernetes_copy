@@ -182,6 +182,7 @@ var defaultVersionedKubernetesFeatureGates = map[featuregate.Feature]featuregate
 	DisableNodeKubeProxyVersion: {
 		{Version: version.MustParse("1.29"), Default: false, PreRelease: featuregate.Alpha},
 		{Version: version.MustParse("1.31"), Default: false, PreRelease: featuregate.Deprecated},
+		{Version: version.MustParse("1.33"), Default: true, PreRelease: featuregate.Deprecated}, // remove in 1.35
 	},
 
 	DRAAdminAccess: {
