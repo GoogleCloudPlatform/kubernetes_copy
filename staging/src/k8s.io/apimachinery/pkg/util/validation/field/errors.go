@@ -321,3 +321,66 @@ func (list ErrorList) Filter(fns ...utilerrors.Matcher) ErrorList {
 	// FilterOut takes an Aggregate and returns an Aggregate
 	return fromAggregate(err.(utilerrors.Aggregate))
 }
+
+// renderedVal is an already-rendered value.
+type renderedVal string
+
+// render renders any value for inclusion in an error message.  If the input is
+// already rendered, it is returned directly.
+func render(val interface{}) renderedVal {
+	if r, ok := val.(renderedVal); ok {
+		return r
+	}
+	return renderedVal(fmt.Sprintf("%#v", val))
+}
+
+// specified indicates that a field was specified, regardless of the value.
+const specified = renderedVal("specified")
+
+// Not renders the negation of any value for inclusion in an error message.
+func Not(val interface{}) renderedVal {
+	return renderedVal(fmt.Sprintf("not %v", render(val)))
+}
+
+// IncompatibleWith returns a *Error indicating that a field is incompatible
+// with another field being specified.  The value of the other field is not
+// considered.
+func IncompatibleWith(field *Path, other *Path, value interface{}) *Error {
+	return IncompatibleWithValue(field, other, value, specified)
+}
+
+// DependsOn returns a *Error indicating that a field depends on another
+// field being specified.  The value of the other field is not considered.
+func DependsOn(field *Path, other *Path) *Error {
+	return DependsOnValue(field, other, specified)
+}
+
+// RequiredWhen returns a *Error indicating that a field is required when
+// another field is specified.  The value of the other field is not considered.
+func RequiredWhen(field *Path, other *Path) *Error {
+	return RequiredWhenValue(field, other, specified)
+}
+
+// IncompatibleWithValue returns a *Error indicating that a field is
+// incompatible with a specific value of another field.
+func IncompatibleWithValue(field *Path, other *Path, value interface{}, otherValue interface{}) *Error {
+	rov := render(otherValue)
+	detail := fmt.Sprintf("may not be specified when %v is %s", other.String(), rov)
+	return &Error{ErrorTypeInvalid, field.String(), value, detail}
+}
+
+// DependsOnValue returns a *Error indicating that a field depends on a
+// specific value of another field.
+func DependsOnValue(field *Path, other *Path, otherValue interface{}) *Error {
+	rov := render(otherValue)
+	detail := fmt.Sprintf("may only be specified when %s is %s", other.String(), rov)
+	return &Error{ErrorTypeForbidden, field.String(), "", detail}
+}
+
+// RequiredWhenValue returns a *Error indicating that a field is required due
+// to a specific value of another field.
+func RequiredWhenValue(field *Path, other *Path, otherValue interface{}) *Error {
+	rov := render(otherValue)
+	detail := fmt.Sprintf("must be specified when %s is %s", other.String(), rov)
+	return &Error{ErrorTypeRequired, field.String(), "", detail}
+}

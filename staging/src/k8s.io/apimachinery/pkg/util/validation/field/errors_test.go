@@ -173,3 +173,104 @@ func TestNotSupported(t *testing.T) {
 		t.Errorf("Expected: %s\n, but got: %s\n", expected, notSupported.ErrorBody())
 	}
 }
+
+func TestRender(t *testing.T) {
+	testCases := []struct {
+		name     string
+		input    interface{}
+		expected renderedVal
+	}{
+		{
+			name:     "string value",
+			input:    "test",
+			expected: `"test"`,
+		},
+		{
+			name:     "integer value",
+			input:    42,
+			expected: "42",
+		},
+		{
+			name:     "boolean value",
+			input:    true,
+			expected: "true",
+		},
+		{
+			name:     "nil value",
+			input:    nil,
+			expected: "<nil>",
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			result := render(testCase.input)
+			if testCase.expected != result {
+				t.Errorf("Expected %s\n but got: %s\n", testCase.expected, result)
+			}
+		})
+	}
+}
+
+func TestNot(t *testing.T) {
+	testCases := []struct {
+		name     string
+		input    interface{}
+		expected renderedVal
+	}{
+		{
+			name:     "string value",
+			input:    "test",
+			expected: `not "test"`,
+		},
+		{
+			name:     "integer value",
+			input:    42,
+			expected: "not 42",
+		},
+		{
+			name:     "boolean value",
+			input:    true,
+			expected: "not true",
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			result := Not(testCase.input)
+			if testCase.expected != result {
+				t.Errorf("Expected %s\n but got: %s\n", testCase.expected, result)
+			}
+		})
+	}
+}
+
+func TestDependsOn(t *testing.T) {
+	dependsOn := DependsOn(NewPath("f"), NewPath("o"))
+	expected := `Forbidden: may only be specified when o is specified`
+	if dependsOn.ErrorBody() != expected {
+		t.Errorf("Expected: %s\n, but got: %s\n", expected, dependsOn.ErrorBody())
+	}
+}
+
+func TestDependsOnValue(t *testing.T) {
+	dependsOnValue := DependsOnValue(NewPath("f"), NewPath("o"), renderedVal("specified"))
+	expected := `Forbidden: may only be specified when o is specified`
+	if dependsOnValue.ErrorBody() != expected {
+		t.Errorf("Expected: %s\n, but got: %s\n", expected, dependsOnValue.ErrorBody())
+	}
+}
+
+func TestRequiredWhen(t *testing.T) {
+	requiredwhen := RequiredWhen(NewPath("f"), NewPath("o"))
+	expected := "Required value: must be specified when o is specified"
+	if requiredwhen.ErrorBody() != expected {
+		t.Errorf("Expected: %s\n, but got: %s\n", expected, requiredwhen.ErrorBody())
+	}
+}
+
+func TestRequiredWhenValue(t *testing.T) {
+	requiredWhenValue := RequiredWhenValue(NewPath("f"), NewPath("o"), "v")
+	expected := `Required value: must be specified when o is "v"`
+	if requiredWhenValue.ErrorBody() != expected {
+		t.Errorf("Expected: %s\n, but got: %s\n", expected, requiredWhenValue.ErrorBody())
+	}
+}
