@@ -154,7 +154,7 @@ func RunRemote(cfg RunRemoteConfig) (string, bool, error) {
 	}
 
 	allGinkgoFlags := cfg.GinkgoArgs
-	if !strings.Contains(allGinkgoFlags, "--timeout") {
+	if !strings.Contains(allGinkgoFlags, "-timeout") {
 		klog.Warningf("ginkgo flags are missing explicit --timeout (ginkgo defaults to 60 minutes)")
 		// see https://github.com/onsi/ginkgo/blob/master/docs/index.md#:~:text=ginkgo%20%2D%2Dtimeout%3Dduration
 		// ginkgo suite timeout should be more than the default but less than the
