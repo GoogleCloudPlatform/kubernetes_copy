@@ -10410,13 +10410,23 @@ func TestValidatePod(t *testing.T) {
 					NodeAffinity: &core.NodeAffinity{
 						RequiredDuringSchedulingIgnoredDuringExecution: &core.NodeSelector{
 							NodeSelectorTerms: []core.NodeSelectorTerm{{
-								MatchExpressions: []core.NodeSelectorRequirement{},
+								MatchExpressions: []core.NodeSelectorRequirement{
+									{
+										Key:      "key1",
+										Operator: core.NodeSelectorOpExists,
+									},
+								},
 							}},
 						},
 						PreferredDuringSchedulingIgnoredDuringExecution: []core.PreferredSchedulingTerm{{
 							Weight: 10,
 							Preference: core.NodeSelectorTerm{
-								MatchExpressions: []core.NodeSelectorRequirement{},
+								MatchExpressions: []core.NodeSelectorRequirement{
+									{
+										Key:      "key1",
+										Operator: core.NodeSelectorOpExists,
+									},
+								},
 							},
 						}},
 					},
@@ -11134,13 +11144,152 @@ func TestValidatePod(t *testing.T) {
 			),
 		},
 		"invalid requiredDuringSchedulingIgnoredDuringExecution node selector, nodeSelectorTerms must have at least one term": {
-			expectedError: "spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms",
+			expectedError: "must have at least one node selector term",
 			spec: *podtest.MakePod("123",
 				podtest.SetAffinity(&core.Affinity{
 					NodeAffinity: &core.NodeAffinity{
 						RequiredDuringSchedulingIgnoredDuringExecution: &core.NodeSelector{
 							NodeSelectorTerms: []core.NodeSelectorTerm{},
 						},
+					},
+				}),
+			),
+		},
+		"invalid requiredDuringSchedulingIgnoredDuringExecution node selector, nodeSelectorTerms must have at least one term 2": {
+			expectedError: "must have at least one node selector term",
+			spec: *podtest.MakePod("123",
+				podtest.SetAffinity(&core.Affinity{
+					NodeAffinity: &core.NodeAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: &core.NodeSelector{
+							NodeSelectorTerms: []core.NodeSelectorTerm{
+								{
+									MatchExpressions: []core.NodeSelectorRequirement{},
+								},
+							},
+						},
+					},
+				}),
+			),
+		},
+		"invalid requiredDuringSchedulingIgnoredDuringExecution node selector, nodeSelectorTerms must have at least one term 3": {
+			expectedError: "must have at least one node selector term",
+			spec: *podtest.MakePod("123",
+				podtest.SetAffinity(&core.Affinity{
+					NodeAffinity: &core.NodeAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: &core.NodeSelector{
+							NodeSelectorTerms: []core.NodeSelectorTerm{
+								{
+									MatchExpressions: []core.NodeSelectorRequirement{},
+									MatchFields:      []core.NodeSelectorRequirement{},
+								},
+							},
+						},
+					},
+				}),
+			),
+		},
+		"invalid requiredDuringSchedulingIgnoredDuringExecution node selector, nodeSelectorTerms must have at least one term 4": {
+			expectedError: "must have at least one node selector term",
+			spec: *podtest.MakePod("123",
+				podtest.SetAffinity(&core.Affinity{
+					NodeAffinity: &core.NodeAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: &core.NodeSelector{
+							NodeSelectorTerms: []core.NodeSelectorTerm{},
+						},
+						PreferredDuringSchedulingIgnoredDuringExecution: []core.PreferredSchedulingTerm{{
+							Weight:     10,
+							Preference: core.NodeSelectorTerm{},
+						}},
+					},
+				}),
+			),
+		},
+		"invalid requiredDuringSchedulingIgnoredDuringExecution node selector, nodeSelectorTerms must have at least one term 5": {
+			expectedError: "must have at least one node selector term",
+			spec: *podtest.MakePod("123",
+				podtest.SetAffinity(&core.Affinity{
+					NodeAffinity: &core.NodeAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: &core.NodeSelector{
+							NodeSelectorTerms: []core.NodeSelectorTerm{
+								{
+									MatchExpressions: []core.NodeSelectorRequirement{},
+								},
+							},
+						},
+						PreferredDuringSchedulingIgnoredDuringExecution: []core.PreferredSchedulingTerm{{
+							Weight: 10,
+							Preference: core.NodeSelectorTerm{
+								MatchExpressions: []core.NodeSelectorRequirement{},
+							},
+						}},
+					},
+				}),
+			),
+		},
+		"invalid requiredDuringSchedulingIgnoredDuringExecution node selector, nodeSelectorTerms must have at least one term 6": {
+			expectedError: "must have at least one node selector term",
+			spec: *podtest.MakePod("123",
+				podtest.SetAffinity(&core.Affinity{
+					NodeAffinity: &core.NodeAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: &core.NodeSelector{
+							NodeSelectorTerms: []core.NodeSelectorTerm{
+								{
+									MatchExpressions: []core.NodeSelectorRequirement{},
+									MatchFields:      []core.NodeSelectorRequirement{},
+								},
+							},
+						},
+						PreferredDuringSchedulingIgnoredDuringExecution: []core.PreferredSchedulingTerm{{
+							Weight: 10,
+							Preference: core.NodeSelectorTerm{
+								MatchExpressions: []core.NodeSelectorRequirement{},
+								MatchFields:      []core.NodeSelectorRequirement{},
+							},
+						}},
+					},
+				}),
+			),
+		},
+		"invalid preferredDuringSchedulingIgnoredDuringExecution node selector, nodeSelectorTerms must have at least one term": {
+			expectedError: "must have at least one node selector term",
+			spec: *podtest.MakePod("123",
+				podtest.SetAffinity(&core.Affinity{
+					NodeAffinity: &core.NodeAffinity{
+						PreferredDuringSchedulingIgnoredDuringExecution: []core.PreferredSchedulingTerm{{
+							Weight:     10,
+							Preference: core.NodeSelectorTerm{},
+						}},
+					},
+				}),
+			),
+		},
+		"invalid preferredDuringSchedulingIgnoredDuringExecution node selector, nodeSelectorTerms must have at least one term 2": {
+			expectedError: "must have at least one node selector term",
+			spec: *podtest.MakePod("123",
+				podtest.SetAffinity(&core.Affinity{
+					NodeAffinity: &core.NodeAffinity{
+						PreferredDuringSchedulingIgnoredDuringExecution: []core.PreferredSchedulingTerm{{
+							Weight: 10,
+							Preference: core.NodeSelectorTerm{
+								MatchExpressions: []core.NodeSelectorRequirement{},
+							},
+						}},
+					},
+				}),
+			),
+		},
+		"invalid preferredDuringSchedulingIgnoredDuringExecution node selector, nodeSelectorTerms must have at least one term 3": {
+			expectedError: "must have at least one node selector term",
+			spec: *podtest.MakePod("123",
+				podtest.SetAffinity(&core.Affinity{
+					NodeAffinity: &core.NodeAffinity{
+						PreferredDuringSchedulingIgnoredDuringExecution: []core.PreferredSchedulingTerm{{
+							Weight: 10,
+							Preference: core.NodeSelectorTerm{
+								MatchExpressions: []core.NodeSelectorRequirement{},
+								MatchFields:      []core.NodeSelectorRequirement{},
+							},
+						}},
 					},
 				}),
 			),
