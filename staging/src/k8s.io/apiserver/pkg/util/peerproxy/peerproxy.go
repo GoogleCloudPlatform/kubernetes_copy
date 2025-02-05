@@ -18,13 +18,18 @@ package peerproxy
 
 import (
 	"net/http"
-	"sync"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	schema "k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apiserver/pkg/reconcilers"
-	"k8s.io/apiserver/pkg/storageversion"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/transport"
+
+	apidiscoveryv2 "k8s.io/api/apidiscovery/v2"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	kubeinformers "k8s.io/client-go/informers"
-	"k8s.io/client-go/tools/cache"
 )
 
 // Interface defines how the Unknown Version Proxy filter interacts with the underlying system.
@@ -36,32 +41,26 @@ type Interface interface {
 
 // New creates a new instance to implement unknown version proxy
 func NewPeerProxyHandler(informerFactory kubeinformers.SharedInformerFactory,
-	svm storageversion.Manager,
-	proxyTransport http.RoundTripper,
 	serverId string,
 	reconciler reconcilers.PeerEndpointLeaseReconciler,
-	serializer runtime.NegotiatedSerializer) *peerProxyHandler {
+	ser runtime.NegotiatedSerializer,
+	loopbackClientConfig *rest.Config,
+	proxyClientConfig *transport.Config) *peerProxyHandler {
 	h := &peerProxyHandler{
-		name:                  "PeerProxyHandler",
-		storageversionManager: svm,
-		proxyTransport:        proxyTransport,
-		svMap:                 sync.Map{},
-		serverId:              serverId,
-		reconciler:            reconciler,
-		serializer:            serializer,
+		name:                        "PeerProxyHandler",
+		serverId:                    serverId,
+		reconciler:                  reconciler,
+		serializer:                  ser,
+		loopbackClientConfig:        loopbackClientConfig,
+		proxyClientConfig:           proxyClientConfig,
+		localDiscoveryResponseCache: make(map[schema.GroupVersion][]metav1.APIResource),
 	}
-	svi := informerFactory.Internal().V1alpha1().StorageVersions()
-	h.storageversionInformer = svi.Informer()
 
-	svi.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
-			h.addSV(obj)
-		},
-		UpdateFunc: func(oldObj, newObj interface{}) {
-			h.updateSV(oldObj, newObj)
-		},
-		DeleteFunc: func(obj interface{}) {
-			h.deleteSV(obj)
-		}})
+	h.apiserverIdentityInformer = informerFactory.Coordination().V1().Leases().Informer()
+	h.apiserverIdentityLister = informerFactory.Coordination().V1().Leases().Lister()
+	discoveryScheme := runtime.NewScheme()
+	utilruntime.Must(apidiscoveryv2.AddToScheme(discoveryScheme))
+	h.discoverySerializer = serializer.NewCodecFactory(discoveryScheme)
+
 	return h
 }

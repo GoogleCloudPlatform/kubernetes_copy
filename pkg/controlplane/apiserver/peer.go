@@ -26,11 +26,10 @@ import (
 	"k8s.io/apiserver/pkg/reconcilers"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	serverstorage "k8s.io/apiserver/pkg/server/storage"
-	"k8s.io/apiserver/pkg/storageversion"
 	utilpeerproxy "k8s.io/apiserver/pkg/util/peerproxy"
 	clientgoinformers "k8s.io/client-go/informers"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/transport"
-	"k8s.io/klog/v2"
 	api "k8s.io/kubernetes/pkg/apis/core"
 )
 
@@ -43,7 +42,7 @@ const (
 	DefaultPeerEndpointReconcilerTTL = 15 * time.Second
 )
 
-func BuildPeerProxy(versionedInformer clientgoinformers.SharedInformerFactory, svm storageversion.Manager,
+func BuildPeerProxy(versionedInformer clientgoinformers.SharedInformerFactory, loopbackClientConfig *rest.Config,
 	proxyClientCertFile string, proxyClientKeyFile string, peerCAFile string, peerAdvertiseAddress reconcilers.PeerAdvertiseAddress,
 	apiServerID string, reconciler reconcilers.PeerEndpointLeaseReconciler, serializer runtime.NegotiatedSerializer) (utilpeerproxy.Interface, error) {
 	if proxyClientCertFile == "" {
@@ -52,8 +51,8 @@ func BuildPeerProxy(versionedInformer clientgoinformers.SharedInformerFactory, s
 	if proxyClientKeyFile == "" {
 		return nil, fmt.Errorf("error building peer proxy handler, proxy-key-file not specified")
 	}
-	// create proxy client config
-	clientConfig := &transport.Config{
+
+	proxyClientConfig := &transport.Config{
 		TLS: transport.TLSConfig{
 			Insecure:   false,
 			CertFile:   proxyClientCertFile,
@@ -62,19 +61,13 @@ func BuildPeerProxy(versionedInformer clientgoinformers.SharedInformerFactory, s
 			ServerName: "kubernetes.default.svc",
 		}}
 
-	// build proxy transport
-	proxyRoundTripper, transportBuildingError := transport.New(clientConfig)
-	if transportBuildingError != nil {
-		klog.Error(transportBuildingError.Error())
-		return nil, transportBuildingError
-	}
 	return utilpeerproxy.NewPeerProxyHandler(
 		versionedInformer,
-		svm,
-		proxyRoundTripper,
 		apiServerID,
 		reconciler,
 		serializer,
+		loopbackClientConfig,
+		proxyClientConfig,
 	), nil
 }
 
