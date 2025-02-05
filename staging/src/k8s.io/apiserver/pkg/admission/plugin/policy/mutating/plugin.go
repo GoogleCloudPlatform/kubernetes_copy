@@ -104,6 +104,7 @@ func NewPlugin(_ io.Reader) *Plugin {
 				//!TODO: Create a way to share param informers between
 				// mutating/validating plugins
 				f,
+				nil,
 				dynamicClient,
 				restMapper,
 			)

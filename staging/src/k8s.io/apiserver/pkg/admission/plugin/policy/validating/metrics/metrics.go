@@ -18,6 +18,7 @@ package metrics
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"k8s.io/component-base/metrics"
@@ -48,12 +49,15 @@ const (
 var (
 	// Metrics provides access to validation admission metrics.
 	Metrics = newValidationAdmissionMetrics()
+	once    sync.Once
 )
 
 // ValidatingAdmissionPolicyMetrics aggregates Prometheus metrics related to validation admission control.
 type ValidatingAdmissionPolicyMetrics struct {
-	policyCheck   *metrics.CounterVec
-	policyLatency *metrics.HistogramVec
+	policyCheck                     *metrics.CounterVec
+	policyLatency                   *metrics.HistogramVec
+	policyActivePolicies            *metrics.Gauge
+	policyActiveBindingsEnforcement *metrics.GaugeVec
 }
 
 func newValidationAdmissionMetrics() *ValidatingAdmissionPolicyMetrics {
@@ -85,16 +89,43 @@ func newValidationAdmissionMetrics() *ValidatingAdmissionPolicyMetrics {
 	},
 		[]string{"policy", "policy_binding", "error_type", "enforcement_action"},
 	)
+	activePolicies := metrics.NewGauge(&metrics.GaugeOpts{
+		Namespace:      metricsNamespace,
+		Subsystem:      metricsSubsystem,
+		Name:           "active_policies",
+		Help:           "Validation admission policy active policies",
+		StabilityLevel: metrics.ALPHA,
+	})
+	activeBindingsEnforcement := metrics.NewGaugeVec(&metrics.GaugeOpts{
+		Namespace:      metricsNamespace,
+		Subsystem:      metricsSubsystem,
+		Name:           "active_bindings_enforcement",
+		Help:           "Validation admission policy active bindings, labeled by enforcement action.",
+		StabilityLevel: metrics.ALPHA,
+	},
+		[]string{"enforcement_action"},
+	)
 
-	legacyregistry.MustRegister(check)
-	legacyregistry.MustRegister(latency)
-	return &ValidatingAdmissionPolicyMetrics{policyCheck: check, policyLatency: latency}
+	return &ValidatingAdmissionPolicyMetrics{
+		policyCheck:                     check,
+		policyLatency:                   latency,
+		policyActivePolicies:            activePolicies,
+		policyActiveBindingsEnforcement: activeBindingsEnforcement,
+	}
+}
+
+func (m *ValidatingAdmissionPolicyMetrics) Register() {
+	once.Do(func() {
+		legacyregistry.MustRegister(m.policyCheck, m.policyLatency, m.policyActivePolicies, m.policyActiveBindingsEnforcement)
+	})
 }
 
 // Reset resets all validation admission-related Prometheus metrics.
 func (m *ValidatingAdmissionPolicyMetrics) Reset() {
 	m.policyCheck.Reset()
 	m.policyLatency.Reset()
+	m.policyActivePolicies.Set(0)
+	m.policyActiveBindingsEnforcement.Reset()
 }
 
 // ObserveAdmission observes a policy validation, with an optional error to indicate the error that may occur but ignored.
@@ -119,4 +150,12 @@ func (m *ValidatingAdmissionPolicyMetrics) ObserveAudit(ctx context.Context, ela
 func (m *ValidatingAdmissionPolicyMetrics) ObserveWarn(ctx context.Context, elapsed time.Duration, policy, binding string, errorType ValidationErrorType) {
 	m.policyCheck.WithContext(ctx).WithLabelValues(policy, binding, string(errorType), "warn").Inc()
 	m.policyLatency.WithContext(ctx).WithLabelValues(policy, binding, string(errorType), "warn").Observe(elapsed.Seconds())
+}
+
+// ObserveActiveBindings observes the count of active validation admission policy bindings.
+func (m *ValidatingAdmissionPolicyMetrics) ObserveActiveBindings(policyCount, allowCount, warnCount, denyCount int) {
+	m.policyActivePolicies.Set(float64(policyCount))
+	m.policyActiveBindingsEnforcement.WithLabelValues("allow").Set(float64(allowCount))
+	m.policyActiveBindingsEnforcement.WithLabelValues("warn").Set(float64(warnCount))
+	m.policyActiveBindingsEnforcement.WithLabelValues("deny").Set(float64(denyCount))
 }

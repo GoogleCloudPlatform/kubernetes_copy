@@ -55,6 +55,7 @@ type policySource[P runtime.Object, B runtime.Object, E Evaluator] struct {
 	restMapper         meta.RESTMapper
 	newPolicyAccessor  func(P) PolicyAccessor
 	newBindingAccessor func(B) BindingAccessor
+	updateHookMetrics  func([]PolicyHook[P, B, E])
 
 	informerFactory informers.SharedInformerFactory
 	dynamicClient   dynamic.Interface
@@ -111,6 +112,7 @@ func NewPolicySource[P runtime.Object, B runtime.Object, E Evaluator](
 	newBindingAccessor func(B) BindingAccessor,
 	compiler func(P) E,
 	paramInformerFactory informers.SharedInformerFactory,
+	updateHookMetrics func([]PolicyHook[P, B, E]),
 	dynamicClient dynamic.Interface,
 	restMapper meta.RESTMapper,
 ) Source[PolicyHook[P, B, E]] {
@@ -123,6 +125,7 @@ func NewPolicySource[P runtime.Object, B runtime.Object, E Evaluator](
 		newBindingAccessor:   newBindingAccessor,
 		paramsCRDControllers: map[schema.GroupVersionKind]*paramInfo{},
 		informerFactory:      paramInformerFactory,
+		updateHookMetrics:    updateHookMetrics,
 		dynamicClient:        dynamicClient,
 		restMapper:           restMapper,
 	}
@@ -369,6 +372,10 @@ func (s *policySource[P, B, E]) calculatePolicyData() ([]PolicyHook[P, B, E], er
 			info.cancelFunc()
 			delete(s.paramsCRDControllers, paramKind)
 		}
+	}
+
+	if s.updateHookMetrics != nil {
+		s.updateHookMetrics(result)
 	}
 
 	err = nil
