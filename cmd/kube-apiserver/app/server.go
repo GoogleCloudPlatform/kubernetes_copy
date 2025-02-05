@@ -167,6 +167,12 @@ func Run(ctx context.Context, opts options.CompletedOptions) error {
 
 // CreateServerChain creates the apiservers connected via delegation.
 func CreateServerChain(config CompletedConfig) (*aggregatorapiserver.APIAggregator, error) {
+	return CreateServerChainWithAPIsForTests(config, []genericapiserver.APIGroupInfo{})
+}
+
+// CreateServerChainWithAPIsForTests creates the apiservers connected via delegation, with additionally ingested APIs
+// only for tests.
+func CreateServerChainWithAPIsForTests(config CompletedConfig, apisForTests []genericapiserver.APIGroupInfo) (*aggregatorapiserver.APIAggregator, error) {
 	notFoundHandler := notfoundhandler.New(config.KubeAPIs.ControlPlane.Generic.Serializer, genericapifilters.NoMuxAndDiscoveryIncompleteKey)
 	apiExtensionsServer, err := config.ApiExtensions.New(genericapiserver.NewEmptyDelegateWithCustomHandler(notFoundHandler))
 	if err != nil {
@@ -177,6 +183,13 @@ func CreateServerChain(config CompletedConfig) (*aggregatorapiserver.APIAggregat
 	kubeAPIServer, err := config.KubeAPIs.New(apiExtensionsServer.GenericAPIServer)
 	if err != nil {
 		return nil, err
+	}
+
+	for _, api := range apisForTests {
+		err = kubeAPIServer.ControlPlane.GenericAPIServer.InstallAPIGroup(&api)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// aggregator comes last in the chain

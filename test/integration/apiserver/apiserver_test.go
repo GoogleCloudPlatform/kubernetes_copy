@@ -3337,9 +3337,12 @@ func TestAllowedEmulationVersions(t *testing.T) {
 }
 
 func TestEnableEmulationVersion(t *testing.T) {
-	server := kubeapiservertesting.StartTestServerOrDie(t,
+	server, err := kubeapiservertesting.StartTestServerWithTestAPI(t,
 		&kubeapiservertesting.TestServerInstanceOptions{BinaryVersion: "1.32"},
-		[]string{"--emulated-version=kube=1.31"}, framework.SharedEtcd())
+		[]string{"--emulated-version=kube=1.31"}, framework.SharedEtcd(), true)
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer server.TearDownFn()
 
 	rt, err := restclient.TransportFor(server.ClientConfig)
@@ -3353,6 +3356,10 @@ func TestEnableEmulationVersion(t *testing.T) {
 	}{
 		{
 			path:               "/",
+			expectedStatusCode: 200,
+		},
+		{
+			path:               "/apis/testonly/v1/",
 			expectedStatusCode: 200,
 		},
 		{
