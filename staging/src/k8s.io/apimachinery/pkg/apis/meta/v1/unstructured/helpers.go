@@ -114,6 +114,9 @@ func NestedFloat64(obj map[string]interface{}, fields ...string) (float64, bool,
 
 // NestedInt64 returns the int64 value of a nested field.
 // Returns false if value is not found and an error if not an int64.
+// This fails if the stdlib Unmarshal got used. Be sure to use the json
+// package of apimachinery, so that numbers without fractional part are 
+// converted to int64.
 func NestedInt64(obj map[string]interface{}, fields ...string) (int64, bool, error) {
 	val, found, err := NestedFieldNoCopy(obj, fields...)
 	if !found || err != nil {
