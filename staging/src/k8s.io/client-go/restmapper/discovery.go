@@ -17,6 +17,7 @@ limitations under the License.
 package restmapper
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"sync"
@@ -40,8 +41,38 @@ type APIGroupResources struct {
 
 // NewDiscoveryRESTMapper returns a PriorityRESTMapper based on the discovered
 // groups and resources passed in.
+//
+// Deprecated: use NewDiscoveryRESTMapperWithContext instead.
 func NewDiscoveryRESTMapper(groupResources []*APIGroupResources) meta.RESTMapper {
-	unionMapper := meta.MultiRESTMapper{}
+	mappers, resourcePriority, kindPriority := newDiscoveryRESTMapper(groupResources)
+	multiMapper := make(meta.MultiRESTMapper, len(mappers))
+	for i, m := range mappers {
+		multiMapper[i] = m
+	}
+	return &meta.PriorityRESTMapper{
+		Delegate:         multiMapper,
+		ResourcePriority: resourcePriority,
+		KindPriority:     kindPriority,
+	}
+}
+
+// NewDiscoveryRESTMapperWithContext returns a PriorityRESTMapper based on the discovered
+// groups and resources passed in.
+func NewDiscoveryRESTMapperWithContext(groupResources []*APIGroupResources) meta.RESTMapperWithContext {
+	mappers, resourcePriority, kindPriority := newDiscoveryRESTMapper(groupResources)
+	multiMapper := make(meta.MultiRESTMapperWithContext, len(mappers))
+	for i, m := range mappers {
+		multiMapper[i] = m
+	}
+	return &meta.PriorityRESTMapperWithContext{
+		Delegate:         multiMapper,
+		ResourcePriority: resourcePriority,
+		KindPriority:     kindPriority,
+	}
+}
+
+func newDiscoveryRESTMapper(groupResources []*APIGroupResources) ([]*meta.DefaultRESTMapper, []schema.GroupVersionResource, []schema.GroupVersionKind) {
+	var unionMapper []*meta.DefaultRESTMapper
 
 	var groupPriority []string
 	// /v1 is special.  It should always come first
@@ -135,17 +166,21 @@ func NewDiscoveryRESTMapper(groupResources []*APIGroupResources) meta.RESTMapper
 		})
 	}
 
-	return meta.PriorityRESTMapper{
-		Delegate:         unionMapper,
-		ResourcePriority: resourcePriority,
-		KindPriority:     kindPriority,
-	}
+	return unionMapper, resourcePriority, kindPriority
 }
 
 // GetAPIGroupResources uses the provided discovery client to gather
 // discovery information and populate a slice of APIGroupResources.
+//
+// Deprecated: use GetAPIGroupResourcesWithContext instead.
 func GetAPIGroupResources(cl discovery.DiscoveryInterface) ([]*APIGroupResources, error) {
-	gs, rs, err := cl.ServerGroupsAndResources()
+	return GetAPIGroupResourcesWithContext(context.Background(), discovery.ToDiscoveryInterfaceWithContext(cl))
+}
+
+// GetAPIGroupResourcesWithContext uses the provided discovery client to gather
+// discovery information and populate a slice of APIGroupResources.
+func GetAPIGroupResourcesWithContext(ctx context.Context, cl discovery.DiscoveryInterfaceWithContext) ([]*APIGroupResources, error) {
+	gs, rs, err := cl.ServerGroupsAndResourcesWithContext(ctx)
 	if rs == nil || gs == nil {
 		return nil, err
 		// TODO track the errors and update callers to handle partial errors.
@@ -173,25 +208,42 @@ func GetAPIGroupResources(cl discovery.DiscoveryInterface) ([]*APIGroupResources
 	return result, nil
 }
 
-// DeferredDiscoveryRESTMapper is a RESTMapper that will defer
+// DeferredDiscoveryRESTMapper is a RESTMapper and RESTMapperContext that will defer
 // initialization of the RESTMapper until the first mapping is
 // requested.
 type DeferredDiscoveryRESTMapper struct {
 	initMu   sync.Mutex
-	delegate meta.RESTMapper
-	cl       discovery.CachedDiscoveryInterface
+	delegate meta.RESTMapperWithContext
+	cl       discovery.CachedDiscoveryInterfaceWithContext
 }
+
+var (
+	_ meta.ResettableRESTMapper            = &DeferredDiscoveryRESTMapper{}
+	_ meta.ResettableRESTMapperWithContext = &DeferredDiscoveryRESTMapper{}
+	_ fmt.Stringer                         = &DeferredDiscoveryRESTMapper{}
+)
 
 // NewDeferredDiscoveryRESTMapper returns a
 // DeferredDiscoveryRESTMapper that will lazily query the provided
 // client for discovery information to do REST mappings.
+//
+// Deprecated: use NewDeferredDiscoveryRESTMapperWithContext instead. NewDeferredDiscoveryRESTMapper will try to convert cl to discovery.CachedDiscoveryInterfaceWithContext and use a wrapper if that is not possible, but NewDeferredDiscoveryRESTMapperWithContext ensures that no such conversion is necessary.
 func NewDeferredDiscoveryRESTMapper(cl discovery.CachedDiscoveryInterface) *DeferredDiscoveryRESTMapper {
+	return &DeferredDiscoveryRESTMapper{
+		cl: discovery.ToCachedDiscoveryInterfaceWithContext(cl),
+	}
+}
+
+// NewDeferredDiscoveryRESTMapperWithContext returns a
+// DeferredDiscoveryRESTMapper that will lazily query the provided
+// client for discovery information to do REST mappings.
+func NewDeferredDiscoveryRESTMapperWithContext(cl discovery.CachedDiscoveryInterfaceWithContext) *DeferredDiscoveryRESTMapper {
 	return &DeferredDiscoveryRESTMapper{
 		cl: cl,
 	}
 }
 
-func (d *DeferredDiscoveryRESTMapper) getDelegate() (meta.RESTMapper, error) {
+func (d *DeferredDiscoveryRESTMapper) getDelegate(ctx context.Context) (meta.RESTMapperWithContext, error) {
 	d.initMu.Lock()
 	defer d.initMu.Unlock()
 
@@ -199,98 +251,144 @@ func (d *DeferredDiscoveryRESTMapper) getDelegate() (meta.RESTMapper, error) {
 		return d.delegate, nil
 	}
 
-	groupResources, err := GetAPIGroupResources(d.cl)
+	groupResources, err := GetAPIGroupResourcesWithContext(ctx, d.cl)
 	if err != nil {
 		return nil, err
 	}
 
-	d.delegate = NewDiscoveryRESTMapper(groupResources)
+	d.delegate = NewDiscoveryRESTMapperWithContext(groupResources)
 	return d.delegate, nil
 }
 
 // Reset resets the internally cached Discovery information and will
 // cause the next mapping request to re-discover.
 func (d *DeferredDiscoveryRESTMapper) Reset() {
-	klog.V(5).Info("Invalidating discovery information")
+	d.ResetWithContext(context.Background())
+}
+
+// ResetWithContext resets the internally cached Discovery information and will
+// cause the next mapping request to re-discover.
+func (d *DeferredDiscoveryRESTMapper) ResetWithContext(ctx context.Context) {
+	klog.FromContext(ctx).V(5).Info("Invalidating discovery information")
 
 	d.initMu.Lock()
 	defer d.initMu.Unlock()
 
-	d.cl.Invalidate()
+	d.cl.InvalidateWithContext(ctx)
 	d.delegate = nil
 }
 
 // KindFor takes a partial resource and returns back the single match.
 // It returns an error if there are multiple matches.
+//
+// Deprecated: use KindForWithContext instead.
 func (d *DeferredDiscoveryRESTMapper) KindFor(resource schema.GroupVersionResource) (gvk schema.GroupVersionKind, err error) {
-	del, err := d.getDelegate()
+	return d.KindForWithContext(context.Background(), resource)
+}
+
+// KindForWithContext takes a partial resource and returns back the single match.
+// It returns an error if there are multiple matches.
+func (d *DeferredDiscoveryRESTMapper) KindForWithContext(ctx context.Context, resource schema.GroupVersionResource) (gvk schema.GroupVersionKind, err error) {
+	del, err := d.getDelegate(ctx)
 	if err != nil {
 		return schema.GroupVersionKind{}, err
 	}
-	gvk, err = del.KindFor(resource)
-	if err != nil && !d.cl.Fresh() {
-		d.Reset()
-		gvk, err = d.KindFor(resource)
+	gvk, err = del.KindForWithContext(ctx, resource)
+	if err != nil && !d.cl.FreshWithContext(ctx) {
+		d.ResetWithContext(ctx)
+		gvk, err = d.KindForWithContext(ctx, resource)
 	}
 	return
 }
 
 // KindsFor takes a partial resource and returns back the list of
 // potential kinds in priority order.
+//
+// Deprecated: use KindsForWithContext instead.
 func (d *DeferredDiscoveryRESTMapper) KindsFor(resource schema.GroupVersionResource) (gvks []schema.GroupVersionKind, err error) {
-	del, err := d.getDelegate()
+	return d.KindsForWithContext(context.Background(), resource)
+}
+
+// KindsForWithContext takes a partial resource and returns back the list of
+// potential kinds in priority order.
+func (d *DeferredDiscoveryRESTMapper) KindsForWithContext(ctx context.Context, resource schema.GroupVersionResource) (gvks []schema.GroupVersionKind, err error) {
+	del, err := d.getDelegate(ctx)
 	if err != nil {
 		return nil, err
 	}
-	gvks, err = del.KindsFor(resource)
-	if len(gvks) == 0 && !d.cl.Fresh() {
-		d.Reset()
-		gvks, err = d.KindsFor(resource)
+	gvks, err = del.KindsForWithContext(ctx, resource)
+	if len(gvks) == 0 && !d.cl.FreshWithContext(ctx) {
+		d.ResetWithContext(ctx)
+		gvks, err = d.KindsForWithContext(ctx, resource)
 	}
 	return
 }
 
 // ResourceFor takes a partial resource and returns back the single
 // match. It returns an error if there are multiple matches.
+//
+// Deprecated: use ResourceForWithContext instead.
 func (d *DeferredDiscoveryRESTMapper) ResourceFor(input schema.GroupVersionResource) (gvr schema.GroupVersionResource, err error) {
-	del, err := d.getDelegate()
+	return d.ResourceForWithContext(context.Background(), input)
+}
+
+// ResourceForWithContext takes a partial resource and returns back the single
+// match. It returns an error if there are multiple matches.
+func (d *DeferredDiscoveryRESTMapper) ResourceForWithContext(ctx context.Context, input schema.GroupVersionResource) (gvr schema.GroupVersionResource, err error) {
+	del, err := d.getDelegate(ctx)
 	if err != nil {
 		return schema.GroupVersionResource{}, err
 	}
-	gvr, err = del.ResourceFor(input)
-	if err != nil && !d.cl.Fresh() {
-		d.Reset()
-		gvr, err = d.ResourceFor(input)
+	gvr, err = del.ResourceForWithContext(ctx, input)
+	if err != nil && !d.cl.FreshWithContext(ctx) {
+		d.ResetWithContext(ctx)
+		gvr, err = d.ResourceForWithContext(ctx, input)
 	}
 	return
 }
 
 // ResourcesFor takes a partial resource and returns back the list of
 // potential resource in priority order.
+//
+// Deprecated: use ResourcesForWithContext instead.
 func (d *DeferredDiscoveryRESTMapper) ResourcesFor(input schema.GroupVersionResource) (gvrs []schema.GroupVersionResource, err error) {
-	del, err := d.getDelegate()
+	return d.ResourcesForWithContext(context.Background(), input)
+}
+
+// ResourcesForWithContext takes a partial resource and returns back the list of
+// potential resource in priority order.
+func (d *DeferredDiscoveryRESTMapper) ResourcesForWithContext(ctx context.Context, input schema.GroupVersionResource) (gvrs []schema.GroupVersionResource, err error) {
+	del, err := d.getDelegate(ctx)
 	if err != nil {
 		return nil, err
 	}
-	gvrs, err = del.ResourcesFor(input)
-	if len(gvrs) == 0 && !d.cl.Fresh() {
-		d.Reset()
-		gvrs, err = d.ResourcesFor(input)
+	gvrs, err = del.ResourcesForWithContext(ctx, input)
+	if len(gvrs) == 0 && !d.cl.FreshWithContext(ctx) {
+		d.ResetWithContext(ctx)
+		gvrs, err = d.ResourcesForWithContext(ctx, input)
 	}
 	return
 }
 
 // RESTMapping identifies a preferred resource mapping for the
 // provided group kind.
+//
+// Deprecated: use RESTMappingWithContext instead.
 func (d *DeferredDiscoveryRESTMapper) RESTMapping(gk schema.GroupKind, versions ...string) (m *meta.RESTMapping, err error) {
-	del, err := d.getDelegate()
+	return d.RESTMappingWithContext(context.Background(), gk, versions...)
+}
+
+// RESTMappingWithContext identifies a preferred resource mapping for the
+// provided group kind.
+func (d *DeferredDiscoveryRESTMapper) RESTMappingWithContext(ctx context.Context, gk schema.GroupKind, versions ...string) (m *meta.RESTMapping, err error) {
+	del, err := d.getDelegate(ctx)
 	if err != nil {
 		return nil, err
 	}
-	m, err = del.RESTMapping(gk, versions...)
-	if err != nil && !d.cl.Fresh() {
-		d.Reset()
-		m, err = d.RESTMapping(gk, versions...)
+	m, err = del.RESTMappingWithContext(ctx, gk, versions...)
+	if err != nil && !d.cl.FreshWithContext(ctx) {
+		d.ResetWithContext(ctx)
+		m, err = d.RESTMappingWithContext(ctx, gk, versions...)
 	}
 	return
 }
@@ -298,41 +396,55 @@ func (d *DeferredDiscoveryRESTMapper) RESTMapping(gk schema.GroupKind, versions 
 // RESTMappings returns the RESTMappings for the provided group kind
 // in a rough internal preferred order. If no kind is found, it will
 // return a NoResourceMatchError.
+//
+// Deprecated: use RESTMappingsWithContext instead.
 func (d *DeferredDiscoveryRESTMapper) RESTMappings(gk schema.GroupKind, versions ...string) (ms []*meta.RESTMapping, err error) {
-	del, err := d.getDelegate()
+	return d.RESTMappingsWithContext(context.Background(), gk, versions...)
+}
+
+// RESTMappingsWithContext returns the RESTMappings for the provided group kind
+// in a rough internal preferred order. If no kind is found, it will
+// return a NoResourceMatchError.
+func (d *DeferredDiscoveryRESTMapper) RESTMappingsWithContext(ctx context.Context, gk schema.GroupKind, versions ...string) (ms []*meta.RESTMapping, err error) {
+	del, err := d.getDelegate(ctx)
 	if err != nil {
 		return nil, err
 	}
-	ms, err = del.RESTMappings(gk, versions...)
-	if len(ms) == 0 && !d.cl.Fresh() {
-		d.Reset()
-		ms, err = d.RESTMappings(gk, versions...)
+	ms, err = del.RESTMappingsWithContext(ctx, gk, versions...)
+	if len(ms) == 0 && !d.cl.FreshWithContext(ctx) {
+		d.ResetWithContext(ctx)
+		ms, err = d.RESTMappingsWithContext(ctx, gk, versions...)
 	}
 	return
 }
 
 // ResourceSingularizer converts a resource name from plural to
 // singular (e.g., from pods to pod).
+//
+// Deprecated: use ResourceSingularizerWithContext instead.
 func (d *DeferredDiscoveryRESTMapper) ResourceSingularizer(resource string) (singular string, err error) {
-	del, err := d.getDelegate()
+	return d.ResourceSingularizerWithContext(context.Background(), resource)
+}
+
+// ResourceSingularizerWithContext converts a resource name from plural to
+// singular (e.g., from pods to pod).
+func (d *DeferredDiscoveryRESTMapper) ResourceSingularizerWithContext(ctx context.Context, resource string) (singular string, err error) {
+	del, err := d.getDelegate(ctx)
 	if err != nil {
 		return resource, err
 	}
-	singular, err = del.ResourceSingularizer(resource)
-	if err != nil && !d.cl.Fresh() {
-		d.Reset()
-		singular, err = d.ResourceSingularizer(resource)
+	singular, err = del.ResourceSingularizerWithContext(ctx, resource)
+	if err != nil && !d.cl.FreshWithContext(ctx) {
+		d.ResetWithContext(ctx)
+		singular, err = d.ResourceSingularizerWithContext(ctx, resource)
 	}
 	return
 }
 
 func (d *DeferredDiscoveryRESTMapper) String() string {
-	del, err := d.getDelegate()
+	del, err := d.getDelegate(context.Background() /* hopefully we already have a delegate and don't need the context */)
 	if err != nil {
 		return fmt.Sprintf("DeferredDiscoveryRESTMapper{%v}", err)
 	}
 	return fmt.Sprintf("DeferredDiscoveryRESTMapper{\n\t%v\n}", del)
 }
-
-// Make sure it satisfies the interface
-var _ meta.ResettableRESTMapper = &DeferredDiscoveryRESTMapper{}

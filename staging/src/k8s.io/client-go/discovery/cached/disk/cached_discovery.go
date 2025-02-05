@@ -17,6 +17,7 @@ limitations under the License.
 package disk
 
 import (
+	"context"
 	"errors"
 	"io"
 	"net/http"
@@ -42,7 +43,7 @@ import (
 // CachedDiscoveryClient implements the functions that discovery server-supported API groups,
 // versions and resources.
 type CachedDiscoveryClient struct {
-	delegate discovery.DiscoveryInterface
+	delegate discovery.DiscoveryInterfaceWithContext
 
 	// cacheDirectory is the directory where discovery docs are held.  It must be unique per host:port combination to work well.
 	cacheDirectory string
@@ -61,72 +62,97 @@ type CachedDiscoveryClient struct {
 	fresh bool
 
 	// caching openapi v3 client which wraps the delegate's client
-	openapiClient openapi.Client
+	openapiClient *cachedopenapi.Client
 }
 
-var _ discovery.CachedDiscoveryInterface = &CachedDiscoveryClient{}
+var (
+	_ discovery.CachedDiscoveryInterface            = &CachedDiscoveryClient{}
+	_ discovery.CachedDiscoveryInterfaceWithContext = &CachedDiscoveryClient{}
+)
 
 // ServerResourcesForGroupVersion returns the supported resources for a group and version.
+//
+// Deprecated: use ServerResourcesForGroupVersionWithContext instead.
 func (d *CachedDiscoveryClient) ServerResourcesForGroupVersion(groupVersion string) (*metav1.APIResourceList, error) {
+	return d.ServerResourcesForGroupVersionWithContext(context.Background(), groupVersion)
+}
+
+// ServerResourcesForGroupVersionWithContext returns the supported resources for a group and version.
+func (d *CachedDiscoveryClient) ServerResourcesForGroupVersionWithContext(ctx context.Context, groupVersion string) (*metav1.APIResourceList, error) {
 	filename := filepath.Join(d.cacheDirectory, groupVersion, "serverresources.json")
 	cachedBytes, err := d.getCachedFile(filename)
 	// don't fail on errors, we either don't have a file or won't be able to run the cached check. Either way we can fallback.
 	if err == nil {
 		cachedResources := &metav1.APIResourceList{}
 		if err := runtime.DecodeInto(scheme.Codecs.UniversalDecoder(), cachedBytes, cachedResources); err == nil {
-			klog.V(10).Infof("returning cached discovery info from %v", filename)
+			klog.FromContext(ctx).V(10).Info("Returning cached discovery info", "fileName", filename)
 			return cachedResources, nil
 		}
 	}
 
-	liveResources, err := d.delegate.ServerResourcesForGroupVersion(groupVersion)
+	liveResources, err := d.delegate.ServerResourcesForGroupVersionWithContext(ctx, groupVersion)
 	if err != nil {
-		klog.V(3).Infof("skipped caching discovery info due to %v", err)
+		klog.FromContext(ctx).V(3).Info("Skipped caching discovery info due to error", "err", err)
 		return liveResources, err
 	}
 	if liveResources == nil || len(liveResources.APIResources) == 0 {
-		klog.V(3).Infof("skipped caching discovery info, no resources found")
+		klog.FromContext(ctx).V(3).Info("skipped caching discovery info, no resources found")
 		return liveResources, err
 	}
 
 	if err := d.writeCachedFile(filename, liveResources); err != nil {
-		klog.V(1).Infof("failed to write cache to %v due to %v", filename, err)
+		klog.FromContext(ctx).V(1).Info("Failed to write cache", "fileName", filename, "err", err)
 	}
 
 	return liveResources, nil
 }
 
 // ServerGroupsAndResources returns the supported groups and resources for all groups and versions.
+//
+// Deprecated: use ServerGroupsAndResourcesWithContext instead.
 func (d *CachedDiscoveryClient) ServerGroupsAndResources() ([]*metav1.APIGroup, []*metav1.APIResourceList, error) {
-	return discovery.ServerGroupsAndResources(d)
+	return d.ServerGroupsAndResourcesWithContext(context.Background())
+}
+
+// ServerGroupsAndResourcesWithContext returns the supported groups and resources for all groups and versions.
+func (d *CachedDiscoveryClient) ServerGroupsAndResourcesWithContext(ctx context.Context) ([]*metav1.APIGroup, []*metav1.APIResourceList, error) {
+	return discovery.ServerGroupsAndResourcesWithContext(ctx, d)
 }
 
 // ServerGroups returns the supported groups, with information like supported versions and the
 // preferred version.
+//
+// Deprecated: use ServerGroupsWithContext instead.
 func (d *CachedDiscoveryClient) ServerGroups() (*metav1.APIGroupList, error) {
+	return d.ServerGroupsWithContext(context.Background())
+}
+
+// ServerGroupsWithContext returns the supported groups, with information like supported versions and the
+// preferred version.
+func (d *CachedDiscoveryClient) ServerGroupsWithContext(ctx context.Context) (*metav1.APIGroupList, error) {
 	filename := filepath.Join(d.cacheDirectory, "servergroups.json")
 	cachedBytes, err := d.getCachedFile(filename)
 	// don't fail on errors, we either don't have a file or won't be able to run the cached check. Either way we can fallback.
 	if err == nil {
 		cachedGroups := &metav1.APIGroupList{}
 		if err := runtime.DecodeInto(scheme.Codecs.UniversalDecoder(), cachedBytes, cachedGroups); err == nil {
-			klog.V(10).Infof("returning cached discovery info from %v", filename)
+			klog.FromContext(ctx).V(10).Info("Returning cached discovery info", "fileName", filename)
 			return cachedGroups, nil
 		}
 	}
 
-	liveGroups, err := d.delegate.ServerGroups()
+	liveGroups, err := d.delegate.ServerGroupsWithContext(ctx)
 	if err != nil {
-		klog.V(3).Infof("skipped caching discovery info due to %v", err)
+		klog.FromContext(ctx).V(3).Info("Skipped caching discovery info due to error", "err", err)
 		return liveGroups, err
 	}
 	if liveGroups == nil || len(liveGroups.Groups) == 0 {
-		klog.V(3).Infof("skipped caching discovery info, no groups found")
+		klog.FromContext(ctx).V(3).Info("Skipped caching discovery info, no groups found")
 		return liveGroups, err
 	}
 
 	if err := d.writeCachedFile(filename, liveGroups); err != nil {
-		klog.V(1).Infof("failed to write cache to %v due to %v", filename, err)
+		klog.FromContext(ctx).V(1).Info("Failed to write cache", "fileName", filename, "err", err)
 	}
 
 	return liveGroups, nil
@@ -219,28 +245,67 @@ func (d *CachedDiscoveryClient) RESTClient() restclient.Interface {
 
 // ServerPreferredResources returns the supported resources with the version preferred by the
 // server.
+//
+// Deprecated: use ServerPreferredResourcesWithContext instead.
 func (d *CachedDiscoveryClient) ServerPreferredResources() ([]*metav1.APIResourceList, error) {
-	return discovery.ServerPreferredResources(d)
+	return d.ServerPreferredResourcesWithContext(context.Background())
+}
+
+// ServerPreferredResourcesWithContext returns the supported resources with the version preferred by the
+// server.
+func (d *CachedDiscoveryClient) ServerPreferredResourcesWithContext(ctx context.Context) ([]*metav1.APIResourceList, error) {
+	return discovery.ServerPreferredResourcesWithContext(ctx, d)
 }
 
 // ServerPreferredNamespacedResources returns the supported namespaced resources with the
 // version preferred by the server.
+//
+// Deprecated: use ServerPreferredNamespacedResourcesWithContext instead.
 func (d *CachedDiscoveryClient) ServerPreferredNamespacedResources() ([]*metav1.APIResourceList, error) {
-	return discovery.ServerPreferredNamespacedResources(d)
+	return d.ServerPreferredNamespacedResourcesWithContext(context.Background())
+}
+
+// ServerPreferredNamespacedResourcesWithContext returns the supported namespaced resources with the
+// version preferred by the server.
+func (d *CachedDiscoveryClient) ServerPreferredNamespacedResourcesWithContext(ctx context.Context) ([]*metav1.APIResourceList, error) {
+	return discovery.ServerPreferredNamespacedResourcesWithContext(ctx, d)
 }
 
 // ServerVersion retrieves and parses the server's version (git version).
+//
+// Deprecated: use ServerVersionWithContext instead.
 func (d *CachedDiscoveryClient) ServerVersion() (*version.Info, error) {
-	return d.delegate.ServerVersion()
+	return d.ServerVersionWithContext(context.Background())
+}
+
+// ServerVersionWithContext retrieves and parses the server's version (git version).
+func (d *CachedDiscoveryClient) ServerVersionWithContext(ctx context.Context) (*version.Info, error) {
+	return d.delegate.ServerVersionWithContext(ctx)
 }
 
 // OpenAPISchema retrieves and parses the swagger API schema the server supports.
+//
+// Deprecated: use OpenAPISchemaWithContext instead.
 func (d *CachedDiscoveryClient) OpenAPISchema() (*openapi_v2.Document, error) {
-	return d.delegate.OpenAPISchema()
+	return d.OpenAPISchemaWithContext(context.Background())
+}
+
+// OpenAPISchemaWithContext retrieves and parses the swagger API schema the server supports.
+func (d *CachedDiscoveryClient) OpenAPISchemaWithContext(ctx context.Context) (*openapi_v2.Document, error) {
+	return d.delegate.OpenAPISchemaWithContext(ctx)
 }
 
 // OpenAPIV3 retrieves and parses the OpenAPIV3 specs exposed by the server
 func (d *CachedDiscoveryClient) OpenAPIV3() openapi.Client {
+	return d.openAPIV3(context.Background())
+}
+
+// OpenAPIV3WithContext retrieves and parses the OpenAPIV3 specs exposed by the server
+func (d *CachedDiscoveryClient) OpenAPIV3WithContext(ctx context.Context) openapi.ClientWithContext {
+	return d.openAPIV3(ctx)
+}
+
+func (d *CachedDiscoveryClient) openAPIV3(ctx context.Context) *cachedopenapi.Client {
 	// Must take lock since Invalidate call may modify openapiClient
 	d.mutex.Lock()
 	defer d.mutex.Unlock()
@@ -248,7 +313,7 @@ func (d *CachedDiscoveryClient) OpenAPIV3() openapi.Client {
 	if d.openapiClient == nil {
 		// Delegate is discovery client created with special HTTP client which
 		// respects E-Tag cache responses to serve cache from disk.
-		d.openapiClient = cachedopenapi.NewClient(d.delegate.OpenAPIV3())
+		d.openapiClient = cachedopenapi.NewClientWithContext(d.delegate.OpenAPIV3WithContext(ctx))
 	}
 
 	return d.openapiClient
@@ -256,7 +321,15 @@ func (d *CachedDiscoveryClient) OpenAPIV3() openapi.Client {
 
 // Fresh is supposed to tell the caller whether or not to retry if the cache
 // fails to find something (false = retry, true = no need to retry).
+//
+// Deprecated: use FreshWithContext instead.
 func (d *CachedDiscoveryClient) Fresh() bool {
+	return d.FreshWithContext(context.Background())
+}
+
+// FreshWithContext is supposed to tell the caller whether or not to retry if the cache
+// fails to find something (false = retry, true = no need to retry).
+func (d *CachedDiscoveryClient) FreshWithContext(ctx context.Context) bool {
 	d.mutex.Lock()
 	defer d.mutex.Unlock()
 
@@ -264,7 +337,14 @@ func (d *CachedDiscoveryClient) Fresh() bool {
 }
 
 // Invalidate enforces that no cached data is used in the future that is older than the current time.
+//
+// Deprecated: use InvalidateWithContext instead.
 func (d *CachedDiscoveryClient) Invalidate() {
+	d.InvalidateWithContext(context.Background())
+}
+
+// InvalidateWithContext enforces that no cached data is used in the future that is older than the current time.
+func (d *CachedDiscoveryClient) InvalidateWithContext(ctx context.Context) {
 	d.mutex.Lock()
 	defer d.mutex.Unlock()
 
@@ -272,14 +352,27 @@ func (d *CachedDiscoveryClient) Invalidate() {
 	d.fresh = true
 	d.invalidated = true
 	d.openapiClient = nil
-	if ad, ok := d.delegate.(discovery.CachedDiscoveryInterface); ok {
-		ad.Invalidate()
+	ad, ok := d.delegate.(discovery.CachedDiscoveryInterfaceWithContext)
+	if !ok {
+		if ad2, ok2 := d.delegate.(discovery.CachedDiscoveryInterface); ok2 {
+			ad = discovery.ToCachedDiscoveryInterfaceWithContext(ad2)
+			ok = true
+		}
+	}
+	if ok {
+		ad.InvalidateWithContext(ctx)
 	}
 }
 
 // WithLegacy returns current cached discovery client;
 // current client does not support legacy-only discovery.
 func (d *CachedDiscoveryClient) WithLegacy() discovery.DiscoveryInterface {
+	return d
+}
+
+// WithLegacyWithContext returns current cached discovery client;
+// current client does not support legacy-only discovery.
+func (d *CachedDiscoveryClient) WithLegacyWithContext(ctx context.Context) discovery.DiscoveryInterfaceWithContext {
 	return d
 }
 
@@ -310,11 +403,11 @@ func NewCachedDiscoveryClientForConfig(config *restclient.Config, discoveryCache
 	// The delegate caches the discovery groups and resources (memcache). "ServerGroups",
 	// which usually only returns (and caches) the groups, can now store the resources as
 	// well if the server supports the newer aggregated discovery format.
-	return newCachedDiscoveryClient(memory.NewMemCacheClient(discoveryClient), discoveryCacheDir, ttl), nil
+	return newCachedDiscoveryClient(memory.NewMemCacheClientWithContext(discoveryClient), discoveryCacheDir, ttl), nil
 }
 
 // NewCachedDiscoveryClient creates a new DiscoveryClient.  cacheDirectory is the directory where discovery docs are held.  It must be unique per host:port combination to work well.
-func newCachedDiscoveryClient(delegate discovery.DiscoveryInterface, cacheDirectory string, ttl time.Duration) *CachedDiscoveryClient {
+func newCachedDiscoveryClient(delegate discovery.DiscoveryInterfaceWithContext, cacheDirectory string, ttl time.Duration) *CachedDiscoveryClient {
 	return &CachedDiscoveryClient{
 		delegate:       delegate,
 		cacheDirectory: cacheDirectory,

@@ -35,10 +35,10 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/discovery"
-	"k8s.io/client-go/discovery/fake"
 	"k8s.io/client-go/openapi"
 	"k8s.io/client-go/rest"
 	testutil "k8s.io/client-go/util/testing"
+	"k8s.io/klog/v2/ktesting"
 )
 
 type resourceMapEntry struct {
@@ -47,7 +47,10 @@ type resourceMapEntry struct {
 }
 
 type fakeDiscovery struct {
-	*fake.FakeDiscovery
+	// Intentionally limited to discovery.DiscoveryInterface because that is all that this
+	// code knows about and partly overrides. *fake.FakeDiscovery would inherit
+	// e.g. ServerGroupsWithContext which then would have to be overridden.
+	discovery.DiscoveryInterface
 
 	lock         sync.Mutex
 	groupList    *metav1.APIGroupList
@@ -435,6 +438,8 @@ func TestOpenAPIMemCache(t *testing.T) {
 					continue
 				}
 
+				// This is the original OpenAPI client. It is not affected
+				// by client.Invalidate() below.
 				pathsAgain, err := openapiClient.Paths()
 				if !assert.NoError(t, err) {
 					continue
@@ -445,7 +450,8 @@ func TestOpenAPIMemCache(t *testing.T) {
 					continue
 				}
 
-				assert.Equal(t, reflect.ValueOf(paths).Pointer(), reflect.ValueOf(pathsAgain).Pointer())
+				// The map itself might be different, but the content should not be.
+				assert.Equal(t, reflect.ValueOf(paths[k]).Pointer(), reflect.ValueOf(pathsAgain[k]).Pointer())
 				assert.Equal(t, reflect.ValueOf(original).Pointer(), reflect.ValueOf(schemaAgain).Pointer())
 
 				// Invalidate and try again. This time pointers should not be equal
@@ -457,6 +463,75 @@ func TestOpenAPIMemCache(t *testing.T) {
 				}
 
 				schemaAgain, err = pathsAgain[k].Schema(contentType)
+				if !assert.NoError(t, err) {
+					continue
+				}
+
+				assert.NotEqual(t, reflect.ValueOf(paths[k]).Pointer(), reflect.ValueOf(pathsAgain[k]).Pointer())
+				assert.NotEqual(t, reflect.ValueOf(original).Pointer(), reflect.ValueOf(schemaAgain).Pointer())
+				assert.Equal(t, original, schemaAgain)
+			}
+		})
+	}
+}
+
+// Tests that schema instances returned by openapi are cached and returned after
+// successive calls.
+func TestOpenAPIMemCacheWithContext(t *testing.T) {
+	_, ctx := ktesting.NewTestContext(t)
+	fakeServer, err := testutil.NewFakeOpenAPIV3Server("../../testdata")
+	require.NoError(t, err)
+	defer fakeServer.HttpServer.Close()
+
+	require.NotEmpty(t, fakeServer.ServedDocuments)
+
+	client := NewMemCacheClientWithContext(
+		discovery.NewDiscoveryClientForConfigOrDie(
+			&rest.Config{Host: fakeServer.HttpServer.URL},
+		),
+	)
+	openapiClient := client.OpenAPIV3WithContext(ctx)
+
+	paths, err := openapiClient.PathsWithContext(ctx)
+	require.NoError(t, err)
+
+	contentTypes := []string{
+		runtime.ContentTypeJSON, openapi.ContentTypeOpenAPIV3PB,
+	}
+
+	for _, contentType := range contentTypes {
+		t.Run(contentType, func(t *testing.T) {
+			for k, v := range paths {
+				original, err := v.SchemaWithContext(ctx, contentType)
+				if !assert.NoError(t, err) {
+					continue
+				}
+
+				// This is the original OpenAPI client. It is not affected
+				// by client.Invalidate() below.
+				pathsAgain, err := openapiClient.PathsWithContext(ctx)
+				if !assert.NoError(t, err) {
+					continue
+				}
+
+				schemaAgain, err := pathsAgain[k].SchemaWithContext(ctx, contentType)
+				if !assert.NoError(t, err) {
+					continue
+				}
+
+				// When using the *WithContext API, the map itself is cached.
+				assert.Equal(t, reflect.ValueOf(paths).Pointer(), reflect.ValueOf(pathsAgain).Pointer())
+				assert.Equal(t, reflect.ValueOf(original).Pointer(), reflect.ValueOf(schemaAgain).Pointer())
+
+				// Invalidate and try again. This time pointers should not be equal
+				client.InvalidateWithContext(ctx)
+
+				pathsAgain, err = client.OpenAPIV3WithContext(ctx).PathsWithContext(ctx)
+				if !assert.NoError(t, err) {
+					continue
+				}
+
+				schemaAgain, err = pathsAgain[k].SchemaWithContext(ctx, contentType)
 				if !assert.NoError(t, err) {
 					continue
 				}
