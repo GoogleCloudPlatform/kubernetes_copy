@@ -29,6 +29,7 @@ import (
 	"k8s.io/klog/v2"
 
 	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/kubernetes/pkg/volume/util/subpath"
 )
 
 const (
@@ -159,11 +160,12 @@ func (w *AtomicWriter) Write(payload map[string]FileProjection, setPerms func(su
 	oldTsPath := filepath.Join(w.targetDir, oldTsDir)
 
 	var pathsToRemove sets.Set[string]
+	var subpaths sets.Set[string]
 	shouldWrite := true
 	// if there was no old version, there's nothing to remove
 	if len(oldTsDir) != 0 {
 		// (3)
-		pathsToRemove, err = w.pathsToRemove(cleanPayload, oldTsPath)
+		pathsToRemove, subpaths, err = w.pathsToRemove(cleanPayload, oldTsPath)
 		if err != nil {
 			klog.Errorf("%s: error determining user-visible files to remove: %v", w.logContext, err)
 			return err
@@ -257,7 +259,7 @@ func (w *AtomicWriter) Write(payload map[string]FileProjection, setPerms func(su
 	}
 
 	// (12)
-	if len(oldTsDir) > 0 {
+	if len(oldTsDir) > 0 && len(subpaths) == 0 {
 		if err = os.RemoveAll(oldTsPath); err != nil {
 			klog.Errorf("%s: error removing old data directory %s: %v", w.logContext, oldTsDir, err)
 			return err
@@ -355,24 +357,30 @@ func shouldWriteFile(path string, content []byte) (bool, error) {
 // pathsToRemove walks the current version of the data directory and
 // determines which paths should be removed (if any) after the payload is
 // written to the target directory.
-func (w *AtomicWriter) pathsToRemove(payload map[string]FileProjection, oldTSDir string) (sets.Set[string], error) {
+// if the given oldTsDir contain subpaths, should not be added to the paths to remove. see #126112
+func (w *AtomicWriter) pathsToRemove(payload map[string]FileProjection, oldTsDir string) (sets.Set[string], sets.Set[string], error) {
 	paths := sets.New[string]()
+	subpaths := sets.New[string]()
 	visitor := func(path string, info os.FileInfo, err error) error {
-		relativePath := strings.TrimPrefix(path, oldTSDir)
+		relativePath := strings.TrimPrefix(path, oldTsDir)
 		relativePath = strings.TrimPrefix(relativePath, string(os.PathSeparator))
 		if relativePath == "" {
 			return nil
+		}
+		if subpath.HasSubpath(path) {
+			klog.V(3).Infof("path: %s is a subpath target, should not be removed", path)
+			subpaths.Insert(relativePath)
 		}
 
 		paths.Insert(relativePath)
 		return nil
 	}
 
-	err := filepath.Walk(oldTSDir, visitor)
+	err := filepath.Walk(oldTsDir, visitor)
 	if os.IsNotExist(err) {
-		return nil, nil
+		return nil, nil, nil
 	} else if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	klog.V(5).Infof("%s: current paths:   %+v", w.targetDir, sets.List(paths))
 
@@ -389,9 +397,10 @@ func (w *AtomicWriter) pathsToRemove(payload map[string]FileProjection, oldTSDir
 	klog.V(5).Infof("%s: new paths:       %+v", w.targetDir, sets.List(newPaths))
 
 	result := paths.Difference(newPaths)
+	result.Delete(sets.List(subpaths)...)
 	klog.V(5).Infof("%s: paths to remove: %+v", w.targetDir, result)
 
-	return result, nil
+	return result, subpaths, nil
 }
 
 // newTimestampDir creates a new timestamp directory

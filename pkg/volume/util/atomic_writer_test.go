@@ -245,7 +245,7 @@ func TestPathsToRemove(t *testing.T) {
 			continue
 		}
 
-		actual, err := writer.pathsToRemove(tc.payload2, filepath.Join(targetDir, oldTsDir))
+		actual, _, err := writer.pathsToRemove(tc.payload2, filepath.Join(targetDir, oldTsDir))
 		if err != nil {
 			t.Errorf("%v: unexpected error determining paths to remove: %v", tc.name, err)
 			continue

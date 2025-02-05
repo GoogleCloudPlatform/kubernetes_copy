@@ -116,6 +116,18 @@ var _ = utils.SIGDescribe("Subpath", func() {
 			testsuites.TestBasicSubpath(ctx, f, "configmap-value", pod)
 		})
 
+		// as https://kubernetes.io/docs/concepts/storage/volumes/#using-subpath described, subpath will not receive updates
+		// when the secret is updated, the pod will not see the new value, it will still see the old value
+		framework.ConformanceIt("should support subpaths with secret pod, after secret modified, pod should still read the first value", func(ctx context.Context) {
+			pod := testsuites.SubpathTestPod(f, "secret-key", "secret", &v1.VolumeSource{Secret: &v1.SecretVolumeSource{SecretName: "my-secret"}}, f.NamespacePodSecurityLevel)
+			testsuites.TestBasicSubpath(ctx, f, "secret-value", pod)
+
+			secret := &v1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "my-secret"}, Data: map[string][]byte{"secret-key": []byte("secret-changed")}}
+			_, err = f.ClientSet.CoreV1().Secrets(f.Namespace.Name).Update(ctx, secret, metav1.UpdateOptions{})
+
+			testsuites.TestBasicSubpath(ctx, f, "secret-value", pod)
+		})
+
 	})
 
 	ginkgo.Context("Container restart", func() {

@@ -201,6 +201,10 @@ func doBindSubPath(mounter mount.Interface, subpath Subpath) (hostPath string, e
 	if err != nil {
 		return "", err
 	}
+
+	// add pod subpath to cache
+	addSubpathToCache(subpath.Path)
+
 	if alreadyMounted {
 		return bindPathTarget, nil
 	}
@@ -237,6 +241,7 @@ func doCleanSubPaths(mounter mount.Interface, podDir string, volumeName string) 
 	// scan /var/lib/kubelet/pods/<uid>/volume-subpaths/<volume>/*
 	subPathDir := filepath.Join(podDir, containerSubPathDirectoryName, volumeName)
 	klog.V(4).Infof("Cleaning up subpath mounts for %s", subPathDir)
+	defer removeSubpathByPodDir(podDir)
 
 	containerDirs, err := ioutil.ReadDir(subPathDir)
 	if err != nil {
