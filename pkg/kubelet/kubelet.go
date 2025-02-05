@@ -2019,14 +2019,7 @@ func (kl *Kubelet) SyncPod(ctx context.Context, updateType kubetypes.SyncPodType
 	// Ensure the pod is being probed
 	kl.probeManager.AddPod(pod)
 
-	// TODO(#113606): use cancellation from the incoming context parameter, which comes from the pod worker.
-	// Currently, using cancellation from that context causes test failures. To remove this WithoutCancel,
-	// any wait.Interrupted errors need to be filtered from result and bypass the reasonCache - cancelling
-	// the context for SyncPod is a known and deliberate error, not a generic error.
-	// Use WithoutCancel instead of a new context.TODO() to propagate trace context
-	// Call the container runtime's SyncPod callback
-	sctx := context.WithoutCancel(ctx)
-	result := kl.containerRuntime.SyncPod(sctx, pod, podStatus, pullSecrets, kl.backOff)
+	result := kl.containerRuntime.SyncPod(ctx, pod, podStatus, pullSecrets, kl.backOff)
 	kl.reasonCache.Update(pod.UID, result)
 	if err := result.Error(); err != nil {
 		// Do not return error if the only failures were pods in backoff
