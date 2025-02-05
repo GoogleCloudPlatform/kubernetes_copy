@@ -1043,7 +1043,7 @@ gopkg.in/yaml.v3
 ## explicit; go 1.23.0
 # k8s.io/externaljwt v0.0.0 => ./staging/src/k8s.io/externaljwt
 ## explicit; go 1.23.0
-# k8s.io/gengo/v2 v2.0.0-20240911193312-2b36238f13e9
+# k8s.io/gengo/v2 v2.0.0-20250106234829-0359904fc2a6
 ## explicit; go 1.20
 k8s.io/gengo/v2
 k8s.io/gengo/v2/generator
