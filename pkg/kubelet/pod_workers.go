@@ -690,7 +690,7 @@ func (p *podWorkers) ShouldPodContentBeRemoved(uid types.UID) bool {
 	p.podLock.Lock()
 	defer p.podLock.Unlock()
 	if status, ok := p.podSyncStatuses[uid]; ok {
-		return status.IsEvicted() || (status.IsDeleted() && status.IsTerminated())
+		return status.IsEvicted() && status.IsFinished() || (status.IsDeleted() && status.IsTerminated())
 	}
 	// a pod that hasn't been sent to the pod worker yet should have no content on disk once we have
 	// synced all content.

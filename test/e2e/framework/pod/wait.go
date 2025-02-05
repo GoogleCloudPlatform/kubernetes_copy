@@ -868,3 +868,18 @@ func WaitForContainerTerminated(ctx context.Context, c clientset.Interface, name
 		return false, nil
 	})
 }
+
+// EnsureValidContainerTerminatedReason ensures that the terminated reason is not unknown.
+func EnsureValidContainerTerminatedReason(ctx context.Context, c clientset.Interface, namespace, podName, containerName string, timeout time.Duration) error {
+	conditionDesc := fmt.Sprintf("container %s terminated", containerName)
+	return WaitForPodCondition(ctx, c, namespace, podName, conditionDesc, timeout, func(pod *v1.Pod) (bool, error) {
+		for _, statuses := range [][]v1.ContainerStatus{pod.Status.ContainerStatuses, pod.Status.InitContainerStatuses, pod.Status.EphemeralContainerStatuses} {
+			for _, cs := range statuses {
+				if cs.Name == containerName && cs.State.Terminated != nil {
+					return cs.State.Terminated.Reason != "ContainerStatusUnknown", nil
+				}
+			}
+		}
+		return false, nil
+	})
+}

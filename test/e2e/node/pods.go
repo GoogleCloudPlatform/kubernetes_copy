@@ -339,7 +339,10 @@ var _ = SIGDescribe("Pods Extended", func() {
 			if err != nil {
 				framework.Failf("error waiting for pod to be evicted: %v", err)
 			}
-
+			err = e2epod.EnsureValidContainerTerminatedReason(ctx, f.ClientSet, f.Namespace.Name, pod.Name, "bar", 2*time.Minute)
+			if err != nil {
+				framework.Failf("error waiting for a valid terminated reason: %v", err)
+			}
 		})
 	})
 

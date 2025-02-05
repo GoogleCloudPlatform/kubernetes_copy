@@ -2779,8 +2779,8 @@ func (kl *Kubelet) HandlePodReconcile(pods []*v1.Pod) {
 		// been evicted, so if this is about minimizing the time to react to an eviction we
 		// can do better. If it's about preserving pod status info we can also do better.
 		if eviction.PodIsEvicted(pod.Status) {
-			if podStatus, err := kl.podCache.Get(pod.UID); err == nil {
-				kl.containerDeletor.deleteContainersInPod("", podStatus, true)
+			if _, err := kl.podCache.Get(pod.UID); err == nil {
+				kl.cleanUpContainersInPod(pod.UID, "")
 			}
 		}
 	}
