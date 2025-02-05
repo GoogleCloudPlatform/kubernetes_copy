@@ -23,14 +23,14 @@ import (
 )
 
 // ContainerResizePolicyApplyConfiguration represents a declarative configuration of the ContainerResizePolicy type for use
-// with apply.
+// with apply. Note: The `resizePolicy` field is not supported for ephemeral containers.
 type ContainerResizePolicyApplyConfiguration struct {
 	ResourceName  *corev1.ResourceName                `json:"resourceName,omitempty"`
 	RestartPolicy *corev1.ResourceResizeRestartPolicy `json:"restartPolicy,omitempty"`
 }
 
 // ContainerResizePolicyApplyConfiguration constructs a declarative configuration of the ContainerResizePolicy type for use with
-// apply.
+// apply. Note: The `resizePolicy` field is not supported for ephemeral containers.
 func ContainerResizePolicy() *ContainerResizePolicyApplyConfiguration {
 	return &ContainerResizePolicyApplyConfiguration{}
 }
@@ -46,6 +46,7 @@ func (b *ContainerResizePolicyApplyConfiguration) WithResourceName(value corev1.
 // WithRestartPolicy sets the RestartPolicy field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the RestartPolicy field is set to the value of the last call.
+// Note: The `resizePolicy` field is not supported for ephemeral containers.
 func (b *ContainerResizePolicyApplyConfiguration) WithRestartPolicy(value corev1.ResourceResizeRestartPolicy) *ContainerResizePolicyApplyConfiguration {
 	b.RestartPolicy = &value
 	return b
