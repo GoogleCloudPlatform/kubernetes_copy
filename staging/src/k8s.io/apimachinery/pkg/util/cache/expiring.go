@@ -31,7 +31,7 @@ func NewExpiring() *Expiring {
 
 // NewExpiringWithClock is like NewExpiring but allows passing in a custom
 // clock for testing.
-func NewExpiringWithClock(clock clock.Clock) *Expiring {
+func NewExpiringWithClock(clock Clock) *Expiring {
 	return &Expiring{
 		clock: clock,
 		cache: make(map[interface{}]entry),
@@ -47,7 +47,7 @@ type Expiring struct {
 	// It may not be changed concurrently with calls to Get.
 	AllowExpiredGet bool
 
-	clock clock.Clock
+	clock Clock
 
 	// mu protects the below fields
 	mu sync.RWMutex
