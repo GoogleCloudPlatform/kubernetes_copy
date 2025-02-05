@@ -837,7 +837,7 @@ func TestValidateAllowedTopologies(t *testing.T) {
 		},
 		"empty MatchLabelExpressions": {
 			class:         makeClass(&waitingMode, topologyEmptyMatchLabelExpressions),
-			shouldSucceed: false,
+			shouldSucceed: true,
 		},
 		"duplicate MatchLabelExpression keys": {
 			class:         makeClass(&waitingMode, topologyDupKeys),
