@@ -156,4 +156,18 @@ const (
 	// heuristics will often populate topology hints on EndpointSlices, but that
 	// is not a requirement.
 	AnnotationTopologyMode = "service.kubernetes.io/topology-mode"
+
+	nodeAutoscalingPrefix = "node-autoscaling.kubernetes.io"
+
+	// NodeAutoscalingSafeToEvictKey can be used on a Pod to control Node autoscaler drain behavior:
+	// - If the value is "false": This pod is not safe to evict, and Node autoscalers shouldn't consolidate a Node where
+	//   such a pod is present.
+	// - If the value is "true": This pod is safe to evict, and Node autoscalers should not block consolidation of a
+	//   Node because of it, when they normally would. For example, if a Node autoscaler normally blocks consolidating
+	//   Nodes on which kube-system Pods are running, this can be used to opt some pods out of the blocking.
+	NodeAutoscalingSafeToEvictKey = nodeAutoscalingPrefix + "/safe-to-evict"
+	// NodeAutoscalingSafeToEvict is the value indicating that the Pod is safe to evict.
+	NodeAutoscalingSafeToEvict = "true"
+	// NodeAutoscalingNotSafeToEvict is the value indicating that the Pod is not safe to evict.
+	NodeAutoscalingNotSafeToEvict = "false"
 )
