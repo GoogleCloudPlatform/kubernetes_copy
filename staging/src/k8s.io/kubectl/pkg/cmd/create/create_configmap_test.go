@@ -25,6 +25,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 )
 
 func TestCreateConfigMap(t *testing.T) {
@@ -32,6 +33,7 @@ func TestCreateConfigMap(t *testing.T) {
 		configMapName string
 		configMapType string
 		appendHash    bool
+		immutable     bool
 		fromLiteral   []string
 		fromFile      []string
 		fromEnvFile   []string
@@ -67,6 +69,22 @@ func TestCreateConfigMap(t *testing.T) {
 				},
 				Data:       map[string]string{},
 				BinaryData: map[string][]byte{},
+			},
+		},
+		"create_foo_immutable_configmap": {
+			configMapName: "foo",
+			immutable:     true,
+			expected: &corev1.ConfigMap{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: corev1.SchemeGroupVersion.String(),
+					Kind:       "ConfigMap",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "foo",
+				},
+				Data:       map[string]string{},
+				BinaryData: map[string][]byte{},
+				Immutable:  ptr.To[bool](true),
 			},
 		},
 		"create_foo_type_configmap": {
@@ -431,6 +449,7 @@ func TestCreateConfigMap(t *testing.T) {
 				Name:           test.configMapName,
 				Type:           test.configMapType,
 				AppendHash:     test.appendHash,
+				Immutable:      test.immutable,
 				FileSources:    test.fromFile,
 				LiteralSources: test.fromLiteral,
 				EnvFileSources: test.fromEnvFile,

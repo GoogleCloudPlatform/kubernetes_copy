@@ -24,6 +24,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 )
 
 var rsaCertPEM = `-----BEGIN CERTIFICATE-----
@@ -96,6 +97,7 @@ func TestCreateSecretTLS(t *testing.T) {
 		tlsKey        string
 		tlsCert       string
 		appendHash    bool
+		immutable     bool
 		expected      *corev1.Secret
 		expectErr     bool
 	}{
@@ -124,6 +126,7 @@ func TestCreateSecretTLS(t *testing.T) {
 			tlsKey:        validKeyPath,
 			tlsCert:       validCertPath,
 			appendHash:    true,
+			immutable:     true,
 			expected: &corev1.Secret{
 				TypeMeta: metav1.TypeMeta{
 					APIVersion: corev1.SchemeGroupVersion.String(),
@@ -137,6 +140,7 @@ func TestCreateSecretTLS(t *testing.T) {
 					corev1.TLSPrivateKeyKey: []byte(rsaKeyPEM),
 					corev1.TLSCertKey:       []byte(rsaCertPEM),
 				},
+				Immutable: ptr.To[bool](true),
 			},
 			expectErr: false,
 		},
@@ -168,6 +172,7 @@ func TestCreateSecretTLS(t *testing.T) {
 				Key:        test.tlsKey,
 				Cert:       test.tlsCert,
 				AppendHash: test.appendHash,
+				Immutable:  test.immutable,
 			}
 			secretTLS, err := secretTLSOptions.createSecretTLS()
 

@@ -35,6 +35,7 @@ import (
 	"k8s.io/kubectl/pkg/util/hash"
 	"k8s.io/kubectl/pkg/util/i18n"
 	"k8s.io/kubectl/pkg/util/templates"
+	"k8s.io/utils/ptr"
 )
 
 var (
@@ -63,6 +64,8 @@ type CreateSecretTLSOptions struct {
 	Cert string
 	// AppendHash; if true, derive a hash from the Secret and append it to the name
 	AppendHash bool
+	// Immutable; if true, the Secret will be immutable (optional)
+	Immutable bool
 
 	FieldManager     string
 	CreateAnnotation bool
@@ -110,6 +113,7 @@ func NewCmdCreateSecretTLS(f cmdutil.Factory, ioStreams genericiooptions.IOStrea
 	cmd.Flags().StringVar(&o.Cert, "cert", o.Cert, i18n.T("Path to PEM encoded public key certificate."))
 	cmd.Flags().StringVar(&o.Key, "key", o.Key, i18n.T("Path to private key associated with given certificate."))
 	cmd.Flags().BoolVar(&o.AppendHash, "append-hash", o.AppendHash, "Append a hash of the secret to its name.")
+	cmd.Flags().BoolVar(&o.Immutable, "immutable", o.Immutable, "Create immutable secret.")
 
 	cmdutil.AddFieldManagerFlagVar(cmd, &o.FieldManager, "kubectl-create")
 
@@ -234,6 +238,9 @@ func (o *CreateSecretTLSOptions) createSecretTLS() (*corev1.Secret, error) {
 			return nil, err
 		}
 		secretTLS.Name = fmt.Sprintf("%s-%s", secretTLS.Name, hash)
+	}
+	if o.Immutable {
+		secretTLS.Immutable = ptr.To[bool](true)
 	}
 
 	return secretTLS, nil

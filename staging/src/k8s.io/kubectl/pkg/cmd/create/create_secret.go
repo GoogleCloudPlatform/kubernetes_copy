@@ -38,6 +38,7 @@ import (
 	"k8s.io/kubectl/pkg/util/hash"
 	"k8s.io/kubectl/pkg/util/i18n"
 	"k8s.io/kubectl/pkg/util/templates"
+	"k8s.io/utils/ptr"
 )
 
 // NewCmdCreateSecret groups subcommands to create various types of secrets.
@@ -115,6 +116,8 @@ type CreateSecretOptions struct {
 	EnvFileSources []string
 	// AppendHash; if true, derive a hash from the Secret data and type and append it to the name
 	AppendHash bool
+	// Immutable; if true, the Secret will be immutable (optional)
+	Immutable bool
 
 	FieldManager     string
 	CreateAnnotation bool
@@ -163,6 +166,7 @@ func NewCmdCreateSecretGeneric(f cmdutil.Factory, ioStreams genericiooptions.IOS
 	cmd.Flags().StringSliceVar(&o.EnvFileSources, "from-env-file", o.EnvFileSources, "Specify the path to a file to read lines of key=val pairs to create a secret.")
 	cmd.Flags().StringVar(&o.Type, "type", o.Type, i18n.T("The type of secret to create"))
 	cmd.Flags().BoolVar(&o.AppendHash, "append-hash", o.AppendHash, "Append a hash of the secret to its name.")
+	cmd.Flags().BoolVar(&o.Immutable, "immutable", o.Immutable, "Create immutable secret.")
 
 	cmdutil.AddFieldManagerFlagVar(cmd, &o.FieldManager, "kubectl-create")
 
@@ -286,6 +290,9 @@ func (o *CreateSecretOptions) createSecret() (*corev1.Secret, error) {
 			return nil, err
 		}
 		secret.Name = fmt.Sprintf("%s-%s", secret.Name, hash)
+	}
+	if o.Immutable {
+		secret.Immutable = ptr.To[bool](true)
 	}
 
 	return secret, nil

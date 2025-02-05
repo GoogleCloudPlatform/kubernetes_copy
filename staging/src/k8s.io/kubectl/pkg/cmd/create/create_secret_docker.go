@@ -36,6 +36,7 @@ import (
 	"k8s.io/kubectl/pkg/util/hash"
 	"k8s.io/kubectl/pkg/util/i18n"
 	"k8s.io/kubectl/pkg/util/templates"
+	"k8s.io/utils/ptr"
 )
 
 var (
@@ -103,6 +104,8 @@ type CreateSecretDockerRegistryOptions struct {
 	Server string
 	// AppendHash; if true, derive a hash from the Secret and append it to the name
 	AppendHash bool
+	// Immutable; if true, the Secret will be immutable (optional)
+	Immutable bool
 
 	FieldManager     string
 	CreateAnnotation bool
@@ -153,6 +156,7 @@ func NewCmdCreateSecretDockerRegistry(f cmdutil.Factory, ioStreams genericioopti
 	cmd.Flags().StringVar(&o.Email, "docker-email", o.Email, i18n.T("Email for Docker registry"))
 	cmd.Flags().StringVar(&o.Server, "docker-server", o.Server, i18n.T("Server location for Docker registry"))
 	cmd.Flags().BoolVar(&o.AppendHash, "append-hash", o.AppendHash, "Append a hash of the secret to its name.")
+	cmd.Flags().BoolVar(&o.Immutable, "immutable", o.Immutable, "Create immutable secret.")
 	cmd.Flags().StringSliceVar(&o.FileSources, "from-file", o.FileSources, "Key files can be specified using their file path, "+
 		"in which case a default name of "+corev1.DockerConfigJsonKey+" will be given to them, "+
 		"or optionally with a name and file path, in which case the given name will be used. "+
@@ -282,6 +286,9 @@ func (o *CreateSecretDockerRegistryOptions) createSecretDockerRegistry() (*corev
 			return nil, err
 		}
 		secretDockerRegistry.Name = fmt.Sprintf("%s-%s", secretDockerRegistry.Name, hash)
+	}
+	if o.Immutable {
+		secretDockerRegistry.Immutable = ptr.To[bool](true)
 	}
 	return secretDockerRegistry, nil
 }

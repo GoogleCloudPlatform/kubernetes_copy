@@ -25,6 +25,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 )
 
 func TestCreateSecretObject(t *testing.T) {
@@ -56,6 +57,7 @@ func TestCreateSecretGeneric(t *testing.T) {
 		fromFile    []string
 		fromEnvFile []string
 		appendHash  bool
+		immutable   bool
 		setup       func(t *testing.T, secretGenericOptions *CreateSecretOptions) func()
 
 		expected  *corev1.Secret
@@ -86,6 +88,21 @@ func TestCreateSecretGeneric(t *testing.T) {
 					Name: "foo-949tdgdkgg",
 				},
 				Data: map[string][]byte{},
+			},
+		},
+		"create_secret_foo_immutable": {
+			secretName: "foo",
+			immutable:  true,
+			expected: &corev1.Secret{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: corev1.SchemeGroupVersion.String(),
+					Kind:       "Secret",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "foo",
+				},
+				Immutable: ptr.To[bool](true),
+				Data:      map[string][]byte{},
 			},
 		},
 		"create_secret_foo_type": {
@@ -507,6 +524,7 @@ func TestCreateSecretGeneric(t *testing.T) {
 				Name:           test.secretName,
 				Type:           test.secretType,
 				AppendHash:     test.appendHash,
+				Immutable:      test.immutable,
 				FileSources:    test.fromFile,
 				LiteralSources: test.fromLiteral,
 				EnvFileSources: test.fromEnvFile,

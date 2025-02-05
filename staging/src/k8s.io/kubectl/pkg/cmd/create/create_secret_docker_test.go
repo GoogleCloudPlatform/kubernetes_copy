@@ -27,6 +27,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/cli-runtime/pkg/genericiooptions"
 	cmdtesting "k8s.io/kubectl/pkg/cmd/testing"
+	"k8s.io/utils/ptr"
 )
 
 func TestCreateSecretDockerRegistry(t *testing.T) {
@@ -47,6 +48,7 @@ func TestCreateSecretDockerRegistry(t *testing.T) {
 		dockerPassword           string
 		dockerServer             string
 		appendHash               bool
+		immutable                bool
 		expected                 *corev1.Secret
 		expectErr                bool
 	}{
@@ -121,6 +123,7 @@ func TestCreateSecretDockerRegistry(t *testing.T) {
 			dockerEmail:              "",
 			dockerServer:             server,
 			appendHash:               true,
+			immutable:                true,
 			expected: &corev1.Secret{
 				TypeMeta: metav1.TypeMeta{
 					APIVersion: corev1.SchemeGroupVersion.String(),
@@ -133,6 +136,7 @@ func TestCreateSecretDockerRegistry(t *testing.T) {
 				Data: map[string][]byte{
 					corev1.DockerConfigJsonKey: secretDataNoEmail,
 				},
+				Immutable: ptr.To[bool](true),
 			},
 			expectErr: false,
 		},
@@ -170,6 +174,7 @@ func TestCreateSecretDockerRegistry(t *testing.T) {
 				Password:   test.dockerPassword,
 				Server:     test.dockerServer,
 				AppendHash: test.appendHash,
+				Immutable:  test.immutable,
 			}
 			err := secretDockerRegistryOptions.Validate()
 			if err == nil {

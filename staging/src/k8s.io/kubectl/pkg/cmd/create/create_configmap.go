@@ -39,6 +39,7 @@ import (
 	"k8s.io/kubectl/pkg/util/hash"
 	"k8s.io/kubectl/pkg/util/i18n"
 	"k8s.io/kubectl/pkg/util/templates"
+	"k8s.io/utils/ptr"
 )
 
 var (
@@ -89,6 +90,8 @@ type ConfigMapOptions struct {
 	EnvFileSources []string
 	// AppendHash; if true, derive a hash from the ConfigMap and append it to the name
 	AppendHash bool
+	// Immutable; if true, the ConfigMap will be immutable (optional)
+	Immutable bool
 
 	FieldManager     string
 	CreateAnnotation bool
@@ -137,6 +140,7 @@ func NewCmdCreateConfigMap(f cmdutil.Factory, ioStreams genericiooptions.IOStrea
 	cmd.Flags().StringArrayVar(&o.LiteralSources, "from-literal", o.LiteralSources, "Specify a key and literal value to insert in configmap (i.e. mykey=somevalue)")
 	cmd.Flags().StringSliceVar(&o.EnvFileSources, "from-env-file", o.EnvFileSources, "Specify the path to a file to read lines of key=val pairs to create a configmap.")
 	cmd.Flags().BoolVar(&o.AppendHash, "append-hash", o.AppendHash, "Append a hash of the configmap to its name.")
+	cmd.Flags().BoolVar(&o.Immutable, "immutable", o.Immutable, "Create immutable configmap.")
 
 	cmdutil.AddFieldManagerFlagVar(cmd, &o.FieldManager, "kubectl-create")
 
@@ -271,6 +275,9 @@ func (o *ConfigMapOptions) createConfigMap() (*corev1.ConfigMap, error) {
 			return nil, err
 		}
 		configMap.Name = fmt.Sprintf("%s-%s", configMap.Name, hash)
+	}
+	if o.Immutable {
+		configMap.Immutable = ptr.To[bool](true)
 	}
 
 	return configMap, nil
