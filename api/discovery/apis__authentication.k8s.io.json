@@ -10,10 +10,6 @@
     {
       "groupVersion": "authentication.k8s.io/v1",
       "version": "v1"
-    },
-    {
-      "groupVersion": "authentication.k8s.io/v1beta1",
-      "version": "v1beta1"
     }
   ]
 }
