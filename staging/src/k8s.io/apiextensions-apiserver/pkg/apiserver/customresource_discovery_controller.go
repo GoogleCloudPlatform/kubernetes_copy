@@ -248,7 +248,8 @@ func (c *DiscoveryController) sync(version schema.GroupVersion) error {
 		// apiVersionsForDiscovery after it put in the right ordered
 		PreferredVersion: apiVersionsForDiscovery[0],
 	}
-	c.groupHandler.setDiscovery(version.Group, discovery.NewAPIGroupHandler(Codecs, apiGroup))
+
+	c.groupHandler.setDiscovery(version.Group, discovery.NewAPIGroupHandler(Codecs, apiGroup), apiGroup)
 
 	if !foundVersion {
 		c.versionHandler.unsetDiscovery(version)

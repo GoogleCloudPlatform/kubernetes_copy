@@ -17,10 +17,12 @@ limitations under the License.
 package apiserver
 
 import (
+	"context"
 	"net/http"
 	"strings"
 	"sync"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apiserver/pkg/endpoints/discovery"
 )
@@ -73,8 +75,9 @@ func (r *versionDiscoveryHandler) unsetDiscovery(gv schema.GroupVersion) {
 
 type groupDiscoveryHandler struct {
 	// TODO, writing is infrequent, optimize this
-	discoveryLock sync.RWMutex
-	discovery     map[string]*discovery.APIGroupHandler
+	discoveryLock   sync.RWMutex
+	discovery       map[string]*discovery.APIGroupHandler
+	discoveryGroups map[string]metav1.APIGroup
 
 	delegate http.Handler
 }
@@ -103,11 +106,24 @@ func (r *groupDiscoveryHandler) getDiscovery(group string) (*discovery.APIGroupH
 	return ret, ok
 }
 
-func (r *groupDiscoveryHandler) setDiscovery(group string, discovery *discovery.APIGroupHandler) {
+func (r *groupDiscoveryHandler) getGroups() []metav1.APIGroup {
+	r.discoveryLock.RLock()
+	defer r.discoveryLock.RUnlock()
+
+	groups := make([]metav1.APIGroup, 0, len(r.discoveryGroups))
+	for _, apiGroup := range r.discoveryGroups {
+		groups = append(groups, apiGroup)
+	}
+
+	return groups
+}
+
+func (r *groupDiscoveryHandler) setDiscovery(group string, discovery *discovery.APIGroupHandler, apiGroup metav1.APIGroup) {
 	r.discoveryLock.Lock()
 	defer r.discoveryLock.Unlock()
 
 	r.discovery[group] = discovery
+	r.discoveryGroups[group] = apiGroup
 }
 
 func (r *groupDiscoveryHandler) unsetDiscovery(group string) {
@@ -115,6 +131,13 @@ func (r *groupDiscoveryHandler) unsetDiscovery(group string) {
 	defer r.discoveryLock.Unlock()
 
 	delete(r.discovery, group)
+	delete(r.discoveryGroups, group)
+}
+
+// Groups returns the list of API groups that are served by the API extensions server.
+// It uses the CustomResourceDefinitionLister to determine which groups are served.
+func (r *groupDiscoveryHandler) Groups(ctx context.Context, _ *http.Request) ([]metav1.APIGroup, error) {
+	return r.getGroups(), nil
 }
 
 // splitPath returns the segments for a URL path.

@@ -18,6 +18,7 @@ package apiserver
 
 import (
 	"context"
+	"net/http"
 	"testing"
 	"time"
 
@@ -248,7 +249,8 @@ func setup() *testEnvironment {
 			discovery: make(map[schema.GroupVersion]*discovery.APIVersionHandler),
 		},
 		groupDiscoveryHandler: groupDiscoveryHandler{
-			discovery: make(map[string]*discovery.APIGroupHandler),
+			discovery:       make(map[string]*discovery.APIGroupHandler),
+			discoveryGroups: make(map[string]metav1.APIGroup),
 		},
 	}
 
@@ -374,6 +376,10 @@ func TestMultipleCRDSameVersion(t *testing.T) {
 	}
 	err = env.FakeResourceManager.WaitForActions(ctx, 1*time.Second)
 	require.NoError(t, err)
+
+	groups, err := env.groupDiscoveryHandler.Groups(ctx, &http.Request{})
+	require.NoError(t, err)
+	require.Len(t, groups, 1)
 }
 
 // Tests that if a CRD is deleted at runtime, the discovery controller will

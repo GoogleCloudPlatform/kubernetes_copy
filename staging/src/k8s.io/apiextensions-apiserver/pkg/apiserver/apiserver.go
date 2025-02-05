@@ -109,6 +109,9 @@ type CustomResourceDefinitions struct {
 
 	// provided for easier embedding
 	Informers externalinformers.SharedInformerFactory
+
+	// DiscoveryGroupLister is used to list the groups that are available for discovery.
+	DiscoveryGroupLister discovery.GroupLister
 }
 
 // Complete fills in any fields not set that are required to have valid data. It's mutating the receiver.
@@ -179,9 +182,13 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 		delegate:  delegateHandler,
 	}
 	groupDiscoveryHandler := &groupDiscoveryHandler{
-		discovery: map[string]*discovery.APIGroupHandler{},
-		delegate:  delegateHandler,
+		discovery:       map[string]*discovery.APIGroupHandler{},
+		discoveryGroups: map[string]metav1.APIGroup{},
+		delegate:        delegateHandler,
 	}
+
+	s.DiscoveryGroupLister = groupDiscoveryHandler
+
 	establishingController := establish.NewEstablishingController(s.Informers.Apiextensions().V1().CustomResourceDefinitions(), crdClient.ApiextensionsV1())
 	crdHandler, err := NewCustomResourceDefinitionHandler(
 		versionDiscoveryHandler,
