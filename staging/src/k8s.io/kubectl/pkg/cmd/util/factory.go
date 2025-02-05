@@ -35,9 +35,6 @@ import (
 // it uses the custom version of the function. Rather than try to enumerate everything that someone would want to override
 // we split the factory into rings, where each ring can depend on methods in an earlier ring, but cannot depend
 // upon peer methods in its own ring.
-// TODO: make the functions interfaces
-// TODO: pass the various interfaces on the factory directly into the command constructors (so the
-// commands are decoupled from the factory).
 type Factory interface {
 	genericclioptions.RESTClientGetter
 
