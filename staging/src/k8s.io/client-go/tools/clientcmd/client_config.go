@@ -660,17 +660,25 @@ func (config *inClusterClientConfig) Possible() bool {
 // BuildConfigFromFlags is a helper function that builds configs from a master
 // url or a kubeconfig filepath. These are passed in as command line flags for cluster
 // components. Warnings should reflect this usage. If neither masterUrl or kubeconfigPath
-// are passed in we fallback to inClusterConfig. If inClusterConfig fails, we fallback
-// to the default config.
+// we look for the KUBECONFIG environment variable to find a config files. If nothing is proviced, we fallback to inClusterConfig.
+// If inClusterConfig fails, we fallback to the default config.
 func BuildConfigFromFlags(masterUrl, kubeconfigPath string) (*restclient.Config, error) {
 	if kubeconfigPath == "" && masterUrl == "" {
-		klog.Warning("Neither --kubeconfig nor --master was specified.  Using the inClusterConfig.  This might not work.")
-		kubeconfig, err := restclient.InClusterConfig()
-		if err == nil {
-			return kubeconfig, nil
+		klog.Warning("Neither --kubeconfig nor --master was specified. Using the KUBECONFIG environment variable to find a kubeconfig files.")
+		kubeconfigPaths := NewDefaultPathOptions().GetEnvVarFiles()
+		if len(kubeconfigPaths) == 0 {
+			klog.Warning("KUBECONFIG environment variable was specified.  Using the inClusterConfig.  This might not work.")
+			kubeconfig, err := restclient.InClusterConfig()
+			if err == nil {
+				return kubeconfig, nil
+			}
+			klog.Warning("error creating inClusterConfig, falling back to default config: ", err)
 		}
-		klog.Warning("error creating inClusterConfig, falling back to default config: ", err)
+		return NewNonInteractiveDeferredLoadingClientConfig(
+			&ClientConfigLoadingRules{Precedence: kubeconfigPaths},
+			&ConfigOverrides{ClusterInfo: clientcmdapi.Cluster{Server: masterUrl}}).ClientConfig()
 	}
+
 	return NewNonInteractiveDeferredLoadingClientConfig(
 		&ClientConfigLoadingRules{ExplicitPath: kubeconfigPath},
 		&ConfigOverrides{ClusterInfo: clientcmdapi.Cluster{Server: masterUrl}}).ClientConfig()
