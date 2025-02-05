@@ -366,7 +366,7 @@ type pulledStruct struct {
 }
 
 // getDurationsFromPulledEventMsg will parse two durations in the pulled message
-// Example msg: `Successfully pulled image \"busybox:1.28\" in 39.356s (49.356s including waiting). Image size: 41901587 bytes.`
+// Example msg: `Successfully pulled image \"busybox:1.28\" in 39.356s (49.356s including waiting). Image size: 40 MiB.`
 func getDurationsFromPulledEventMsg(msg string) (*pulledStruct, error) {
 	splits := strings.Split(msg, " ")
 	if len(splits) != 13 {

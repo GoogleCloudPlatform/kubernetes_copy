@@ -23,6 +23,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/dustin/go-humanize"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
@@ -191,8 +192,8 @@ func (m *imageManager) EnsureImageExists(ctx context.Context, objRef *v1.ObjectR
 	}
 	m.podPullingTimeRecorder.RecordImageFinishedPulling(pod.UID)
 	imagePullDuration := time.Since(startTime).Truncate(time.Millisecond)
-	m.logIt(objRef, v1.EventTypeNormal, events.PulledImage, logPrefix, fmt.Sprintf("Successfully pulled image %q in %v (%v including waiting). Image size: %v bytes.",
-		imgRef, imagePullResult.pullDuration.Truncate(time.Millisecond), imagePullDuration, imagePullResult.imageSize), klog.Info)
+	m.logIt(objRef, v1.EventTypeNormal, events.PulledImage, logPrefix, fmt.Sprintf("Successfully pulled image %q in %v (%v including waiting). Image size: %s.",
+		imgRef, imagePullResult.pullDuration.Truncate(time.Millisecond), imagePullDuration, humanize.IBytes(imagePullResult.imageSize)), klog.Info)
 	metrics.ImagePullDuration.WithLabelValues(metrics.GetImageSizeBucket(imagePullResult.imageSize)).Observe(imagePullDuration.Seconds())
 	m.backOff.GC()
 	return imagePullResult.imageRef, "", nil
