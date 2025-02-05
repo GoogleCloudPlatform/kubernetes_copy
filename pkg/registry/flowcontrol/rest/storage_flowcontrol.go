@@ -138,16 +138,18 @@ func (bce *bootstrapConfigurationEnsurer) ensureAPFBootstrapConfiguration(hookCo
 			return fmt.Errorf("APF bootstrap ensurer timed out waiting for cache sync")
 		}
 
-		err = wait.PollImmediateUntilWithContext(
+		err = wait.PollUntilContextCancel(
 			ctx,
 			time.Second,
-			func(context.Context) (bool, error) {
+			true,
+			func(ctx context.Context) (bool, error) {
 				if err := ensure(ctx, clientset, bce.fsLister, bce.plcLister); err != nil {
 					klog.ErrorS(err, "APF bootstrap ensurer ran into error, will retry later")
 					return false, nil
 				}
 				return true, nil
 			})
+
 		if err != nil {
 			return fmt.Errorf("unable to initialize APF bootstrap configuration: %w", err)
 		}
@@ -160,15 +162,20 @@ func (bce *bootstrapConfigurationEnsurer) ensureAPFBootstrapConfiguration(hookCo
 	// we have successfully initialized the bootstrap configuration, now we
 	// spin up a goroutine which reconciles the bootstrap configuration periodically.
 	go func() {
-		wait.PollImmediateUntil(
+		err = wait.PollUntilContextCancel(
+			hookContext,
 			time.Minute,
-			func() (bool, error) {
+			true,
+			func(ctx context.Context) (bool, error) {
 				if err := ensure(hookContext, clientset, bce.fsLister, bce.plcLister); err != nil {
 					klog.ErrorS(err, "APF bootstrap ensurer ran into error, will retry later")
 				}
 				// always auto update both suggested and mandatory configuration
 				return false, nil
-			}, hookContext.Done())
+			})
+		if err != nil {
+			fmt.Errorf("unable to initialize APF bootstrap configuration: %w", err)
+		}
 		klog.Info("APF bootstrap ensurer is exiting")
 	}()
 
