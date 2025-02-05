@@ -22,7 +22,6 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/klog/v2"
 )
 
 // default allowlist of namespaced resources
@@ -65,10 +64,8 @@ func (pr Resource) String() string {
 func GetRESTMappings(mapper meta.RESTMapper, pruneResources []Resource, namespaceSpecified bool) (namespaced, nonNamespaced []*meta.RESTMapping, err error) {
 	if len(pruneResources) == 0 {
 		pruneResources = defaultNamespacedPruneResources
-		// TODO in kubectl v1.29, add back non-namespaced resource only if namespace is not specified
-		pruneResources = append(pruneResources, defaultNonNamespacedPruneResources...)
-		if namespaceSpecified {
-			klog.Warning("Deprecated: kubectl apply will no longer prune non-namespaced resources by default when used with the --namespace flag in a future release. To preserve the current behaviour, list the resources you want to target explicitly in the --prune-allowlist flag.")
+		if !namespaceSpecified {
+			pruneResources = append(pruneResources, defaultNonNamespacedPruneResources...)
 		}
 	}
 

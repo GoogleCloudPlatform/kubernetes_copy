@@ -68,10 +68,8 @@ func TestGetRESTMappings(t *testing.T) {
 			pr:                 []Resource{},
 			namespaceSpecified: true,
 			expectedns:         14,
-			// it will be 0 non-namespaced resources after the deprecation period has passed.
-			// for details, refer to https://github.com/kubernetes/kubernetes/pull/110907/.
-			expectednns: 2,
-			expectederr: nil,
+			expectednns:        0,
+			expectederr:        nil,
 		},
 		{
 			mapper: &testRESTMapper{},
@@ -93,8 +91,8 @@ func TestGetRESTMappings(t *testing.T) {
 		if tc.expectederr != nil {
 			assert.NotEmptyf(t, actualerr, "getRESTMappings error expected but not fired")
 		}
-		assert.Equal(t, len(actualns), tc.expectedns, "getRESTMappings failed expected number namespaced %d actual %d", tc.expectedns, len(actualns))
-		assert.Equal(t, len(actualnns), tc.expectednns, "getRESTMappings failed expected number nonnamespaced %d actual %d", tc.expectednns, len(actualnns))
+		assert.Len(t, actualns, tc.expectedns, "getRESTMappings failed expected number namespaced %d actual %d", tc.expectedns, len(actualns))
+		assert.Len(t, actualnns, tc.expectednns, "getRESTMappings failed expected number nonnamespaced %d actual %d", tc.expectednns, len(actualnns))
 	}
 }
 
