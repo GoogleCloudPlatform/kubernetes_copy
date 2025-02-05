@@ -142,72 +142,97 @@ func Test_detectNodeIPs(t *testing.T) {
 	cases := []struct {
 		name           string
 		rawNodeIPs     []net.IP
-		bindAddress    string
+		nodeIPOverride []string
+		ipFamilyPolicy kubeproxyconfig.IPFamilyPolicy
 		expectedFamily v1.IPFamily
 		expectedIPv4   string
 		expectedIPv6   string
 	}{
 		{
-			name:           "Bind address IPv4 unicast address and no Node object",
+			name:           "NodeIPOverride IPv4 unicast address and no Node object",
 			rawNodeIPs:     nil,
-			bindAddress:    "10.0.0.1",
+			nodeIPOverride: []string{"10.0.0.1"},
+			ipFamilyPolicy: kubeproxyconfig.IPFamilyPolicyPreferDualStack,
 			expectedFamily: v1.IPv4Protocol,
 			expectedIPv4:   "10.0.0.1",
 			expectedIPv6:   "::1",
 		},
 		{
-			name:           "Bind address IPv6 unicast address and no Node object",
+			name:           "NodeIPOverride IPv4 unicast address, no Node object and SingleStack IPFamilyPolicy",
 			rawNodeIPs:     nil,
-			bindAddress:    "fd00:4321::2",
+			nodeIPOverride: []string{"10.0.0.1"},
+			ipFamilyPolicy: kubeproxyconfig.IPFamilyPolicySingleStack,
+			expectedFamily: v1.IPv4Protocol,
+			expectedIPv4:   "10.0.0.1",
+		},
+		{
+			name:           "NodeIPOverride IPv6 unicast address and no Node object",
+			rawNodeIPs:     nil,
+			nodeIPOverride: []string{"fd00:4321::2"},
+			ipFamilyPolicy: kubeproxyconfig.IPFamilyPolicyPreferDualStack,
 			expectedFamily: v1.IPv6Protocol,
 			expectedIPv4:   "127.0.0.1",
 			expectedIPv6:   "fd00:4321::2",
 		},
 		{
-			name:           "No Valid IP found and no bind address",
+			name:           "NodeIPOverride IPv6 unicast address, no Node object and SingleStack IPFamilyPolicy",
 			rawNodeIPs:     nil,
-			bindAddress:    "",
-			expectedFamily: v1.IPv4Protocol,
-			expectedIPv4:   "127.0.0.1",
-			expectedIPv6:   "::1",
-		},
-		{
-			name:           "No Valid IP found and unspecified bind address",
-			rawNodeIPs:     nil,
-			bindAddress:    "0.0.0.0",
-			expectedFamily: v1.IPv4Protocol,
-			expectedIPv4:   "127.0.0.1",
-			expectedIPv6:   "::1",
-		},
-		{
-			name:           "Bind address 0.0.0.0 and node with IPv4 InternalIP set",
-			rawNodeIPs:     []net.IP{netutils.ParseIPSloppy("192.168.1.1")},
-			bindAddress:    "0.0.0.0",
-			expectedFamily: v1.IPv4Protocol,
-			expectedIPv4:   "192.168.1.1",
-			expectedIPv6:   "::1",
-		},
-		{
-			name:           "Bind address :: and node with IPv4 InternalIP set",
-			rawNodeIPs:     []net.IP{netutils.ParseIPSloppy("192.168.1.1")},
-			bindAddress:    "::",
-			expectedFamily: v1.IPv4Protocol,
-			expectedIPv4:   "192.168.1.1",
-			expectedIPv6:   "::1",
-		},
-		{
-			name:           "Bind address 0.0.0.0 and node with IPv6 InternalIP set",
-			rawNodeIPs:     []net.IP{netutils.ParseIPSloppy("fd00:1234::1")},
-			bindAddress:    "0.0.0.0",
+			nodeIPOverride: []string{"fd00:4321::2"},
+			ipFamilyPolicy: kubeproxyconfig.IPFamilyPolicySingleStack,
 			expectedFamily: v1.IPv6Protocol,
+			expectedIPv6:   "fd00:4321::2",
+		},
+		{
+			name:           "No Valid IP found and no NodeIPOverride",
+			rawNodeIPs:     nil,
+			nodeIPOverride: []string{""},
+			expectedFamily: v1.IPv4Protocol,
+			ipFamilyPolicy: kubeproxyconfig.IPFamilyPolicyPreferDualStack,
+			expectedIPv4:   "127.0.0.1",
+			expectedIPv6:   "::1",
+		},
+		{
+			name:           "No Valid IP found and unspecified NodeIPOverride",
+			rawNodeIPs:     nil,
+			nodeIPOverride: []string{"0.0.0.0"},
+			expectedFamily: v1.IPv4Protocol,
+			ipFamilyPolicy: kubeproxyconfig.IPFamilyPolicyPreferDualStack,
+			expectedIPv4:   "127.0.0.1",
+			expectedIPv6:   "::1",
+		},
+		{
+			name:           "NodeIPOverride 0.0.0.0 and node with IPv4 InternalIP set",
+			rawNodeIPs:     []net.IP{netutils.ParseIPSloppy("192.168.1.1")},
+			nodeIPOverride: []string{"0.0.0.0"},
+			expectedFamily: v1.IPv4Protocol,
+			ipFamilyPolicy: kubeproxyconfig.IPFamilyPolicyPreferDualStack,
+			expectedIPv4:   "192.168.1.1",
+			expectedIPv6:   "::1",
+		},
+		{
+			name:           "NodeIPOverride :: and node with IPv4 InternalIP set",
+			rawNodeIPs:     []net.IP{netutils.ParseIPSloppy("192.168.1.1")},
+			nodeIPOverride: []string{"::"},
+			expectedFamily: v1.IPv4Protocol,
+			ipFamilyPolicy: kubeproxyconfig.IPFamilyPolicyPreferDualStack,
+			expectedIPv4:   "192.168.1.1",
+			expectedIPv6:   "::1",
+		},
+		{
+			name:           "NodeIPOverride 0.0.0.0 and node with IPv6 InternalIP set",
+			rawNodeIPs:     []net.IP{netutils.ParseIPSloppy("fd00:1234::1")},
+			nodeIPOverride: []string{"0.0.0.0"},
+			expectedFamily: v1.IPv6Protocol,
+			ipFamilyPolicy: kubeproxyconfig.IPFamilyPolicyPreferDualStack,
 			expectedIPv4:   "127.0.0.1",
 			expectedIPv6:   "fd00:1234::1",
 		},
 		{
-			name:           "Bind address :: and node with IPv6 InternalIP set",
+			name:           "NodeIPOverride :: and node with IPv6 InternalIP set",
 			rawNodeIPs:     []net.IP{netutils.ParseIPSloppy("fd00:1234::1")},
-			bindAddress:    "::",
+			nodeIPOverride: []string{"::"},
 			expectedFamily: v1.IPv6Protocol,
+			ipFamilyPolicy: kubeproxyconfig.IPFamilyPolicyPreferDualStack,
 			expectedIPv4:   "127.0.0.1",
 			expectedIPv6:   "fd00:1234::1",
 		},
@@ -217,8 +242,21 @@ func Test_detectNodeIPs(t *testing.T) {
 				netutils.ParseIPSloppy("90.90.90.90"),
 				netutils.ParseIPSloppy("2001:db8::2"),
 			},
-			bindAddress:    "::",
+			nodeIPOverride: []string{"::"},
 			expectedFamily: v1.IPv4Protocol,
+			ipFamilyPolicy: kubeproxyconfig.IPFamilyPolicyPreferDualStack,
+			expectedIPv4:   "90.90.90.90",
+			expectedIPv6:   "2001:db8::2",
+		},
+		{
+			name: "Dual stack, primary IPv4 and RequiredDualStack IPFamilyPolicy",
+			rawNodeIPs: []net.IP{
+				netutils.ParseIPSloppy("90.90.90.90"),
+				netutils.ParseIPSloppy("2001:db8::2"),
+			},
+			nodeIPOverride: []string{"::"},
+			expectedFamily: v1.IPv4Protocol,
+			ipFamilyPolicy: kubeproxyconfig.IPFamilyPolicyRequireDualStack,
 			expectedIPv4:   "90.90.90.90",
 			expectedIPv6:   "2001:db8::2",
 		},
@@ -228,8 +266,21 @@ func Test_detectNodeIPs(t *testing.T) {
 				netutils.ParseIPSloppy("2001:db8::2"),
 				netutils.ParseIPSloppy("90.90.90.90"),
 			},
-			bindAddress:    "0.0.0.0",
+			nodeIPOverride: []string{"0.0.0.0"},
 			expectedFamily: v1.IPv6Protocol,
+			ipFamilyPolicy: kubeproxyconfig.IPFamilyPolicyPreferDualStack,
+			expectedIPv4:   "90.90.90.90",
+			expectedIPv6:   "2001:db8::2",
+		},
+		{
+			name: "Dual stack, primary IPv6 and RequiredDualStack IPFamilyPolicy",
+			rawNodeIPs: []net.IP{
+				netutils.ParseIPSloppy("2001:db8::2"),
+				netutils.ParseIPSloppy("90.90.90.90"),
+			},
+			nodeIPOverride: []string{"0.0.0.0"},
+			expectedFamily: v1.IPv6Protocol,
+			ipFamilyPolicy: kubeproxyconfig.IPFamilyPolicyPreferDualStack,
 			expectedIPv4:   "90.90.90.90",
 			expectedIPv6:   "2001:db8::2",
 		},
@@ -239,8 +290,9 @@ func Test_detectNodeIPs(t *testing.T) {
 				netutils.ParseIPSloppy("2001:db8::2"),
 				netutils.ParseIPSloppy("90.90.90.90"),
 			},
-			bindAddress:    "80.80.80.80",
+			nodeIPOverride: []string{"80.80.80.80"},
 			expectedFamily: v1.IPv4Protocol,
+			ipFamilyPolicy: kubeproxyconfig.IPFamilyPolicyPreferDualStack,
 			expectedIPv4:   "80.80.80.80",
 			expectedIPv6:   "2001:db8::2",
 		},
@@ -250,8 +302,9 @@ func Test_detectNodeIPs(t *testing.T) {
 				netutils.ParseIPSloppy("90.90.90.90"),
 				netutils.ParseIPSloppy("2001:db8::2"),
 			},
-			bindAddress:    "2001:db8::555",
+			nodeIPOverride: []string{"2001:db8::555"},
 			expectedFamily: v1.IPv6Protocol,
+			ipFamilyPolicy: kubeproxyconfig.IPFamilyPolicyPreferDualStack,
 			expectedIPv4:   "90.90.90.90",
 			expectedIPv6:   "2001:db8::555",
 		},
@@ -261,8 +314,9 @@ func Test_detectNodeIPs(t *testing.T) {
 				netutils.ParseIPSloppy("2001:db8::2"),
 				netutils.ParseIPSloppy("90.90.90.90"),
 			},
-			bindAddress:    "127.0.0.1",
+			nodeIPOverride: []string{"127.0.0.1"},
 			expectedFamily: v1.IPv4Protocol,
+			ipFamilyPolicy: kubeproxyconfig.IPFamilyPolicyPreferDualStack,
 			expectedIPv4:   "127.0.0.1",
 			expectedIPv6:   "2001:db8::2",
 		},
@@ -272,23 +326,82 @@ func Test_detectNodeIPs(t *testing.T) {
 				netutils.ParseIPSloppy("90.90.90.90"),
 				netutils.ParseIPSloppy("2001:db8::2"),
 			},
-			bindAddress:    "::1",
+			nodeIPOverride: []string{"::1"},
 			expectedFamily: v1.IPv6Protocol,
+			ipFamilyPolicy: kubeproxyconfig.IPFamilyPolicyPreferDualStack,
 			expectedIPv4:   "90.90.90.90",
 			expectedIPv6:   "::1",
+		},
+		{
+			name: "Dual stack, override with unspecified addresses, IPv6",
+			rawNodeIPs: []net.IP{
+				netutils.ParseIPSloppy("2001:db8::2"),
+				netutils.ParseIPSloppy("90.90.90.90"),
+			},
+			nodeIPOverride: []string{"0.0.0.0", "::"},
+			expectedFamily: v1.IPv6Protocol,
+			ipFamilyPolicy: kubeproxyconfig.IPFamilyPolicyPreferDualStack,
+			expectedIPv4:   "90.90.90.90",
+			expectedIPv6:   "2001:db8::2",
+		},
+		{
+			name: "Dual stack, override with specified addresses, IPv4",
+			rawNodeIPs: []net.IP{
+				netutils.ParseIPSloppy("2001:db8::2"),
+				netutils.ParseIPSloppy("90.90.90.90"),
+			},
+			nodeIPOverride: []string{"80.80.80.80", "2001:bd8::3"},
+			expectedFamily: v1.IPv4Protocol,
+			ipFamilyPolicy: kubeproxyconfig.IPFamilyPolicyPreferDualStack,
+			expectedIPv4:   "80.80.80.80",
+			expectedIPv6:   "2001:bd8::3",
+		},
+		{
+			name: "Dual stack, override with unspecified addresses, IPv4",
+			rawNodeIPs: []net.IP{
+				netutils.ParseIPSloppy("90.90.90.90"),
+				netutils.ParseIPSloppy("2001:db8::2"),
+			},
+			nodeIPOverride: []string{"::", "0.0.0.0"},
+			expectedFamily: v1.IPv4Protocol,
+			ipFamilyPolicy: kubeproxyconfig.IPFamilyPolicyPreferDualStack,
+			expectedIPv4:   "90.90.90.90",
+			expectedIPv6:   "2001:db8::2",
+		},
+		{
+			name: "Dual stack, override with specified addresses, IPv6",
+			rawNodeIPs: []net.IP{
+				netutils.ParseIPSloppy("90.90.90.90"),
+				netutils.ParseIPSloppy("2001:db8::2"),
+			},
+			nodeIPOverride: []string{"2001:bd8::3", "80.80.80.80"},
+			expectedFamily: v1.IPv6Protocol,
+			ipFamilyPolicy: kubeproxyconfig.IPFamilyPolicyPreferDualStack,
+			expectedIPv4:   "80.80.80.80",
+			expectedIPv6:   "2001:bd8::3",
 		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			_, ctx := ktesting.NewTestContext(t)
-			primaryFamily, ips := detectNodeIPs(ctx, c.rawNodeIPs, c.bindAddress)
+			primaryFamily, ips := detectNodeIPs(ctx, c.rawNodeIPs, c.nodeIPOverride, c.ipFamilyPolicy)
 			if primaryFamily != c.expectedFamily {
 				t.Errorf("Expected family %q got %q", c.expectedFamily, primaryFamily)
 			}
-			if ips[v1.IPv4Protocol].String() != c.expectedIPv4 {
+
+			var ipString string
+			if ip, ok := ips[v1.IPv4Protocol]; ok {
+				ipString = ip.String()
+			}
+			if ipString != c.expectedIPv4 {
 				t.Errorf("Expected IPv4 %q got %q", c.expectedIPv4, ips[v1.IPv4Protocol].String())
 			}
-			if ips[v1.IPv6Protocol].String() != c.expectedIPv6 {
+
+			ipString = ""
+			if ip, ok := ips[v1.IPv6Protocol]; ok {
+				ipString = ip.String()
+			}
+			if ipString != c.expectedIPv6 {
 				t.Errorf("Expected IPv6 %q got %q", c.expectedIPv6, ips[v1.IPv6Protocol].String())
 			}
 		})

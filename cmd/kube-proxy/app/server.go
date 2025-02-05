@@ -207,7 +207,7 @@ func newProxyServer(ctx context.Context, config *kubeproxyconfig.KubeProxyConfig
 	}
 
 	rawNodeIPs := getNodeIPs(ctx, s.Client, s.Hostname)
-	s.PrimaryIPFamily, s.NodeIPs = detectNodeIPs(ctx, rawNodeIPs, config.BindAddress)
+	s.PrimaryIPFamily, s.NodeIPs = detectNodeIPs(ctx, rawNodeIPs, config.NodeIPOverride, config.IPFamilyPolicy)
 
 	if len(config.NodePortAddresses) == 1 && config.NodePortAddresses[0] == kubeproxyconfig.NodePortAddressesPrimary {
 		var nodePortAddresses []string
@@ -639,13 +639,13 @@ func (s *ProxyServer) birthCry() {
 
 // (Note that on Linux, the node IPs are used only to determine whether a given
 // LoadBalancerSourceRanges value matches the node or not. In particular, they are *not*
-// used for NodePort handling.)
+// used for NodePort handling unless NodePortAddresses is not set to 'primary'.)
 //
 // The order of precedence is:
-//  1. if bindAddress is not 0.0.0.0 or ::, then it is used as the primary IP.
+//  1. if nodeIPOverride[0] is not 0.0.0.0 or ::, then ip family of nodeIPOverride[0] is considered as primary IP family.
 //  2. if rawNodeIPs is not empty, then its address(es) is/are used
 //  3. otherwise the node IPs are 127.0.0.1 and ::1
-func detectNodeIPs(ctx context.Context, rawNodeIPs []net.IP, bindAddress string) (v1.IPFamily, map[v1.IPFamily]net.IP) {
+func detectNodeIPs(ctx context.Context, rawNodeIPs []net.IP, nodeIPOverride []string, ipFamilyPolicy kubeproxyconfig.IPFamilyPolicy) (v1.IPFamily, map[v1.IPFamily]net.IP) {
 	logger := klog.FromContext(ctx)
 	primaryFamily := v1.IPv4Protocol
 	nodeIPs := map[v1.IPFamily]net.IP{
@@ -668,15 +668,33 @@ func detectNodeIPs(ctx context.Context, rawNodeIPs []net.IP, bindAddress string)
 		}
 	}
 
-	// If a bindAddress is passed, override the primary IP
-	bindIP := netutils.ParseIPSloppy(bindAddress)
-	if bindIP != nil && !bindIP.IsUnspecified() {
-		if netutils.IsIPv4(bindIP) {
-			primaryFamily = v1.IPv4Protocol
-		} else {
-			primaryFamily = v1.IPv6Protocol
+	// if nodeIPOverride is passed, override the IPs.
+	for i := range nodeIPOverride {
+		family := v1.IPv4Protocol
+		ip := netutils.ParseIPSloppy(nodeIPOverride[i])
+		if ip != nil && !ip.IsUnspecified() {
+			if !netutils.IsIPv4(ip) {
+				family = v1.IPv6Protocol
+			}
+			nodeIPs[family] = ip
+			// only override the primaryFamily for nodeIPOverride[0]
+			if i == 0 {
+				primaryFamily = family
+			}
 		}
-		nodeIPs[primaryFamily] = bindIP
+	}
+
+	// we should only return NodeIP for single IPFamily if IPFamilyPolicy is SingleStack.
+	if ipFamilyPolicy == kubeproxyconfig.IPFamilyPolicySingleStack {
+		var secondaryFamily v1.IPFamily
+		for family := range nodeIPs {
+			if family == primaryFamily {
+				continue
+			}
+			secondaryFamily = family
+			break
+		}
+		delete(nodeIPs, secondaryFamily)
 	}
 
 	if nodeIPs[primaryFamily].IsLoopback() {

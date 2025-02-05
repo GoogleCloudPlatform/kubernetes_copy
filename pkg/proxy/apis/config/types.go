@@ -179,10 +179,15 @@ type KubeProxyConfiguration struct {
 	// kube-proxy is running on. If unset, the node name is assumed to be the same as
 	// the node's hostname.
 	HostnameOverride string
-	// bindAddress can be used to override kube-proxy's idea of what its node's
-	// primary IP is. Note that the name is a historical artifact, and kube-proxy does
-	// not actually bind any sockets to this IP.
-	BindAddress string
+	// nodeIPOverride can be used to override kube-proxy's idea of what its node's
+	// primary IPs are. nodeIPOverride[0] will be used for defaulting healthzBindAddress
+	// and metricsBindAddress values. If nodePortAddresses is set to "primary" node-ports
+	// will be exposed on the given ips.
+	NodeIPOverride []string
+	// ipFamilyPolicy controls the nodeIP detection logic, which further influences if LoadBalancer
+	// services should be allowed on node when SourceRanges are set and on which interfaces node
+	// ports should be exposed when nodePortAddresses is set to 'primary'.
+	IPFamilyPolicy IPFamilyPolicy
 	// healthzBindAddress is the IP address and port for the health check server to
 	// serve on, defaulting to "0.0.0.0:10256" (if bindAddress is unset or IPv4), or
 	// "[::]:10256" (if bindAddress is IPv6).
@@ -302,3 +307,23 @@ func (m *LocalMode) Type() string {
 // NodePortAddressesPrimary is a special value for NodePortAddresses indicating that it
 // should only use the primary node IPs.
 const NodePortAddressesPrimary string = "primary"
+
+// IPFamilyPolicy controls the nodeIP detection logic, which further influences if LoadBalancer
+// services should be allowed on node when SourceRanges are set and on which interfaces node
+// ports should be exposed when nodePortAddresses is set to 'primary'.
+type IPFamilyPolicy string
+
+const (
+	// IPFamilyPolicySingleStack indicates that kube-proxy is required to work with NodeIP
+	// of single IP family. The NodeIP assigned is based on NodeIPOverride.
+	IPFamilyPolicySingleStack IPFamilyPolicy = "SingleStack"
+
+	// IPFamilyPolicyPreferDualStack indicates that kube-proxy is preferred to work with NodeIPs
+	// of both the IP families. The NodeIPs will be auto-detected if NodeIPOverride is empty
+	// or missing value for a particular IPFamily.
+	IPFamilyPolicyPreferDualStack IPFamilyPolicy = "PreferDualStack"
+
+	// IPFamilyPolicyRequireDualStack indicates that kube-proxy is preferred to work with NodeIPs
+	// of both the IP families.
+	IPFamilyPolicyRequireDualStack IPFamilyPolicy = "RequireDualStack"
+)

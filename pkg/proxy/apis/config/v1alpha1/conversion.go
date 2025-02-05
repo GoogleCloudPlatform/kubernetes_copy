@@ -54,6 +54,10 @@ func Convert_config_KubeProxyConfiguration_To_v1alpha1_KubeProxyConfiguration(in
 	if len(in.DetectLocal.ClusterCIDRs) > 0 {
 		out.ClusterCIDR = strings.Join(in.DetectLocal.ClusterCIDRs, ",")
 	}
+
+	if len(in.NodeIPOverride) > 0 {
+		out.BindAddress = in.NodeIPOverride[0]
+	}
 	return nil
 }
 
@@ -87,6 +91,13 @@ func Convert_v1alpha1_KubeProxyConfiguration_To_config_KubeProxyConfiguration(in
 	if len(in.ClusterCIDR) > 0 {
 		out.DetectLocal.ClusterCIDRs = strings.Split(in.ClusterCIDR, ",")
 	}
+
+	if len(in.BindAddress) > 0 {
+		out.NodeIPOverride = []string{in.BindAddress}
+	}
+
+	// todo: @aroradaman figure out a better way to avoid the following
+	out.IPFamilyPolicy = config.IPFamilyPolicyPreferDualStack
 	return nil
 }
 
