@@ -11545,7 +11545,7 @@ func TestValidatePod(t *testing.T) {
 			),
 		},
 		"invalid soft pod affinity, key exists in both matchLabelKeys and labelSelector": {
-			expectedError: "exists in both matchLabelKeys and labelSelector",
+			expectedError: "spec.affinity.podAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].podAffinityTerm.matchLabelKeys[0]: Invalid value: \"key\": exists in both matchLabelKeys and labelSelector",
 			spec: *podtest.MakePod("123",
 				podtest.SetAffinity(&core.Affinity{
 					PodAffinity: &core.PodAffinity{
@@ -11578,7 +11578,7 @@ func TestValidatePod(t *testing.T) {
 			),
 		},
 		"invalid hard pod affinity, key exists in both matchLabelKeys and labelSelector": {
-			expectedError: "exists in both matchLabelKeys and labelSelector",
+			expectedError: "spec.affinity.podAffinity.requiredDuringSchedulingIgnoredDuringExecution[0].matchLabelKeys[0]: Invalid value: \"key\": exists in both matchLabelKeys and labelSelector",
 			spec: *podtest.MakePod("123",
 				podtest.SetLabels(map[string]string{"key": "value1"}),
 				podtest.SetAffinity(&core.Affinity{
@@ -11609,7 +11609,7 @@ func TestValidatePod(t *testing.T) {
 			),
 		},
 		"invalid soft pod anti-affinity, key exists in both matchLabelKeys and labelSelector": {
-			expectedError: "exists in both matchLabelKeys and labelSelector",
+			expectedError: "spec.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].podAffinityTerm.matchLabelKeys[0]: Invalid value: \"key\": exists in both matchLabelKeys and labelSelector",
 			spec: *podtest.MakePod("123",
 				podtest.SetLabels(map[string]string{"key": "value1"}),
 				podtest.SetAffinity(&core.Affinity{
@@ -11643,7 +11643,7 @@ func TestValidatePod(t *testing.T) {
 			),
 		},
 		"invalid hard pod anti-affinity, key exists in both matchLabelKeys and labelSelector": {
-			expectedError: "exists in both matchLabelKeys and labelSelector",
+			expectedError: "spec.affinity.podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecution[0].matchLabelKeys[0]: Invalid value: \"key\": exists in both matchLabelKeys and labelSelector",
 			spec: *podtest.MakePod("123",
 				podtest.SetLabels(map[string]string{"key": "value1"}),
 				podtest.SetAffinity(&core.Affinity{
