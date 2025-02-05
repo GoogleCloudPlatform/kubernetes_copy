@@ -747,7 +747,7 @@ func (nc *Controller) monitorNodeHealth(ctx context.Context) error {
 				}
 				return
 			}
-			nc.processTaintBaseEviction(ctx, node, &observedReadyCondition)
+			nc.processTaintBaseEviction(ctx, node, currentReadyCondition)
 
 			_, needsRetry := nc.nodesToRetry.Load(node.Name)
 			switch {
@@ -778,11 +778,11 @@ func (nc *Controller) monitorNodeHealth(ctx context.Context) error {
 	return nil
 }
 
-func (nc *Controller) processTaintBaseEviction(ctx context.Context, node *v1.Node, observedReadyCondition *v1.NodeCondition) {
+func (nc *Controller) processTaintBaseEviction(ctx context.Context, node *v1.Node, currentReadyCondition *v1.NodeCondition) {
 	decisionTimestamp := nc.now()
 	// Check eviction timeout against decisionTimestamp
 	logger := klog.FromContext(ctx)
-	switch observedReadyCondition.Status {
+	switch currentReadyCondition.Status {
 	case v1.ConditionFalse:
 		// We want to update the taint straight away if Node is already tainted with the UnreachableTaint
 		if taintutils.TaintExists(node.Spec.Taints, UnreachableTaintTemplate) {
@@ -794,7 +794,7 @@ func (nc *Controller) processTaintBaseEviction(ctx context.Context, node *v1.Nod
 			logger.V(2).Info("Node is NotReady. Adding it to the Taint queue", "node", klog.KObj(node), "timeStamp", decisionTimestamp)
 		}
 	case v1.ConditionUnknown:
-		// We want to update the taint straight away if Node is already tainted with the UnreachableTaint
+		// We want to update the taint straight away if Node is already tainted with the NotReadyTaintTemplate
 		if taintutils.TaintExists(node.Spec.Taints, NotReadyTaintTemplate) {
 			taintToAdd := *UnreachableTaintTemplate
 			if !controllerutil.SwapNodeControllerTaint(ctx, nc.kubeClient, []*v1.Taint{&taintToAdd}, []*v1.Taint{NotReadyTaintTemplate}, node) {

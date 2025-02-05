@@ -2523,6 +2523,187 @@ func TestApplyNoExecuteTaints(t *testing.T) {
 	}
 }
 
+// TestApplyNoExecuteTaintsToUnreachableNode ensures a NoExecute taint is applied to node that hasn't posted the
+// node status for a period greater than nodeMonitorGracePeriod.
+func TestApplyNoExecuteTaintsToUnreachableNode(t *testing.T) {
+	// TODO: Remove skip once https://github.com/kubernetes/kubernetes/pull/114607 merges.
+	if goruntime.GOOS == "windows" {
+		t.Skip("Skipping test on Windows.")
+	}
+	fakeNodeHandler := &testutil.FakeNodeHandler{
+		Existing: []*v1.Node{
+			// Unreachable Taint with effect 'NoExecute' should be applied to this node after 2015-01-01 12:00:40.
+			{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:              "node0",
+					CreationTimestamp: metav1.Date(2012, 1, 1, 0, 0, 0, 0, time.UTC),
+					Labels: map[string]string{
+						v1.LabelTopologyRegion:          "region1",
+						v1.LabelTopologyZone:            "zone1",
+						v1.LabelFailureDomainBetaRegion: "region1",
+						v1.LabelFailureDomainBetaZone:   "zone1",
+					},
+				},
+				Status: v1.NodeStatus{
+					Conditions: []v1.NodeCondition{
+						{
+							Type:               v1.NodeReady,
+							Status:             v1.ConditionTrue,
+							LastHeartbeatTime:  metav1.Date(2015, 1, 1, 12, 0, 0, 0, time.UTC),
+							LastTransitionTime: metav1.Date(2015, 1, 1, 12, 0, 0, 0, time.UTC),
+						},
+					},
+				},
+			},
+			// Because of the logic that prevents NC from evicting anything when all Nodes are NotReady
+			// we need second healthy node in tests.
+			{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:              "node1",
+					CreationTimestamp: metav1.Date(2012, 1, 1, 0, 0, 0, 0, time.UTC),
+					Labels: map[string]string{
+						v1.LabelTopologyRegion:          "region1",
+						v1.LabelTopologyZone:            "zone1",
+						v1.LabelFailureDomainBetaRegion: "region1",
+						v1.LabelFailureDomainBetaZone:   "zone1",
+					},
+				},
+				Status: v1.NodeStatus{
+					Conditions: []v1.NodeCondition{
+						{
+							Type:               v1.NodeReady,
+							Status:             v1.ConditionTrue,
+							LastHeartbeatTime:  metav1.Date(2017, 1, 1, 12, 0, 0, 0, time.UTC),
+							LastTransitionTime: metav1.Date(2017, 1, 1, 12, 0, 0, 0, time.UTC),
+						},
+					},
+				},
+			},
+		},
+		Clientset: fake.NewSimpleClientset(&v1.PodList{Items: []v1.Pod{*testutil.NewPod("pod0", "node0")}}),
+	}
+	_, ctx := ktesting.NewTestContext(t)
+	nodeController, _ := newNodeLifecycleControllerFromClient(
+		ctx,
+		fakeNodeHandler,
+		testRateLimiterQPS,
+		testRateLimiterQPS,
+		testLargeClusterThreshold,
+		testUnhealthyThreshold,
+		testNodeMonitorGracePeriod,
+		testNodeStartupGracePeriod,
+		testNodeMonitorPeriod,
+	)
+	// No taint should be added when the NodeReady conditions were not set longer ago than NodeMonitorGracePeriod.
+	fakeNow := metav1.Date(2017, 1, 1, 12, 0, 0, 0, time.UTC)
+	nodeController.now = func() metav1.Time { return fakeNow }
+	nodeController.recorder = testutil.NewFakeRecorder()
+	nodeController.getPodsAssignedToNode = fakeGetPodsAssignedToNode(fakeNodeHandler.Clientset)
+	if err := nodeController.syncNodeStore(fakeNodeHandler); err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if err := nodeController.monitorNodeHealth(ctx); err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	nodeController.doNoExecuteTaintingPass(ctx)
+	node0, err := fakeNodeHandler.Get(ctx, "node0", metav1.GetOptions{})
+	if err != nil {
+		t.Errorf("Can't get current node0...")
+		return
+	}
+	if len(node0.Spec.Taints) > 0 {
+		t.Errorf("Got unexpected taints %v", node0.Spec.Taints)
+	}
+	node1, err := fakeNodeHandler.Get(ctx, "node1", metav1.GetOptions{})
+	if err != nil {
+		t.Errorf("Can't get current node1...")
+		return
+	}
+	if len(node1.Spec.Taints) > 0 {
+		t.Errorf("Got unexpected taints %v", node1.Spec.Taints)
+	}
+
+	// Only node1 sends a new heartbeat.
+	node1.Status = v1.NodeStatus{
+		Conditions: []v1.NodeCondition{
+			{
+				Type:               v1.NodeReady,
+				Status:             v1.ConditionTrue,
+				LastHeartbeatTime:  metav1.Date(2017, 1, 1, 12, 0, 40, 0, time.UTC),
+				LastTransitionTime: metav1.Date(2017, 1, 1, 12, 0, 0, 0, time.UTC),
+			},
+		},
+	}
+	_, err = fakeNodeHandler.UpdateStatus(ctx, node1, metav1.UpdateOptions{})
+	if err != nil {
+		t.Errorf(err.Error())
+		return
+	}
+	// Unreachable taint should be added to node0 and not node1 because the former's NodeReadyCondition was set longer ago than NodeMonitorGracePeriod.
+	fakeNow = metav1.Date(2017, 1, 1, 12, 0, 50, 0, time.UTC)
+	if err := nodeController.syncNodeStore(fakeNodeHandler); err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if err := nodeController.monitorNodeHealth(ctx); err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if err := nodeController.syncNodeStore(fakeNodeHandler); err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	nodeController.doNoExecuteTaintingPass(ctx)
+
+	node0, err = fakeNodeHandler.Get(ctx, "node0", metav1.GetOptions{})
+	if err != nil {
+		t.Errorf("Can't get current node0...")
+		return
+	}
+	if !taintutils.TaintExists(node0.Spec.Taints, UnreachableTaintTemplate) {
+		t.Errorf("Can't find taint %v in %v", UnreachableTaintTemplate, node0.Spec.Taints)
+	}
+	node1, err = fakeNodeHandler.Get(ctx, "node1", metav1.GetOptions{})
+	if err != nil {
+		t.Errorf("Can't get current node1...")
+		return
+	}
+	if len(node1.Spec.Taints) > 0 {
+		t.Errorf("Got unexpected taints %v", node1.Spec.Taints)
+	}
+
+	// Unreachable taint should be deleted from node0 after it sends a new heartbeat.
+	node0.Status = v1.NodeStatus{
+		Conditions: []v1.NodeCondition{
+			{
+				Type:               v1.NodeReady,
+				Status:             v1.ConditionTrue,
+				LastHeartbeatTime:  fakeNow,
+				LastTransitionTime: fakeNow,
+			},
+		},
+	}
+	_, err = fakeNodeHandler.UpdateStatus(ctx, node0, metav1.UpdateOptions{})
+	if err != nil {
+		t.Errorf(err.Error())
+		return
+	}
+	if err := nodeController.syncNodeStore(fakeNodeHandler); err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if err := nodeController.monitorNodeHealth(ctx); err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	nodeController.doNoExecuteTaintingPass(ctx)
+
+	node0, err = fakeNodeHandler.Get(ctx, "node0", metav1.GetOptions{})
+	if err != nil {
+		t.Errorf("Can't get current node0...")
+		return
+	}
+	// We should not see any taint on the node.
+	if len(node0.Spec.Taints) > 0 {
+		t.Errorf("Got unexpected taints %v", node0.Spec.Taints)
+	}
+}
+
 // TestApplyNoExecuteTaintsToNodesEnqueueTwice ensures we taint every node with NoExecute even if enqueued twice
 func TestApplyNoExecuteTaintsToNodesEnqueueTwice(t *testing.T) {
 	// TODO: Remove skip once https://github.com/kubernetes/kubernetes/pull/114607 merges.
