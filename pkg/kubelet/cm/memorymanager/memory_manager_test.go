@@ -118,6 +118,10 @@ func (p *mockPolicy) GetAllocatableMemory(s state.State) []state.Block {
 	return []state.Block{}
 }
 
+func (p *mockPolicy) CanAllocateExclusively() bool {
+	return false
+}
+
 type mockRuntimeService struct {
 	err error
 }

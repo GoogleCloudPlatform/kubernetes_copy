@@ -19,7 +19,7 @@ package cpumanager
 import (
 	"fmt"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/kubelet/cm/cpumanager/state"
 	"k8s.io/kubernetes/pkg/kubelet/cm/topologymanager"
@@ -73,4 +73,8 @@ func (p *nonePolicy) GetPodTopologyHints(s state.State, pod *v1.Pod) map[string]
 // Hence, we return empty set here: no cpus are assignable according to above definition with this policy.
 func (p *nonePolicy) GetAllocatableCPUs(m state.State) cpuset.CPUSet {
 	return cpuset.New()
+}
+
+func (p *nonePolicy) CanAllocateExclusively() bool {
+	return false
 }

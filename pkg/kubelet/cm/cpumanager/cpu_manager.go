@@ -97,6 +97,9 @@ type Manager interface {
 	// GetAllCPUs returns all the CPUs known by cpumanager, as reported by the
 	// hardware discovery. Maps to the CPU capacity.
 	GetAllCPUs() cpuset.CPUSet
+
+	// Returns true if this manager can allocate exclusively to a container the resource(s) it manages.
+	CanAllocateExclusively(res v1.ResourceName) bool
 }
 
 type manager struct {
@@ -522,4 +525,11 @@ func (m *manager) GetExclusiveCPUs(podUID, containerName string) cpuset.CPUSet {
 
 func (m *manager) GetCPUAffinity(podUID, containerName string) cpuset.CPUSet {
 	return m.state.GetCPUSetOrDefault(podUID, containerName)
+}
+
+func (m *manager) CanAllocateExclusively(res v1.ResourceName) bool {
+	if res != v1.ResourceCPU {
+		return false
+	}
+	return m.policy.CanAllocateExclusively()
 }

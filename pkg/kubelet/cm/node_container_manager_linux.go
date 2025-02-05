@@ -195,9 +195,9 @@ func (cm *containerManagerImpl) getCgroupConfig(rl v1.ResourceList, compressible
 	// doesn't know about it and deletes it, and then kubelet doesn't continue because the cgroup isn't configured as expected).
 	// An alternative is to delegate the `cpuset` cgroup to the kubelet, but that would require some plumbing in libcontainer,
 	// and this is sufficient.
-	// Only do so on None policy, as Static policy will do its own updating of the cpuset.
-	// Please see the comment on policy none's GetAllocatableCPUs
-	if cm.cpuManager.GetAllocatableCPUs().IsEmpty() {
+	// Only do so when the cpumanager is not exclusively allocating CPUs, as it will do its own updating of the cpuset when
+	// CPUs are exclusively allocated.
+	if !cm.cpuManager.CanAllocateExclusively(v1.ResourceCPU) {
 		rc.CPUSet = cm.cpuManager.GetAllCPUs()
 	}
 

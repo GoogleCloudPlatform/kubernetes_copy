@@ -2845,19 +2845,15 @@ func (kl *Kubelet) canResizePod(pod *v1.Pod) (bool, v1.PodResizeStatus, string) 
 	}
 
 	if v1qos.GetPodQOS(pod) == v1.PodQOSGuaranteed && !utilfeature.DefaultFeatureGate.Enabled(features.InPlacePodVerticalScalingExclusiveCPUs) {
-		if utilfeature.DefaultFeatureGate.Enabled(features.CPUManager) {
-			if kl.containerManager.GetNodeConfig().CPUManagerPolicy == "static" {
-				msg := "Resize is infeasible for Guaranteed Pods alongside CPU Manager static policy"
-				klog.V(3).InfoS(msg, "pod", format.Pod(pod))
-				return false, v1.PodResizeStatusInfeasible, msg
-			}
+		if kl.containerManager.CanAllocateExclusively(v1.ResourceCPU) {
+			msg := "Resize is infeasible for Guaranteed Pods alongside CPU Manager static policy"
+			klog.V(3).InfoS(msg, "pod", format.Pod(pod))
+			return false, v1.PodResizeStatusInfeasible, msg
 		}
-		if utilfeature.DefaultFeatureGate.Enabled(features.MemoryManager) {
-			if kl.containerManager.GetNodeConfig().MemoryManagerPolicy == "static" {
-				msg := "Resize is infeasible for Guaranteed Pods alongside Memory Manager static policy"
-				klog.V(3).InfoS(msg, "pod", format.Pod(pod))
-				return false, v1.PodResizeStatusInfeasible, msg
-			}
+		if kl.containerManager.CanAllocateExclusively(v1.ResourceMemory) {
+			msg := "Resize is infeasible for Guaranteed Pods alongside Memory Manager static policy"
+			klog.V(3).InfoS(msg, "pod", format.Pod(pod))
+			return false, v1.PodResizeStatusInfeasible, msg
 		}
 	}
 

@@ -263,8 +263,14 @@ func (cm *FakeContainerManager) UnprepareDynamicResources(context.Context, *v1.P
 func (cm *FakeContainerManager) PodMightNeedToUnprepareResources(UID types.UID) bool {
 	return false
 }
+
 func (cm *FakeContainerManager) UpdateAllocatedResourcesStatus(pod *v1.Pod, status *v1.PodStatus) {
 }
+
 func (cm *FakeContainerManager) Updates() <-chan resourceupdates.Update {
 	return nil
+}
+
+func (cm *FakeContainerManager) CanAllocateExclusively(res v1.ResourceName) bool {
+	return false
 }
