@@ -472,7 +472,7 @@ func (gc *GarbageCollector) classifyReferences(ctx context.Context, item *node, 
 		if err != nil {
 			return nil, nil, nil, err
 		}
-		if ownerAccessor.GetDeletionTimestamp() != nil && hasDeleteDependentsFinalizer(ownerAccessor) {
+		if ownerAccessor.GetDeletionTimestamp() != nil && hasDeleteDependentsFinalizer(ownerAccessor) && len(ownerAccessor.GetFinalizers()) == 1 {
 			waitingForDependentsDeletion = append(waitingForDependentsDeletion, reference)
 		} else {
 			solid = append(solid, reference)
