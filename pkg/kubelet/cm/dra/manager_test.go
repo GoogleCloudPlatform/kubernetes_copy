@@ -580,11 +580,11 @@ func TestPrepareResources(t *testing.T) {
 			}
 			defer draServerInfo.teardownFn()
 
-			plg := plugin.NewRegistrationHandler(nil, getFakeNode)
+			plg := plugin.NewRegistrationHandler(nil, getFakeNode, time.Second /* very short wiping delay for testing */)
 			if err := plg.RegisterPlugin(test.driverName, draServerInfo.socketName, []string{drapb.DRAPluginService}, pluginClientTimeout); err != nil {
 				t.Fatalf("failed to register plugin %s, err: %v", test.driverName, err)
 			}
-			defer plg.DeRegisterPlugin(test.driverName) // for sake of next tests
+			defer plg.DeRegisterPlugin(test.driverName, draServerInfo.socketName) // for sake of next tests
 
 			if test.claimInfo != nil {
 				manager.cache.add(test.claimInfo)
@@ -717,11 +717,11 @@ func TestUnprepareResources(t *testing.T) {
 			}
 			defer draServerInfo.teardownFn()
 
-			plg := plugin.NewRegistrationHandler(nil, getFakeNode)
+			plg := plugin.NewRegistrationHandler(nil, getFakeNode, time.Second /* very short wiping delay for testing */)
 			if err := plg.RegisterPlugin(test.driverName, draServerInfo.socketName, []string{drapb.DRAPluginService}, pluginClientTimeout); err != nil {
 				t.Fatalf("failed to register plugin %s, err: %v", test.driverName, err)
 			}
-			defer plg.DeRegisterPlugin(test.driverName) // for sake of next tests
+			defer plg.DeRegisterPlugin(test.driverName, draServerInfo.socketName) // for sake of next tests
 
 			manager := &ManagerImpl{
 				kubeClient: fakeKubeClient,
@@ -887,11 +887,11 @@ func TestParallelPrepareUnprepareResources(t *testing.T) {
 	}
 	defer draServerInfo.teardownFn()
 
-	plg := plugin.NewRegistrationHandler(nil, getFakeNode)
+	plg := plugin.NewRegistrationHandler(nil, getFakeNode, time.Second /* very short wiping delay for testing */)
 	if err := plg.RegisterPlugin(driverName, draServerInfo.socketName, []string{drapb.DRAPluginService}, nil); err != nil {
 		t.Fatalf("failed to register plugin %s, err: %v", driverName, err)
 	}
-	defer plg.DeRegisterPlugin(driverName)
+	defer plg.DeRegisterPlugin(driverName, draServerInfo.socketName)
 
 	// Create ClaimInfo cache
 	cache, err := newClaimInfoCache(t.TempDir(), draManagerStateFileName)

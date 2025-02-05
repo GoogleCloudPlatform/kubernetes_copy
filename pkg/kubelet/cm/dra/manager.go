@@ -98,7 +98,16 @@ func NewManagerImpl(kubeClient clientset.Interface, stateFileDirectory string, n
 }
 
 func (m *ManagerImpl) GetWatcherHandler() cache.PluginHandler {
-	return cache.PluginHandler(dra.NewRegistrationHandler(m.kubeClient, m.getNode))
+	// The time that DRA drivers have to come back after being unregistered
+	// before the kubelet removes their ResourceSlices.
+	//
+	// This must be long enough to actually allow stopping a pod and
+	// starting the replacement (otherwise ResourceSlices get deleted
+	// unnecessarily) and not too long (otherwise the time window were
+	// pods might still get scheduled to the node after removal of a
+	// driver is too long).
+	wipingDelay := 5 * time.Minute
+	return cache.PluginHandler(dra.NewRegistrationHandler(m.kubeClient, m.getNode, wipingDelay))
 }
 
 // Start starts the reconcile loop of the manager.

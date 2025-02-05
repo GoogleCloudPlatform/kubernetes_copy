@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"sync"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
@@ -53,6 +54,18 @@ type RegistrationHandler struct {
 	backgroundCtx context.Context
 	kubeClient    kubernetes.Interface
 	getNode       func() (*v1.Node, error)
+	wipingDelay   time.Duration
+
+	mutex sync.Mutex
+
+	// pendingWiping maps a plugin name to a cancel function for
+	// wiping of that plugin's ResourceSlices. Entries get added
+	// in DeRegisterPlugin and check in RegisterPlugin. If
+	// wiping is pending during RegisterPlugin, it gets canceled.
+	//
+	// Must use pointers to functions because the entries have to
+	// be comparable.
+	pendingWiping map[string]*context.CancelCauseFunc
 }
 
 var _ cache.PluginHandler = &RegistrationHandler{}
@@ -62,12 +75,14 @@ var _ cache.PluginHandler = &RegistrationHandler{}
 // Must only be called once per process because it manages global state.
 // If a kubeClient is provided, then it synchronizes ResourceSlices
 // with the resource information provided by plugins.
-func NewRegistrationHandler(kubeClient kubernetes.Interface, getNode func() (*v1.Node, error)) *RegistrationHandler {
+func NewRegistrationHandler(kubeClient kubernetes.Interface, getNode func() (*v1.Node, error), wipingDelay time.Duration) *RegistrationHandler {
 	handler := &RegistrationHandler{
 		// The context and thus logger should come from the caller.
 		backgroundCtx: klog.NewContext(context.TODO(), klog.LoggerWithName(klog.TODO(), "DRA registration handler")),
 		kubeClient:    kubeClient,
 		getNode:       getNode,
+		wipingDelay:   wipingDelay,
+		pendingWiping: make(map[string]*context.CancelCauseFunc),
 	}
 
 	// When kubelet starts up, no DRA driver has registered yet. None of
@@ -77,18 +92,33 @@ func NewRegistrationHandler(kubeClient kubernetes.Interface, getNode func() (*v1
 	// to start up.
 	//
 	// This has to run in the background.
-	go handler.wipeResourceSlices("")
+	logger := klog.LoggerWithName(klog.FromContext(handler.backgroundCtx), "startup")
+	ctx := klog.NewContext(handler.backgroundCtx, logger)
+	go handler.wipeResourceSlices(ctx, 0 /* no delay */, "" /* all drivers */)
 
 	return handler
 }
 
 // wipeResourceSlices deletes ResourceSlices of the node, optionally just for a specific driver.
-func (h *RegistrationHandler) wipeResourceSlices(driver string) {
+// Wiping will delay for a while and can be canceled by canceling the context.
+func (h *RegistrationHandler) wipeResourceSlices(ctx context.Context, delay time.Duration, driver string) {
 	if h.kubeClient == nil {
 		return
 	}
-	ctx := h.backgroundCtx
 	logger := klog.FromContext(ctx)
+
+	if delay != 0 {
+		// Before we start deleting, give the driver time to bounce back.
+		// Perhaps it got removed as part of a DaemonSet update and the
+		// replacement pod is about to start.
+		logger.V(4).Info("Starting to wait before wiping ResourceSlices", "delay", delay)
+		select {
+		case <-ctx.Done():
+			logger.V(4).Info("Aborting wiping of ResourceSlices", "reason", context.Cause(ctx))
+		case <-time.After(delay):
+			logger.V(4).Info("Starting to wipe ResourceSlices after waiting", "delay", delay)
+		}
+	}
 
 	backoff := wait.Backoff{
 		Duration: time.Second,
@@ -148,10 +178,10 @@ func (h *RegistrationHandler) RegisterPlugin(pluginName string, endpoint string,
 	// into all log output related to the plugin.
 	ctx := h.backgroundCtx
 	logger := klog.FromContext(ctx)
-	logger = klog.LoggerWithValues(logger, "pluginName", pluginName)
+	logger = klog.LoggerWithValues(logger, "pluginName", pluginName, "endpoint", endpoint)
 	ctx = klog.NewContext(ctx, logger)
 
-	logger.V(3).Info("Register new DRA plugin", "endpoint", endpoint)
+	logger.V(3).Info("Register new DRA plugin")
 
 	chosenService, err := h.validateSupportedServices(pluginName, supportedServices)
 	if err != nil {
@@ -179,9 +209,19 @@ func (h *RegistrationHandler) RegisterPlugin(pluginName string, endpoint string,
 
 	// Storing endpoint of newly registered DRA Plugin into the map, where plugin name will be the key
 	// all other DRA components will be able to get the actual socket of DRA plugins by its name.
+	if err := draPlugins.add(pluginInstance); err != nil {
+		cancel(err)
+		// No wrapping, the error already contains details.
+		return err
+	}
 
-	if oldPlugin, replaced := draPlugins.add(pluginInstance); replaced {
-		logger.V(1).Info("DRA plugin already registered, the old plugin was replaced and will be forgotten by the kubelet till the next kubelet restart", "oldEndpoint", oldPlugin.endpoint)
+	// Now cancel any pending ResourceSlice wiping for this plugin.
+	// Only needs to be done once.
+	h.mutex.Lock()
+	defer h.mutex.Unlock()
+	if cancel := h.pendingWiping[pluginName]; cancel != nil {
+		(*cancel)(errors.New("new plugin instance registered"))
+		h.pendingWiping[pluginName] = nil
 	}
 
 	return nil
@@ -220,16 +260,51 @@ func (h *RegistrationHandler) validateSupportedServices(pluginName string, suppo
 
 // DeRegisterPlugin is called when a plugin has removed its socket,
 // signaling it is no longer available.
-func (h *RegistrationHandler) DeRegisterPlugin(pluginName string) {
-	if p := draPlugins.delete(pluginName); p != nil {
+func (h *RegistrationHandler) DeRegisterPlugin(pluginName, endpoint string) {
+	if p, last := draPlugins.remove(pluginName, endpoint); p != nil {
+		// This logger includes endpoint and pluginName.
 		logger := klog.FromContext(p.backgroundCtx)
-		logger.V(3).Info("Deregister DRA plugin", "endpoint", p.endpoint)
+		logger.V(3).Info("Deregister DRA plugin", "lastInstance", last)
+		if !last {
+			return
+		}
+
+		// Prepare for canceling the background wiping. This needs to run
+		// in the context of the registration handler, the one from
+		// the plugin is canceled.
+		logger = klog.FromContext(h.backgroundCtx)
+		logger = klog.LoggerWithName(logger, "driver-cleanup")
+		logger = klog.LoggerWithValues(logger, "pluginName", pluginName)
+		ctx, cancel := context.WithCancelCause(h.backgroundCtx)
+		ctx = klog.NewContext(ctx, logger)
 
 		// Clean up the ResourceSlices for the deleted Plugin since it
 		// may have died without doing so itself and might never come
 		// back.
-		go h.wipeResourceSlices(pluginName)
+		//
+		// May get canceled if the plugin comes back quickly enough
+		// (see RegisterPlugin).
+		h.mutex.Lock()
+		defer h.mutex.Unlock()
+		if cancel := h.pendingWiping[pluginName]; cancel != nil {
+			(*cancel)(errors.New("plugin deregistered a second time"))
+		}
+		h.pendingWiping[pluginName] = &cancel
 
+		go func() {
+			defer func() {
+				h.mutex.Lock()
+				defer h.mutex.Unlock()
+
+				// Cancel our own context, but remove it from the map only if it
+				// is the current entry. Perhaps it already got replaced.
+				cancel(errors.New("wiping done"))
+				if h.pendingWiping[pluginName] == &cancel {
+					h.pendingWiping[pluginName] = nil
+				}
+			}()
+			h.wipeResourceSlices(ctx, h.wipingDelay, pluginName)
+		}()
 		return
 	}
 

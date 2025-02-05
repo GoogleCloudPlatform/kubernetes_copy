@@ -187,8 +187,8 @@ func (h *RegistrationHandler) validateVersions(callerName, pluginName string, en
 
 // DeRegisterPlugin is called when a plugin removed its socket, signaling
 // it is no longer available
-func (h *RegistrationHandler) DeRegisterPlugin(pluginName string) {
-	klog.Info(log("registrationHandler.DeRegisterPlugin request for plugin %s", pluginName))
+func (h *RegistrationHandler) DeRegisterPlugin(pluginName, endpoint string) {
+	klog.Info(log("registrationHandler.DeRegisterPlugin request for plugin %s, endpoint %s", pluginName, endpoint))
 	if err := unregisterDriver(pluginName); err != nil {
 		klog.Error(log("registrationHandler.DeRegisterPlugin failed: %v", err))
 	}

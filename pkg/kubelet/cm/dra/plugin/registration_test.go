@@ -158,7 +158,7 @@ func TestRegistrationHandler(t *testing.T) {
 			}
 
 			// The handler wipes all slices at startup.
-			handler := NewRegistrationHandler(client, getFakeNode)
+			handler := NewRegistrationHandler(client, getFakeNode, time.Second /* very short wiping delay for testing */)
 			requireNoSlices := func() {
 				t.Helper()
 				if client == nil {
@@ -177,6 +177,11 @@ func TestRegistrationHandler(t *testing.T) {
 			// Simulate one existing plugin A.
 			err := handler.RegisterPlugin(pluginA, endpointA, []string{drapb.DRAPluginService}, nil)
 			require.NoError(t, err)
+			t.Cleanup(func() {
+				tCtx.Logf("Removing plugin %s", pluginA)
+				deleteCollectionForDriver.Store(ptr.To(pluginA))
+				handler.DeRegisterPlugin(pluginA, endpointA)
+			})
 
 			err = handler.ValidatePlugin(test.pluginName, test.endpoint, test.supportedServices)
 			if test.shouldError {
@@ -207,13 +212,14 @@ func TestRegistrationHandler(t *testing.T) {
 					assert.NoError(t, err, "recreate slice")
 				}
 
-				handler.DeRegisterPlugin(test.pluginName)
+				tCtx.Logf("Removing plugin %s", test.pluginName)
+				deleteCollectionForDriver.Store(ptr.To(test.pluginName))
+				handler.DeRegisterPlugin(test.pluginName, test.endpoint)
 				// Nop.
-				handler.DeRegisterPlugin(test.pluginName)
+				handler.DeRegisterPlugin(test.pluginName, test.endpoint)
 
 				// Deleted by the kubelet after deregistration, now specifically
 				// for that plugin (checked by the fake client reactor).
-				deleteCollectionForDriver.Store(ptr.To(test.pluginName))
 				requireNoSlices()
 			})
 			assert.Equal(t, test.endpoint, plugin.endpoint, "plugin endpoint")
