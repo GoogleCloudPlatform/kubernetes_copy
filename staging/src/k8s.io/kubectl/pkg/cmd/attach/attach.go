@@ -307,6 +307,7 @@ func (o *AttachOptions) Run() error {
 	}
 
 	if !o.Quiet {
+		fmt.Fprintln(o.ErrOut, "All commands and output executed when attached to a container will be visible via pods/log.")
 		fmt.Fprintln(o.ErrOut, "If you don't see a command prompt, try pressing enter.")
 	}
 	if err := t.Safe(o.AttachFunc(o, containerToAttach, t.Raw, sizeQueue)); err != nil {
