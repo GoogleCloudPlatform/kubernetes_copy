@@ -50,6 +50,8 @@ const (
 	setElementOrderDirectivePrefix         = "$setElementOrder"
 )
 
+var supportDuplicateMergeKeyValues = true
+
 // JSONMap is a representations of JSON object encoded as map[string]interface{}
 // where the children can be either map[string]interface{}, []interface{} or
 // primitive type).
@@ -222,7 +224,7 @@ func diffMaps(original, modified map[string]interface{}, schema LookupPatchMeta,
 	}
 
 	updatePatchIfMissing(original, modified, patch, diffOptions)
-	// Insert the retainKeysList iff there are values present in the retainKeysList and
+	// Insert the retainKeysList if there are values present in the retainKeysList and
 	// either of the following is true:
 	// - the patch is not empty
 	// - there are additional field in original that need to be cleared
@@ -727,6 +729,9 @@ func diffListsOfMaps(original, modified []interface{}, schema LookupPatchMeta, m
 		return nil, nil, err
 	}
 
+	var previousOriginalElementMergeKeyValueString, previousModifiedElementMergeKeyValueString string
+	bothPreviousInBounds := false
+
 	originalIndex, modifiedIndex := 0, 0
 	for {
 		originalInBounds := originalIndex < len(originalSorted)
@@ -776,6 +781,33 @@ func diffListsOfMaps(original, modified []interface{}, schema LookupPatchMeta, m
 				patch = append(patch, modifiedElement)
 			}
 			modifiedIndex++
+		// modified missing one of duplicated by MergeKey value elements
+		case supportDuplicateMergeKeyValues && bothPreviousInBounds &&
+			originalElementMergeKeyValueString == previousOriginalElementMergeKeyValueString &&
+			previousOriginalElementMergeKeyValueString == previousModifiedElementMergeKeyValueString:
+			// if deleted one of duplicates by mergeKey, will send "delete" and "insert" commands
+			if !diffOptions.IgnoreDeletions {
+				var modifiedToAdd []interface{}
+				for i := modifiedIndex - 1; i >= 0; i-- {
+					element, mergeKeyValue, err := getMapAndMergeKeyValueByIndex(i, mergeKey, modifiedSorted)
+					if err != nil {
+						return nil, nil, err
+					}
+					if fmt.Sprintf("%v", mergeKeyValue) != originalElementMergeKeyValueString {
+						break
+					}
+					// reverse to keep ordering
+					modifiedToAdd = append([]interface{}{element}, modifiedToAdd...)
+				}
+				deletionList = append(deletionList, CreateDeleteDirective(mergeKey, originalElementMergeKeyValue))
+				// remove existing occurencies added if previous elements pair has diffs
+				patch, err = removePatchElementsByMergeKeyValue(patch, mergeKey, originalElementMergeKeyValueString)
+				if err != nil {
+					return nil, nil, err
+				}
+				patch = append(patch, modifiedToAdd...)
+			}
+			originalIndex++
 		// only original is in bound
 		case !modifiedInBounds:
 			fallthrough
@@ -787,9 +819,28 @@ func diffListsOfMaps(original, modified []interface{}, schema LookupPatchMeta, m
 			}
 			originalIndex++
 		}
+
+		previousOriginalElementMergeKeyValueString = originalElementMergeKeyValueString
+		previousModifiedElementMergeKeyValueString = modifiedElementMergeKeyValueString
+		bothPreviousInBounds = bothInBounds
 	}
 
 	return patch, deletionList, nil
+}
+
+// removePatchElementsByMergeKeyValue removes all elements from patch list with matching MergeKey value
+func removePatchElementsByMergeKeyValue(patch []interface{}, mergeKey, mergeKeyValue string) ([]interface{}, error) {
+	result := make([]interface{}, 0, len(patch))
+	for i, val := range patch {
+		_, key, err := getMapAndMergeKeyValueByIndex(i, mergeKey, patch)
+		if err != nil {
+			return nil, err
+		}
+		if fmt.Sprintf("%v", key) != mergeKeyValue {
+			result = append(result, val)
+		}
+	}
+	return result, nil
 }
 
 // getMapAndMergeKeyValueByIndex return a map in the list and its merge key value given the index of the map.
@@ -1561,6 +1612,13 @@ func mergeSliceWithSpecialElements(original, patch []interface{}, mergeKey strin
 				mergeValue, ok := typedV[mergeKey]
 				if ok {
 					var err error
+					// WARNING: side effect here. using 'original' in deleteMatchingEntries() if we have deletions
+					// breaks content of underlying array like '1, 2, 3, 4' -> delete 3 -> '1, 2, 4, 4',
+					// which causes incorrect ordering in 'mergeSlice(...)', because it uses its copy of
+					// 'original' slice (on the same array, but with original length 4)
+					// as source of truth about elements order.
+					// This is the reason of broken ordering in test case
+					// "behavior of set element order for a merging int list with duplicate"
 					original, err = deleteMatchingEntries(original, mergeKey, mergeValue)
 					if err != nil {
 						return nil, nil, err

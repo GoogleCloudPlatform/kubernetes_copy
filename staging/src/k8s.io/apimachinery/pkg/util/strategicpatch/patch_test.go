@@ -65,6 +65,15 @@ type StrategicMergePatchRawTestCase struct {
 	StrategicMergePatchRawTestCaseData
 }
 
+type StrategicMergePatchBackwardCompatibilityTestCase struct {
+	Description string
+	Original    []byte
+	Modified    []byte
+	Current     []byte
+	Generation  []StrategicMergePatchGenerationRawTestCaseData
+	Application []StrategicMergePatchApplicationRawTestCaseData
+}
+
 type StrategicMergePatchTestCaseData struct {
 	// Original is the original object (last-applied config in annotation)
 	Original map[string]interface{}
@@ -94,6 +103,22 @@ type StrategicMergePatchRawTestCaseData struct {
 	Result        []byte
 	TwoWayResult  []byte
 	ExpectedError string
+}
+
+type StrategicMergePatchGenerationRawTestCaseData struct {
+	Description                    string
+	DuplicateMergeKeyValuesEnabled bool
+	TwoWay                         []byte
+	ThreeWay                       []byte
+}
+
+type StrategicMergePatchApplicationRawTestCaseData struct {
+	Description                    string
+	DuplicateMergeKeyValuesEnabled bool
+	TwoWay                         []byte
+	TwoWayResult                   []byte
+	ThreeWay                       []byte
+	ThreeWayResult                 []byte
 }
 
 type MergeItem struct {
@@ -804,6 +829,570 @@ func TestCustomStrategicMergePatch(t *testing.T) {
 					testPatchApplication(t, original, expectedTwoWayPatch, expectedResult, c.Description, c.ExpectedError, schema)
 				}
 			}
+		})
+	}
+}
+
+var featureGateTestCases = []StrategicMergePatchBackwardCompatibilityTestCase{
+	{
+		Description: "removing element from a merging list with duplicate",
+		Original: []byte(`
+mergingList:
+- name: 1
+- name: 2
+  value: dup1
+- name: 3
+- name: 2
+  value: dup2
+`),
+		Current: []byte(`
+mergingList:
+- name: 1
+- name: 2
+  value: dup1
+- name: 3
+- name: 2
+  value: dup2
+`),
+		Modified: []byte(`
+mergingList:
+- name: 1
+- name: 2
+  value: dup2
+- name: 3
+`),
+		Generation: []StrategicMergePatchGenerationRawTestCaseData{
+			{
+				Description:                    "new client",
+				DuplicateMergeKeyValuesEnabled: true,
+				TwoWay: []byte(`
+$setElementOrder/mergingList:
+- name: 1
+- name: 2
+- name: 3
+mergingList:
+- name: 2
+  value: dup2
+- $patch: delete
+  name: 2
+`),
+				ThreeWay: []byte(`
+$setElementOrder/mergingList:
+- name: 1
+- name: 2
+- name: 3
+mergingList:
+- name: 2
+  value: dup2
+- $patch: delete
+  name: 2
+`),
+			},
+			{
+				Description:                    "old client",
+				DuplicateMergeKeyValuesEnabled: false,
+				TwoWay: []byte(`
+$setElementOrder/mergingList:
+- name: 1
+- name: 2
+- name: 3
+mergingList:
+- $patch: delete
+  name: 2
+`),
+				ThreeWay: []byte(`
+$setElementOrder/mergingList:
+- name: 1
+- name: 2
+- name: 3
+mergingList:
+- $patch: delete
+  name: 2
+`),
+			},
+		},
+		Application: []StrategicMergePatchApplicationRawTestCaseData{
+			{
+				Description:                    "new client new server",
+				DuplicateMergeKeyValuesEnabled: true,
+				TwoWay: []byte(`
+$setElementOrder/mergingList:
+- name: 1
+- name: 2
+- name: 3
+mergingList:
+- name: 2
+  value: dup2
+- $patch: delete
+  name: 2
+`),
+				ThreeWay: []byte(`
+$setElementOrder/mergingList:
+- name: 1
+- name: 2
+- name: 3
+mergingList:
+- name: 2
+  value: dup2
+- $patch: delete
+  name: 2
+`),
+				TwoWayResult: []byte(`
+mergingList:
+- name: 1
+- name: 2
+  value: dup2
+- name: 3
+`),
+				ThreeWayResult: []byte(`
+mergingList:
+- name: 1
+- name: 2
+  value: dup2
+- name: 3
+`),
+			},
+			{
+				Description:                    "old client new server",
+				DuplicateMergeKeyValuesEnabled: true,
+				TwoWay: []byte(`
+$setElementOrder/mergingList:
+- name: 1
+- name: 2
+- name: 3
+mergingList:
+- $patch: delete
+  name: 2
+`),
+				ThreeWay: []byte(`
+$setElementOrder/mergingList:
+- name: 1
+- name: 2
+- name: 3
+mergingList:
+- $patch: delete
+  name: 2
+`),
+				TwoWayResult: []byte(`
+mergingList:
+- name: 1
+- name: 3
+`),
+				ThreeWayResult: []byte(`
+mergingList:
+- name: 1
+- name: 3
+`),
+			},
+			{
+				Description:                    "new client old server",
+				DuplicateMergeKeyValuesEnabled: false,
+				TwoWay: []byte(`
+$setElementOrder/mergingList:
+- name: 1
+- name: 2
+- name: 3
+mergingList:
+- name: 2
+  value: dup2
+- $patch: delete
+  name: 2
+`),
+				ThreeWay: []byte(`
+$setElementOrder/mergingList:
+- name: 1
+- name: 2
+- name: 3
+mergingList:
+- name: 2
+  value: dup2
+- $patch: delete
+  name: 2
+`),
+				TwoWayResult: []byte(`
+mergingList:
+- name: 1
+- name: 2
+  value: dup2
+- name: 3
+`),
+				ThreeWayResult: []byte(`
+mergingList:
+- name: 1
+- name: 2
+  value: dup2
+- name: 3
+`),
+			},
+			{
+				Description:                    "old client old server",
+				DuplicateMergeKeyValuesEnabled: false,
+				TwoWay: []byte(`
+$setElementOrder/mergingList:
+- name: 1
+- name: 2
+- name: 3
+mergingList:
+- $patch: delete
+  name: 2
+`),
+				ThreeWay: []byte(`
+$setElementOrder/mergingList:
+- name: 1
+- name: 2
+- name: 3
+mergingList:
+- $patch: delete
+  name: 2
+`),
+				TwoWayResult: []byte(`
+mergingList:
+- name: 1
+- name: 3
+`),
+				ThreeWayResult: []byte(`
+mergingList:
+- name: 1
+- name: 3
+`),
+			},
+		},
+	},
+	{
+		Description: "removing one duplicate element and updating another in merging list",
+		Original: []byte(`
+mergingList:
+- name: 1
+- name: 2
+  value: dup1
+- name: 3
+- name: 2
+  value: dup2
+`),
+		Current: []byte(`
+mergingList:
+- name: 1
+- name: 2
+  value: dup1
+- name: 3
+- name: 2
+  value: dup2
+- name: 4
+`),
+		Modified: []byte(`
+mergingList:
+- name: 1
+- name: 2
+  value: newValue
+- name: 3
+`),
+		Generation: []StrategicMergePatchGenerationRawTestCaseData{
+			{
+				Description:                    "new client",
+				DuplicateMergeKeyValuesEnabled: true,
+				TwoWay: []byte(`
+$setElementOrder/mergingList:
+- name: 1
+- name: 2
+- name: 3
+mergingList:
+- name: 2
+  value: newValue
+- $patch: delete
+  name: 2
+`),
+				ThreeWay: []byte(`
+$setElementOrder/mergingList:
+- name: 1
+- name: 2
+- name: 3
+mergingList:
+- name: 2
+  value: newValue
+- $patch: delete
+  name: 2
+`),
+			},
+			{
+				Description:                    "old client",
+				DuplicateMergeKeyValuesEnabled: false,
+				TwoWay: []byte(`
+$setElementOrder/mergingList:
+- name: 1
+- name: 2
+- name: 3
+mergingList:
+- name: 2
+  value: newValue
+- $patch: delete
+  name: 2
+`),
+				ThreeWay: []byte(`
+$setElementOrder/mergingList:
+- name: 1
+- name: 2
+- name: 3
+mergingList:
+- $patch: delete
+  name: 2
+  value: newValue
+`),
+			},
+		},
+		Application: []StrategicMergePatchApplicationRawTestCaseData{
+			{
+				// This test case has wrong ordering in ThreeWayMerge result because of side effect in mergeSliceWithSpecialElements
+				// function, same as in case 'behavior of set element order for a merging int list with duplicate'
+				Description:                    "new client new server",
+				DuplicateMergeKeyValuesEnabled: true,
+				TwoWay: []byte(`
+$setElementOrder/mergingList:
+- name: 1
+- name: 2
+- name: 3
+mergingList:
+- name: 2
+  value: newValue
+- $patch: delete
+  name: 2
+`),
+				ThreeWay: []byte(`
+$setElementOrder/mergingList:
+- name: 1
+- name: 2
+- name: 3
+mergingList:
+- name: 2
+  value: newValue
+- $patch: delete
+  name: 2
+`),
+				TwoWayResult: []byte(`
+mergingList:
+- name: 1
+- name: 2
+  value: newValue
+- name: 3
+`),
+				ThreeWayResult: []byte(`
+mergingList:
+- name: 1
+- name: 4
+- name: 2
+  value: newValue
+- name: 3
+`),
+			},
+			{
+				Description:                    "old client new server",
+				DuplicateMergeKeyValuesEnabled: true,
+				TwoWay: []byte(`
+$setElementOrder/mergingList:
+- name: 1
+- name: 2
+- name: 3
+mergingList:
+- name: 2
+  value: newValue
+- $patch: delete
+  name: 2
+`),
+				ThreeWay: []byte(`
+$setElementOrder/mergingList:
+- name: 1
+- name: 2
+- name: 3
+mergingList:
+- $patch: delete
+  name: 2
+  value: newValue
+`),
+				TwoWayResult: []byte(`
+mergingList:
+- name: 1
+- name: 2
+  value: newValue
+- name: 3
+`),
+				ThreeWayResult: []byte(`
+mergingList:
+- name: 1
+- name: 3
+- name: 4
+`),
+			},
+			{
+				// This test case has wrong ordering in ThreeWayMerge result because of side effect in mergeSliceWithSpecialElements
+				// function, same as in case 'behavior of set element order for a merging int list with duplicate'
+				Description:                    "new client old server",
+				DuplicateMergeKeyValuesEnabled: false,
+				TwoWay: []byte(`
+$setElementOrder/mergingList:
+- name: 1
+- name: 2
+- name: 3
+mergingList:
+- name: 2
+  value: newValue
+- $patch: delete
+  name: 2
+`),
+				ThreeWay: []byte(`
+$setElementOrder/mergingList:
+- name: 1
+- name: 2
+- name: 3
+mergingList:
+- name: 2
+  value: newValue
+- $patch: delete
+  name: 2
+`),
+				TwoWayResult: []byte(`
+mergingList:
+- name: 1
+- name: 2
+  value: newValue
+- name: 3
+`),
+				ThreeWayResult: []byte(`
+mergingList:
+- name: 1
+- name: 4
+- name: 2
+  value: newValue
+- name: 3
+`),
+			},
+			{
+				Description:                    "old client old server",
+				DuplicateMergeKeyValuesEnabled: false,
+				TwoWay: []byte(`
+$setElementOrder/mergingList:
+- name: 1
+- name: 2
+- name: 3
+mergingList:
+- name: 2
+  value: newValue
+- $patch: delete
+  name: 2
+`),
+				ThreeWay: []byte(`
+$setElementOrder/mergingList:
+- name: 1
+- name: 2
+- name: 3
+mergingList:
+- $patch: delete
+  name: 2
+  value: newValue
+`),
+				TwoWayResult: []byte(`
+mergingList:
+- name: 1
+- name: 2
+  value: newValue
+- name: 3
+`),
+				ThreeWayResult: []byte(`
+mergingList:
+- name: 1
+- name: 3
+- name: 4
+`),
+			},
+		},
+	},
+}
+
+func TestFeatureGates(t *testing.T) {
+	mergeItemOpenapiSchema := PatchMetaFromOpenAPI{
+		Schema: sptest.GetSchemaOrDie(&fakeMergeItemSchema, "mergeItem"),
+	}
+	mergeItemOpenapiV3Schema := PatchMetaFromOpenAPIV3{
+		SchemaList: fakeMergeItemV3Schema.SchemaOrDie().Components.Schemas,
+		Schema:     fakeMergeItemV3Schema.SchemaOrDie().Components.Schemas["mergeItem"],
+	}
+	schemas := []LookupPatchMeta{
+		mergeItemStructSchema,
+		mergeItemOpenapiSchema,
+		mergeItemOpenapiV3Schema,
+	}
+
+	for _, schema := range schemas {
+		// run multiple times to exercise different map traversal orders
+		for i := 0; i < 10; i++ {
+			for _, c := range featureGateTestCases {
+				testFeatureGatePatchCreation(t, schema, c)
+				testFeatureGatePatchApplication(t, schema, c)
+			}
+		}
+	}
+}
+
+func testFeatureGatePatchCreation(t *testing.T, schema LookupPatchMeta, c StrategicMergePatchBackwardCompatibilityTestCase) {
+	original, modified := yamlToJSONOrError(t, c.Original), yamlToJSONOrError(t, c.Modified)
+
+	for _, current := range c.Generation {
+		expectedTwoWay := yamlToJSONOrError(t, current.TwoWay)
+		desc := fmt.Sprintf("%s/PatchCreation/TwoWay/%s", c.Description, current.Description)
+		t.Run(desc, func(t *testing.T) {
+			previousSupportDuplicateMergeKeyValues := supportDuplicateMergeKeyValues
+			supportDuplicateMergeKeyValues = current.DuplicateMergeKeyValuesEnabled
+			defer func() { supportDuplicateMergeKeyValues = previousSupportDuplicateMergeKeyValues }()
+
+			actualPatch, err := CreateTwoWayMergePatchUsingLookupPatchMeta(original, modified, schema)
+			if err != nil {
+				t.Errorf("error: %s\nin test case: %s\ncannot create two way patch:\noriginal:%s\nmodified:%s\nduplicate MergeKey values enabled:%t\n",
+					err, c.Description, c.Original, c.Modified, current.DuplicateMergeKeyValuesEnabled)
+				return
+			}
+			testPatchCreation(t, expectedTwoWay, actualPatch, c.Description)
+		})
+
+		currentManifest := yamlToJSONOrError(t, c.Current)
+		expectedThreeWay := yamlToJSONOrError(t, current.ThreeWay)
+		desc = fmt.Sprintf("%s/PatchCreation/ThreeWay/%s", c.Description, current.Description)
+		t.Run(desc, func(t *testing.T) {
+			previousSupportDuplicateMergeKeyValues := supportDuplicateMergeKeyValues
+			supportDuplicateMergeKeyValues = current.DuplicateMergeKeyValuesEnabled
+			defer func() { supportDuplicateMergeKeyValues = previousSupportDuplicateMergeKeyValues }()
+
+			actual, err := CreateThreeWayMergePatch(original, modified, currentManifest, schema, false)
+			if err != nil {
+				t.Errorf("error: %s\nin test case: %s\ncannot create three way patch:\noriginal:%s\nmodified:%s\ncurrent:%s\nduplicate MergeKey values enabled:%t\n",
+					err, c.Description, c.Original, c.Modified, c.Current, current.DuplicateMergeKeyValuesEnabled)
+				return
+			}
+			testPatchCreation(t, expectedThreeWay, actual, c.Description)
+		})
+	}
+}
+
+func testFeatureGatePatchApplication(t *testing.T, schema LookupPatchMeta, c StrategicMergePatchBackwardCompatibilityTestCase) {
+	original := yamlToJSONOrError(t, c.Original)
+
+	for _, current := range c.Application {
+		patch, expectedResult := yamlToJSONOrError(t, current.TwoWay), yamlToJSONOrError(t, current.TwoWayResult)
+		desc := fmt.Sprintf("%s/PatchApplication/TwoWay/%s", c.Description, current.Description)
+		t.Run(desc, func(t *testing.T) {
+			previousSupportDuplicateMergeKeyValues := supportDuplicateMergeKeyValues
+			supportDuplicateMergeKeyValues = current.DuplicateMergeKeyValuesEnabled
+			defer func() { supportDuplicateMergeKeyValues = previousSupportDuplicateMergeKeyValues }()
+
+			testPatchApplication(t, original, patch, expectedResult, c.Description, "", schema)
+		})
+
+		threeWayPatch, expectedThreeWayResult := yamlToJSONOrError(t, current.ThreeWay), yamlToJSONOrError(t, current.ThreeWayResult)
+		currentManifest := yamlToJSONOrError(t, c.Current)
+		desc = fmt.Sprintf("%s/PatchApplication/ThreeWay/%s", c.Description, current.Description)
+		t.Run(desc, func(t *testing.T) {
+			previousSupportDuplicateMergeKeyValues := supportDuplicateMergeKeyValues
+			supportDuplicateMergeKeyValues = current.DuplicateMergeKeyValuesEnabled
+			defer func() { supportDuplicateMergeKeyValues = previousSupportDuplicateMergeKeyValues }()
+
+			testPatchApplication(t, currentManifest, threeWayPatch, expectedThreeWayResult, c.Description, "", schema)
 		})
 	}
 }
