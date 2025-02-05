@@ -516,24 +516,24 @@ func TestReconcile1Pod(t *testing.T) {
 				}
 
 				expectTrackedGeneration(t, r.endpointSliceTracker, &slice, 1)
-
-				expectSlicesChangedPerSync := 1
-				if testCase.service.Spec.IPFamilies != nil && len(testCase.service.Spec.IPFamilies) > 0 {
-					expectSlicesChangedPerSync = len(testCase.service.Spec.IPFamilies)
-				}
-				expectMetrics(t,
-					expectedMetrics{
-						desiredSlices:        1,
-						actualSlices:         1,
-						desiredEndpoints:     1,
-						addedPerSync:         len(testCase.expectedEndpointPerSlice),
-						removedPerSync:       0,
-						numCreated:           len(testCase.expectedEndpointPerSlice),
-						numUpdated:           0,
-						numDeleted:           0,
-						slicesChangedPerSync: expectSlicesChangedPerSync,
-					})
 			}
+
+			expectSlicesChangedPerSync := 1
+			if testCase.service.Spec.IPFamilies != nil && len(testCase.service.Spec.IPFamilies) > 0 {
+				expectSlicesChangedPerSync = len(testCase.service.Spec.IPFamilies)
+			}
+			expectMetrics(t,
+				expectedMetrics{
+					desiredSlices:        len(testCase.expectedEndpointPerSlice),
+					actualSlices:         len(testCase.expectedEndpointPerSlice),
+					desiredEndpoints:     len(testCase.expectedEndpointPerSlice),
+					addedPerSync:         len(testCase.expectedEndpointPerSlice),
+					removedPerSync:       0,
+					numCreated:           len(testCase.expectedEndpointPerSlice),
+					numUpdated:           0,
+					numDeleted:           0,
+					slicesChangedPerSync: expectSlicesChangedPerSync,
+				})
 		})
 	}
 }
@@ -2384,7 +2384,7 @@ func expectMetrics(t *testing.T, em expectedMetrics) {
 	}
 
 	actualDeleted, err := testutil.GetCounterMetricValue(metrics.EndpointSliceChanges.WithLabelValues("delete"))
-	handleErr(t, err, "desiredEndpointSlices")
+	handleErr(t, err, "endpointSliceChangesDeleted")
 	if actualDeleted != float64(em.numDeleted) {
 		t.Errorf("Expected endpointSliceChangesDeleted to be %d, got %v", em.numDeleted, actualDeleted)
 	}

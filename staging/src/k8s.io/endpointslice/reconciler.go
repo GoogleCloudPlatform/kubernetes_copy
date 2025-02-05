@@ -116,14 +116,19 @@ func (r *Reconciler) Reconcile(logger klog.Logger, service *corev1.Service, pods
 		slicesByAddressType[existingSlice.AddressType] = append(slicesByAddressType[existingSlice.AddressType], existingSlice)
 	}
 
+	spMetrics := metrics.NewServicePortCache()
+
 	// reconcile for existing.
 	for addressType := range serviceSupportedAddressesTypes {
 		existingSlices := slicesByAddressType[addressType]
-		err := r.reconcileByAddressType(logger, service, pods, existingSlices, triggerTime, addressType)
+		err := r.reconcileByAddressType(logger, service, pods, existingSlices, triggerTime, addressType, spMetrics)
 		if err != nil {
 			errs = append(errs, err)
 		}
 	}
+
+	serviceNN := types.NamespacedName{Name: service.Name, Namespace: service.Namespace}
+	r.metricsCache.UpdateServicePortCache(serviceNN, spMetrics)
 
 	// delete those which are of addressType that is no longer supported
 	// by the service
@@ -144,7 +149,7 @@ func (r *Reconciler) Reconcile(logger klog.Logger, service *corev1.Service, pods
 // compares them with the endpoints already present in any existing endpoint
 // slices (by address type) for the given service. It creates, updates, or deletes endpoint slices
 // to ensure the desired set of pods are represented by endpoint slices.
-func (r *Reconciler) reconcileByAddressType(logger klog.Logger, service *corev1.Service, pods []*corev1.Pod, existingSlices []*discovery.EndpointSlice, triggerTime time.Time, addressType discovery.AddressType) error {
+func (r *Reconciler) reconcileByAddressType(logger klog.Logger, service *corev1.Service, pods []*corev1.Pod, existingSlices []*discovery.EndpointSlice, triggerTime time.Time, addressType discovery.AddressType, spMetrics *metrics.ServicePortCache) error {
 	errs := []error{}
 
 	slicesToCreate := []*discovery.EndpointSlice{}
@@ -211,7 +216,6 @@ func (r *Reconciler) reconcileByAddressType(logger klog.Logger, service *corev1.
 		}
 	}
 
-	spMetrics := metrics.NewServicePortCache()
 	totalAdded := 0
 	totalRemoved := 0
 
@@ -224,10 +228,12 @@ func (r *Reconciler) reconcileByAddressType(logger klog.Logger, service *corev1.
 		totalAdded += added
 		totalRemoved += removed
 
-		spMetrics.Set(portMap, metrics.EfficiencyInfo{
-			Endpoints: numEndpoints,
-			Slices:    len(existingSlicesByPortMap[portMap]) + len(pmSlicesToCreate) - len(pmSlicesToDelete),
-		})
+		spMetrics.Set(
+			newAddrTypePortMapKey(portMap, addressType),
+			metrics.EfficiencyInfo{
+				Endpoints: numEndpoints,
+				Slices:    len(existingSlicesByPortMap[portMap]) + len(pmSlicesToCreate) - len(pmSlicesToDelete),
+			})
 
 		slicesToCreate = append(slicesToCreate, pmSlicesToCreate...)
 		slicesToUpdate = append(slicesToUpdate, pmSlicesToUpdate...)
@@ -252,17 +258,18 @@ func (r *Reconciler) reconcileByAddressType(logger klog.Logger, service *corev1.
 		} else {
 			slicesToCreate = append(slicesToCreate, placeholderSlice)
 		}
-		spMetrics.Set(endpointsliceutil.NewPortMapKey(placeholderSlice.Ports), metrics.EfficiencyInfo{
-			Endpoints: 0,
-			Slices:    1,
-		})
+		spMetrics.Set(
+			newAddrTypePortMapKey(endpointsliceutil.NewPortMapKey(placeholderSlice.Ports), addressType),
+			metrics.EfficiencyInfo{
+				Endpoints: 0,
+				Slices:    1,
+			})
 	}
 
 	metrics.EndpointsAddedPerSync.WithLabelValues().Observe(float64(totalAdded))
 	metrics.EndpointsRemovedPerSync.WithLabelValues().Observe(float64(totalRemoved))
 
 	serviceNN := types.NamespacedName{Name: service.Name, Namespace: service.Namespace}
-	r.metricsCache.UpdateServicePortCache(serviceNN, spMetrics)
 
 	// Topology hints are assigned per address type. This means it is
 	// theoretically possible for endpoints of one address type to be assigned
