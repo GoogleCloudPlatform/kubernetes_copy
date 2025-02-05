@@ -456,6 +456,60 @@ function codegen::conversions() {
     fi
 }
 
+# Register generation
+#
+# Any package that wants register functions generated must include a
+# comment-tag in column 0 of one file of the form:
+#     // +k8s:register-gen=package
+#
+function codegen::register() {
+    # Build the tool.
+    GOPROXY=off go install \
+        k8s.io/code-generator/cmd/register-gen
+
+    # The result file, in each pkg, of register generation.
+    local output_file="${GENERATED_FILE_PREFIX}register.go"
+
+    # All directories that request any form of register generation.
+    if [[ "${DBG_CODEGEN}" == 1 ]]; then
+        kube::log::status "DBG: finding all +k8s:register-gen tags"
+    fi
+    local tag_dirs=()
+    kube::util::read-array tag_dirs < <( \
+        grep -l --null '+k8s:register-gen=' "${ALL_K8S_TAG_FILES[@]}" \
+            | while read -r -d $'\0' F; do dirname "${F}"; done \
+            | sort -u)
+    if [[ "${DBG_CODEGEN}" == 1 ]]; then
+        kube::log::status "DBG: found ${#tag_dirs[@]} +k8s:register-gen tagged dirs"
+    fi
+
+    local tag_pkgs=()
+    for dir in "${tag_dirs[@]}"; do
+        tag_pkgs+=("./$dir")
+    done
+
+    kube::log::status "Generating register code for ${#tag_pkgs[@]} targets"
+    if [[ "${DBG_CODEGEN}" == 1 ]]; then
+        kube::log::status "DBG: running register-gen for:"
+        for dir in "${tag_dirs[@]}"; do
+            kube::log::status "DBG:     $dir"
+        done
+    fi
+
+    git_find -z ':(glob)**'/"${output_file}" | xargs -0 rm -f
+
+    register-gen \
+        -v "${KUBE_VERBOSE}" \
+        --go-header-file "${BOILERPLATE_FILENAME}" \
+        --output-file "${output_file}" \
+        "${tag_pkgs[@]}" \
+        "$@"
+
+    if [[ "${DBG_CODEGEN}" == 1 ]]; then
+        kube::log::status "Generated register code"
+    fi
+}
+
 # $@: directories to exclude
 # example:
 #    k8s_tag_files_except foo bat/qux

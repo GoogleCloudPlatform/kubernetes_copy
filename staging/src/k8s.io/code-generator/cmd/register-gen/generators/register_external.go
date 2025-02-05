@@ -61,11 +61,15 @@ func (g *registerExternalGenerator) Finalize(context *generator.Context, w io.Wr
 
 	sw := generator.NewSnippetWriter(w, context, "$", "$")
 	m := map[string]interface{}{
-		"groupName":         g.gv.Group,
-		"version":           g.gv.Version,
-		"types":             typesToGenerateOnlyNames,
-		"addToGroupVersion": context.Universe.Function(types.Name{Package: "k8s.io/apimachinery/pkg/apis/meta/v1", Name: "AddToGroupVersion"}),
-		"groupVersion":      context.Universe.Type(types.Name{Package: "k8s.io/apimachinery/pkg/apis/meta/v1", Name: "GroupVersion"}),
+		"groupName":           g.gv.Group,
+		"version":             g.gv.Version,
+		"types":               typesToGenerateOnlyNames,
+		"addToGroupVersion":   context.Universe.Function(types.Name{Package: "k8s.io/apimachinery/pkg/apis/meta/v1", Name: "AddToGroupVersion"}),
+		"groupVersion":        context.Universe.Type(types.Name{Package: "k8s.io/apimachinery/pkg/apis/meta/v1", Name: "GroupVersion"}),
+		"schemaGroupVersion":  context.Universe.Type(types.Name{Package: "k8s.io/apimachinery/pkg/runtime/schema", Name: "GroupVersion"}),
+		"schemaGroupResource": context.Universe.Type(types.Name{Package: "k8s.io/apimachinery/pkg/runtime/schema", Name: "GroupResource"}),
+		"scheme":              context.Universe.Type(types.Name{Package: "k8s.io/apimachinery/pkg/runtime", Name: "Scheme"}),
+		"schemeBuilder":       context.Universe.Type(types.Name{Package: "k8s.io/apimachinery/pkg/runtime", Name: "SchemeBuilder"}),
 	}
 	sw.Do(registerExternalTypesTemplate, m)
 	return sw.Error()
@@ -80,16 +84,16 @@ var GroupVersion = $.groupVersion|raw${Group: GroupName, Version: "$.version$"}
 
 // SchemeGroupVersion is group version used to register these objects
 // Deprecated: use GroupVersion instead.
-var SchemeGroupVersion = schema.GroupVersion{Group: GroupName, Version: "$.version$"}
+var SchemeGroupVersion = $.schemaGroupVersion|raw${Group: GroupName, Version: "$.version$"}
 
 // Resource takes an unqualified resource and returns a Group qualified GroupResource
-func Resource(resource string) schema.GroupResource {
+func Resource(resource string) $.schemaGroupResource|raw$ {
 	return SchemeGroupVersion.WithResource(resource).GroupResource()
 }
 
 var (
 	// localSchemeBuilder and AddToScheme will stay in k8s.io/kubernetes.
-	SchemeBuilder      runtime.SchemeBuilder
+	SchemeBuilder      $.schemeBuilder|raw$
 	localSchemeBuilder = &SchemeBuilder
     // Deprecated: use Install instead
 	AddToScheme        = localSchemeBuilder.AddToScheme
@@ -104,7 +108,7 @@ func init() {
 }
 
 // Adds the list of known types to Scheme.
-func addKnownTypes(scheme *runtime.Scheme) error {
+func addKnownTypes(scheme *$.scheme|raw$) error {
 	scheme.AddKnownTypes(SchemeGroupVersion,
     $range .types -$
         &$.${},
