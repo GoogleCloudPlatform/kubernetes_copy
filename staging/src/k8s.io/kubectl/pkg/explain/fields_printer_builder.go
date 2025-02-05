@@ -20,6 +20,7 @@ package explain
 // recursiveFieldsPrinter based on the argument.
 type fieldsPrinterBuilder struct {
 	Recursive bool
+	Depth     int
 }
 
 // BuildFieldsPrinter builds the appropriate fieldsPrinter.
@@ -27,6 +28,7 @@ func (f fieldsPrinterBuilder) BuildFieldsPrinter(writer *Formatter) fieldsPrinte
 	if f.Recursive {
 		return &recursiveFieldsPrinter{
 			Writer: writer,
+			Depth:  f.Depth,
 		}
 	}
 

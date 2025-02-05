@@ -150,7 +150,7 @@ FIELDS:
 			t.Fatalf("Couldn't find schema %v", test.gvk)
 		}
 		buf := bytes.Buffer{}
-		if err := PrintModelDescription(test.path, &buf, schema, test.gvk, false); err != nil {
+		if err := PrintModelDescription(test.path, &buf, schema, test.gvk, false, 0); err != nil {
 			t.Fatalf("Failed to PrintModelDescription for path %v: %v", test.path, err)
 		}
 		got := buf.String()
@@ -187,7 +187,7 @@ DESCRIPTION:
 
 	for _, test := range tests {
 		buf := bytes.Buffer{}
-		if err := PrintModelDescription(test.path, &buf, schema, gvk, false); err != nil {
+		if err := PrintModelDescription(test.path, &buf, schema, gvk, false, 0); err != nil {
 			t.Fatalf("Failed to PrintModelDescription for path %v: %v", test.path, err)
 		}
 		got := buf.String()

@@ -51,6 +51,9 @@ var (
 		# Get all the fields in the resource
 		kubectl explain pods --recursive
 
+		# Get fields up to a certain depth recursively in a resource
+		kubectl explain pods --recursive --depth 2
+
 		# Get the explanation for deployment in supported api versions
 		kubectl explain deployments --api-version=apps/v1
 
@@ -73,6 +76,7 @@ type ExplainFlags struct {
 	APIVersion   string
 	OutputFormat string
 	Recursive    bool
+	Depth        int
 
 	genericiooptions.IOStreams
 }
@@ -90,6 +94,7 @@ func (flags *ExplainFlags) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolVar(&flags.Recursive, "recursive", flags.Recursive, "Print the fields of fields (Currently only 1 level deep)")
 	cmd.Flags().StringVar(&flags.APIVersion, "api-version", flags.APIVersion, "Get different explanations for particular API version (API group/version)")
 	cmd.Flags().StringVar(&flags.OutputFormat, "output", plaintextTemplateName, "Format in which to render the schema (plaintext, plaintext-openapiv2)")
+	cmd.Flags().IntVar(&flags.Depth, "depth", flags.Depth, "Limit recursive field explanation to a specific depth. If set to 0, it shows all levels recursively.")
 }
 
 // ToOptions converts from CLI inputs to runtime input
@@ -111,6 +116,7 @@ func (flags *ExplainFlags) ToOptions(f cmdutil.Factory, parent string, args []st
 		Recursive:    flags.Recursive,
 		APIVersion:   flags.APIVersion,
 		OutputFormat: flags.OutputFormat,
+		Depth:        flags.Depth,
 
 		CmdParent: parent,
 		args:      args,
@@ -129,7 +135,7 @@ func NewCmdExplain(parent string, f cmdutil.Factory, streams genericiooptions.IO
 	flags := NewExplainFlags(streams)
 
 	cmd := &cobra.Command{
-		Use:                   "explain TYPE [--recursive=FALSE|TRUE] [--api-version=api-version-group] [-o|--output=plaintext|plaintext-openapiv2]",
+		Use:                   "explain TYPE [--recursive=FALSE|TRUE] [--depth=level] [--api-version=api-version-group] [-o|--output=plaintext|plaintext-openapiv2]",
 		DisableFlagsInUseLine: true,
 		Short:                 i18n.T("Get documentation for a resource"),
 		Long:                  explainLong + "\n\n" + cmdutil.SuggestAPIResources(parent),
@@ -154,6 +160,7 @@ type ExplainOptions struct {
 	APIVersion string
 	// Name of the template to use with the openapiv3 template renderer.
 	OutputFormat string
+	Depth        int
 
 	CmdParent string
 	args      []string
@@ -171,6 +178,12 @@ func (o *ExplainOptions) Validate() error {
 	}
 	if len(o.args) > 1 {
 		return fmt.Errorf("We accept only this format: explain RESOURCE\n")
+	}
+	if !o.Recursive && o.Depth > 0 {
+		return fmt.Errorf("The --depth flag can only be used when --recursive is specified\n")
+	}
+	if o.Recursive && o.Depth < 0 {
+		return fmt.Errorf("Depth must be a non-negative number\n")
 	}
 
 	return nil
@@ -225,6 +238,7 @@ func (o *ExplainOptions) Run() error {
 			fullySpecifiedGVR,
 			o.Recursive,
 			o.OutputFormat,
+			o.Depth,
 		)
 	}
 }
@@ -260,5 +274,5 @@ func (o *ExplainOptions) renderOpenAPIV2(
 		return fmt.Errorf("couldn't find resource for %q", gvk)
 	}
 
-	return explain.PrintModelDescription(fieldsPath, o.Out, schema, gvk, o.Recursive)
+	return explain.PrintModelDescription(fieldsPath, o.Out, schema, gvk, o.Recursive, o.Depth)
 }

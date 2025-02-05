@@ -316,3 +316,107 @@ func TestExplainOpenAPIV3DoesNotLoadOpenAPIV2Specs(t *testing.T) {
 	}
 	cmd.Run(cmd, []string{"pods"})
 }
+
+var depthRecursiveErrorCases = []explainTestCase{
+	{
+		Name:               "DepthWithoutRecursive",
+		Args:               []string{"pods"},
+		Flags:              map[string]string{"recursive": "false", "depth": "1"},
+		ExpectErrorPattern: `The --depth flag can only be used when --recursive is specified\n`,
+	},
+	{
+		Name:               "NegativeDepthWithRecursive",
+		Args:               []string{"pods"},
+		Flags:              map[string]string{"recursive": "true", "depth": "-1"},
+		ExpectErrorPattern: `Depth must be a non-negative number\n`,
+	},
+}
+
+func TestExplainDepthRecursiveErrorCases(t *testing.T) {
+	runExplainTestCases(t, depthRecursiveErrorCases)
+}
+
+var depthTestCases = []explainTestCase{
+	{
+		Name:  "Depth=1",
+		Args:  []string{"pods.spec.affinity"},
+		Flags: map[string]string{"recursive": "true", "depth": "1"},
+		ExpectPattern: []string{
+			`\s*KIND:[\t ]*Pod\s*`,
+			`\s*VERSION:[\t ]*v1\s*`,
+			`\s*FIELD:[\t ]*affinity\s*`,
+			`\s*DESCRIPTION:\s*`,
+			`If specified, the pod's scheduling constraints`,
+			`\s*FIELDS:\s*`,
+			`\s*nodeAffinity\s*<NodeAffinity>`,
+			`\s*podAffinity\s*<PodAffinity>`,
+			`\s*podAntiAffinity\s*<PodAntiAffinity>`,
+		},
+	},
+	{
+		Name:  "Depth=2",
+		Args:  []string{"pods.spec.affinity"},
+		Flags: map[string]string{"recursive": "true", "depth": "2"},
+		ExpectPattern: []string{
+			`\s*KIND:[\t ]*Pod\s*`,
+			`\s*VERSION:[\t ]*v1\s*`,
+			`\s*FIELD:[\t ]*affinity\s*`,
+			`\s*DESCRIPTION:\s*`,
+			`If specified, the pod's scheduling constraints`,
+			`\s*FIELDS:\s*`,
+			`\s*nodeAffinity\s*<NodeAffinity>`,
+			`\s*preferredDuringSchedulingIgnoredDuringExecution\s*<\[\]PreferredSchedulingTerm>`,
+			`\s*requiredDuringSchedulingIgnoredDuringExecution\s*<NodeSelector>`,
+			`\s*podAffinity\s*<PodAffinity>`,
+			`\s*preferredDuringSchedulingIgnoredDuringExecution\s*<\[\]WeightedPodAffinityTerm>`,
+			`\s*requiredDuringSchedulingIgnoredDuringExecution\s*<\[\]PodAffinityTerm>`,
+			`\s*podAntiAffinity\s*<PodAntiAffinity>`,
+			`\s*preferredDuringSchedulingIgnoredDuringExecution\s*<\[\]WeightedPodAffinityTerm>`,
+			`\s*requiredDuringSchedulingIgnoredDuringExecution\s*<\[\]PodAffinityTerm>`,
+		},
+	},
+	{
+		Name:  "Depth=1_plaintext-openapiv2",
+		Args:  []string{"pods.spec.affinity"},
+		Flags: map[string]string{"recursive": "true", "depth": "1", "output": "plaintext-openapiv2"},
+		ExpectPattern: []string{
+			`\s*KIND:[\t ]*Pod\s*`,
+			`\s*VERSION:[\t ]*v1\s*`,
+			`\s*RESOURCE:[\t ]*affinity\s*<Object>\s*`,
+			`\s*DESCRIPTION:\s*`,
+			`If specified, the pod's scheduling constraints`,
+			`Affinity is a group of affinity scheduling rules\.`,
+			`\s*FIELDS:\s*`,
+			`\s*nodeAffinity\s*<Object>\s*`,
+			`\s*podAffinity\s*<Object>\s*`,
+			`\s*podAntiAffinity\s*<Object>\s*`,
+		},
+	},
+	{
+		Name:  "Depth=2_plaintext-openapiv2",
+		Args:  []string{"pods.spec.affinity"},
+		Flags: map[string]string{"recursive": "true", "depth": "2", "output": "plaintext-openapiv2"},
+		ExpectPattern: []string{
+			`\s*KIND:[\t ]*Pod\s*`,
+			`\s*VERSION:[\t ]*v1\s*`,
+			`\s*RESOURCE:[\t ]*affinity\s*<Object>\s*`,
+			`\s*DESCRIPTION:\s*`,
+			`If specified, the pod's scheduling constraints`,
+			`Affinity is a group of affinity scheduling rules\.`,
+			`\s*FIELDS:\s*`,
+			`\s*nodeAffinity\s*<Object>\s*`,
+			`\s*preferredDuringSchedulingIgnoredDuringExecution\s*<\[\]Object>\s*`,
+			`\s*requiredDuringSchedulingIgnoredDuringExecution\s*<Object>\s*`,
+			`\s*podAffinity\s*<Object>\s*`,
+			`\s*preferredDuringSchedulingIgnoredDuringExecution\s*<\[\]Object>\s*`,
+			`\s*requiredDuringSchedulingIgnoredDuringExecution\s*<\[\]Object>\s*`,
+			`\s*podAntiAffinity\s*<Object>\s*`,
+			`\s*preferredDuringSchedulingIgnoredDuringExecution\s*<\[\]Object>\s*`,
+			`\s*requiredDuringSchedulingIgnoredDuringExecution\s*<\[\]Object>\s*`,
+		},
+	},
+}
+
+func TestExplainDepthVariable(t *testing.T) {
+	runExplainTestCases(t, depthTestCases)
+}
