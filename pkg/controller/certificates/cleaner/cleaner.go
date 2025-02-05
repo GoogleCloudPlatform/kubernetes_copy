@@ -179,9 +179,9 @@ func isIssuedPastDeadline(logger klog.Logger, csr *capi.CertificateSigningReques
 	return false
 }
 
-// isOlderThan checks that t is a non-zero time after time.Now() + d.
+// isOlderThan checks that t is a non-zero and older than d from time.Now().
 func isOlderThan(t metav1.Time, d time.Duration) bool {
-	return !t.IsZero() && t.Sub(time.Now()) < -1*d
+	return !t.IsZero() && time.Since(t.Time) > d
 }
 
 // isIssued checks if the CSR has `Issued` status. There is no explicit
