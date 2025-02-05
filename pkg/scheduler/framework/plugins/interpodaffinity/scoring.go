@@ -33,6 +33,17 @@ const preScoreStateKey = "PreScore" + Name
 
 type scoreMap map[string]map[string]int64
 
+// scoreList is a flattened version of scoreMap.
+// It could have multiple entries with the same topologyKeys and topologyValues
+// and merging into the scoreMap is done at the end of PreScore.
+type scoreList []score
+
+type score struct {
+	topologyKey   string
+	topologyValue string
+	weight        int64
+}
+
 // preScoreState computed at PreScore and used at Score.
 type preScoreState struct {
 	topologyScore scoreMap
@@ -47,33 +58,30 @@ func (s *preScoreState) Clone() framework.StateData {
 	return s
 }
 
-func (m scoreMap) processTerm(term *framework.AffinityTerm, weight int32, pod *v1.Pod, nsLabels labels.Set, node *v1.Node, multiplier int32) {
+func (m scoreList) processTerm(term *framework.AffinityTerm, weight int32, pod *v1.Pod, nsLabels labels.Set, node *v1.Node, multiplier int32) {
 	if term.Matches(pod, nsLabels) {
 		if tpValue, tpValueExist := node.Labels[term.TopologyKey]; tpValueExist {
-			if m[term.TopologyKey] == nil {
-				m[term.TopologyKey] = make(map[string]int64)
-			}
-			m[term.TopologyKey][tpValue] += int64(weight * multiplier)
+			m = append(m, score{
+				topologyKey:   term.TopologyKey,
+				topologyValue: tpValue,
+				weight:        int64(weight * multiplier),
+			})
 		}
 	}
 }
 
-func (m scoreMap) processTerms(terms []framework.WeightedAffinityTerm, pod *v1.Pod, nsLabels labels.Set, node *v1.Node, multiplier int32) {
+func (m scoreList) processTerms(terms []framework.WeightedAffinityTerm, pod *v1.Pod, nsLabels labels.Set, node *v1.Node, multiplier int32) {
 	for _, term := range terms {
 		m.processTerm(&term.AffinityTerm, term.Weight, pod, nsLabels, node, multiplier)
 	}
 }
 
-func (m scoreMap) append(other scoreMap) {
-	for topology, oScores := range other {
-		scores := m[topology]
-		if scores == nil {
-			m[topology] = oScores
-			continue
+func (m scoreMap) append(scores scoreList) {
+	for _, score := range scores {
+		if m[score.topologyKey] == nil {
+			m[score.topologyKey] = make(map[string]int64)
 		}
-		for k, v := range oScores {
-			scores[k] += v
-		}
+		m[score.topologyKey][score.topologyValue] += score.weight
 	}
 }
 
@@ -82,7 +90,7 @@ func (pl *InterPodAffinity) processExistingPod(
 	existingPod *framework.PodInfo,
 	existingPodNodeInfo *framework.NodeInfo,
 	incomingPod *v1.Pod,
-	topoScore scoreMap,
+	topoScore scoreList,
 ) {
 	existingPodNode := existingPodNodeInfo.Node()
 	if len(existingPodNode.Labels) == 0 {
@@ -188,7 +196,7 @@ func (pl *InterPodAffinity) PreScore(
 	logger := klog.FromContext(pCtx)
 	state.namespaceLabels = GetNamespaceLabelsSnapshot(logger, pod.Namespace, pl.nsLister)
 
-	topoScores := make([]scoreMap, len(allNodes))
+	topoScores := make([]scoreList, len(allNodes))
 	index := int32(-1)
 	processNode := func(i int) {
 		nodeInfo := allNodes[i]
@@ -201,7 +209,7 @@ func (pl *InterPodAffinity) PreScore(
 			podsToProcess = nodeInfo.Pods
 		}
 
-		topoScore := make(scoreMap)
+		topoScore := make(scoreList, 0)
 		for _, existingPod := range podsToProcess {
 			pl.processExistingPod(state, existingPod, nodeInfo, pod, topoScore)
 		}
