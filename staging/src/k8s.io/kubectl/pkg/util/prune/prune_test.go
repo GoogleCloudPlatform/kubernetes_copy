@@ -93,8 +93,8 @@ func TestGetRESTMappings(t *testing.T) {
 		if tc.expectederr != nil {
 			assert.NotEmptyf(t, actualerr, "getRESTMappings error expected but not fired")
 		}
-		assert.Equal(t, len(actualns), tc.expectedns, "getRESTMappings failed expected number namespaced %d actual %d", tc.expectedns, len(actualns))
-		assert.Equal(t, len(actualnns), tc.expectednns, "getRESTMappings failed expected number nonnamespaced %d actual %d", tc.expectednns, len(actualnns))
+		assert.Len(t, actualns, tc.expectedns, "getRESTMappings failed expected number namespaced %d actual %d", tc.expectedns, len(actualns))
+		assert.Len(t, actualnns, tc.expectednns, "getRESTMappings failed expected number nonnamespaced %d actual %d", tc.expectednns, len(actualnns))
 	}
 }
 
