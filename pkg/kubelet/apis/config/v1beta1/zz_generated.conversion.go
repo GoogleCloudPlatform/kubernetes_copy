@@ -29,6 +29,7 @@ import (
 	conversion "k8s.io/apimachinery/pkg/conversion"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	apiv1 "k8s.io/component-base/tracing/api/v1"
+	v1alpha1 "k8s.io/kubelet/config/v1alpha1"
 	configv1beta1 "k8s.io/kubelet/config/v1beta1"
 	config "k8s.io/kubernetes/pkg/kubelet/apis/config"
 )
@@ -401,6 +402,8 @@ func autoConvert_v1beta1_KubeletConfiguration_To_config_KubeletConfiguration(in 
 		return err
 	}
 	out.RegistryBurst = in.RegistryBurst
+	out.ImagePullCredentialsVerificationPolicy = string(in.ImagePullCredentialsVerificationPolicy)
+	out.PreloadedImagesVerificationAllowlist = *(*[]string)(unsafe.Pointer(&in.PreloadedImagesVerificationAllowlist))
 	if err := v1.Convert_Pointer_int32_To_int32(&in.EventRecordQPS, &out.EventRecordQPS, s); err != nil {
 		return err
 	}
@@ -603,6 +606,8 @@ func autoConvert_config_KubeletConfiguration_To_v1beta1_KubeletConfiguration(in 
 		return err
 	}
 	out.RegistryBurst = in.RegistryBurst
+	out.ImagePullCredentialsVerificationPolicy = v1alpha1.ImagePullCredentialsVerificationPolicy(in.ImagePullCredentialsVerificationPolicy)
+	out.PreloadedImagesVerificationAllowlist = *(*[]string)(unsafe.Pointer(&in.PreloadedImagesVerificationAllowlist))
 	if err := v1.Convert_int32_To_Pointer_int32(&in.EventRecordQPS, &out.EventRecordQPS, s); err != nil {
 		return err
 	}

@@ -27,32 +27,52 @@ import (
 // then a DockerKeyring is built based on every hit and unioned with the defaultKeyring.
 // If they do not, then the default keyring is returned
 func MakeDockerKeyring(passedSecrets []v1.Secret, defaultKeyring credentialprovider.DockerKeyring) (credentialprovider.DockerKeyring, error) {
-	passedCredentials := []credentialprovider.DockerConfig{}
-	for _, passedSecret := range passedSecrets {
+	providerFromSecrets, err := secretsToTrackedDockerConfigs(passedSecrets)
+	if err != nil {
+		return nil, err
+	}
+
+	if providerFromSecrets == nil {
+		return defaultKeyring, nil
+	}
+
+	return credentialprovider.UnionDockerKeyring{providerFromSecrets, defaultKeyring}, nil
+}
+
+func secretsToTrackedDockerConfigs(secrets []v1.Secret) (credentialprovider.DockerKeyring, error) {
+	provider := &credentialprovider.BasicDockerKeyring{}
+	validSecretsFound := 0
+	for _, passedSecret := range secrets {
 		if dockerConfigJSONBytes, dockerConfigJSONExists := passedSecret.Data[v1.DockerConfigJsonKey]; (passedSecret.Type == v1.SecretTypeDockerConfigJson) && dockerConfigJSONExists && (len(dockerConfigJSONBytes) > 0) {
 			dockerConfigJSON := credentialprovider.DockerConfigJSON{}
 			if err := json.Unmarshal(dockerConfigJSONBytes, &dockerConfigJSON); err != nil {
 				return nil, err
 			}
 
-			passedCredentials = append(passedCredentials, dockerConfigJSON.Auths)
+			coords := credentialprovider.SecretCoordinates{
+				UID:       string(passedSecret.UID),
+				Namespace: passedSecret.Namespace,
+				Name:      passedSecret.Name}
+
+			provider.Add(&credentialprovider.CredentialSource{Secret: coords}, dockerConfigJSON.Auths)
+			validSecretsFound++
 		} else if dockercfgBytes, dockercfgExists := passedSecret.Data[v1.DockerConfigKey]; (passedSecret.Type == v1.SecretTypeDockercfg) && dockercfgExists && (len(dockercfgBytes) > 0) {
 			dockercfg := credentialprovider.DockerConfig{}
 			if err := json.Unmarshal(dockercfgBytes, &dockercfg); err != nil {
 				return nil, err
 			}
 
-			passedCredentials = append(passedCredentials, dockercfg)
+			coords := credentialprovider.SecretCoordinates{
+				UID:       string(passedSecret.UID),
+				Namespace: passedSecret.Namespace,
+				Name:      passedSecret.Name}
+			provider.Add(&credentialprovider.CredentialSource{Secret: coords}, dockercfg)
+			validSecretsFound++
 		}
 	}
 
-	if len(passedCredentials) > 0 {
-		basicKeyring := &credentialprovider.BasicDockerKeyring{}
-		for _, currCredentials := range passedCredentials {
-			basicKeyring.Add(currCredentials)
-		}
-		return credentialprovider.UnionDockerKeyring{basicKeyring, defaultKeyring}, nil
+	if validSecretsFound == 0 {
+		return nil, nil
 	}
-
-	return defaultKeyring, nil
+	return provider, nil
 }

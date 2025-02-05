@@ -37,6 +37,7 @@ func TestComponentConfigSetup(t *testing.T) {
 			reflect.TypeOf(logsapi.LoggingConfiguration{}):    true,
 			reflect.TypeOf(tracingapi.TracingConfiguration{}): true,
 			reflect.TypeOf(metav1.Duration{}):                 true,
+			reflect.TypeOf(metav1.Time{}):                     true,
 			reflect.TypeOf(metav1.TypeMeta{}):                 true,
 			reflect.TypeOf(v1.NodeConfigSource{}):             true,
 			reflect.TypeOf(v1.Taint{}):                        true,

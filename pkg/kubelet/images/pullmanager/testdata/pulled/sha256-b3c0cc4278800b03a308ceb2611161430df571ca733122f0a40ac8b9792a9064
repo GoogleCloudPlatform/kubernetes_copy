@@ -1,0 +1,1 @@
+{"kind":"ImagePulledRecord","apiVersion":"kubelet.config.k8s.io/v1alpha1","lastUpdatedTime":"2024-10-21T12:26:40Z","imageRef":"testimageref","credentialMapping":{"docker.io/testing/test":{"kubernetesSecrets":[{"uid":"testsecretuid","namespace":"default","name":"pull-secret","credentialHash":"testsecrethash"}]}}}

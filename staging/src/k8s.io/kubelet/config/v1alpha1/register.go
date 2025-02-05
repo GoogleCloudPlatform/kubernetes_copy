@@ -38,6 +38,8 @@ var (
 func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(SchemeGroupVersion,
 		&CredentialProviderConfig{},
+		&ImagePullIntent{},
+		&ImagePulledRecord{},
 	)
 	return nil
 }

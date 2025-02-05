@@ -21,6 +21,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	logsapi "k8s.io/component-base/logs/api/v1"
 	tracingapi "k8s.io/component-base/tracing/api/v1"
+	v1alphav1 "k8s.io/kubelet/config/v1alpha1"
 )
 
 // HairpinMode denotes how the kubelet should configure networking to handle
@@ -210,6 +211,27 @@ type KubeletConfiguration struct {
 	// Default: 10
 	// +optional
 	RegistryBurst int32 `json:"registryBurst,omitempty"`
+	// imagePullCredentialsVerificationPolicy determines how credentials should be
+	// verified when pod requests an image that is already present on the node:
+	//   - NeverVerify
+	//       - anyone on a node can use any image present on the node
+	//   - NeverVerifyPreloadedImages
+	//       - images that were pulled to the node by something else than the kubelet
+	//         can be used without reverifying pull credentials
+	//   - NeverVerifyAllowlistedImages
+	//       - like "NeverVerifyPreloadedImages" but only node images from
+	//         `preloadedImagesVerificationAllowlist` don't require reverification
+	//   - AlwaysVerify
+	//       - all images require credential reverification
+	// +optional
+	ImagePullCredentialsVerificationPolicy v1alphav1.ImagePullCredentialsVerificationPolicy `json:"imagePullCredentialsVerificationPolicy,omitempty"`
+	// preloadedImagesVerificationAllowlist specifies a list of images that are
+	// exempted from credential reverification for the "NeverVerifyAllowlistedImages"
+	// `imagePullCredentialsVerificationPolicy`.
+	// The list accepts a full path segment wildcard suffix "/*".
+	// Only use image specs without an image tag or digest.
+	// +optional
+	PreloadedImagesVerificationAllowlist []string `json:"preloadedImagesVerificationAllowlist,omitempty"`
 	// eventRecordQPS is the maximum event creations per second. If 0, there
 	// is no limit enforced. The value cannot be a negative number.
 	// Default: 50

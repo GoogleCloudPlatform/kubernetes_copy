@@ -352,6 +352,13 @@ const (
 	// fallback to using it's cgroupDriver option.
 	KubeletCgroupDriverFromCRI featuregate.Feature = "KubeletCgroupDriverFromCRI"
 
+	// owner: @stlaz
+	// kep: https://kep.k8s.io/2535
+	//
+	// Enables tracking credentials for image pulls in order to authorize image
+	// access for different tenants.
+	KubeletEnsureSecretPulledImages featuregate.Feature = "KubeletEnsureSecretPulledImages"
+
 	// owner: @vinayakankugoyal
 	// kep: http://kep.k8s.io/2862
 	//

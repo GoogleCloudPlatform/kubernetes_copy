@@ -21,6 +21,10 @@ import (
 	"fmt"
 	"reflect"
 	"testing"
+
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	featuregatetesting "k8s.io/component-base/featuregate/testing"
+	"k8s.io/kubernetes/pkg/features"
 )
 
 func TestURLsMatch(t *testing.T) {
@@ -222,7 +226,7 @@ func TestDockerKeyringForGlob(t *testing.T) {
 		if cfg, err := ReadDockerConfigFileFromBytes([]byte(sampleDockerConfig)); err != nil {
 			t.Errorf("Error processing json blob %q, %v", sampleDockerConfig, err)
 		} else {
-			keyring.Add(cfg)
+			keyring.Add(nil, cfg)
 		}
 
 		creds, ok := keyring.Lookup(test.targetURL + "/foo/bar")
@@ -290,7 +294,7 @@ func TestKeyringMiss(t *testing.T) {
 		if cfg, err := ReadDockerConfigFileFromBytes([]byte(sampleDockerConfig)); err != nil {
 			t.Errorf("Error processing json blob %q, %v", sampleDockerConfig, err)
 		} else {
-			keyring.Add(cfg)
+			keyring.Add(nil, cfg)
 		}
 
 		_, ok := keyring.Lookup(test.lookupURL + "/foo/bar")
@@ -318,7 +322,7 @@ func TestKeyringMissWithDockerHubCredentials(t *testing.T) {
 	if cfg, err := ReadDockerConfigFileFromBytes([]byte(sampleDockerConfig)); err != nil {
 		t.Errorf("Error processing json blob %q, %v", sampleDockerConfig, err)
 	} else {
-		keyring.Add(cfg)
+		keyring.Add(nil, cfg)
 	}
 
 	val, ok := keyring.Lookup("world.mesos.org/foo/bar")
@@ -344,7 +348,7 @@ func TestKeyringHitWithUnqualifiedDockerHub(t *testing.T) {
 	if cfg, err := ReadDockerConfigFileFromBytes([]byte(sampleDockerConfig)); err != nil {
 		t.Errorf("Error processing json blob %q, %v", sampleDockerConfig, err)
 	} else {
-		keyring.Add(cfg)
+		keyring.Add(nil, cfg)
 	}
 
 	creds, ok := keyring.Lookup("google/docker-registry")
@@ -353,7 +357,7 @@ func TestKeyringHitWithUnqualifiedDockerHub(t *testing.T) {
 		return
 	}
 	if len(creds) > 1 {
-		t.Errorf("Got more hits than expected: %s", creds)
+		t.Errorf("Got more hits than expected: %v", creds)
 	}
 	val := creds[0]
 
@@ -385,7 +389,7 @@ func TestKeyringHitWithUnqualifiedLibraryDockerHub(t *testing.T) {
 	if cfg, err := ReadDockerConfigFileFromBytes([]byte(sampleDockerConfig)); err != nil {
 		t.Errorf("Error processing json blob %q, %v", sampleDockerConfig, err)
 	} else {
-		keyring.Add(cfg)
+		keyring.Add(nil, cfg)
 	}
 
 	creds, ok := keyring.Lookup("jenkins")
@@ -394,7 +398,7 @@ func TestKeyringHitWithUnqualifiedLibraryDockerHub(t *testing.T) {
 		return
 	}
 	if len(creds) > 1 {
-		t.Errorf("Got more hits than expected: %s", creds)
+		t.Errorf("Got more hits than expected: %v", creds)
 	}
 	val := creds[0]
 
@@ -426,7 +430,7 @@ func TestKeyringHitWithQualifiedDockerHub(t *testing.T) {
 	if cfg, err := ReadDockerConfigFileFromBytes([]byte(sampleDockerConfig)); err != nil {
 		t.Errorf("Error processing json blob %q, %v", sampleDockerConfig, err)
 	} else {
-		keyring.Add(cfg)
+		keyring.Add(nil, cfg)
 	}
 
 	creds, ok := keyring.Lookup(url + "/google/docker-registry")
@@ -435,7 +439,7 @@ func TestKeyringHitWithQualifiedDockerHub(t *testing.T) {
 		return
 	}
 	if len(creds) > 2 {
-		t.Errorf("Got more hits than expected: %s", creds)
+		t.Errorf("Got more hits than expected: %v", creds)
 	}
 	val := creds[0]
 
@@ -498,20 +502,24 @@ func TestProvidersDockerKeyring(t *testing.T) {
 }
 
 func TestDockerKeyringLookup(t *testing.T) {
+	// turn on the ensure secret pulled images feature to get the hashes with the creds
+	featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.KubeletEnsureSecretPulledImages, true)
 	ada := AuthConfig{
 		Username: "ada",
 		Password: "smash", // Fake value for testing.
 		Email:    "ada@example.com",
 	}
+	adaHash := "353258b53f5e9a57b059eab3f05312fc35bbeb874f08ce101e7bf0bf46977423"
 
 	grace := AuthConfig{
 		Username: "grace",
 		Password: "squash", // Fake value for testing.
 		Email:    "grace@example.com",
 	}
+	graceHash := "f949b3837a1eb733a951b6aeda0b3327c09ec50c917de9ca35818e8fbf567e29"
 
 	dk := &BasicDockerKeyring{}
-	dk.Add(DockerConfig{
+	dk.Add(nil, DockerConfig{
 		"bar.example.com/pong": DockerConfigEntry{
 			Username: grace.Username,
 			Password: grace.Password,
@@ -526,27 +534,27 @@ func TestDockerKeyringLookup(t *testing.T) {
 
 	tests := []struct {
 		image string
-		match []AuthConfig
+		match []TrackedAuthConfig
 		ok    bool
 	}{
 		// direct match
-		{"bar.example.com", []AuthConfig{ada}, true},
+		{"bar.example.com", []TrackedAuthConfig{{AuthConfig: ada, AuthConfigHash: adaHash}}, true},
 
 		// direct match deeper than other possible matches
-		{"bar.example.com/pong", []AuthConfig{grace, ada}, true},
+		{"bar.example.com/pong", []TrackedAuthConfig{{AuthConfig: grace, AuthConfigHash: graceHash}, {AuthConfig: ada, AuthConfigHash: adaHash}}, true},
 
 		// no direct match, deeper path ignored
-		{"bar.example.com/ping", []AuthConfig{ada}, true},
+		{"bar.example.com/ping", []TrackedAuthConfig{{AuthConfig: ada, AuthConfigHash: adaHash}}, true},
 
 		// match first part of path token
-		{"bar.example.com/pongz", []AuthConfig{grace, ada}, true},
+		{"bar.example.com/pongz", []TrackedAuthConfig{{AuthConfig: grace, AuthConfigHash: graceHash}, {AuthConfig: ada, AuthConfigHash: adaHash}}, true},
 
 		// match regardless of sub-path
-		{"bar.example.com/pong/pang", []AuthConfig{grace, ada}, true},
+		{"bar.example.com/pong/pang", []TrackedAuthConfig{{AuthConfig: grace, AuthConfigHash: graceHash}, {AuthConfig: ada, AuthConfigHash: adaHash}}, true},
 
 		// no host match
-		{"example.com", []AuthConfig{}, false},
-		{"foo.example.com", []AuthConfig{}, false},
+		{"example.com", []TrackedAuthConfig{}, false},
+		{"foo.example.com", []TrackedAuthConfig{}, false},
 	}
 
 	for i, tt := range tests {
@@ -565,14 +573,17 @@ func TestDockerKeyringLookup(t *testing.T) {
 // by images that only match the hostname.
 // NOTE: the above covers the case of a more specific match trumping just hostname.
 func TestIssue3797(t *testing.T) {
+	// turn on the ensure secret pulled images feature to get the hashes with the creds
+	featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.KubeletEnsureSecretPulledImages, true)
 	rex := AuthConfig{
 		Username: "rex",
 		Password: "tiny arms", // Fake value for testing.
 		Email:    "rex@example.com",
 	}
+	rexHash := "899748fec74c8dd761845fca727f4249b05be275ff24026676fcd4351f656363"
 
 	dk := &BasicDockerKeyring{}
-	dk.Add(DockerConfig{
+	dk.Add(nil, DockerConfig{
 		"https://quay.io/v1/": DockerConfigEntry{
 			Username: rex.Username,
 			Password: rex.Password,
@@ -582,15 +593,15 @@ func TestIssue3797(t *testing.T) {
 
 	tests := []struct {
 		image string
-		match []AuthConfig
+		match []TrackedAuthConfig
 		ok    bool
 	}{
 		// direct match
-		{"quay.io", []AuthConfig{rex}, true},
+		{"quay.io", []TrackedAuthConfig{{AuthConfig: rex, AuthConfigHash: rexHash}}, true},
 
 		// partial matches
-		{"quay.io/foo", []AuthConfig{rex}, true},
-		{"quay.io/foo/bar", []AuthConfig{rex}, true},
+		{"quay.io/foo", []TrackedAuthConfig{{AuthConfig: rex, AuthConfigHash: rexHash}}, true},
+		{"quay.io/foo/bar", []TrackedAuthConfig{{AuthConfig: rex, AuthConfigHash: rexHash}}, true},
 	}
 
 	for i, tt := range tests {

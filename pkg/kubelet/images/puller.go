@@ -20,21 +20,22 @@ import (
 	"context"
 	"time"
 
-	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1"
+	"k8s.io/kubernetes/pkg/credentialprovider"
 	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
 )
 
 type pullResult struct {
-	imageRef     string
-	imageSize    uint64
-	err          error
-	pullDuration time.Duration
+	imageRef        string
+	imageSize       uint64
+	err             error
+	pullDuration    time.Duration
+	credentialsUsed *credentialprovider.TrackedAuthConfig
 }
 
 type imagePuller interface {
-	pullImage(context.Context, kubecontainer.ImageSpec, []v1.Secret, chan<- pullResult, *runtimeapi.PodSandboxConfig)
+	pullImage(context.Context, kubecontainer.ImageSpec, []credentialprovider.TrackedAuthConfig, chan<- pullResult, *runtimeapi.PodSandboxConfig)
 }
 
 var _, _ imagePuller = &parallelImagePuller{}, &serialImagePuller{}
@@ -51,24 +52,25 @@ func newParallelImagePuller(imageService kubecontainer.ImageService, maxParallel
 	return &parallelImagePuller{imageService, make(chan struct{}, *maxParallelImagePulls)}
 }
 
-func (pip *parallelImagePuller) pullImage(ctx context.Context, spec kubecontainer.ImageSpec, pullSecrets []v1.Secret, pullChan chan<- pullResult, podSandboxConfig *runtimeapi.PodSandboxConfig) {
+func (pip *parallelImagePuller) pullImage(ctx context.Context, spec kubecontainer.ImageSpec, credentials []credentialprovider.TrackedAuthConfig, pullChan chan<- pullResult, podSandboxConfig *runtimeapi.PodSandboxConfig) {
 	go func() {
 		if pip.tokens != nil {
 			pip.tokens <- struct{}{}
 			defer func() { <-pip.tokens }()
 		}
 		startTime := time.Now()
-		imageRef, err := pip.imageService.PullImage(ctx, spec, pullSecrets, podSandboxConfig)
+		imageRef, creds, err := pip.imageService.PullImage(ctx, spec, credentials, podSandboxConfig)
 		var size uint64
 		if err == nil && imageRef != "" {
 			// Getting the image size with best effort, ignoring the error.
 			size, _ = pip.imageService.GetImageSize(ctx, spec)
 		}
 		pullChan <- pullResult{
-			imageRef:     imageRef,
-			imageSize:    size,
-			err:          err,
-			pullDuration: time.Since(startTime),
+			imageRef:        imageRef,
+			imageSize:       size,
+			err:             err,
+			pullDuration:    time.Since(startTime),
+			credentialsUsed: creds,
 		}
 	}()
 }
@@ -90,16 +92,16 @@ func newSerialImagePuller(imageService kubecontainer.ImageService) imagePuller {
 type imagePullRequest struct {
 	ctx              context.Context
 	spec             kubecontainer.ImageSpec
-	pullSecrets      []v1.Secret
+	credentials      []credentialprovider.TrackedAuthConfig
 	pullChan         chan<- pullResult
 	podSandboxConfig *runtimeapi.PodSandboxConfig
 }
 
-func (sip *serialImagePuller) pullImage(ctx context.Context, spec kubecontainer.ImageSpec, pullSecrets []v1.Secret, pullChan chan<- pullResult, podSandboxConfig *runtimeapi.PodSandboxConfig) {
+func (sip *serialImagePuller) pullImage(ctx context.Context, spec kubecontainer.ImageSpec, credentials []credentialprovider.TrackedAuthConfig, pullChan chan<- pullResult, podSandboxConfig *runtimeapi.PodSandboxConfig) {
 	sip.pullRequests <- &imagePullRequest{
 		ctx:              ctx,
 		spec:             spec,
-		pullSecrets:      pullSecrets,
+		credentials:      credentials,
 		pullChan:         pullChan,
 		podSandboxConfig: podSandboxConfig,
 	}
@@ -108,7 +110,7 @@ func (sip *serialImagePuller) pullImage(ctx context.Context, spec kubecontainer.
 func (sip *serialImagePuller) processImagePullRequests() {
 	for pullRequest := range sip.pullRequests {
 		startTime := time.Now()
-		imageRef, err := sip.imageService.PullImage(pullRequest.ctx, pullRequest.spec, pullRequest.pullSecrets, pullRequest.podSandboxConfig)
+		imageRef, creds, err := sip.imageService.PullImage(pullRequest.ctx, pullRequest.spec, pullRequest.credentials, pullRequest.podSandboxConfig)
 		var size uint64
 		if err == nil && imageRef != "" {
 			// Getting the image size with best effort, ignoring the error.
@@ -118,8 +120,9 @@ func (sip *serialImagePuller) processImagePullRequests() {
 			imageRef:  imageRef,
 			imageSize: size,
 			err:       err,
-			// Note: pullDuration includes credential resolution and getting the image size.
-			pullDuration: time.Since(startTime),
+			// Note: pullDuration includes getting the image size.
+			pullDuration:    time.Since(startTime),
+			credentialsUsed: creds,
 		}
 	}
 }

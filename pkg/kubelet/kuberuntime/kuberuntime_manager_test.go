@@ -47,13 +47,12 @@ import (
 	runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1"
 	apitest "k8s.io/cri-api/pkg/apis/testing"
 	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
-	"k8s.io/kubernetes/pkg/credentialprovider"
 	"k8s.io/kubernetes/pkg/features"
 	"k8s.io/kubernetes/pkg/kubelet/cm"
 	cmtesting "k8s.io/kubernetes/pkg/kubelet/cm/testing"
 	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
 	containertest "k8s.io/kubernetes/pkg/kubelet/container/testing"
-	imagetypes "k8s.io/kubernetes/pkg/kubelet/images"
+	"k8s.io/kubernetes/pkg/kubelet/images"
 	proberesults "k8s.io/kubernetes/pkg/kubelet/prober/results"
 	kubelettypes "k8s.io/kubernetes/pkg/kubelet/types"
 	"k8s.io/utils/ptr"
@@ -65,10 +64,6 @@ var (
 )
 
 func createTestRuntimeManager() (*apitest.FakeRuntimeService, *apitest.FakeImageService, *kubeGenericRuntimeManager, error) {
-	return customTestRuntimeManager(&credentialprovider.BasicDockerKeyring{})
-}
-
-func customTestRuntimeManager(keyring *credentialprovider.BasicDockerKeyring) (*apitest.FakeRuntimeService, *apitest.FakeImageService, *kubeGenericRuntimeManager, error) {
 	fakeRuntimeService := apitest.NewFakeRuntimeService()
 	fakeImageService := apitest.NewFakeImageService()
 	// Only an empty machineInfo is needed here, because in unit test all containers are besteffort,
@@ -79,7 +74,7 @@ func customTestRuntimeManager(keyring *credentialprovider.BasicDockerKeyring) (*
 		MemoryCapacity: uint64(memoryCapacityQuantity.Value()),
 	}
 	osInterface := &containertest.FakeOS{}
-	manager, err := newFakeKubeRuntimeManager(fakeRuntimeService, fakeImageService, machineInfo, osInterface, &containertest.FakeRuntimeHelper{}, keyring, noopoteltrace.NewTracerProvider().Tracer(""))
+	manager, err := newFakeKubeRuntimeManager(fakeRuntimeService, fakeImageService, machineInfo, osInterface, &containertest.FakeRuntimeHelper{}, noopoteltrace.NewTracerProvider().Tracer(""))
 	return fakeRuntimeService, fakeImageService, manager, err
 }
 
@@ -2799,7 +2794,7 @@ func TestGetImageVolumes(t *testing.T) {
 			}}},
 			expectedImageVolumePulls: imageVolumePulls{
 				volume1: imageVolumePullResult{spec: imageSpec1},
-				volume2: imageVolumePullResult{err: imagetypes.ErrImageNeverPull, msg: `Container image "image" is not present with pull policy of Never`},
+				volume2: imageVolumePullResult{err: images.ErrImageNeverPull, msg: `Container image "image" is not present with pull policy of Never`},
 			},
 		},
 	} {

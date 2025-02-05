@@ -32,6 +32,7 @@ import (
 	tracingapi "k8s.io/component-base/tracing/api/v1"
 	"k8s.io/kubernetes/pkg/features"
 	kubeletconfig "k8s.io/kubernetes/pkg/kubelet/apis/config"
+	imagepullmanager "k8s.io/kubernetes/pkg/kubelet/images/pullmanager"
 	kubetypes "k8s.io/kubernetes/pkg/kubelet/types"
 	utilfs "k8s.io/kubernetes/pkg/util/filesystem"
 	utiltaints "k8s.io/kubernetes/pkg/util/taints"
@@ -286,6 +287,32 @@ func ValidateKubeletConfiguration(kc *kubeletconfig.KubeletConfiguration, featur
 		allErrors = append(allErrors, fmt.Errorf("invalid configuration: option %q specified for hairpinMode (--hairpin-mode). Valid options are %q, %q or %q",
 			kc.HairpinMode, kubeletconfig.HairpinNone, kubeletconfig.HairpinVeth, kubeletconfig.PromiscuousBridge))
 	}
+
+	if localFeatureGate.Enabled(features.KubeletEnsureSecretPulledImages) {
+		switch kc.ImagePullCredentialsVerificationPolicy {
+		case "", "NeverVerify",
+			"NeverVerifyPreloadedImages",
+			"NeverVerifyAllowlistedImages",
+			"AlwaysVerify":
+		default:
+			allErrors = append(allErrors, fmt.Errorf("invalid configuration: option %q specified for imagePullCredentialsVerificationPolicy. Valid options are %q, %q, %q or %q",
+				kc.ImagePullCredentialsVerificationPolicy, "NeverVerify", "NeverVerifyPreloadedImages", "NeverVerifyAllowlistedImages", "AlwaysVerify"))
+		}
+
+		if len(kc.PreloadedImagesVerificationAllowlist) > 0 && kc.ImagePullCredentialsVerificationPolicy != "NeverVerifyAllowlistedImages" {
+			allErrors = append(allErrors, fmt.Errorf("invalid configuration: can't set `preloadedImagesVerificationAllowlist` if `imagePullCredentialsVertificationPolicy` is not \"NeverVerifyAllowlistedImages\""))
+		} else if err := imagepullmanager.ValidateAllowlistImagesPatterns(kc.PreloadedImagesVerificationAllowlist); err != nil {
+			allErrors = append(allErrors, fmt.Errorf("invalid configuration: invalid image pattern in `preloadedImagesVerificationAllowlist`: %w", err))
+		}
+	} else {
+		if len(kc.ImagePullCredentialsVerificationPolicy) > 0 {
+			allErrors = append(allErrors, fmt.Errorf("invalid configuration: `imagePullCredentialsVerificationPolicy` must not be set if KubeletEnsureSecretPulledImages feature gate is not enabled"))
+		}
+		if len(kc.PreloadedImagesVerificationAllowlist) > 0 {
+			allErrors = append(allErrors, fmt.Errorf("invalid configuration: `preloadedImagesVerificationAllowlist` must not be set if KubeletEnsureSecretPulledImages feature gate is not enabled"))
+		}
+	}
+
 	if kc.ReservedSystemCPUs != "" {
 		// --reserved-cpus does not support --system-reserved-cgroup or --kube-reserved-cgroup
 		if kc.SystemReservedCgroup != "" || kc.KubeReservedCgroup != "" {

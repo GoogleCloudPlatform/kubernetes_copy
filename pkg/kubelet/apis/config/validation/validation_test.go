@@ -26,6 +26,7 @@ import (
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	logsapi "k8s.io/component-base/logs/api/v1"
 	tracingapi "k8s.io/component-base/tracing/api/v1"
+	"k8s.io/kubelet/config/v1alpha1"
 	kubeletconfig "k8s.io/kubernetes/pkg/kubelet/apis/config"
 	"k8s.io/kubernetes/pkg/kubelet/apis/config/validation"
 	kubetypes "k8s.io/kubernetes/pkg/kubelet/types"
@@ -722,6 +723,39 @@ func TestValidateKubeletConfiguration(t *testing.T) {
 				return conf
 			},
 			errMsg: "logging.format: Invalid value: \"invalid\": Unsupported log format",
+		}, {
+			name: "invalid imagePullCredentialsVerificationPolicy configuration",
+			configure: func(conf *kubeletconfig.KubeletConfiguration) *kubeletconfig.KubeletConfiguration {
+				conf.FeatureGates = map[string]bool{"KubeletEnsureSecretPulledImages": true}
+				conf.ImagePullCredentialsVerificationPolicy = "invalid"
+				return conf
+			},
+			errMsg: `option "invalid" specified for imagePullCredentialsVerificationPolicy. Valid options are "NeverVerify", "NeverVerifyPreloadedImages", "NeverVerifyAllowlistedImages" or "AlwaysVerify"]`,
+		}, {
+			name: "invalid PreloadedImagesVerificationAllowlist configuration - featuregate enabled",
+			configure: func(conf *kubeletconfig.KubeletConfiguration) *kubeletconfig.KubeletConfiguration {
+				conf.FeatureGates = map[string]bool{"KubeletEnsureSecretPulledImages": true}
+				conf.ImagePullCredentialsVerificationPolicy = string(v1alpha1.NeverVerify)
+				conf.PreloadedImagesVerificationAllowlist = []string{"test.test/repo"}
+				return conf
+			},
+			errMsg: "can't set `preloadedImagesVerificationAllowlist` if `imagePullCredentialsVertificationPolicy` is not \"NeverVerifyAllowlistedImages\"]",
+		}, {
+			name: "invalid PreloadedImagesVerificationAllowlist configuration - featuregate disabled",
+			configure: func(conf *kubeletconfig.KubeletConfiguration) *kubeletconfig.KubeletConfiguration {
+				conf.FeatureGates = map[string]bool{"KubeletEnsureSecretPulledImages": false}
+				conf.ImagePullCredentialsVerificationPolicy = string(v1alpha1.NeverVerify)
+				return conf
+			},
+			errMsg: "invalid configuration: `imagePullCredentialsVerificationPolicy` must not be set if KubeletEnsureSecretPulledImages feature gate is not enabled",
+		}, {
+			name: "invalid PreloadedImagesVerificationAllowlist configuration",
+			configure: func(conf *kubeletconfig.KubeletConfiguration) *kubeletconfig.KubeletConfiguration {
+				conf.FeatureGates = map[string]bool{"KubeletEnsureSecretPulledImages": false}
+				conf.PreloadedImagesVerificationAllowlist = []string{"test.test/repo"}
+				return conf
+			},
+			errMsg: "invalid configuration: `preloadedImagesVerificationAllowlist` must not be set if KubeletEnsureSecretPulledImages feature gate is not enabled",
 		}, {
 			name: "invalid FeatureGate",
 			configure: func(conf *kubeletconfig.KubeletConfiguration) *kubeletconfig.KubeletConfiguration {

@@ -21,15 +21,20 @@ import (
 	"encoding/json"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/client-go/util/flowcontrol"
 	runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1"
 	"k8s.io/kubernetes/pkg/credentialprovider"
 	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
+	"k8s.io/kubernetes/pkg/kubelet/images"
+	imagepullmanager "k8s.io/kubernetes/pkg/kubelet/images/pullmanager"
+	"k8s.io/utils/ptr"
 )
 
 func TestPullImage(t *testing.T) {
@@ -37,9 +42,10 @@ func TestPullImage(t *testing.T) {
 	_, _, fakeManager, err := createTestRuntimeManager()
 	assert.NoError(t, err)
 
-	imageRef, err := fakeManager.PullImage(ctx, kubecontainer.ImageSpec{Image: "busybox"}, nil, nil)
+	imageRef, creds, err := fakeManager.PullImage(ctx, kubecontainer.ImageSpec{Image: "busybox"}, nil, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, "busybox", imageRef)
+	assert.Nil(t, creds) // as this was an anonymous pull
 
 	images, err := fakeManager.ListImages(ctx)
 	assert.NoError(t, err)
@@ -52,34 +58,15 @@ func TestPullImageWithError(t *testing.T) {
 	_, fakeImageService, fakeManager, err := createTestRuntimeManager()
 	assert.NoError(t, err)
 
-	// trying to pull an image with an invalid name should return an error
-	imageRef, err := fakeManager.PullImage(ctx, kubecontainer.ImageSpec{Image: ":invalid"}, nil, nil)
-	assert.Error(t, err)
-	assert.Equal(t, "", imageRef)
-
 	fakeImageService.InjectError("PullImage", fmt.Errorf("test-error"))
-	imageRef, err = fakeManager.PullImage(ctx, kubecontainer.ImageSpec{Image: "busybox"}, nil, nil)
+	imageRef, creds, err := fakeManager.PullImage(ctx, kubecontainer.ImageSpec{Image: "busybox"}, nil, nil)
 	assert.Error(t, err)
 	assert.Equal(t, "", imageRef)
+	assert.Nil(t, creds)
 
 	images, err := fakeManager.ListImages(ctx)
 	assert.NoError(t, err)
 	assert.Empty(t, images)
-}
-
-func TestPullImageWithInvalidImageName(t *testing.T) {
-	_, fakeImageService, fakeManager, err := createTestRuntimeManager()
-	assert.NoError(t, err)
-
-	imageList := []string{"FAIL", "http://fail", "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"}
-	fakeImageService.SetFakeImages(imageList)
-	for _, val := range imageList {
-		ctx := context.Background()
-		imageRef, err := fakeManager.PullImage(ctx, kubecontainer.ImageSpec{Image: val}, nil, nil)
-		assert.Error(t, err)
-		assert.Equal(t, "", imageRef)
-
-	}
 }
 
 func TestListImages(t *testing.T) {
@@ -196,7 +183,7 @@ func TestRemoveImage(t *testing.T) {
 	_, fakeImageService, fakeManager, err := createTestRuntimeManager()
 	assert.NoError(t, err)
 
-	_, err = fakeManager.PullImage(ctx, kubecontainer.ImageSpec{Image: "busybox"}, nil, nil)
+	_, _, err = fakeManager.PullImage(ctx, kubecontainer.ImageSpec{Image: "busybox"}, nil, nil)
 	assert.NoError(t, err)
 	assert.Len(t, fakeImageService.Images, 1)
 
@@ -219,7 +206,7 @@ func TestRemoveImageWithError(t *testing.T) {
 	_, fakeImageService, fakeManager, err := createTestRuntimeManager()
 	assert.NoError(t, err)
 
-	_, err = fakeManager.PullImage(ctx, kubecontainer.ImageSpec{Image: "busybox"}, nil, nil)
+	_, _, err = fakeManager.PullImage(ctx, kubecontainer.ImageSpec{Image: "busybox"}, nil, nil)
 	assert.NoError(t, err)
 	assert.Len(t, fakeImageService.Images, 1)
 
@@ -280,13 +267,13 @@ func TestPullWithSecrets(t *testing.T) {
 		expectedAuth        *runtimeapi.AuthConfig
 	}{
 		"no matching secrets": {
-			"ubuntu",
+			"ubuntu:latest",
 			[]v1.Secret{},
 			credentialprovider.DockerConfig(map[string]credentialprovider.DockerConfigEntry{}),
 			nil,
 		},
 		"default keyring secrets": {
-			"ubuntu",
+			"ubuntu:latest",
 			[]v1.Secret{},
 			credentialprovider.DockerConfig(map[string]credentialprovider.DockerConfigEntry{
 				"index.docker.io/v1/": {Username: "built-in", Password: "password", Provider: nil},
@@ -294,7 +281,7 @@ func TestPullWithSecrets(t *testing.T) {
 			&runtimeapi.AuthConfig{Username: "built-in", Password: "password"},
 		},
 		"default keyring secrets unused": {
-			"ubuntu",
+			"ubuntu:latest",
 			[]v1.Secret{},
 			credentialprovider.DockerConfig(map[string]credentialprovider.DockerConfigEntry{
 				"extraneous": {Username: "built-in", Password: "password", Provider: nil},
@@ -302,7 +289,7 @@ func TestPullWithSecrets(t *testing.T) {
 			nil,
 		},
 		"builtin keyring secrets, but use passed": {
-			"ubuntu",
+			"ubuntu:latest",
 			[]v1.Secret{{Type: v1.SecretTypeDockercfg, Data: map[string][]byte{v1.DockerConfigKey: dockercfgContent}}},
 			credentialprovider.DockerConfig(map[string]credentialprovider.DockerConfigEntry{
 				"index.docker.io/v1/": {Username: "built-in", Password: "password", Provider: nil},
@@ -310,7 +297,7 @@ func TestPullWithSecrets(t *testing.T) {
 			&runtimeapi.AuthConfig{Username: "passed-user", Password: "passed-password"},
 		},
 		"builtin keyring secrets, but use passed with new docker config": {
-			"ubuntu",
+			"ubuntu:latest",
 			[]v1.Secret{{Type: v1.SecretTypeDockerConfigJson, Data: map[string][]byte{v1.DockerConfigJsonKey: dockerConfigJSONContent}}},
 			credentialprovider.DockerConfig(map[string]credentialprovider.DockerConfigEntry{
 				"index.docker.io/v1/": {Username: "built-in", Password: "password", Provider: nil},
@@ -320,11 +307,35 @@ func TestPullWithSecrets(t *testing.T) {
 	}
 	for description, test := range tests {
 		builtInKeyRing := &credentialprovider.BasicDockerKeyring{}
-		builtInKeyRing.Add(test.builtInDockerConfig)
-		_, fakeImageService, fakeManager, err := customTestRuntimeManager(builtInKeyRing)
+		builtInKeyRing.Add(nil, test.builtInDockerConfig)
+
+		_, fakeImageService, fakeManager, err := createTestRuntimeManager()
 		require.NoError(t, err)
 
-		_, err = fakeManager.PullImage(ctx, kubecontainer.ImageSpec{Image: test.imageName}, test.passedSecrets, nil)
+		fsRecordAccessor, err := imagepullmanager.NewFSPullRecordsAccessor(t.TempDir())
+		if err != nil {
+			t.Fatal("failed to setup an file pull records accessor")
+		}
+
+		imagePullManager, err := imagepullmanager.NewImagePullManager(context.Background(), fsRecordAccessor, imagepullmanager.AlwaysVerifyImagePullPolicy, fakeManager)
+		if err != nil {
+			t.Fatal("failed to setup an image pull manager")
+		}
+
+		fakeManager.imagePuller = images.NewImageManager(
+			fakeManager.recorder,
+			builtInKeyRing,
+			fakeManager,
+			imagePullManager,
+			flowcontrol.NewBackOff(time.Second, 300*time.Second),
+			false,
+			ptr.To[int32](0), // No limit on max parallel image pulls,
+			0,                // Disable image pull throttling by setting QPS to 0,
+			0,
+			&fakePodPullingTimeRecorder{},
+		)
+
+		_, _, err = fakeManager.imagePuller.EnsureImageExists(ctx, nil, makeTestPod("testpod", "testpod-ns", "testpod-uid", []v1.Container{}), test.imageName, test.passedSecrets, nil, "", v1.PullAlways)
 		require.NoError(t, err)
 		fakeImageService.AssertImagePulledWithAuth(t, &runtimeapi.ImageSpec{Image: test.imageName, Annotations: make(map[string]string)}, test.expectedAuth, description)
 	}
@@ -355,12 +366,12 @@ func TestPullWithSecretsWithError(t *testing.T) {
 	}{
 		{
 			name:          "invalid docker secret",
-			imageName:     "ubuntu",
+			imageName:     "ubuntu:latest",
 			passedSecrets: []v1.Secret{{Type: v1.SecretTypeDockercfg, Data: map[string][]byte{v1.DockerConfigKey: []byte("invalid")}}},
 		},
 		{
 			name:      "secret provided, pull failed",
-			imageName: "ubuntu",
+			imageName: "ubuntu:latest",
 			passedSecrets: []v1.Secret{
 				{Type: v1.SecretTypeDockerConfigJson, Data: map[string][]byte{v1.DockerConfigKey: dockerConfigJSON}},
 			},
@@ -375,7 +386,30 @@ func TestPullWithSecretsWithError(t *testing.T) {
 				fakeImageService.InjectError("PullImage", fmt.Errorf("test-error"))
 			}
 
-			imageRef, err := fakeManager.PullImage(ctx, kubecontainer.ImageSpec{Image: test.imageName}, test.passedSecrets, nil)
+			fsRecordAccessor, err := imagepullmanager.NewFSPullRecordsAccessor(t.TempDir())
+			if err != nil {
+				t.Fatal("failed to setup an file pull records accessor")
+			}
+
+			imagePullManager, err := imagepullmanager.NewImagePullManager(context.Background(), fsRecordAccessor, imagepullmanager.AlwaysVerifyImagePullPolicy, fakeManager)
+			if err != nil {
+				t.Fatal("failed to setup an image pull manager")
+			}
+
+			fakeManager.imagePuller = images.NewImageManager(
+				fakeManager.recorder,
+				&credentialprovider.BasicDockerKeyring{},
+				fakeManager,
+				imagePullManager,
+				flowcontrol.NewBackOff(time.Second, 300*time.Second),
+				false,
+				ptr.To[int32](0), // No limit on max parallel image pulls,
+				0,                // Disable image pull throttling by setting QPS to 0,
+				0,
+				&fakePodPullingTimeRecorder{},
+			)
+
+			imageRef, _, err := fakeManager.imagePuller.EnsureImageExists(ctx, nil, makeTestPod("testpod", "testpod-ns", "testpod-uid", []v1.Container{}), test.imageName, test.passedSecrets, nil, "", v1.PullAlways)
 			assert.Error(t, err)
 			assert.Equal(t, "", imageRef)
 
@@ -398,7 +432,7 @@ func TestPullThenListWithAnnotations(t *testing.T) {
 		},
 	}
 
-	_, err = fakeManager.PullImage(ctx, imageSpec, nil, nil)
+	_, _, err = fakeManager.PullImage(ctx, imageSpec, nil, nil)
 	assert.NoError(t, err)
 
 	images, err := fakeManager.ListImages(ctx)

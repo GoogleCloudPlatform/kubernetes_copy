@@ -20,107 +20,145 @@ import (
 	"reflect"
 	"testing"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	featuregatetesting "k8s.io/component-base/featuregate/testing"
 	"k8s.io/kubernetes/pkg/credentialprovider"
+	"k8s.io/kubernetes/pkg/features"
 )
 
-// fakeKeyring is a fake docker auth config keyring
-type fakeKeyring struct {
-	auth []credentialprovider.AuthConfig
+// FakeKeyring a fake config credentials
+type FakeKeyring struct {
+	auth []credentialprovider.TrackedAuthConfig
 	ok   bool
 }
 
-// Lookup implements the DockerKeyring method for fetching credentials based on image name.
-// Returns fake results based on the auth and ok fields in fakeKeyring
-func (f *fakeKeyring) Lookup(image string) ([]credentialprovider.AuthConfig, bool) {
+// Lookup implements the DockerKeyring method for fetching credentials based on image name
+// return fake auth and ok
+func (f *FakeKeyring) Lookup(image string) ([]credentialprovider.TrackedAuthConfig, bool) {
 	return f.auth, f.ok
 }
 
 func Test_MakeDockerKeyring(t *testing.T) {
+	featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.KubeletEnsureSecretPulledImages, true)
+
 	testcases := []struct {
-		name           string
-		image          string
-		defaultKeyring credentialprovider.DockerKeyring
-		pullSecrets    []v1.Secret
-		authConfigs    []credentialprovider.AuthConfig
-		found          bool
+		name                string
+		image               string
+		defaultKeyring      credentialprovider.DockerKeyring
+		pullSecrets         []v1.Secret
+		expectedAuthConfigs []credentialprovider.TrackedAuthConfig
+		found               bool
 	}{
 		{
-			name:           "with .dockerconfigjson and auth field",
-			image:          "test.registry.io",
-			defaultKeyring: &fakeKeyring{},
+			name:  "with .dockerconfigjson and auth field",
+			image: "test.registry.io",
 			pullSecrets: []v1.Secret{
 				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "s1", Namespace: "ns1", UID: "uid1"},
 					Type: v1.SecretTypeDockerConfigJson,
 					Data: map[string][]byte{
 						v1.DockerConfigJsonKey: []byte(`{"auths": {"test.registry.io": {"auth": "dXNlcjpwYXNzd29yZA=="}}}`),
 					},
 				},
 			},
-			authConfigs: []credentialprovider.AuthConfig{
+			expectedAuthConfigs: []credentialprovider.TrackedAuthConfig{
 				{
-					Username: "user",
-					Password: "password",
+					Source: &credentialprovider.CredentialSource{
+						Secret: credentialprovider.SecretCoordinates{
+							Name: "s1", Namespace: "ns1", UID: "uid1"},
+					},
+					AuthConfig: credentialprovider.AuthConfig{
+						Username: "user",
+						Password: "password",
+					},
+					AuthConfigHash: "a55436fc140d516560d072c5fe8700385ce9f41629abf65c1edcbcb39fac691d",
 				},
 			},
 			found: true,
 		},
 		{
-			name:           "with .dockerconfig and auth field",
-			image:          "test.registry.io",
-			defaultKeyring: &fakeKeyring{},
+			name:  "with .dockerconfig and auth field",
+			image: "test.registry.io",
 			pullSecrets: []v1.Secret{
 				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "s1", Namespace: "ns1", UID: "uid1"},
 					Type: v1.SecretTypeDockercfg,
 					Data: map[string][]byte{
 						v1.DockerConfigKey: []byte(`{"test.registry.io": {"auth": "dXNlcjpwYXNzd29yZA=="}}`),
 					},
 				},
 			},
-			authConfigs: []credentialprovider.AuthConfig{
+			expectedAuthConfigs: []credentialprovider.TrackedAuthConfig{
 				{
-					Username: "user",
-					Password: "password",
+					Source: &credentialprovider.CredentialSource{
+						Secret: credentialprovider.SecretCoordinates{
+							Name: "s1", Namespace: "ns1", UID: "uid1"},
+					},
+					AuthConfig: credentialprovider.AuthConfig{
+						Username: "user",
+						Password: "password",
+					},
+					AuthConfigHash: "a55436fc140d516560d072c5fe8700385ce9f41629abf65c1edcbcb39fac691d",
 				},
 			},
 			found: true,
 		},
 		{
-			name:           "with .dockerconfigjson and username/password fields",
-			image:          "test.registry.io",
-			defaultKeyring: &fakeKeyring{},
+			name:  "with .dockerconfigjson and username/password fields",
+			image: "test.registry.io",
 			pullSecrets: []v1.Secret{
 				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "s1", Namespace: "ns1", UID: "uid1"},
 					Type: v1.SecretTypeDockerConfigJson,
 					Data: map[string][]byte{
 						v1.DockerConfigJsonKey: []byte(`{"auths": {"test.registry.io": {"username": "user", "password": "password"}}}`),
 					},
 				},
 			},
-			authConfigs: []credentialprovider.AuthConfig{
+			expectedAuthConfigs: []credentialprovider.TrackedAuthConfig{
 				{
-					Username: "user",
-					Password: "password",
+					Source: &credentialprovider.CredentialSource{
+						Secret: credentialprovider.SecretCoordinates{
+							Name: "s1", Namespace: "ns1", UID: "uid1"},
+					},
+					AuthConfig: credentialprovider.AuthConfig{
+						Username: "user",
+						Password: "password",
+					},
+					AuthConfigHash: "a55436fc140d516560d072c5fe8700385ce9f41629abf65c1edcbcb39fac691d",
 				},
 			},
 			found: true,
 		},
 		{
-			name:           "with .dockerconfig and username/password fields",
-			image:          "test.registry.io",
-			defaultKeyring: &fakeKeyring{},
+			name:  "with .dockerconfig and username/password fields",
+			image: "test.registry.io",
 			pullSecrets: []v1.Secret{
 				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "s1", Namespace: "ns1", UID: "uid1"},
 					Type: v1.SecretTypeDockercfg,
 					Data: map[string][]byte{
 						v1.DockerConfigKey: []byte(`{"test.registry.io": {"username": "user", "password": "password"}}`),
 					},
 				},
 			},
-			authConfigs: []credentialprovider.AuthConfig{
+			expectedAuthConfigs: []credentialprovider.TrackedAuthConfig{
 				{
-					Username: "user",
-					Password: "password",
+					Source: &credentialprovider.CredentialSource{
+						Secret: credentialprovider.SecretCoordinates{
+							Name: "s1", Namespace: "ns1", UID: "uid1"},
+					},
+					AuthConfig: credentialprovider.AuthConfig{
+						Username: "user",
+						Password: "password",
+					},
+					AuthConfigHash: "a55436fc140d516560d072c5fe8700385ce9f41629abf65c1edcbcb39fac691d",
 				},
 			},
 			found: true,
@@ -128,56 +166,65 @@ func Test_MakeDockerKeyring(t *testing.T) {
 		{
 			name:           "with .dockerconfigjson but with wrong Secret Type",
 			image:          "test.registry.io",
-			defaultKeyring: &fakeKeyring{},
+			defaultKeyring: &FakeKeyring{},
 			pullSecrets: []v1.Secret{
 				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "s1", Namespace: "ns1", UID: "uid1"},
 					Type: v1.SecretTypeDockercfg,
 					Data: map[string][]byte{
 						v1.DockerConfigJsonKey: []byte(`{"auths": {"test.registry.io": {"auth": "dXNlcjpwYXNzd29yZA=="}}}`),
 					},
 				},
 			},
-			authConfigs: nil,
-			found:       false,
+			found: false,
 		},
 		{
 			name:           "with .dockerconfig but with wrong Secret Type",
 			image:          "test.registry.io",
-			defaultKeyring: &fakeKeyring{},
+			defaultKeyring: &FakeKeyring{},
 			pullSecrets: []v1.Secret{
 				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "s1", Namespace: "ns1", UID: "uid1"},
 					Type: v1.SecretTypeDockerConfigJson,
 					Data: map[string][]byte{
 						v1.DockerConfigKey: []byte(`{"test.registry.io": {"auth": "dXNlcjpwYXNzd29yZA=="}}`),
 					},
 				},
 			},
-			authConfigs: nil,
-			found:       false,
+			found: false,
 		},
 		{
 			name:  "with not matcing .dockerconfigjson and default keyring",
 			image: "test.registry.io",
-			defaultKeyring: &fakeKeyring{
-				auth: []credentialprovider.AuthConfig{
+			defaultKeyring: &FakeKeyring{
+				auth: []credentialprovider.TrackedAuthConfig{
 					{
-						Username: "default-user",
-						Password: "default-password",
+						AuthConfig: credentialprovider.AuthConfig{
+							Username: "default-user",
+							Password: "default-password",
+						},
 					},
 				},
 			},
 			pullSecrets: []v1.Secret{
 				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "s1", Namespace: "ns1", UID: "uid1"},
 					Type: v1.SecretTypeDockerConfigJson,
 					Data: map[string][]byte{
 						v1.DockerConfigJsonKey: []byte(`{"auths": {"foobar.io": {"auth": "dXNlcjpwYXNzd29yZA=="}}}`),
 					},
 				},
 			},
-			authConfigs: []credentialprovider.AuthConfig{
+			expectedAuthConfigs: []credentialprovider.TrackedAuthConfig{
 				{
-					Username: "default-user",
-					Password: "default-password",
+					AuthConfig: credentialprovider.AuthConfig{
+						Username: "default-user",
+						Password: "default-password",
+					},
+					AuthConfigHash: "",
 				},
 			},
 			found: true,
@@ -185,26 +232,33 @@ func Test_MakeDockerKeyring(t *testing.T) {
 		{
 			name:  "with not matching .dockerconfig and default keyring",
 			image: "test.registry.io",
-			defaultKeyring: &fakeKeyring{
-				auth: []credentialprovider.AuthConfig{
+			defaultKeyring: &FakeKeyring{
+				auth: []credentialprovider.TrackedAuthConfig{
 					{
-						Username: "default-user",
-						Password: "default-password",
+						AuthConfig: credentialprovider.AuthConfig{
+							Username: "default-user",
+							Password: "default-password",
+						},
 					},
 				},
 			},
 			pullSecrets: []v1.Secret{
 				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "s1", Namespace: "ns1", UID: "uid1"},
 					Type: v1.SecretTypeDockercfg,
 					Data: map[string][]byte{
 						v1.DockerConfigKey: []byte(`{"foobar.io": {"auth": "dXNlcjpwYXNzd29yZA=="}}`),
 					},
 				},
 			},
-			authConfigs: []credentialprovider.AuthConfig{
+			expectedAuthConfigs: []credentialprovider.TrackedAuthConfig{
 				{
-					Username: "default-user",
-					Password: "default-password",
+					AuthConfig: credentialprovider.AuthConfig{
+						Username: "default-user",
+						Password: "default-password",
+					},
+					AuthConfigHash: "",
 				},
 			},
 			found: true,
@@ -212,19 +266,24 @@ func Test_MakeDockerKeyring(t *testing.T) {
 		{
 			name:  "with no pull secrets but has default keyring",
 			image: "test.registry.io",
-			defaultKeyring: &fakeKeyring{
-				auth: []credentialprovider.AuthConfig{
+			defaultKeyring: &FakeKeyring{
+				auth: []credentialprovider.TrackedAuthConfig{
 					{
-						Username: "default-user",
-						Password: "default-password",
+						AuthConfig: credentialprovider.AuthConfig{
+							Username: "default-user",
+							Password: "default-password",
+						},
 					},
 				},
 			},
 			pullSecrets: []v1.Secret{},
-			authConfigs: []credentialprovider.AuthConfig{
+			expectedAuthConfigs: []credentialprovider.TrackedAuthConfig{
 				{
-					Username: "default-user",
-					Password: "default-password",
+					AuthConfig: credentialprovider.AuthConfig{
+						Username: "default-user",
+						Password: "default-password",
+					},
+					AuthConfigHash: "",
 				},
 			},
 			found: false,
@@ -232,30 +291,44 @@ func Test_MakeDockerKeyring(t *testing.T) {
 		{
 			name:  "with pull secrets and has default keyring",
 			image: "test.registry.io",
-			defaultKeyring: &fakeKeyring{
-				auth: []credentialprovider.AuthConfig{
+			defaultKeyring: &FakeKeyring{
+				auth: []credentialprovider.TrackedAuthConfig{
 					{
-						Username: "default-user",
-						Password: "default-password",
+						AuthConfig: credentialprovider.AuthConfig{
+							Username: "default-user",
+							Password: "default-password",
+						},
 					},
 				},
 			},
 			pullSecrets: []v1.Secret{
 				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "s1", Namespace: "ns1", UID: "uid1"},
 					Type: v1.SecretTypeDockerConfigJson,
 					Data: map[string][]byte{
 						v1.DockerConfigJsonKey: []byte(`{"auths": {"test.registry.io": {"auth": "dXNlcjpwYXNzd29yZA=="}}}`),
 					},
 				},
 			},
-			authConfigs: []credentialprovider.AuthConfig{
+			expectedAuthConfigs: []credentialprovider.TrackedAuthConfig{
 				{
-					Username: "user",
-					Password: "password",
+					Source: &credentialprovider.CredentialSource{
+						Secret: credentialprovider.SecretCoordinates{
+							Name: "s1", Namespace: "ns1", UID: "uid1"},
+					},
+					AuthConfig: credentialprovider.AuthConfig{
+						Username: "user",
+						Password: "password",
+					},
+					AuthConfigHash: "a55436fc140d516560d072c5fe8700385ce9f41629abf65c1edcbcb39fac691d",
 				},
 				{
-					Username: "default-user",
-					Password: "default-password",
+					AuthConfig: credentialprovider.AuthConfig{
+						Username: "default-user",
+						Password: "default-password",
+					},
+					AuthConfigHash: "",
 				},
 			},
 			found: true,
@@ -276,9 +349,9 @@ func Test_MakeDockerKeyring(t *testing.T) {
 				t.Errorf("unexpected lookup for image: %s", testcase.image)
 			}
 
-			if !reflect.DeepEqual(authConfigs, testcase.authConfigs) {
+			if !reflect.DeepEqual(authConfigs, testcase.expectedAuthConfigs) { // TODO: we may need better comparison as the result is unordered
 				t.Logf("actual auth configs: %#v", authConfigs)
-				t.Logf("expected auth configs: %#v", testcase.authConfigs)
+				t.Logf("expected auth configs: %#v", testcase.expectedAuthConfigs)
 				t.Error("auth configs did not match")
 			}
 		})

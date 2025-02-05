@@ -20,9 +20,9 @@ import (
 	"context"
 	"fmt"
 
-	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/util/flowcontrol"
 	runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1"
+	"k8s.io/kubernetes/pkg/credentialprovider"
 	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
 )
 
@@ -44,9 +44,9 @@ type throttledImageService struct {
 	limiter flowcontrol.RateLimiter
 }
 
-func (ts throttledImageService) PullImage(ctx context.Context, image kubecontainer.ImageSpec, secrets []v1.Secret, podSandboxConfig *runtimeapi.PodSandboxConfig) (string, error) {
+func (ts throttledImageService) PullImage(ctx context.Context, image kubecontainer.ImageSpec, credentials []credentialprovider.TrackedAuthConfig, podSandboxConfig *runtimeapi.PodSandboxConfig) (string, *credentialprovider.TrackedAuthConfig, error) {
 	if ts.limiter.TryAccept() {
-		return ts.ImageService.PullImage(ctx, image, secrets, podSandboxConfig)
+		return ts.ImageService.PullImage(ctx, image, credentials, podSandboxConfig)
 	}
-	return "", fmt.Errorf("pull QPS exceeded")
+	return "", nil, fmt.Errorf("pull QPS exceeded")
 }

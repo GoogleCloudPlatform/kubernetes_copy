@@ -739,7 +739,7 @@ func TestGarbageCollectImageNotOldEnough(t *testing.T) {
 func getImagesAndFreeSpace(ctx context.Context, t *testing.T, assert *assert.Assertions, im *realImageGCManager, fakeRuntime *containertest.FakeRuntime, spaceToFree, expectedSpaceFreed int64, imagesLen int, freeTime time.Time) {
 	images, err := im.imagesInEvictionOrder(ctx, freeTime)
 	require.NoError(t, err)
-	spaceFreed, err := im.freeSpace(ctx, spaceToFree, freeTime, images)
+	_, spaceFreed, err := im.freeSpace(ctx, spaceToFree, freeTime, images)
 	require.NoError(t, err)
 	assert.EqualValues(expectedSpaceFreed, spaceFreed)
 	assert.Len(fakeRuntime.ImageList, imagesLen)
@@ -909,7 +909,7 @@ func TestValidateImageGCPolicy(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		if _, err := NewImageGCManager(nil, nil, nil, nil, tc.imageGCPolicy, noopoteltrace.NewTracerProvider()); err != nil {
+		if _, err := NewImageGCManager(nil, nil, nil, nil, nil, tc.imageGCPolicy, noopoteltrace.NewTracerProvider()); err != nil {
 			if err.Error() != tc.expectErr {
 				t.Errorf("[%s:]Expected err:%v, but got:%v", tc.name, tc.expectErr, err.Error())
 			}
