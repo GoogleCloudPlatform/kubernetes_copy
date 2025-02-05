@@ -37,27 +37,64 @@ type NamespaceSelectorProvider interface {
 	GetParsedNamespaceSelector() (labels.Selector, error)
 }
 
-// Matcher decides if a request is exempted by the NamespaceSelector of a
-// webhook configuration.
-type Matcher struct {
+type NamespaceProvider interface {
+	// Validate checks if the NamespaceProvider is correctly initialized.
+	Validate() error
+	// GetNamespace provides the namespace.
+	GetNamespace(string) (*v1.Namespace, error)
+}
+
+// Provider provides a namespace object from its name.
+type Provider struct {
 	NamespaceLister corelisters.NamespaceLister
 	Client          clientset.Interface
 }
 
-func (m *Matcher) GetNamespace(name string) (*v1.Namespace, error) {
-	return m.NamespaceLister.Get(name)
-}
-
-// Validate checks if the Matcher has a NamespaceLister and Client.
-func (m *Matcher) Validate() error {
+// Validate checks if the Provider has a NamespaceLister and Client.
+func (p *Provider) Validate() error {
 	var errs []error
-	if m.NamespaceLister == nil {
+	if p.NamespaceLister == nil {
 		errs = append(errs, fmt.Errorf("the namespace matcher requires a namespaceLister"))
 	}
-	if m.Client == nil {
+	if p.Client == nil {
 		errs = append(errs, fmt.Errorf("the namespace matcher requires a client"))
 	}
 	return utilerrors.NewAggregate(errs)
+}
+
+// Validate checks if the Provider has a NamespaceLister and Client.
+func (p *Provider) GetNamespace(namespaceName string) (*v1.Namespace, error) {
+	namespace, err := p.NamespaceLister.Get(namespaceName)
+	if err != nil && !apierrors.IsNotFound(err) {
+		return nil, err
+	}
+	if apierrors.IsNotFound(err) {
+		// in case of latency in our caches, make a call direct to storage to verify that it truly exists or not
+		namespace, err = p.Client.CoreV1().Namespaces().Get(context.TODO(), namespaceName, metav1.GetOptions{})
+		if err != nil {
+			return nil, err
+		}
+	}
+	return namespace, nil
+}
+
+// Matcher decides if a request is exempted by the NamespaceSelector of a
+// webhook configuration.
+type Matcher struct {
+	NamespaceProvider
+}
+
+func (m *Matcher) GetNamespace(name string) (*v1.Namespace, error) {
+	return m.NamespaceProvider.GetNamespace(name)
+}
+
+// Validate checks if the Matcher has a NamespaceProvider and if it is initialized
+// correctly.
+func (m *Matcher) Validate() error {
+	if m.NamespaceProvider == nil {
+		return fmt.Errorf("the namespace matcher requires a namespace provider")
+	}
+	return m.NamespaceProvider.Validate()
 }
 
 // GetNamespaceLabels gets the labels of the namespace related to the attr.
@@ -81,16 +118,9 @@ func (m *Matcher) GetNamespaceLabels(attr admission.Attributes) (map[string]stri
 	}
 
 	namespaceName := attr.GetNamespace()
-	namespace, err := m.NamespaceLister.Get(namespaceName)
-	if err != nil && !apierrors.IsNotFound(err) {
+	namespace, err := m.GetNamespace(namespaceName)
+	if err != nil {
 		return nil, err
-	}
-	if apierrors.IsNotFound(err) {
-		// in case of latency in our caches, make a call direct to storage to verify that it truly exists or not
-		namespace, err = m.Client.CoreV1().Namespaces().Get(context.TODO(), namespaceName, metav1.GetOptions{})
-		if err != nil {
-			return nil, err
-		}
 	}
 	return namespace.Labels, nil
 }

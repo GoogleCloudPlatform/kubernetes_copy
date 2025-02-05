@@ -23,8 +23,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apiserver/pkg/admission"
-	"k8s.io/client-go/kubernetes"
-	listersv1 "k8s.io/client-go/listers/core/v1"
 
 	"k8s.io/apiserver/pkg/admission/plugin/webhook/predicates/namespace"
 	"k8s.io/apiserver/pkg/admission/plugin/webhook/predicates/object"
@@ -50,13 +48,11 @@ func (m *Matcher) GetNamespace(name string) (*corev1.Namespace, error) {
 
 // NewMatcher initialize the matcher with dependencies requires
 func NewMatcher(
-	namespaceLister listersv1.NamespaceLister,
-	client kubernetes.Interface,
+	namespaceProvider namespace.NamespaceProvider,
 ) *Matcher {
 	return &Matcher{
 		namespaceMatcher: &namespace.Matcher{
-			NamespaceLister: namespaceLister,
-			Client:          client,
+			NamespaceProvider: namespaceProvider,
 		},
 		objectMatcher: &object.Matcher{},
 	}

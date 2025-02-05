@@ -52,13 +52,14 @@ type Webhook struct {
 
 	sourceFactory sourceFactory
 
-	hookSource       Source
-	clientManager    *webhookutil.ClientManager
-	namespaceMatcher *namespace.Matcher
-	objectMatcher    *object.Matcher
-	dispatcher       Dispatcher
-	filterCompiler   cel.ConditionCompiler
-	authorizer       authorizer.Authorizer
+	hookSource        Source
+	clientManager     *webhookutil.ClientManager
+	namespaceProvider *namespace.Provider
+	namespaceMatcher  *namespace.Matcher
+	objectMatcher     *object.Matcher
+	dispatcher        Dispatcher
+	filterCompiler    cel.ConditionCompiler
+	authorizer        authorizer.Authorizer
 }
 
 var (
@@ -95,14 +96,19 @@ func NewWebhook(handler *admission.Handler, configFile io.Reader, sourceFactory 
 	cm.SetAuthenticationInfoResolver(authInfoResolver)
 	cm.SetServiceResolver(webhookutil.NewDefaultServiceResolver())
 
+	namespaceProvider := &namespace.Provider{}
+
 	return &Webhook{
-		Handler:          handler,
-		sourceFactory:    sourceFactory,
-		clientManager:    &cm,
-		namespaceMatcher: &namespace.Matcher{},
-		objectMatcher:    &object.Matcher{},
-		dispatcher:       dispatcherFactory(&cm),
-		filterCompiler:   cel.NewConditionCompiler(environment.MustBaseEnvSet(environment.DefaultCompatibilityVersion(), utilfeature.DefaultFeatureGate.Enabled(features.StrictCostEnforcementForWebhooks))),
+		Handler:           handler,
+		sourceFactory:     sourceFactory,
+		clientManager:     &cm,
+		namespaceProvider: namespaceProvider,
+		namespaceMatcher: &namespace.Matcher{
+			NamespaceProvider: namespaceProvider,
+		},
+		objectMatcher:  &object.Matcher{},
+		dispatcher:     dispatcherFactory(&cm),
+		filterCompiler: cel.NewConditionCompiler(environment.MustBaseEnvSet(environment.DefaultCompatibilityVersion(), utilfeature.DefaultFeatureGate.Enabled(features.StrictCostEnforcementForWebhooks))),
 	}, nil
 }
 
@@ -122,13 +128,13 @@ func (a *Webhook) SetServiceResolver(sr webhookutil.ServiceResolver) {
 // SetExternalKubeClientSet implements the WantsExternalKubeInformerFactory interface.
 // It sets external ClientSet for admission plugins that need it
 func (a *Webhook) SetExternalKubeClientSet(client clientset.Interface) {
-	a.namespaceMatcher.Client = client
+	a.namespaceProvider.Client = client
 }
 
 // SetExternalKubeInformerFactory implements the WantsExternalKubeInformerFactory interface.
 func (a *Webhook) SetExternalKubeInformerFactory(f informers.SharedInformerFactory) {
 	namespaceInformer := f.Core().V1().Namespaces()
-	a.namespaceMatcher.NamespaceLister = namespaceInformer.Lister()
+	a.namespaceProvider.NamespaceLister = namespaceInformer.Lister()
 	a.hookSource = a.sourceFactory(f)
 	a.SetReadyFunc(func() bool {
 		return namespaceInformer.Informer().HasSynced() && a.hookSource.HasSynced()

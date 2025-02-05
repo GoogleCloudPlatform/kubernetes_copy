@@ -102,7 +102,9 @@ func TestGetNamespaceLabels(t *testing.T) {
 		},
 	}
 	matcher := namespace.Matcher{
-		NamespaceLister: namespaceLister,
+		NamespaceProvider: &namespace.Provider{
+			NamespaceLister: namespaceLister,
+		},
 	}
 	for _, tt := range tests {
 		actualLabels, err := matcher.GetNamespaceLabels(tt.attr)

@@ -664,7 +664,8 @@ func BenchmarkMatcher(b *testing.B) {
 	criteria := &fakeCriteria{matchResources: mr}
 	attrs := admission.NewAttributesRecord(nil, nil, gvk("autoscaling", "v1", "Scale"), "ns", "name", gvr("apps", "v1", "deployments"), "scale", admission.Create, &metav1.CreateOptions{}, false, nil)
 	interfaces := &admission.RuntimeObjectInterfaces{EquivalentResourceMapper: mapper}
-	matcher := &Matcher{namespaceMatcher: &namespace.Matcher{NamespaceLister: namespaceLister}, objectMatcher: &object.Matcher{}}
+	namespaceProvider := &namespace.Provider{NamespaceLister: namespaceLister}
+	matcher := &Matcher{namespaceMatcher: &namespace.Matcher{NamespaceProvider: namespaceProvider}, objectMatcher: &object.Matcher{}}
 
 	for i := 0; i < b.N; i++ {
 		matcher.Matches(attrs, interfaces, criteria)
@@ -734,7 +735,8 @@ func BenchmarkShouldCallHookWithComplexRule(b *testing.B) {
 	criteria := &fakeCriteria{matchResources: mr}
 	attrs := admission.NewAttributesRecord(nil, nil, gvk("autoscaling", "v1", "Scale"), "ns", "name", gvr("apps", "v1", "deployments"), "scale", admission.Create, &metav1.CreateOptions{}, false, nil)
 	interfaces := &admission.RuntimeObjectInterfaces{EquivalentResourceMapper: mapper}
-	matcher := &Matcher{namespaceMatcher: &namespace.Matcher{NamespaceLister: namespaceLister}, objectMatcher: &object.Matcher{}}
+	namespaceProvider := &namespace.Provider{NamespaceLister: namespaceLister}
+	matcher := &Matcher{namespaceMatcher: &namespace.Matcher{NamespaceProvider: namespaceProvider}, objectMatcher: &object.Matcher{}}
 
 	for i := 0; i < b.N; i++ {
 		matcher.Matches(attrs, interfaces, criteria)
@@ -809,7 +811,8 @@ func BenchmarkShouldCallHookWithComplexSelectorAndRule(b *testing.B) {
 	criteria := &fakeCriteria{matchResources: mr}
 	attrs := admission.NewAttributesRecord(nil, nil, gvk("autoscaling", "v1", "Scale"), "ns", "name", gvr("apps", "v1", "deployments"), "scale", admission.Create, &metav1.CreateOptions{}, false, nil)
 	interfaces := &admission.RuntimeObjectInterfaces{EquivalentResourceMapper: mapper}
-	matcher := &Matcher{namespaceMatcher: &namespace.Matcher{NamespaceLister: namespaceLister}, objectMatcher: &object.Matcher{}}
+	namespaceProvider := &namespace.Provider{NamespaceLister: namespaceLister}
+	matcher := &Matcher{namespaceMatcher: &namespace.Matcher{NamespaceProvider: namespaceProvider}, objectMatcher: &object.Matcher{}}
 
 	for i := 0; i < b.N; i++ {
 		matcher.Matches(attrs, interfaces, criteria)

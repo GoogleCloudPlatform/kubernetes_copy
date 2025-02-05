@@ -29,6 +29,7 @@ import (
 	"k8s.io/apiserver/pkg/admission"
 	"k8s.io/apiserver/pkg/admission/initializer"
 	"k8s.io/apiserver/pkg/admission/plugin/policy/matching"
+	"k8s.io/apiserver/pkg/admission/plugin/webhook/predicates/namespace"
 	"k8s.io/apiserver/pkg/authorization/authorizer"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/informers"
@@ -164,7 +165,11 @@ func (c *Plugin[H]) ValidateInitialization() error {
 
 	// Use default matcher
 	namespaceInformer := c.informerFactory.Core().V1().Namespaces()
-	c.matcher = matching.NewMatcher(namespaceInformer.Lister(), c.client)
+	namespaceProvider := namespace.Provider{
+		NamespaceLister: namespaceInformer.Lister(),
+		Client:          c.client,
+	}
+	c.matcher = matching.NewMatcher(&namespaceProvider)
 
 	if err := c.matcher.ValidateInitialization(); err != nil {
 		return err

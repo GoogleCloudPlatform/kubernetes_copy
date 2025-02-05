@@ -18,10 +18,10 @@ package mutating
 
 import (
 	"context"
-	"github.com/google/go-cmp/cmp"
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	"k8s.io/api/admissionregistration/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -36,6 +36,7 @@ import (
 	"k8s.io/apiserver/pkg/admission/plugin/policy/generic"
 	"k8s.io/apiserver/pkg/admission/plugin/policy/matching"
 	"k8s.io/apiserver/pkg/admission/plugin/policy/mutating/patch"
+	"k8s.io/apiserver/pkg/admission/plugin/webhook/predicates/namespace"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/openapi/openapitest"
@@ -651,7 +652,11 @@ func TestDispatcher(t *testing.T) {
 			}
 
 			informerFactory := informers.NewSharedInformerFactory(client, 0)
-			matcher := matching.NewMatcher(informerFactory.Core().V1().Namespaces().Lister(), client)
+			namespaceProvider := namespace.Provider{
+				NamespaceLister: informerFactory.Core().V1().Namespaces().Lister(),
+				Client:          client,
+			}
+			matcher := matching.NewMatcher(&namespaceProvider)
 			paramInformer, err := informerFactory.ForResource(schema.GroupVersionResource{Version: "v1", Resource: "configmaps"})
 			if err != nil {
 				t.Fatal(err)
