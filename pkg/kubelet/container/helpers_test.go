@@ -27,6 +27,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1"
 )
 
 func TestEnvVarsToMap(t *testing.T) {
@@ -986,6 +987,145 @@ func TestHashContainerWithoutResources(t *testing.T) {
 			hash := HashContainer(tc.container)
 			assert.Equal(t, tc.expectedHash, hash, "[%s]", tc.name)
 			assert.Equal(t, containerCopy, tc.container, "[%s]", tc.name)
+		})
+	}
+}
+
+func TestHasAnyActiveRegularContainerStarted(t *testing.T) {
+	testCases := []struct {
+		desc      string
+		spec      *v1.PodSpec
+		podStatus *PodStatus
+		expected  bool
+	}{
+		{
+			desc: "pod has no active container",
+			spec: &v1.PodSpec{
+				InitContainers: []v1.Container{
+					{
+						Name: "init",
+					},
+				},
+				Containers: []v1.Container{
+					{
+						Name: "regular",
+					},
+				},
+			},
+			podStatus: &PodStatus{
+				SandboxStatuses: []*runtimeapi.PodSandboxStatus{
+					{
+						Id:    "old",
+						State: runtimeapi.PodSandboxState_SANDBOX_NOTREADY,
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			desc: "pod is initializing",
+			spec: &v1.PodSpec{
+				InitContainers: []v1.Container{
+					{
+						Name: "init",
+					},
+				},
+				Containers: []v1.Container{
+					{
+						Name: "regular",
+					},
+				},
+			},
+			podStatus: &PodStatus{
+				SandboxStatuses: []*runtimeapi.PodSandboxStatus{
+					{
+						Id:    "current",
+						State: runtimeapi.PodSandboxState_SANDBOX_READY,
+					},
+				},
+				ActiveContainerStatuses: []*Status{
+					{
+						Name:  "init",
+						State: ContainerStateRunning,
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			desc: "pod has initialized",
+			spec: &v1.PodSpec{
+				InitContainers: []v1.Container{
+					{
+						Name: "init",
+					},
+				},
+				Containers: []v1.Container{
+					{
+						Name: "regular",
+					},
+				},
+			},
+			podStatus: &PodStatus{
+				SandboxStatuses: []*runtimeapi.PodSandboxStatus{
+					{
+						Id:    "current",
+						State: runtimeapi.PodSandboxState_SANDBOX_READY,
+					},
+				},
+				ActiveContainerStatuses: []*Status{
+					{
+						Name:  "init",
+						State: ContainerStateExited,
+					},
+					{
+						Name:  "regular",
+						State: ContainerStateRunning,
+					},
+				},
+			},
+			expected: true,
+		},
+		{
+			desc: "pod is re-initializing after the sandbox recreation",
+			spec: &v1.PodSpec{
+				InitContainers: []v1.Container{
+					{
+						Name: "init",
+					},
+				},
+				Containers: []v1.Container{
+					{
+						Name: "regular",
+					},
+				},
+			},
+			podStatus: &PodStatus{
+				SandboxStatuses: []*runtimeapi.PodSandboxStatus{
+					{
+						Id:    "current",
+						State: runtimeapi.PodSandboxState_SANDBOX_READY,
+					},
+					{
+						Id:    "old",
+						State: runtimeapi.PodSandboxState_SANDBOX_NOTREADY,
+					},
+				},
+				ActiveContainerStatuses: []*Status{
+					{
+						Name:  "init",
+						State: ContainerStateRunning,
+					},
+				},
+			},
+			expected: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			actual := HasAnyActiveRegularContainerStarted(tc.spec, tc.podStatus)
+			assert.Equal(t, tc.expected, actual)
 		})
 	}
 }

@@ -577,17 +577,18 @@ func (m *kubeGenericRuntimeManager) convertToKubeContainerStatus(status *runtime
 }
 
 // getPodContainerStatuses gets all containers' statuses for the pod.
-func (m *kubeGenericRuntimeManager) getPodContainerStatuses(ctx context.Context, uid kubetypes.UID, name, namespace string) ([]*kubecontainer.Status, error) {
+func (m *kubeGenericRuntimeManager) getPodContainerStatuses(ctx context.Context, uid kubetypes.UID, name, namespace, activePodSandboxID string) ([]*kubecontainer.Status, []*kubecontainer.Status, error) {
 	// Select all containers of the given pod.
 	containers, err := m.runtimeService.ListContainers(ctx, &runtimeapi.ContainerFilter{
 		LabelSelector: map[string]string{kubelettypes.KubernetesPodUIDLabel: string(uid)},
 	})
 	if err != nil {
 		klog.ErrorS(err, "ListContainers error")
-		return nil, err
+		return nil, nil, err
 	}
 
 	statuses := []*kubecontainer.Status{}
+	activeContainerStatuses := []*kubecontainer.Status{}
 	// TODO: optimization: set maximum number of containers per container name to examine.
 	for _, c := range containers {
 		resp, err := m.runtimeService.ContainerStatus(ctx, c.Id, false)
@@ -601,18 +602,22 @@ func (m *kubeGenericRuntimeManager) getPodContainerStatuses(ctx context.Context,
 		if err != nil {
 			// Merely log this here; GetPodStatus will actually report the error out.
 			klog.V(4).InfoS("ContainerStatus return error", "containerID", c.Id, "err", err)
-			return nil, err
+			return nil, nil, err
 		}
 		status := resp.GetStatus()
 		if status == nil {
-			return nil, remote.ErrContainerStatusNil
+			return nil, nil, remote.ErrContainerStatusNil
 		}
 		cStatus := m.convertToKubeContainerStatus(status)
 		statuses = append(statuses, cStatus)
+		if c.PodSandboxId == activePodSandboxID {
+			activeContainerStatuses = append(activeContainerStatuses, cStatus)
+		}
 	}
 
 	sort.Sort(containerStatusByCreated(statuses))
-	return statuses, nil
+	sort.Sort(containerStatusByCreated(activeContainerStatuses))
+	return statuses, activeContainerStatuses, nil
 }
 
 func toKubeContainerStatus(status *runtimeapi.ContainerStatus, runtimeName string) *kubecontainer.Status {

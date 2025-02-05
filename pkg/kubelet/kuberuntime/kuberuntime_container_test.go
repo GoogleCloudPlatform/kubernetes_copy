@@ -959,7 +959,7 @@ func TestUpdateContainerResources(t *testing.T) {
 	assert.Len(t, fakeContainers, 1)
 
 	ctx := context.Background()
-	cStatus, err := m.getPodContainerStatuses(ctx, pod.UID, pod.Name, pod.Namespace)
+	cStatus, _, err := m.getPodContainerStatuses(ctx, pod.UID, pod.Name, pod.Namespace, "")
 	assert.NoError(t, err)
 	containerID := cStatus[0].ID
 

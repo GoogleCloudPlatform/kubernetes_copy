@@ -5417,7 +5417,7 @@ var _ = SIGDescribe(feature.SidecarContainers, framework.WithSerial(), "Containe
 	f.NamespacePodSecurityLevel = admissionapi.LevelPrivileged
 
 	ginkgo.When("A node running restartable init containers reboots", func() {
-		ginkgo.It("should restart the containers in right order after the node reboot", func(ctx context.Context) {
+		ginkgo.It("should restart the containers in right order with the proper phase after the node reboot", func(ctx context.Context) {
 			init1 := "init-1"
 			restartableInit2 := "restartable-init-2"
 			init3 := "init-3"
@@ -5505,16 +5505,20 @@ var _ = SIGDescribe(feature.SidecarContainers, framework.WithSerial(), "Containe
 				return kubeletHealthCheck(kubeletHealthCheckURL)
 			}, f.Timeouts.PodStart, f.Timeouts.Poll).Should(gomega.BeTrueBecause("kubelet was expected to be healthy"))
 
-			ginkgo.By("Waiting for the pod to be re-initialized and run")
+			ginkgo.By("Waiting for the pod to re-initialize")
 			err = e2epod.WaitForPodCondition(ctx, f.ClientSet, pod.Namespace, pod.Name, "re-initialized", f.Timeouts.PodStart, func(pod *v1.Pod) (bool, error) {
-				if pod.Status.ContainerStatuses[0].RestartCount < 1 {
+				if pod.Status.InitContainerStatuses[0].RestartCount < 1 {
 					return false, nil
 				}
-				if pod.Status.Phase != v1.PodRunning {
-					return false, nil
+				if pod.Status.Phase != v1.PodPending {
+					return false, fmt.Errorf("pod should remain in the pending phase until it is re-initialized, but it is %q", pod.Status.Phase)
 				}
 				return true, nil
 			})
+			framework.ExpectNoError(err)
+
+			ginkgo.By("Waiting for the pod to run after re-initialization")
+			err = e2epod.WaitForPodRunningInNamespace(ctx, f.ClientSet, pod)
 			framework.ExpectNoError(err)
 
 			ginkgo.By("Parsing results")
