@@ -51,10 +51,10 @@ type nodeIPAMController struct {
 	nodeIPAMControllerOptions       nodeipamcontrolleroptions.NodeIPAMControllerOptions
 }
 
-func (nodeIpamController *nodeIPAMController) StartNodeIpamControllerWrapper(initContext app.ControllerInitContext, completedConfig *cloudcontrollerconfig.CompletedConfig, cloud cloudprovider.Interface) app.InitFunc {
+func (nodeIpamController *nodeIPAMController) StartNodeIpamControllerWrapper(logger klog.Logger, initContext app.ControllerInitContext, completedConfig *cloudcontrollerconfig.CompletedConfig, cloud cloudprovider.Interface) app.InitFunc {
 	allErrors := nodeIpamController.nodeIPAMControllerOptions.Validate()
 	if len(allErrors) > 0 {
-		klog.Fatal("NodeIPAM controller values are not properly set.")
+		logger.Error(nil, "NodeIPAM controller values are not properly set.")
 	}
 	nodeIpamController.nodeIPAMControllerOptions.ApplyTo(&nodeIpamController.nodeIPAMControllerConfiguration)
 
@@ -64,6 +64,7 @@ func (nodeIpamController *nodeIPAMController) StartNodeIpamControllerWrapper(ini
 }
 
 func startNodeIpamController(ctx context.Context, initContext app.ControllerInitContext, ccmConfig *cloudcontrollerconfig.CompletedConfig, nodeIPAMConfig nodeipamconfig.NodeIPAMControllerConfiguration, controllerCtx genericcontrollermanager.ControllerContext, cloud cloudprovider.Interface) (controller.Interface, bool, error) {
+	logger := klog.FromContext(ctx)
 	var serviceCIDR *net.IPNet
 	var secondaryServiceCIDR *net.IPNet
 
@@ -97,14 +98,14 @@ func startNodeIpamController(ctx context.Context, initContext app.ControllerInit
 	if len(strings.TrimSpace(nodeIPAMConfig.ServiceCIDR)) != 0 {
 		_, serviceCIDR, err = netutils.ParseCIDRSloppy(nodeIPAMConfig.ServiceCIDR)
 		if err != nil {
-			klog.ErrorS(err, "Unsuccessful parsing of service CIDR", "CIDR", nodeIPAMConfig.ServiceCIDR)
+			logger.Error(err, "Unsuccessful parsing of service CIDR", "CIDR", nodeIPAMConfig.ServiceCIDR)
 		}
 	}
 
 	if len(strings.TrimSpace(nodeIPAMConfig.SecondaryServiceCIDR)) != 0 {
 		_, secondaryServiceCIDR, err = netutils.ParseCIDRSloppy(nodeIPAMConfig.SecondaryServiceCIDR)
 		if err != nil {
-			klog.ErrorS(err, "Unsuccessful parsing of service CIDR", "CIDR", nodeIPAMConfig.SecondaryServiceCIDR)
+			logger.Error(err, "Unsuccessful parsing of service CIDR", "CIDR", nodeIPAMConfig.SecondaryServiceCIDR)
 		}
 	}
 

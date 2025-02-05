@@ -40,13 +40,14 @@ import (
 )
 
 func main() {
+	logger := klog.Background()
 	ccmOptions, err := options.NewCloudControllerManagerOptions()
 	if err != nil {
 		klog.Fatalf("unable to initialize command options: %v", err)
 	}
 
 	fss := cliflag.NamedFlagSets{}
-	command := app.NewCloudControllerManagerCommand(ccmOptions, cloudInitializer, controllerInitializers(), names.CCMControllerAliases(), fss, wait.NeverStop)
+	command := app.NewCloudControllerManagerCommand(logger, ccmOptions, cloudInitializer, controllerInitializers(), names.CCMControllerAliases(), fss, wait.NeverStop)
 	code := cli.Run(command)
 	os.Exit(code)
 }
@@ -75,7 +76,7 @@ func controllerInitializers() map[string]app.ControllerInitFuncConstructor {
 	return controllerInitializers
 }
 
-func cloudInitializer(config *config.CompletedConfig) cloudprovider.Interface {
+func cloudInitializer(logger klog.Logger, config *config.CompletedConfig) cloudprovider.Interface {
 	cloudConfig := config.ComponentConfig.KubeCloudShared.CloudProvider
 
 	// initialize cloud provider with the cloud provider name and config file provided

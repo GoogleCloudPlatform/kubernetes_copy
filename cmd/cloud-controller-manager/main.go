@@ -44,9 +44,10 @@ import (
 )
 
 func main() {
+	logger := klog.Background()
 	ccmOptions, err := options.NewCloudControllerManagerOptions()
 	if err != nil {
-		klog.Fatalf("unable to initialize command options: %v", err)
+		logger.Error(err, "Unable to initialize command options")
 	}
 
 	controllerInitializers := app.DefaultInitFuncConstructors
@@ -74,27 +75,27 @@ func main() {
 	}
 	controllerAliases["nodeipam"] = kcmnames.NodeIpamController
 
-	command := app.NewCloudControllerManagerCommand(ccmOptions, cloudInitializer, controllerInitializers, controllerAliases, fss, wait.NeverStop)
+	command := app.NewCloudControllerManagerCommand(logger, ccmOptions, cloudInitializer, controllerInitializers, controllerAliases, fss, wait.NeverStop)
 	code := cli.Run(command)
 	os.Exit(code)
 }
 
-func cloudInitializer(config *cloudcontrollerconfig.CompletedConfig) cloudprovider.Interface {
+func cloudInitializer(logger klog.Logger, config *cloudcontrollerconfig.CompletedConfig) cloudprovider.Interface {
 	cloudConfig := config.ComponentConfig.KubeCloudShared.CloudProvider
 	// initialize cloud provider with the cloud provider name and config file provided
 	cloud, err := cloudprovider.InitCloudProvider(cloudConfig.Name, cloudConfig.CloudConfigFile)
 	if err != nil {
-		klog.Fatalf("Cloud provider could not be initialized: %v", err)
+		logger.Error(err, "Cloud provider could not be initialized")
 	}
 	if cloud == nil {
-		klog.Fatalf("Cloud provider is nil")
+		logger.Error(nil, "Cloud provider is nil")
 	}
 
 	if !cloud.HasClusterID() {
 		if config.ComponentConfig.KubeCloudShared.AllowUntaggedCloud {
-			klog.Warning("detected a cluster without a ClusterID.  A ClusterID will be required in the future.  Please tag your cluster to avoid any future issues")
+			logger.Info("Detected a cluster without a ClusterID.  A ClusterID will be required in the future.  Please tag your cluster to avoid any future issues")
 		} else {
-			klog.Fatalf("no ClusterID found.  A ClusterID is required for the cloud provider to function properly.  This check can be bypassed by setting the allow-untagged-cloud option")
+			logger.Error(nil, "No ClusterID found.  A ClusterID is required for the cloud provider to function properly.  This check can be bypassed by setting the allow-untagged-cloud option")
 		}
 	}
 

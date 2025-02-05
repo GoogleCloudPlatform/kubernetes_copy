@@ -120,7 +120,7 @@ func StartTestServerWithOptions(ctx context.Context,
 	}
 	s.Generic.LeaderElection.LeaderElect = false
 
-	cloudInitializer := func(config *config.CompletedConfig) cloudprovider.Interface {
+	cloudInitializer := func(logger klog.Logger, config *config.CompletedConfig) cloudprovider.Interface {
 		capturedConfig = *config
 		// send signal to indicate the capturedConfig has been properly set
 		close(configDoneCh)
@@ -136,7 +136,7 @@ func StartTestServerWithOptions(ctx context.Context,
 		return cloud
 	}
 	fss := cliflag.NamedFlagSets{}
-	command := app.NewCloudControllerManagerCommand(s, cloudInitializer, constructors, aliases, fss, stopCh)
+	command := app.NewCloudControllerManagerCommand(logger, s, cloudInitializer, constructors, aliases, fss, stopCh)
 
 	commandArgs := []string{}
 	listeners := []net.Listener{}

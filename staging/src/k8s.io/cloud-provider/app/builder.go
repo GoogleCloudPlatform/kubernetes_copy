@@ -28,6 +28,7 @@ import (
 	"k8s.io/component-base/cli/globalflag"
 	"k8s.io/component-base/term"
 	"k8s.io/component-base/version/verflag"
+	"k8s.io/klog/v2"
 )
 
 type CommandBuilder struct {
@@ -130,7 +131,7 @@ func (cb *CommandBuilder) setdefaults() {
 	}
 }
 
-func (cb *CommandBuilder) BuildCommand() *cobra.Command {
+func (cb *CommandBuilder) BuildCommand(logger klog.Logger) *cobra.Command {
 	cb.setdefaults()
 	cmd := &cobra.Command{
 		Use:  cb.cmdName,
@@ -146,8 +147,8 @@ func (cb *CommandBuilder) BuildCommand() *cobra.Command {
 				return err
 			}
 			completedConfig := config.Complete()
-			cloud := cb.cloudInitializer(completedConfig)
-			controllerInitializers := ConstructControllerInitializers(cb.controllerInitFuncConstructors, completedConfig, cloud)
+			cloud := cb.cloudInitializer(logger, completedConfig)
+			controllerInitializers := ConstructControllerInitializers(logger, cb.controllerInitFuncConstructors, completedConfig, cloud)
 			webhooks := NewWebhookHandlers(cb.webhookConfigs, completedConfig, cloud)
 
 			if err := Run(completedConfig, cloud, controllerInitializers, webhooks, cb.stopCh); err != nil {
