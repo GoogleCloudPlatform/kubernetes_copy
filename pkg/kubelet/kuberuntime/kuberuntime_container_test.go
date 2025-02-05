@@ -570,7 +570,7 @@ func testLifeCycleHook(t *testing.T, testPod *v1.Pod, testContainer *v1.Containe
 		}
 
 		// Now try to create a container, which should in turn invoke PostStart Hook
-		_, err := m.startContainer(ctx, fakeSandBox.Id, fakeSandBoxConfig, containerStartSpec(testContainer), testPod, fakePodStatus, nil, "", []string{}, nil)
+		_, _, err := m.startContainer(ctx, fakeSandBox.Id, fakeSandBoxConfig, containerStartSpec(testContainer), testPod, fakePodStatus, nil, "", []string{}, nil)
 		if err != nil {
 			t.Errorf("startContainer error =%v", err)
 		}
@@ -778,7 +778,7 @@ func TestKillContainerGracePeriod(t *testing.T) {
 	tests := []struct {
 		name                string
 		pod                 *v1.Pod
-		reason              containerKillReason
+		reason              kubecontainer.ContainerKillReason
 		expectedGracePeriod int64
 	}{
 		{
@@ -786,7 +786,7 @@ func TestKillContainerGracePeriod(t *testing.T) {
 			pod: &v1.Pod{
 				Spec: v1.PodSpec{Containers: []v1.Container{{Name: "foo"}}},
 			},
-			reason:              reasonUnknown,
+			reason:              kubecontainer.ReasonUnknown,
 			expectedGracePeriod: int64(2),
 		},
 		{
@@ -797,7 +797,7 @@ func TestKillContainerGracePeriod(t *testing.T) {
 					TerminationGracePeriodSeconds: &longGracePeriod,
 				},
 			},
-			reason:              reasonUnknown,
+			reason:              kubecontainer.ReasonUnknown,
 			expectedGracePeriod: longGracePeriod,
 		},
 		{
@@ -810,7 +810,7 @@ func TestKillContainerGracePeriod(t *testing.T) {
 					TerminationGracePeriodSeconds: &longGracePeriod,
 				},
 			},
-			reason:              reasonLivenessProbe,
+			reason:              kubecontainer.ReasonLivenessProbe,
 			expectedGracePeriod: shortGracePeriod,
 		},
 		{
@@ -823,7 +823,7 @@ func TestKillContainerGracePeriod(t *testing.T) {
 					TerminationGracePeriodSeconds: &longGracePeriod,
 				},
 			},
-			reason:              reasonStartupProbe,
+			reason:              kubecontainer.ReasonStartupProbe,
 			expectedGracePeriod: shortGracePeriod,
 		},
 		{
@@ -836,7 +836,7 @@ func TestKillContainerGracePeriod(t *testing.T) {
 					TerminationGracePeriodSeconds: &shortGracePeriod,
 				},
 			},
-			reason:              reasonStartupProbe,
+			reason:              kubecontainer.ReasonStartupProbe,
 			expectedGracePeriod: longGracePeriod,
 		},
 		{
@@ -849,7 +849,7 @@ func TestKillContainerGracePeriod(t *testing.T) {
 					TerminationGracePeriodSeconds: &shortGracePeriod,
 				},
 			},
-			reason:              reasonLivenessProbe,
+			reason:              kubecontainer.ReasonLivenessProbe,
 			expectedGracePeriod: longGracePeriod,
 		},
 		{
@@ -862,7 +862,7 @@ func TestKillContainerGracePeriod(t *testing.T) {
 					TerminationGracePeriodSeconds: &longGracePeriod,
 				},
 			},
-			reason:              reasonUnknown,
+			reason:              kubecontainer.ReasonUnknown,
 			expectedGracePeriod: longGracePeriod,
 		},
 		{
@@ -875,7 +875,7 @@ func TestKillContainerGracePeriod(t *testing.T) {
 					TerminationGracePeriodSeconds: &longGracePeriod,
 				},
 			},
-			reason:              reasonUnknown,
+			reason:              kubecontainer.ReasonUnknown,
 			expectedGracePeriod: longGracePeriod,
 		},
 		{
@@ -890,7 +890,7 @@ func TestKillContainerGracePeriod(t *testing.T) {
 					TerminationGracePeriodSeconds: &longGracePeriod,
 				},
 			},
-			reason:              reasonUnknown,
+			reason:              kubecontainer.ReasonUnknown,
 			expectedGracePeriod: longGracePeriod,
 		},
 		{
@@ -905,7 +905,7 @@ func TestKillContainerGracePeriod(t *testing.T) {
 					TerminationGracePeriodSeconds: &longGracePeriod,
 				},
 			},
-			reason:              reasonStartupProbe,
+			reason:              kubecontainer.ReasonStartupProbe,
 			expectedGracePeriod: shortGracePeriod,
 		},
 		{
@@ -920,7 +920,7 @@ func TestKillContainerGracePeriod(t *testing.T) {
 					TerminationGracePeriodSeconds: &longGracePeriod,
 				},
 			},
-			reason:              reasonLivenessProbe,
+			reason:              kubecontainer.ReasonLivenessProbe,
 			expectedGracePeriod: mediumGracePeriod,
 		},
 	}

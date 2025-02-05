@@ -162,6 +162,9 @@ type kubeGenericRuntimeManager struct {
 	// PodState provider instance
 	podStateProvider podStateProvider
 
+	// Manage container lifecycle.
+	containerLifecycle *containerLifecycle
+
 	// Use RuntimeDefault as the default seccomp profile for all workloads.
 	seccompDefault bool
 
@@ -298,6 +301,8 @@ func NewKubeGenericRuntimeManager(
 		},
 		versionCacheTTL,
 	)
+
+	kubeRuntimeManager.containerLifecycle = newContainerLifecycle(kubeRuntimeManager)
 
 	return kubeRuntimeManager, nil
 }
@@ -440,16 +445,6 @@ func (m *kubeGenericRuntimeManager) GetPods(ctx context.Context, all bool) ([]*k
 	return result, nil
 }
 
-// containerKillReason explains what killed a given container
-type containerKillReason string
-
-const (
-	reasonStartupProbe        containerKillReason = "StartupProbe"
-	reasonLivenessProbe       containerKillReason = "LivenessProbe"
-	reasonFailedPostStartHook containerKillReason = "FailedPostStartHook"
-	reasonUnknown             containerKillReason = "Unknown"
-)
-
 // containerToKillInfo contains necessary information to kill a container.
 type containerToKillInfo struct {
 	// The spec of the container.
@@ -460,7 +455,7 @@ type containerToKillInfo struct {
 	message string
 	// The reason is a clearer source of info on why a container will be killed
 	// TODO: replace message with reason?
-	reason containerKillReason
+	reason kubecontainer.ContainerKillReason
 }
 
 // containerResources holds the set of resources applicable to the running container
@@ -526,6 +521,25 @@ type podActions struct {
 func (p podActions) String() string {
 	return fmt.Sprintf("KillPod: %t, CreateSandbox: %t, UpdatePodResources: %t, Attempt: %d, InitContainersToStart: %v, ContainersToStart: %v, EphemeralContainersToStart: %v,ContainersToUpdate: %v, ContainersToKill: %v",
 		p.KillPod, p.CreateSandbox, p.UpdatePodResources, p.Attempt, p.InitContainersToStart, p.ContainersToStart, p.EphemeralContainersToStart, p.ContainersToUpdate, p.ContainersToKill)
+}
+
+// terminatingPodActions keeps information what to do for a terminating pod.
+type terminatingPodActions struct {
+	// The id of existing sandbox. It is used for starting containers.
+	sandboxID string
+	// The attempt number of creating sandboxes for the pod.
+	attempt uint32
+	// containerIDsToKill keeps a map of container ids to kill, note that the
+	// key is the container name of the container and the value is the
+	// container id.
+	containerIDsToKill map[string]kubecontainer.ContainerID
+	// restartableInitContainersToRestart keeps a list of containers to restart
+	// during the pod termination.
+	restartableInitContainersToRestart []*v1.Container
+}
+
+func (p terminatingPodActions) String() string {
+	return fmt.Sprintf("SandboxID: %s, Attempt: %d, ContainerIDsToKill: %v, RestartableInitContainersToRestart: %v", p.sandboxID, p.attempt, p.containerIDsToKill, p.restartableInitContainersToRestart)
 }
 
 // containerChanged will determine whether the container has changed based on the fields that will affect the running of the container.
@@ -998,7 +1012,7 @@ func (m *kubeGenericRuntimeManager) computePodActions(ctx context.Context, pod *
 							container: next,
 							message: fmt.Sprintf("Init container is in %q state, try killing it before restart",
 								initLastStatus.State),
-							reason: reasonUnknown,
+							reason: kubecontainer.ReasonUnknown,
 						}
 					}
 					changes.NextInitContainerToStart = next
@@ -1052,7 +1066,7 @@ func (m *kubeGenericRuntimeManager) computePodActions(ctx context.Context, pod *
 						container: &pod.Spec.Containers[idx],
 						message: fmt.Sprintf("Container is in %q state, try killing it before restart",
 							containerStatus.State),
-						reason: reasonUnknown,
+						reason: kubecontainer.ReasonUnknown,
 					}
 				}
 			}
@@ -1060,7 +1074,7 @@ func (m *kubeGenericRuntimeManager) computePodActions(ctx context.Context, pod *
 		}
 		// The container is running, but kill the container if any of the following condition is met.
 		var message string
-		var reason containerKillReason
+		var reason kubecontainer.ContainerKillReason
 		restart := shouldRestartOnFailure(pod)
 		if _, _, changed := containerChanged(&container, containerStatus); changed {
 			message = fmt.Sprintf("Container %s definition changed", container.Name)
@@ -1070,11 +1084,11 @@ func (m *kubeGenericRuntimeManager) computePodActions(ctx context.Context, pod *
 		} else if liveness, found := m.livenessManager.Get(containerStatus.ID); found && liveness == proberesults.Failure {
 			// If the container failed the liveness probe, we should kill it.
 			message = fmt.Sprintf("Container %s failed liveness probe", container.Name)
-			reason = reasonLivenessProbe
+			reason = kubecontainer.ReasonLivenessProbe
 		} else if startup, found := m.startupManager.Get(containerStatus.ID); found && startup == proberesults.Failure {
 			// If the container failed the startup probe, we should kill it.
 			message = fmt.Sprintf("Container %s failed startup probe", container.Name)
-			reason = reasonStartupProbe
+			reason = kubecontainer.ReasonStartupProbe
 		} else if IsInPlacePodVerticalScalingAllowed(pod) && !m.computePodResizeAction(pod, idx, containerStatus, &changes) {
 			// computePodResizeAction updates 'changes' if resize policy requires restarting this container
 			continue
@@ -1149,26 +1163,51 @@ func (m *kubeGenericRuntimeManager) SyncPod(ctx context.Context, pod *v1.Pod, po
 			klog.V(4).InfoS("Stopping PodSandbox for pod, because all other containers are dead", "pod", klog.KObj(pod))
 		}
 
-		killResult := m.killPodWithSyncResult(ctx, pod, kubecontainer.ConvertPodStatusToRunningPod(m.runtimeName, podStatus), nil)
-		result.AddPodSyncResult(killResult)
-		if killResult.Error() != nil {
-			klog.ErrorS(killResult.Error(), "killPodWithSyncResult failed")
-			return
+		if !utilfeature.DefaultFeatureGate.Enabled(features.RestartContainerDuringTermination) {
+			killResult := m.killPodWithSyncResult(ctx, pod, kubecontainer.ConvertPodStatusToRunningPod(m.runtimeName, podStatus), nil)
+			result.AddPodSyncResult(killResult)
+			if killResult.Error() != nil {
+				klog.ErrorS(killResult.Error(), "killPodWithSyncResult failed")
+				return
+			}
+		} else {
+			if podContainerChanges.CreateSandbox {
+				killResult := m.killPodWithSyncResult(ctx, pod, kubecontainer.ConvertPodStatusToRunningPod(m.runtimeName, podStatus), nil)
+				result.AddPodSyncResult(killResult)
+				if killResult.Error() != nil {
+					klog.ErrorS(killResult.Error(), "killPodWithSyncResult failed")
+					return
+				}
+			} else {
+				_, err := m.SyncTerminatingPod(ctx, pod, podStatus, nil, pullSecrets, backOff, false)
+				if err != nil {
+					klog.ErrorS(err, "SyncTerminatingPod failed")
+				}
+				return
+			}
 		}
 
 		if podContainerChanges.CreateSandbox {
 			m.purgeInitContainers(ctx, pod, podStatus)
 		}
 	} else {
-		// Step 3: kill any running containers in this pod which are not to keep.
-		for containerID, containerInfo := range podContainerChanges.ContainersToKill {
-			klog.V(3).InfoS("Killing unwanted container for pod", "containerName", containerInfo.name, "containerID", containerID, "pod", klog.KObj(pod))
-			killContainerResult := kubecontainer.NewSyncResult(kubecontainer.KillContainer, containerInfo.name)
-			result.AddSyncResult(killContainerResult)
-			if err := m.killContainer(ctx, pod, containerID, containerInfo.name, containerInfo.message, containerInfo.reason, nil, nil); err != nil {
-				killContainerResult.Fail(kubecontainer.ErrKillContainer, err.Error())
-				klog.ErrorS(err, "killContainer for pod failed", "containerName", containerInfo.name, "containerID", containerID, "pod", klog.KObj(pod))
-				return
+		if !utilfeature.DefaultFeatureGate.Enabled(features.RestartContainerDuringTermination) {
+			// Step 3: kill any running containers in this pod which are not to keep.
+			for containerID, containerInfo := range podContainerChanges.ContainersToKill {
+				klog.V(3).InfoS("Killing unwanted container for pod", "containerName", containerInfo.name, "containerID", containerID, "pod", klog.KObj(pod))
+				killContainerResult := kubecontainer.NewSyncResult(kubecontainer.KillContainer, containerInfo.name)
+				result.AddSyncResult(killContainerResult)
+				if err := m.killContainer(ctx, pod, containerID, containerInfo.name, containerInfo.message, containerInfo.reason, nil, nil); err != nil {
+					killContainerResult.Fail(kubecontainer.ErrKillContainer, err.Error())
+					klog.ErrorS(err, "killContainer for pod failed", "containerName", containerInfo.name, "containerID", containerID, "pod", klog.KObj(pod))
+					return
+				}
+			}
+		} else {
+			// Step 3: kill any running containers in this pod which are not to keep.
+			for containerID, containerInfo := range podContainerChanges.ContainersToKill {
+				klog.V(3).InfoS("Killing unwanted container for pod", "containerName", containerInfo.name, "containerID", containerID, "pod", klog.KObj(pod))
+				m.containerLifecycle.requestTermination(pod, containerID, containerInfo.name, containerInfo.message, containerInfo.reason, nil, nil)
 			}
 		}
 	}
@@ -1333,7 +1372,12 @@ func (m *kubeGenericRuntimeManager) SyncPod(ctx context.Context, pod *v1.Pod, po
 		}
 
 		// NOTE (aramase) podIPs are populated for single stack and dual stack clusters. Send only podIPs.
-		if msg, err := m.startContainer(ctx, podSandboxID, podSandboxConfig, spec, pod, podStatus, pullSecrets, podIP, podIPs, imageVolumes); err != nil {
+		if !utilfeature.DefaultFeatureGate.Enabled(features.RestartContainerDuringTermination) {
+			_, msg, err = m.startContainer(ctx, podSandboxID, podSandboxConfig, spec, pod, podStatus, pullSecrets, podIP, podIPs, imageVolumes)
+		} else {
+			msg, err = m.containerLifecycle.startContainer(ctx, podSandboxID, podSandboxConfig, spec, pod, podStatus, pullSecrets, podIP, podIPs, imageVolumes)
+		}
+		if err != nil {
 			// startContainer() returns well-defined error codes that have reasonable cardinality for metrics and are
 			// useful to cluster administrators to distinguish "server errors" from "user errors".
 			metrics.StartedContainersErrorsTotal.WithLabelValues(metricLabel, err.Error()).Inc()
@@ -1450,7 +1494,9 @@ func (m *kubeGenericRuntimeManager) toKubeContainerImageVolumes(imageVolumePullR
 	}
 
 	if lastErr != nil {
-		syncResult.Fail(lastErr, lastMsg)
+		if syncResult != nil {
+			syncResult.Fail(lastErr, lastMsg)
+		}
 		return nil, lastErr
 	}
 
@@ -1537,6 +1583,184 @@ func (m *kubeGenericRuntimeManager) doBackOff(pod *v1.Pod, container *v1.Contain
 func (m *kubeGenericRuntimeManager) KillPod(ctx context.Context, pod *v1.Pod, runningPod kubecontainer.Pod, gracePeriodOverride *int64) error {
 	err := m.killPodWithSyncResult(ctx, pod, runningPod, gracePeriodOverride)
 	return err.Error()
+}
+
+func (m *kubeGenericRuntimeManager) computeTerminatingPodActions(ctx context.Context, pod *v1.Pod, podStatus *kubecontainer.PodStatus) terminatingPodActions {
+	actions := terminatingPodActions{
+		containerIDsToKill: make(map[string]kubecontainer.ContainerID),
+	}
+
+	for _, cStatus := range podStatus.ContainerStatuses {
+		if _, exist := actions.containerIDsToKill[cStatus.Name]; exist {
+			continue
+		}
+		actions.containerIDsToKill[cStatus.Name] = cStatus.ID
+	}
+
+	if utilfeature.DefaultFeatureGate.Enabled(features.SidecarContainers) {
+		for _, c := range pod.Spec.InitContainers {
+			if !podutil.IsRestartableInitContainer(&c) {
+				continue
+			}
+
+			status := podStatus.FindContainerStatusByName(c.Name)
+			if status == nil {
+				// TBD: Do we need to start the restartable init container that
+				// has not started during pod termination?
+				continue
+			}
+
+			if status.State != kubecontainer.ContainerStateExited {
+				continue
+			}
+
+			actions.restartableInitContainersToRestart = append(actions.restartableInitContainersToRestart, &c)
+		}
+	}
+
+	for _, podSandbox := range podStatus.SandboxStatuses {
+		if podSandbox.State == runtimeapi.PodSandboxState_SANDBOX_READY {
+			actions.sandboxID = podSandbox.Id
+			actions.attempt = podSandbox.Metadata.Attempt
+			break
+		}
+	}
+
+	return actions
+}
+
+// SyncTerminatingPod tries to kill all the containers of a pod.
+// If gracePeriodOverride is specified, it will override the pod default grace
+// period. Only hard kill paths are allowed to specify a gracePeriodOverride in
+// the kubelet in order to not corrupt user data. It is useful when doing
+// SIGKILL for hard eviction scenarios, or max grace period during soft
+// eviction scenarios.
+// Returns true if the pod is successfully killed, false otherwise.
+func (m *kubeGenericRuntimeManager) SyncTerminatingPod(ctx context.Context, pod *v1.Pod, podStatus *kubecontainer.PodStatus, gracePeriodOverride *int64, pullSecrets []v1.Secret, backOff *flowcontrol.Backoff, stopPod bool) (bool, error) {
+	stopped, err := m.syncTerminatingContainers(ctx, pod, podStatus, gracePeriodOverride, pullSecrets, backOff, true)
+	if err != nil {
+		return false, err
+	}
+
+	if !stopped {
+		return false, nil
+	}
+
+	// Stop all sandboxes belongs to same pod
+	for _, podSandbox := range podStatus.SandboxStatuses {
+		if err := m.runtimeService.StopPodSandbox(ctx, podSandbox.Id); err != nil && !crierror.IsNotFound(err) {
+			klog.ErrorS(err, "Failed to stop sandbox", "podSandboxID", podSandbox.Id)
+		}
+	}
+	return true, nil
+}
+
+func (m *kubeGenericRuntimeManager) syncTerminatingContainers(ctx context.Context, pod *v1.Pod, podStatus *kubecontainer.PodStatus, gracePeriodOverride *int64, pullSecrets []v1.Secret, backOff *flowcontrol.Backoff, stopPod bool) (bool, error) {
+	actions := m.computeTerminatingPodActions(ctx, pod, podStatus)
+	klog.V(3).InfoS("computeTerminatingPodActions got for pod", "podActions", actions, "pod", klog.KObj(pod))
+	if actions.sandboxID == "" {
+		klog.InfoS("Pod sandbox is not running, skipping container termination", "pod", klog.KObj(pod))
+		return true, nil
+	}
+
+	if len(actions.containerIDsToKill) == 0 {
+		klog.V(3).InfoS("No containers to kill for pod", "pod", klog.KObj(pod))
+		return true, nil
+	}
+
+	var termOrdering *terminationOrdering
+	// we only care about container termination ordering if the sidecars feature is enabled
+	if utilfeature.DefaultFeatureGate.Enabled(features.SidecarContainers) {
+		terminatingContainerNames := make([]string, 0, len(actions.containerIDsToKill))
+		for cName := range actions.containerIDsToKill {
+			terminatingContainerNames = append(terminatingContainerNames, cName)
+		}
+		termOrdering = newTerminationOrdering(pod, terminatingContainerNames)
+	}
+
+	for cName, containerID := range actions.containerIDsToKill {
+		m.containerLifecycle.requestTermination(pod, containerID, cName, "", kubecontainer.ReasonUnknown, gracePeriodOverride, termOrdering)
+	}
+
+	var stopped bool
+	if stopPod {
+		stopped = m.containerLifecycle.removePodIfStopped(pod.UID)
+		if stopped {
+			klog.InfoS("Pod is stopped and removed from the container lifecycle", "pod", klog.KObj(pod))
+		}
+	} else {
+		stopped = m.containerLifecycle.isPodStopped(pod.UID)
+	}
+
+	if stopped {
+		return true, nil
+	}
+
+	klog.InfoS("Cannot remove the pod as the containers are still terminating", "pod", klog.KObj(pod))
+
+	if utilfeature.DefaultFeatureGate.Enabled(features.SidecarContainers) {
+		podSandboxConfig, err := m.generatePodSandboxConfig(pod, actions.attempt)
+		if err != nil {
+			return false, err
+		}
+
+		// We pass the value of the PRIMARY podIP and list of podIPs down to
+		// generatePodSandboxConfig and generateContainerConfig, which in turn
+		// passes it to various other functions, in order to facilitate functionality
+		// that requires this value (hosts file and downward API) and avoid races determining
+		// the pod IP in cases where a container requires restart but the
+		// podIP isn't in the status manager yet. The list of podIPs is used to
+		// generate the hosts file.
+		//
+		// We default to the IPs in the passed-in pod status, and overwrite them if the
+		// sandbox needs to be (re)started.
+		var podIPs []string
+		if podStatus != nil {
+			podIPs = podStatus.IPs
+		}
+
+		// the start containers routines depend on pod ip(as in primary pod ip)
+		// instead of trying to figure out if we have 0 < len(podIPs)
+		// everytime, we short circuit it here
+		podIP := ""
+		if len(podIPs) != 0 {
+			podIP = podIPs[0]
+		}
+
+		imageVolumesPullResults, err := m.getImageVolumes(ctx, pod, podSandboxConfig, pullSecrets)
+		if err != nil {
+			klog.ErrorS(err, "Get image volumes for pod failed", "pod", klog.KObj(pod))
+			return false, err
+		}
+
+		for _, container := range actions.restartableInitContainersToRestart {
+			isInBackOff, msg, err := m.doBackOff(pod, container, podStatus, backOff)
+			if isInBackOff {
+				if err != nil {
+					klog.V(4).InfoS("Backing Off restarting container in pod", "containerType", "init container", "container", container, "pod", klog.KObj(pod), "err", err, "msg", msg)
+				} else {
+					klog.V(4).InfoS("Backing Off restarting container in pod", "containerType", "init container", "container", container, "pod", klog.KObj(pod))
+				}
+			}
+			spec := containerStartSpec(container)
+			imageVolumes, err := m.toKubeContainerImageVolumes(imageVolumesPullResults, container, pod, nil)
+			if err != nil {
+				return false, err
+			}
+			msg, err = m.containerLifecycle.startContainerDuringPodTermination(ctx, actions.sandboxID, podSandboxConfig, spec, pod, podStatus, pullSecrets, podIP, podIPs, imageVolumes)
+			if err != nil {
+				// startContainer() returns well-defined error codes that have reasonable cardinality for metrics and are
+				// useful to cluster administrators to distinguish "server errors" from "user errors".
+				metrics.StartedContainersErrorsTotal.WithLabelValues(metrics.InitContainer, err.Error()).Inc()
+				if sc.HasWindowsHostProcessRequest(pod, spec.container) {
+					metrics.StartedHostProcessContainersErrorsTotal.WithLabelValues(metrics.InitContainer, err.Error()).Inc()
+				}
+				klog.ErrorS(err, "Failed to restart the container during terminatinon", "container", container.Name, "pod", klog.KObj(pod), "msg", msg)
+			}
+		}
+	}
+
+	return false, nil
 }
 
 // killPodWithSyncResult kills a runningPod and returns SyncResult.

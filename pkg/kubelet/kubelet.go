@@ -2080,19 +2080,36 @@ func (kl *Kubelet) SyncTerminatingPod(_ context.Context, pod *v1.Pod, podStatus 
 
 	kl.probeManager.StopLivenessAndStartup(pod)
 
-	p := kubecontainer.ConvertPodStatusToRunningPod(kl.getRuntime().Type(), podStatus)
-	if err := kl.killPod(ctx, pod, p, gracePeriod); err != nil {
-		kl.recorder.Eventf(pod, v1.EventTypeWarning, events.FailedToKillPod, "error killing pod: %v", err)
-		// there was an error killing the pod, so we return that error directly
-		utilruntime.HandleError(err)
-		return err
+	if !utilfeature.DefaultFeatureGate.Enabled(features.RestartContainerDuringTermination) {
+		p := kubecontainer.ConvertPodStatusToRunningPod(kl.getRuntime().Type(), podStatus)
+		if err := kl.killPod(ctx, pod, p, gracePeriod); err != nil {
+			kl.recorder.Eventf(pod, v1.EventTypeWarning, events.FailedToKillPod, "error killing pod: %v", err)
+			// there was an error killing the pod, so we return that error directly
+			utilruntime.HandleError(err)
+			return err
+		}
+	} else {
+		podStopped, err := kl.syncTerminatingPod(ctx, pod, podStatus, gracePeriod, kl.getPullSecretsForPod(pod), kl.backOff)
+		if err != nil {
+			kl.recorder.Eventf(pod, v1.EventTypeWarning, events.FailedToKillPod, "error killing pod: %v", err)
+			// there was an error killing the pod, so we return that error directly
+			utilruntime.HandleError(err)
+			return err
+		}
+		if !podStopped {
+			// If the pod is not yet stopped, we should return an error to signal
+			// that the sync loop should back off.
+			return fmt.Errorf("pod is not yet stopped")
+		}
 	}
 
-	// Once the containers are stopped, we can stop probing for liveness and readiness.
-	// TODO: once a pod is terminal, certain probes (liveness exec) could be stopped immediately after
-	//   the detection of a container shutdown or (for readiness) after the first failure. Tracked as
-	//   https://github.com/kubernetes/kubernetes/issues/107894 although may not be worth optimizing.
-	kl.probeManager.RemovePod(pod)
+	if !utilfeature.DefaultFeatureGate.Enabled(features.RestartContainerDuringTermination) {
+		// Once the containers are stopped, we can stop probing for liveness and readiness.
+		// TODO: once a pod is terminal, certain probes (liveness exec) could be stopped immediately after
+		//   the detection of a container shutdown or (for readiness) after the first failure. Tracked as
+		//   https://github.com/kubernetes/kubernetes/issues/107894 although may not be worth optimizing.
+		kl.probeManager.RemovePod(pod)
+	}
 
 	// Guard against consistency issues in KillPod implementations by checking that there are no
 	// running containers. This method is invoked infrequently so this is effectively free and can
@@ -2129,6 +2146,14 @@ func (kl *Kubelet) SyncTerminatingPod(_ context.Context, pod *v1.Pod, podStatus 
 	}
 	if len(runningContainers) > 0 {
 		return fmt.Errorf("detected running containers after a successful KillPod, CRI violation: %v", runningContainers)
+	}
+
+	if utilfeature.DefaultFeatureGate.Enabled(features.RestartContainerDuringTermination) {
+		// Once the containers are stopped, we can stop probing for liveness and readiness.
+		// TODO: once a pod is terminal, certain probes (liveness exec) could be stopped immediately after
+		//   the detection of a container shutdown or (for readiness) after the first failure. Tracked as
+		//   https://github.com/kubernetes/kubernetes/issues/107894 although may not be worth optimizing.
+		kl.probeManager.RemovePod(pod)
 	}
 
 	// NOTE: resources must be unprepared AFTER all containers have stopped

@@ -117,6 +117,27 @@ func (o *terminationOrdering) waitForTurn(name string, gracePeriod int64) float6
 	return time.Since(start).Seconds()
 }
 
+func (o *terminationOrdering) waitForTurnCh(name string, gracePeriod int64) <-chan struct{} {
+	ch := make(chan struct{})
+	remainingGrace := time.NewTimer(time.Duration(gracePeriod) * time.Second)
+
+	go func() {
+		defer close(ch)
+		for _, c := range o.prereqs[name] {
+			select {
+			case <-c:
+			case <-remainingGrace.C:
+				// grace period expired, so immediately exit
+				ch <- struct{}{}
+				return
+			}
+		}
+		ch <- struct{}{}
+	}()
+
+	return ch
+}
+
 // containerTerminated should be called once the container with the specified name has exited.
 func (o *terminationOrdering) containerTerminated(name string) {
 	o.lock.Lock()

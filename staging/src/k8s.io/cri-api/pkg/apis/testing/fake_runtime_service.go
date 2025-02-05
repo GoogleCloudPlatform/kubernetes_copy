@@ -55,6 +55,9 @@ type FakeContainer struct {
 
 	// the sandbox id of this container
 	SandboxID string
+
+	// Termination duration of the container.
+	TerminationDuration time.Duration
 }
 
 // FakeRuntimeService is a fake runetime service.
@@ -415,18 +418,30 @@ func (r *FakeRuntimeService) StartContainer(_ context.Context, containerID strin
 
 // StopContainer emulates stop of a container in the FakeRuntimeService.
 func (r *FakeRuntimeService) StopContainer(_ context.Context, containerID string, timeout int64) error {
-	r.Lock()
-	defer r.Unlock()
+	c, err := func() (*FakeContainer, error) {
+		r.Lock()
+		defer r.Unlock()
 
-	r.Called = append(r.Called, "StopContainer")
-	if err := r.popError("StopContainer"); err != nil {
+		r.Called = append(r.Called, "StopContainer")
+		if err := r.popError("StopContainer"); err != nil {
+			return nil, err
+		}
+
+		c, ok := r.Containers[containerID]
+		if !ok {
+			return nil, fmt.Errorf("container %q not found", containerID)
+		}
+		return c, nil
+	}()
+	if err != nil {
 		return err
 	}
 
-	c, ok := r.Containers[containerID]
-	if !ok {
-		return fmt.Errorf("container %q not found", containerID)
-	}
+	// Wait for the termination duration.
+	time.Sleep(c.TerminationDuration)
+
+	r.Lock()
+	defer r.Unlock()
 
 	// Set container to exited state.
 	finishedAt := time.Now().UnixNano()

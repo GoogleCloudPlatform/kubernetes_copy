@@ -1204,6 +1204,68 @@ func (_c *MockRuntime_SyncPod_Call) RunAndReturn(run func(context.Context, *core
 	return _c
 }
 
+// SyncTerminatingPod provides a mock function with given fields: ctx, pod, podStatus, gracePeriodOverride, pullSecrets, backOff, stopPod
+func (_m *MockRuntime) SyncTerminatingPod(ctx context.Context, pod *corev1.Pod, podStatus *container.PodStatus, gracePeriodOverride *int64, pullSecrets []corev1.Secret, backOff *flowcontrol.Backoff, stopPod bool) (bool, error) {
+	ret := _m.Called(ctx, pod, podStatus, gracePeriodOverride, pullSecrets, backOff, stopPod)
+
+	if len(ret) == 0 {
+		panic("no return value specified for SyncTerminatingPod")
+	}
+
+	var r0 bool
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *corev1.Pod, *container.PodStatus, *int64, []corev1.Secret, *flowcontrol.Backoff, bool) (bool, error)); ok {
+		return rf(ctx, pod, podStatus, gracePeriodOverride, pullSecrets, backOff, stopPod)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *corev1.Pod, *container.PodStatus, *int64, []corev1.Secret, *flowcontrol.Backoff, bool) bool); ok {
+		r0 = rf(ctx, pod, podStatus, gracePeriodOverride, pullSecrets, backOff, stopPod)
+	} else {
+		r0 = ret.Get(0).(bool)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *corev1.Pod, *container.PodStatus, *int64, []corev1.Secret, *flowcontrol.Backoff, bool) error); ok {
+		r1 = rf(ctx, pod, podStatus, gracePeriodOverride, pullSecrets, backOff, stopPod)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockRuntime_SyncTerminatingPod_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SyncTerminatingPod'
+type MockRuntime_SyncTerminatingPod_Call struct {
+	*mock.Call
+}
+
+// SyncTerminatingPod is a helper method to define mock.On call
+//   - ctx context.Context
+//   - pod *corev1.Pod
+//   - podStatus *container.PodStatus
+//   - gracePeriodOverride *int64
+//   - pullSecrets []corev1.Secret
+//   - backOff *flowcontrol.Backoff
+//   - stopPod bool
+func (_e *MockRuntime_Expecter) SyncTerminatingPod(ctx interface{}, pod interface{}, podStatus interface{}, gracePeriodOverride interface{}, pullSecrets interface{}, backOff interface{}, stopPod interface{}) *MockRuntime_SyncTerminatingPod_Call {
+	return &MockRuntime_SyncTerminatingPod_Call{Call: _e.mock.On("SyncTerminatingPod", ctx, pod, podStatus, gracePeriodOverride, pullSecrets, backOff, stopPod)}
+}
+
+func (_c *MockRuntime_SyncTerminatingPod_Call) Run(run func(ctx context.Context, pod *corev1.Pod, podStatus *container.PodStatus, gracePeriodOverride *int64, pullSecrets []corev1.Secret, backOff *flowcontrol.Backoff, stopPod bool)) *MockRuntime_SyncTerminatingPod_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*corev1.Pod), args[2].(*container.PodStatus), args[3].(*int64), args[4].([]corev1.Secret), args[5].(*flowcontrol.Backoff), args[6].(bool))
+	})
+	return _c
+}
+
+func (_c *MockRuntime_SyncTerminatingPod_Call) Return(_a0 bool, _a1 error) *MockRuntime_SyncTerminatingPod_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockRuntime_SyncTerminatingPod_Call) RunAndReturn(run func(context.Context, *corev1.Pod, *container.PodStatus, *int64, []corev1.Secret, *flowcontrol.Backoff, bool) (bool, error)) *MockRuntime_SyncTerminatingPod_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Type provides a mock function with given fields:
 func (_m *MockRuntime) Type() string {
 	ret := _m.Called()
