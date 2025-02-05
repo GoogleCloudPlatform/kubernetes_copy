@@ -17,7 +17,10 @@ limitations under the License.
 package explain
 
 import (
+	"bytes"
 	"fmt"
+	"regexp"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -73,7 +76,7 @@ type ExplainFlags struct {
 	APIVersion   string
 	OutputFormat string
 	Recursive    bool
-
+	Depth        int
 	genericiooptions.IOStreams
 }
 
@@ -87,6 +90,7 @@ func NewExplainFlags(streams genericiooptions.IOStreams) *ExplainFlags {
 
 // AddFlags registers flags for a cli
 func (flags *ExplainFlags) AddFlags(cmd *cobra.Command) {
+	cmd.Flags().IntVar(&flags.Depth, "depth", flags.Depth, "Set the depth level for displaying nested fields (0 for full depth).")
 	cmd.Flags().BoolVar(&flags.Recursive, "recursive", flags.Recursive, "Print the fields of fields (Currently only 1 level deep)")
 	cmd.Flags().StringVar(&flags.APIVersion, "api-version", flags.APIVersion, "Get different explanations for particular API version (API group/version)")
 	cmd.Flags().StringVar(&flags.OutputFormat, "output", plaintextTemplateName, "Format in which to render the schema (plaintext, plaintext-openapiv2)")
@@ -106,8 +110,8 @@ func (flags *ExplainFlags) ToOptions(f cmdutil.Factory, parent string, args []st
 	}
 
 	o := &ExplainOptions{
-		IOStreams: flags.IOStreams,
-
+		IOStreams:    flags.IOStreams,
+		Depth:        flags.Depth,
 		Recursive:    flags.Recursive,
 		APIVersion:   flags.APIVersion,
 		OutputFormat: flags.OutputFormat,
@@ -129,7 +133,7 @@ func NewCmdExplain(parent string, f cmdutil.Factory, streams genericiooptions.IO
 	flags := NewExplainFlags(streams)
 
 	cmd := &cobra.Command{
-		Use:                   "explain TYPE [--recursive=FALSE|TRUE] [--api-version=api-version-group] [-o|--output=plaintext|plaintext-openapiv2]",
+		Use:                   "explain TYPE [--recursive=FALSE|TRUE] [--depth=0] [--api-version=api-version-group] [-o|--output=plaintext|plaintext-openapiv2]",
 		DisableFlagsInUseLine: true,
 		Short:                 i18n.T("Get documentation for a resource"),
 		Long:                  explainLong + "\n\n" + cmdutil.SuggestAPIResources(parent),
@@ -149,7 +153,7 @@ func NewCmdExplain(parent string, f cmdutil.Factory, streams genericiooptions.IO
 
 type ExplainOptions struct {
 	genericiooptions.IOStreams
-
+	Depth      int
 	Recursive  bool
 	APIVersion string
 	// Name of the template to use with the openapiv3 template renderer.
@@ -217,15 +221,19 @@ func (o *ExplainOptions) Run() error {
 			fullySpecifiedGVR.Group = apiVersion.Group
 			fullySpecifiedGVR.Version = apiVersion.Version
 		}
+		var buf bytes.Buffer
 
-		return openapiv3explain.PrintModelDescription(
+		err := openapiv3explain.PrintModelDescription(
 			fieldsPath,
-			o.Out,
+			&buf,
 			o.OpenAPIV3Client,
 			fullySpecifiedGVR,
 			o.Recursive,
 			o.OutputFormat,
 		)
+		newBytes := LimitFieldsDepth(buf.String(), o.Depth)
+		o.Out.Write([]byte(newBytes))
+		return err
 	}
 }
 
@@ -259,6 +267,52 @@ func (o *ExplainOptions) renderOpenAPIV2(
 	if schema == nil {
 		return fmt.Errorf("couldn't find resource for %q", gvk)
 	}
+	var buf bytes.Buffer
+	newBytes := LimitFieldsDepth(buf.String(), o.Depth)
+	o.Out.Write([]byte(newBytes))
+	return explain.PrintModelDescription(fieldsPath, &buf, schema, gvk, o.Recursive)
+}
 
-	return explain.PrintModelDescription(fieldsPath, o.Out, schema, gvk, o.Recursive)
+// LimitFieldsDepth limits the depth of the fields to the specified maxDepth and returns the updated output
+func LimitFieldsDepth(output string, maxDepth int) string {
+	if maxDepth == 0 {
+		return output
+	}
+	lines := strings.Split(output, "\n")
+	var filteredLines []string
+
+	fieldsStarted := false
+	// https://regexr.com/8boo6 - matchs lines with indent
+	indentRegex := regexp.MustCompile(`^( +)`)
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		// I only want to touch under FIELDS:
+		if trimmed == "FIELDS:" {
+			fieldsStarted = true
+			filteredLines = append(filteredLines, line)
+			continue
+		}
+
+		if fieldsStarted {
+			// fields that are indented by 2 spaces - can I assume this?
+			match := indentRegex.FindStringSubmatch(line)
+			if len(match) > 0 {
+				indentLevel := len(match[0]) / 2
+
+				// if the indent level is greater than the max depth, skip the line
+				if indentLevel > maxDepth {
+					continue
+				}
+				filteredLines = append(filteredLines, line)
+			} else {
+				fieldsStarted = false
+				filteredLines = append(filteredLines, line)
+			}
+		} else {
+			filteredLines = append(filteredLines, line)
+		}
+	}
+
+	return strings.Join(filteredLines, "\n")
 }

@@ -20,6 +20,7 @@ import (
 	"errors"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"testing"
 
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -315,4 +316,148 @@ func TestExplainOpenAPIV3DoesNotLoadOpenAPIV2Specs(t *testing.T) {
 		t.Fatal(err)
 	}
 	cmd.Run(cmd, []string{"pods"})
+}
+func TestLimitFieldsDepth(t *testing.T) {
+	testCases := []struct {
+		name     string
+		maxDepth int
+		input    string
+		expected string
+	}{
+		{
+			name:     "kubectl explain pods.spec.containers --recursive --depth=2",
+			maxDepth: 2,
+			input: `
+FIELDS:
+  name	<string> -required-
+  value	<string>
+  valueFrom	<EnvVarSource>
+    configMapKeyRef	<ConfigMapKeySelector>
+      key	<string> -required-
+      name	<string>
+      optional	<boolean>
+    fieldRef	<ObjectFieldSelector>
+      apiVersion	<string>
+      fieldPath	<string> -required-
+`,
+			expected: `
+FIELDS:
+  name	<string> -required-
+  value	<string>
+  valueFrom	<EnvVarSource>
+    configMapKeyRef	<ConfigMapKeySelector>
+    fieldRef	<ObjectFieldSelector>
+`,
+		},
+		{
+			name:     "kubectl explain ing.spec --recursive --depth=1",
+			maxDepth: 1,
+			input: `
+GROUP:      networking.k8s.io
+KIND:       Ingress
+VERSION:    v1
+
+FIELD: spec <IngressSpec>
+
+
+DESCRIPTION:
+    spec is the desired state of the Ingress. More info:
+    https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#spec-and-status
+    IngressSpec describes the Ingress the user wishes to exist.
+    
+FIELDS:
+  defaultBackend        <IngressBackend>
+    resource    <TypedLocalObjectReference>
+      apiGroup  <string>
+      kind      <string> -required-
+      name      <string> -required-
+    service     <IngressServiceBackend>
+      name      <string> -required-
+      port      <ServiceBackendPort>
+        name    <string>
+        number  <integer>
+  ingressClassName      <string>
+  rules <[]IngressRule>
+    host        <string>
+    http        <HTTPIngressRuleValue>
+      paths     <[]HTTPIngressPath> -required-
+        backend <IngressBackend> -required-
+          resource      <TypedLocalObjectReference>
+            apiGroup    <string>
+            kind        <string> -required-
+            name        <string> -required-
+          service       <IngressServiceBackend>
+            name        <string> -required-
+            port        <ServiceBackendPort>
+              name      <string>
+              number    <integer>
+        path    <string>
+        pathType        <string> -required-
+        enum: Exact, ImplementationSpecific, Prefix
+  tls   <[]IngressTLS>
+    hosts       <[]string>
+    secretName  <string>
+`,
+			expected: `
+GROUP:      networking.k8s.io
+KIND:       Ingress
+VERSION:    v1
+
+FIELD: spec <IngressSpec>
+
+
+DESCRIPTION:
+    spec is the desired state of the Ingress. More info:
+    https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#spec-and-status
+    IngressSpec describes the Ingress the user wishes to exist.
+    
+FIELDS:
+  defaultBackend        <IngressBackend>
+  ingressClassName      <string>
+  rules <[]IngressRule>
+  tls   <[]IngressTLS>
+`,
+		},
+		{
+			name:     "k explain pod.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution --recursive --depth=0",
+			maxDepth: 0,
+			input: `
+FIELDS:
+  nodeSelectorTerms     <[]NodeSelectorTerm> -required-
+    matchExpressions    <[]NodeSelectorRequirement>
+      key       <string> -required-
+      operator  <string> -required-
+      enum: DoesNotExist, Exists, Gt, In, ....
+      values    <[]string>
+    matchFields <[]NodeSelectorRequirement>
+      key       <string> -required-
+      operator  <string> -required-
+      enum: DoesNotExist, Exists, Gt, In, ....
+      values    <[]string>
+		`,
+			expected: `
+FIELDS:
+  nodeSelectorTerms     <[]NodeSelectorTerm> -required-
+    matchExpressions    <[]NodeSelectorRequirement>
+      key       <string> -required-
+      operator  <string> -required-
+      enum: DoesNotExist, Exists, Gt, In, ....
+      values    <[]string>
+    matchFields <[]NodeSelectorRequirement>
+      key       <string> -required-
+      operator  <string> -required-
+      enum: DoesNotExist, Exists, Gt, In, ....
+      values    <[]string>
+		`,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			output := explain.LimitFieldsDepth(tc.input, tc.maxDepth)
+			if strings.Trim(output, " ") != strings.Trim(tc.expected, " ") {
+				t.Errorf("expected output:\n%s\ninstead got:\n%s", tc.expected, output)
+			}
+		})
+	}
 }
