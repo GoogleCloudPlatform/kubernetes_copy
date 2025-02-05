@@ -71,6 +71,7 @@ import (
 	volumevalidation "k8s.io/kubernetes/pkg/volume/validation"
 	"k8s.io/kubernetes/third_party/forked/golang/expansion"
 	utilnet "k8s.io/utils/net"
+	"k8s.io/utils/ptr"
 )
 
 const (
@@ -2053,7 +2054,7 @@ func (kl *Kubelet) convertStatusToAPIStatus(pod *v1.Pod, podStatus *kubecontaine
 // convertToAPIContainerStatuses converts the given internal container
 // statuses into API container statuses.
 func (kl *Kubelet) convertToAPIContainerStatuses(pod *v1.Pod, podStatus *kubecontainer.PodStatus, previousStatus []v1.ContainerStatus, containers []v1.Container, hasInitContainers, isInitContainer bool) []v1.ContainerStatus {
-	convertContainerStatus := func(cs *kubecontainer.Status, oldStatus *v1.ContainerStatus) *v1.ContainerStatus {
+	convertContainerStatus := func(cs *kubecontainer.Status, oldStatus *v1.ContainerStatus, hasStartupProbe bool) *v1.ContainerStatus {
 		cid := cs.ID.String()
 		status := &v1.ContainerStatus{
 			Name:         cs.Name,
@@ -2068,6 +2069,9 @@ func (kl *Kubelet) convertToAPIContainerStatuses(pod *v1.Pod, podStatus *kubecon
 		if oldStatus != nil {
 			status.VolumeMounts = oldStatus.VolumeMounts // immutable
 		}
+		// without a startup probe, mark this container started during the time it is running
+		// otherwise set the started field depending on the probe result
+		status.Started = ptr.To(!cs.StartedAt.IsZero() && cs.FinishedAt.IsZero() && !hasStartupProbe)
 		switch {
 		case cs.State == kubecontainer.ContainerStateRunning:
 			status.State.Running = &v1.ContainerStateRunning{StartedAt: metav1.NewTime(cs.StartedAt)}
@@ -2215,7 +2219,11 @@ func (kl *Kubelet) convertToAPIContainerStatuses(pod *v1.Pod, podStatus *kubecon
 
 	supportsRRO := kl.runtimeClassSupportsRecursiveReadOnlyMounts(pod)
 
+	containersWithStartupProbe := sets.Set[string]{}
 	for _, container := range containers {
+		if container.StartupProbe != nil {
+			containersWithStartupProbe.Insert(container.Name)
+		}
 		status := &v1.ContainerStatus{
 			Name:  container.Name,
 			Image: container.Image,
@@ -2347,7 +2355,7 @@ func (kl *Kubelet) convertToAPIContainerStatuses(pod *v1.Pod, podStatus *kubecon
 		if oldStatus, ok := oldStatuses[cName]; ok {
 			oldStatusPtr = &oldStatus
 		}
-		status := convertContainerStatus(cStatus, oldStatusPtr)
+		status := convertContainerStatus(cStatus, oldStatusPtr, containersWithStartupProbe.Has(cName))
 		if utilfeature.DefaultFeatureGate.Enabled(features.InPlacePodVerticalScaling) {
 			status.Resources = convertContainerStatusResources(cName, status, cStatus, oldStatuses)
 
