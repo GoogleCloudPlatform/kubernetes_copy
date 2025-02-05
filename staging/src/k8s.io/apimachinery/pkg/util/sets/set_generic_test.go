@@ -356,3 +356,21 @@ func TestIntersection(t *testing.T) {
 		}
 	}
 }
+
+func BenchmarkListSmall(b *testing.B) {
+	s := sets.New("a", "b", "c", "d", "e", "f", "g", "h", "i", "j")
+	for i := 0; i < b.N; i++ {
+		sets.List(s)
+	}
+}
+
+func BenchmarkListLarge(b *testing.B) {
+	s := make(sets.Set[int], 12345)
+	for i := range 12345 {
+		s.Insert(i * 7)
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		sets.List(s)
+	}
+}
