@@ -24,7 +24,6 @@ import (
 
 	genericoptions "k8s.io/apiserver/pkg/server/options"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
-	utilversion "k8s.io/component-base/version"
 	netutils "k8s.io/utils/net"
 
 	controlplaneapiserver "k8s.io/kubernetes/pkg/controlplane/apiserver/options"
@@ -140,11 +139,6 @@ func (s CompletedOptions) Validate() []error {
 
 	if s.MasterCount <= 0 {
 		errs = append(errs, fmt.Errorf("--apiserver-count should be a positive number, but value '%d' provided", s.MasterCount))
-	}
-
-	effectiveVersion := s.GenericServerRunOptions.ComponentGlobalsRegistry.EffectiveVersionFor(s.GenericServerRunOptions.ComponentName)
-	if err := utilversion.ValidateKubeEffectiveVersion(effectiveVersion); err != nil {
-		errs = append(errs, err)
 	}
 
 	return errs

@@ -34,7 +34,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	asn1util "k8s.io/apimachinery/pkg/apis/asn1"
 	"k8s.io/apimachinery/pkg/util/sets"
-	"k8s.io/apimachinery/pkg/util/version"
 	"k8s.io/apiserver/pkg/authentication/authenticator"
 	"k8s.io/apiserver/pkg/authentication/user"
 	"k8s.io/apiserver/pkg/features"
@@ -799,9 +798,6 @@ func TestX509(t *testing.T) {
 			ExpectErr: false,
 			setupFunc: func(t *testing.T) {
 				t.Helper()
-				// This statement can be removed once utilversion.DefaultKubeEffectiveVersion() is >= 1.33
-				featuregatetesting.SetFeatureGateEmulationVersionDuringTest(t, feature.DefaultFeatureGate, version.MustParse("1.33"))
-
 			},
 		},
 		"common name and empty UID with feature gate disabled": {
@@ -822,8 +818,6 @@ func TestX509(t *testing.T) {
 			ExpectErr: false,
 			setupFunc: func(t *testing.T) {
 				t.Helper()
-				// This statement can be removed once utilversion.DefaultKubeEffectiveVersion() is >= 1.33
-				featuregatetesting.SetFeatureGateEmulationVersionDuringTest(t, feature.DefaultFeatureGate, version.MustParse("1.33"))
 				featuregatetesting.SetFeatureGateDuringTest(t, feature.DefaultFeatureGate, features.AllowParsingUserUIDFromCertAuth, false)
 			},
 		},
@@ -836,9 +830,6 @@ func TestX509(t *testing.T) {
 			ExpectErrMsg: regexp.MustCompile("UID cannot be an empty string"),
 			setupFunc: func(t *testing.T) {
 				t.Helper()
-				// This statement can be removed once utilversion.DefaultKubeEffectiveVersion() is >= 1.33
-				featuregatetesting.SetFeatureGateEmulationVersionDuringTest(t, feature.DefaultFeatureGate, version.MustParse("1.33"))
-
 			},
 		},
 		"ca with non-string UID": {
@@ -850,9 +841,6 @@ func TestX509(t *testing.T) {
 			ExpectErrMsg: regexp.MustCompile("unable to parse UID into a string"),
 			setupFunc: func(t *testing.T) {
 				t.Helper()
-				// This statement can be removed once utilversion.DefaultKubeEffectiveVersion() is >= 1.33
-				featuregatetesting.SetFeatureGateEmulationVersionDuringTest(t, feature.DefaultFeatureGate, version.MustParse("1.33"))
-
 			},
 		},
 		"ca with multiple UIDs": {
@@ -866,9 +854,6 @@ func TestX509(t *testing.T) {
 			ExpectErrMsg: regexp.MustCompile("expected 1 UID, but found multiple"),
 			setupFunc: func(t *testing.T) {
 				t.Helper()
-				// This statement can be removed once utilversion.DefaultKubeEffectiveVersion() is >= 1.33
-				featuregatetesting.SetFeatureGateEmulationVersionDuringTest(t, feature.DefaultFeatureGate, version.MustParse("1.33"))
-
 			},
 		},
 		"ca with multiple organizations": {

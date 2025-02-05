@@ -38,6 +38,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
+	utilversion "k8s.io/apimachinery/pkg/util/version"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/version"
 	"k8s.io/apiserver/pkg/apis/example"
@@ -52,7 +53,7 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes/fake"
 	restclient "k8s.io/client-go/rest"
-	utilversion "k8s.io/component-base/version"
+	basecompatibility "k8s.io/component-base/compatibility"
 	"k8s.io/klog/v2/ktesting"
 	kubeopenapi "k8s.io/kube-openapi/pkg/common"
 	"k8s.io/kube-openapi/pkg/validation/spec"
@@ -138,7 +139,7 @@ func setUp(t *testing.T) (Config, *assert.Assertions) {
 	if clientset == nil {
 		t.Fatal("unable to create fake client set")
 	}
-	config.EffectiveVersion = utilversion.NewEffectiveVersion("")
+	config.EffectiveVersion = basecompatibility.NewEffectiveVersionFromString("", "", "")
 	config.OpenAPIConfig = DefaultOpenAPIConfig(testGetOpenAPIDefinitions, openapinamer.NewDefinitionNamer(runtime.NewScheme()))
 	config.OpenAPIConfig.Info.Version = "unversioned"
 	config.OpenAPIV3Config = DefaultOpenAPIV3Config(testGetOpenAPIDefinitions, openapinamer.NewDefinitionNamer(runtime.NewScheme()))
@@ -460,8 +461,8 @@ func TestNotRestRoutesHaveAuth(t *testing.T) {
 	config.EnableProfiling = true
 
 	kubeVersion := fakeVersion()
-	effectiveVersion := utilversion.NewEffectiveVersion(kubeVersion.String())
-	effectiveVersion.Set(effectiveVersion.BinaryVersion().WithInfo(kubeVersion), effectiveVersion.EmulationVersion(), effectiveVersion.MinCompatibilityVersion())
+	binaryVersion := utilversion.MustParse(kubeVersion.String())
+	effectiveVersion := basecompatibility.NewEffectiveVersion(binaryVersion, false, binaryVersion, binaryVersion.SubtractMinor(1))
 	config.EffectiveVersion = effectiveVersion
 
 	s, err := config.Complete(nil).New("test", NewEmptyDelegate())

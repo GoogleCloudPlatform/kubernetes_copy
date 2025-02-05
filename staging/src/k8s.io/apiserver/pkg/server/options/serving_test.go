@@ -46,7 +46,7 @@ import (
 	"k8s.io/client-go/discovery"
 	restclient "k8s.io/client-go/rest"
 	cliflag "k8s.io/component-base/cli/flag"
-	utilversion "k8s.io/component-base/version"
+	basecompatibility "k8s.io/component-base/compatibility"
 	"k8s.io/klog/v2/ktesting"
 	netutils "k8s.io/utils/net"
 )
@@ -278,7 +278,7 @@ func TestServerRunWithSNI(t *testing.T) {
 			// launch server
 			config := setUp(t)
 			v := fakeVersion()
-			config.EffectiveVersion = utilversion.NewEffectiveVersion(v.String())
+			config.EffectiveVersion = basecompatibility.NewEffectiveVersionFromString(v.String(), "", "")
 
 			config.EnableIndex = true
 			secureOptions := (&SecureServingOptions{

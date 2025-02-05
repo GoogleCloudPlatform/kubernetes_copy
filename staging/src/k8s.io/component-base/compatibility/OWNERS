@@ -1,0 +1,12 @@
+# See the OWNERS docs at https://go.k8s.io/owners
+
+# Currently assigned this directory to sig-api-machinery since this is
+# an interface to the version definition in "k8s.io/apiserver/pkg/util/compatibility".
+
+approvers:
+  - sig-api-machinery-api-approvers
+reviewers:
+  - sig-api-machinery-api-reviewers
+  - siyuanfoundation
+labels:
+  - sig/api-machinery

@@ -25,6 +25,7 @@ import (
 	kubeapiserveradmission "k8s.io/apiserver/pkg/admission"
 	genericoptions "k8s.io/apiserver/pkg/server/options"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	basecompatibility "k8s.io/component-base/compatibility"
 	"k8s.io/component-base/featuregate"
 	basemetrics "k8s.io/component-base/metrics"
 	"k8s.io/kubernetes/pkg/features"
@@ -202,7 +203,7 @@ func TestValidateOptions(t *testing.T) {
 			name:         "validate master count equal 0",
 			expectErrors: true,
 			options: &Options{
-				GenericServerRunOptions: &genericoptions.ServerRunOptions{ComponentGlobalsRegistry: featuregate.DefaultComponentGlobalsRegistry},
+				GenericServerRunOptions: &genericoptions.ServerRunOptions{ComponentGlobalsRegistry: basecompatibility.NewComponentGlobalsRegistry()},
 				Etcd:                    &genericoptions.EtcdOptions{},
 				SecureServing:           &genericoptions.SecureServingOptionsWithLoopback{},
 				Audit:                   &genericoptions.AuditOptions{},
@@ -229,7 +230,7 @@ func TestValidateOptions(t *testing.T) {
 			name:         "validate token request enable not attempted",
 			expectErrors: true,
 			options: &Options{
-				GenericServerRunOptions: &genericoptions.ServerRunOptions{ComponentGlobalsRegistry: featuregate.DefaultComponentGlobalsRegistry},
+				GenericServerRunOptions: &genericoptions.ServerRunOptions{ComponentGlobalsRegistry: basecompatibility.NewComponentGlobalsRegistry()},
 				Etcd:                    &genericoptions.EtcdOptions{},
 				SecureServing:           &genericoptions.SecureServingOptionsWithLoopback{},
 				Audit:                   &genericoptions.AuditOptions{},

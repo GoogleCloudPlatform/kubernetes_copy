@@ -27,9 +27,9 @@ import (
 	"k8s.io/apimachinery/pkg/util/errors"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apiserver/pkg/server"
+	"k8s.io/apiserver/pkg/util/compatibility"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
-	"k8s.io/component-base/featuregate"
-	utilversion "k8s.io/component-base/version"
+	basecompatibility "k8s.io/component-base/compatibility"
 
 	"github.com/spf13/pflag"
 )
@@ -95,22 +95,22 @@ type ServerRunOptions struct {
 	ShutdownWatchTerminationGracePeriod time.Duration
 
 	// ComponentGlobalsRegistry is the registry where the effective versions and feature gates for all components are stored.
-	ComponentGlobalsRegistry featuregate.ComponentGlobalsRegistry
+	ComponentGlobalsRegistry basecompatibility.ComponentGlobalsRegistry
 	// ComponentName is name under which the server's global variabled are registered in the ComponentGlobalsRegistry.
 	ComponentName string
 }
 
 func NewServerRunOptions() *ServerRunOptions {
-	if featuregate.DefaultComponentGlobalsRegistry.EffectiveVersionFor(featuregate.DefaultKubeComponent) == nil {
+	if compatibility.DefaultComponentGlobalsRegistry.EffectiveVersionFor(basecompatibility.DefaultKubeComponent) == nil {
 		featureGate := utilfeature.DefaultMutableFeatureGate
-		effectiveVersion := utilversion.DefaultKubeEffectiveVersion()
-		utilruntime.Must(featuregate.DefaultComponentGlobalsRegistry.Register(featuregate.DefaultKubeComponent, effectiveVersion, featureGate))
+		effectiveVersion := compatibility.DefaultBuildEffectiveVersion()
+		utilruntime.Must(compatibility.DefaultComponentGlobalsRegistry.Register(basecompatibility.DefaultKubeComponent, effectiveVersion, featureGate))
 	}
 
-	return NewServerRunOptionsForComponent(featuregate.DefaultKubeComponent, featuregate.DefaultComponentGlobalsRegistry)
+	return NewServerRunOptionsForComponent(basecompatibility.DefaultKubeComponent, compatibility.DefaultComponentGlobalsRegistry)
 }
 
-func NewServerRunOptionsForComponent(componentName string, componentGlobalsRegistry featuregate.ComponentGlobalsRegistry) *ServerRunOptions {
+func NewServerRunOptionsForComponent(componentName string, componentGlobalsRegistry basecompatibility.ComponentGlobalsRegistry) *ServerRunOptions {
 	defaults := server.NewConfig(serializer.CodecFactory{})
 	return &ServerRunOptions{
 		MaxRequestsInFlight:                 defaults.MaxRequestsInFlight,

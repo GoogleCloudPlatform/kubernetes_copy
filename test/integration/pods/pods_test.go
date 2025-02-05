@@ -1230,9 +1230,8 @@ func TestMutablePodSchedulingDirectives(t *testing.T) {
 // Test disabling of RelaxedDNSSearchValidation after a Pod has been created
 func TestRelaxedDNSSearchValidation(t *testing.T) {
 	// Disable ServiceAccount admission plugin as we don't have serviceaccount controller running.
-	server := kubeapiservertesting.StartTestServerOrDie(t,
-		&kubeapiservertesting.TestServerInstanceOptions{BinaryVersion: "1.32"},
-		framework.DefaultTestServerFlags(), framework.SharedEtcd())
+	server := kubeapiservertesting.StartTestServerOrDie(t, nil,
+		append(framework.DefaultTestServerFlags(), "--emulated-version=1.32"), framework.SharedEtcd())
 	defer server.TearDownFn()
 
 	client := clientset.NewForConfigOrDie(server.ClientConfig)

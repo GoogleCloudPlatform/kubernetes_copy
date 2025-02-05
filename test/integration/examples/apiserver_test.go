@@ -55,9 +55,9 @@ import (
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 	"k8s.io/client-go/transport"
 	"k8s.io/client-go/util/cert"
+	basecompatibility "k8s.io/component-base/compatibility"
 	"k8s.io/component-base/featuregate"
 	featuregatetesting "k8s.io/component-base/featuregate/testing"
-	utilversion "k8s.io/component-base/version"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	aggregatorclient "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset"
 	"k8s.io/kubernetes/cmd/kube-apiserver/app"
@@ -282,11 +282,8 @@ func testFrontProxyConfig(t *testing.T, withUID bool) {
 		extraKASFlags = []string{"--requestheader-uid-headers=x-remote-uid"}
 	}
 
-	// each wardle binary is bundled with a specific kube binary.
-	kubeBinaryVersion := sampleserver.WardleVersionToKubeVersion(version.MustParse(wardleBinaryVersion)).String()
-
 	// start up the KAS and prepare the options for the wardle API server
-	testKAS, wardleOptions, wardlePort := prepareAggregatedWardleAPIServer(ctx, t, testNamespace, kubeBinaryVersion, wardleBinaryVersion, extraKASFlags, withUID)
+	testKAS, wardleOptions, wardlePort := prepareAggregatedWardleAPIServer(ctx, t, testNamespace, wardleBinaryVersion, extraKASFlags, withUID)
 	kubeConfig := getKubeConfig(testKAS)
 
 	// create the SA that we will use to query the aggregated API
@@ -402,10 +399,7 @@ func testAggregatedAPIServer(t *testing.T, setWardleFeatureGate, banFlunder bool
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	t.Cleanup(cancel)
 
-	// each wardle binary is bundled with a specific kube binary.
-	kubeBinaryVersion := sampleserver.WardleVersionToKubeVersion(version.MustParse(wardleBinaryVersion)).String()
-
-	testKAS, wardleOptions, wardlePort := prepareAggregatedWardleAPIServer(ctx, t, testNamespace, kubeBinaryVersion, wardleBinaryVersion, nil, false)
+	testKAS, wardleOptions, wardlePort := prepareAggregatedWardleAPIServer(ctx, t, testNamespace, wardleBinaryVersion, nil, false)
 	kubeClientConfig := getKubeConfig(testKAS)
 
 	wardleCertDir, _ := os.MkdirTemp("", "test-integration-wardle-server")
@@ -685,7 +679,7 @@ func TestAggregatedAPIServerRejectRedirectResponse(t *testing.T) {
 	}
 }
 
-func prepareAggregatedWardleAPIServer(ctx context.Context, t *testing.T, namespace, kubebinaryVersion, wardleBinaryVersion string, kubeAPIServerFlags []string, withUID bool) (*kastesting.TestServer, *sampleserver.WardleServerOptions, int) {
+func prepareAggregatedWardleAPIServer(ctx context.Context, t *testing.T, namespace, wardleBinaryVersion string, kubeAPIServerFlags []string, withUID bool) (*kastesting.TestServer, *sampleserver.WardleServerOptions, int) {
 	// makes the kube-apiserver very responsive.  it's normally a minute
 	dynamiccertificates.FileRefreshDuration = 1 * time.Second
 
@@ -697,22 +691,17 @@ func prepareAggregatedWardleAPIServer(ctx context.Context, t *testing.T, namespa
 	// endpoints cannot have loopback IPs so we need to override the resolver itself
 	t.Cleanup(app.SetServiceResolverForTests(staticURLServiceResolver(fmt.Sprintf("https://127.0.0.1:%d", wardlePort))))
 
-	// TODO figure out how to actually make BinaryVersion/EmulationVersion work with Wardle and KAS at the same time when Alpha FG are being set
-	if withUID {
-		kubebinaryVersion = ""
-	}
-
 	testServer := kastesting.StartTestServerOrDie(t,
 		&kastesting.TestServerInstanceOptions{
 			EnableCertAuth: true,
-			BinaryVersion:  kubebinaryVersion,
 		},
 		kubeAPIServerFlags,
 		framework.SharedEtcd())
 	t.Cleanup(func() { testServer.TearDownFn() })
 
-	_, _ = featuregate.DefaultComponentGlobalsRegistry.ComponentGlobalsOrRegister(
-		apiserver.WardleComponentName, utilversion.NewEffectiveVersion(wardleBinaryVersion),
+	componentGlobalsRegistry := testServer.ServerOpts.Options.GenericServerRunOptions.ComponentGlobalsRegistry
+	_, _ = componentGlobalsRegistry.ComponentGlobalsOrRegister(
+		apiserver.WardleComponentName, basecompatibility.NewEffectiveVersionFromString(wardleBinaryVersion, "", ""),
 		featuregate.NewVersionedFeatureGate(version.MustParse(wardleBinaryVersion)))
 
 	kubeClient := client.NewForConfigOrDie(getKubeConfig(testServer))
@@ -740,6 +729,7 @@ func prepareAggregatedWardleAPIServer(ctx context.Context, t *testing.T, namespa
 	}
 
 	wardleOptions := sampleserver.NewWardleServerOptions(os.Stdout, os.Stderr)
+	wardleOptions.ComponentGlobalsRegistry = componentGlobalsRegistry
 	// ensure this is a SAN on the generated cert for service FQDN
 	wardleOptions.AlternateDNS = []string{
 		fmt.Sprintf("api.%s.svc", namespace),

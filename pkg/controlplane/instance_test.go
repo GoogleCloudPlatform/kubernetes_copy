@@ -55,6 +55,7 @@ import (
 	"k8s.io/apiserver/pkg/server/resourceconfig"
 	serverstorage "k8s.io/apiserver/pkg/server/storage"
 	etcd3testing "k8s.io/apiserver/pkg/storage/etcd3/testing"
+	"k8s.io/apiserver/pkg/util/compatibility"
 	"k8s.io/apiserver/pkg/util/openapi"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/informers"
@@ -103,7 +104,7 @@ func setUp(t *testing.T) (*etcd3testing.EtcdTestServer, Config, *assert.Assertio
 		},
 	}
 
-	config.ControlPlane.Generic.EffectiveVersion = utilversion.DefaultKubeEffectiveVersion()
+	config.ControlPlane.Generic.EffectiveVersion = compatibility.DefaultKubeEffectiveVersionForTest()
 	storageFactoryConfig := kubeapiserver.NewStorageFactoryConfig()
 	storageFactoryConfig.DefaultResourceEncoding.SetEffectiveVersion(config.ControlPlane.Generic.EffectiveVersion)
 	storageConfig.StorageObjectCountTracker = config.ControlPlane.Generic.StorageObjectCountTracker
@@ -241,7 +242,7 @@ func TestVersion(t *testing.T) {
 		t.Errorf("unexpected error: %v", err)
 	}
 	expectedInfo := utilversion.Get()
-	kubeVersion := utilversion.DefaultKubeEffectiveVersion().BinaryVersion()
+	kubeVersion := compatibility.DefaultKubeEffectiveVersionForTest().BinaryVersion()
 	expectedInfo.Major = fmt.Sprintf("%d", kubeVersion.Major())
 	expectedInfo.Minor = fmt.Sprintf("%d", kubeVersion.Minor())
 

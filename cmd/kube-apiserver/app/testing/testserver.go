@@ -43,22 +43,20 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/apimachinery/pkg/util/version"
 	"k8s.io/apimachinery/pkg/util/wait"
 	serveroptions "k8s.io/apiserver/pkg/server/options"
 	"k8s.io/apiserver/pkg/storage/storagebackend"
 	"k8s.io/apiserver/pkg/storageversion"
+	"k8s.io/apiserver/pkg/util/compatibility"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
 	clientgotransport "k8s.io/client-go/transport"
 	"k8s.io/client-go/util/cert"
 	"k8s.io/client-go/util/keyutil"
-	"k8s.io/component-base/featuregate"
+	basecompatibility "k8s.io/component-base/compatibility"
 	featuregatetesting "k8s.io/component-base/featuregate/testing"
 	logsapi "k8s.io/component-base/logs/api/v1"
-	utilversion "k8s.io/component-base/version"
 	"k8s.io/klog/v2"
 	"k8s.io/kube-aggregator/pkg/apiserver"
 	"k8s.io/kubernetes/pkg/features"
@@ -104,11 +102,8 @@ type TestServerInstanceOptions struct {
 	// an apiserver version skew scenario where all apiservers use the same proxyCA to verify client connections.
 	ProxyCA *ProxyCA
 	// Set the BinaryVersion of server effective version.
-	// If empty, effective version will default to version.DefaultKubeBinaryVersion.
+	// If empty, effective version will default to DefaultKubeEffectiveVersion.
 	BinaryVersion string
-	// Set the EmulationVersion of server effective version.
-	// If empty, emulation version will default to the effective version.
-	EmulationVersion string
 	// Set non-default request timeout in the server.
 	RequestTimeout time.Duration
 }
@@ -194,21 +189,20 @@ func StartTestServer(t ktesting.TB, instanceOptions *TestServerInstanceOptions, 
 
 	fs := pflag.NewFlagSet("test", pflag.PanicOnError)
 
-	featureGate := utilfeature.DefaultMutableFeatureGate
-	featureGate.AddMetrics()
-	effectiveVersion := utilversion.DefaultKubeEffectiveVersion()
+	featureGate := utilfeature.DefaultMutableFeatureGate.DeepCopy()
+	effectiveVersion := compatibility.DefaultKubeEffectiveVersionForTest()
 	if instanceOptions.BinaryVersion != "" {
-		effectiveVersion = utilversion.NewEffectiveVersion(instanceOptions.BinaryVersion)
+		effectiveVersion = basecompatibility.NewEffectiveVersionFromString(instanceOptions.BinaryVersion, "", "")
 	}
-	if instanceOptions.EmulationVersion != "" {
-		effectiveVersion.SetEmulationVersion(version.MustParse(instanceOptions.EmulationVersion))
+	effectiveVersion.SetEmulationVersion(featureGate.EmulationVersion())
+	componentGlobalsRegistry := basecompatibility.NewComponentGlobalsRegistry()
+	if err := componentGlobalsRegistry.Register(basecompatibility.DefaultKubeComponent, effectiveVersion, featureGate); err != nil {
+		return result, err
 	}
-	// need to call SetFeatureGateEmulationVersionDuringTest to reset the feature gate emulation version at the end of the test.
-	featuregatetesting.SetFeatureGateEmulationVersionDuringTest(t, featureGate, effectiveVersion.EmulationVersion())
-	featuregate.DefaultComponentGlobalsRegistry.Reset()
-	utilruntime.Must(featuregate.DefaultComponentGlobalsRegistry.Register(featuregate.DefaultKubeComponent, effectiveVersion, featureGate))
 
 	s := options.NewServerRunOptions()
+	// set up new instance of ComponentGlobalsRegistry instead of using the DefaultComponentGlobalsRegistry to avoid contention in parallel tests.
+	s.Options.GenericServerRunOptions.ComponentGlobalsRegistry = componentGlobalsRegistry
 	if instanceOptions.RequestTimeout > 0 {
 		s.GenericServerRunOptions.RequestTimeout = instanceOptions.RequestTimeout
 	}
@@ -330,7 +324,7 @@ func StartTestServer(t ktesting.TB, instanceOptions *TestServerInstanceOptions, 
 			return result, err
 		}
 		s.Authentication.ClientCert.ClientCA = clientCACertFile
-		if utilfeature.DefaultFeatureGate.Enabled(features.UnknownVersionInteroperabilityProxy) {
+		if featureGate.Enabled(features.UnknownVersionInteroperabilityProxy) {
 			// TODO: set up a general clean up for testserver
 			if clientgotransport.DialerStopCh == wait.NeverStop {
 				ctx, cancel := context.WithTimeout(context.Background(), time.Hour)
@@ -374,9 +368,21 @@ func StartTestServer(t ktesting.TB, instanceOptions *TestServerInstanceOptions, 
 		s.Authentication.RequestHeader.ExtraHeaderPrefixes = extraHeaders
 	}
 
-	if err := featuregate.DefaultComponentGlobalsRegistry.Set(); err != nil {
-		return result, err
+	if err := componentGlobalsRegistry.Set(); err != nil {
+		return result, fmt.Errorf("%w\nIf you are using SetFeatureGate*DuringTest, try using --emulated-version and --feature-gates flags instead", err)
 	}
+	// If the local ComponentGlobalsRegistry is changed by the flags,
+	// we need to copy the new feature values back to the DefaultFeatureGate because most feature checks still use the DefaultFeatureGate.
+	// We cannot directly use DefaultFeatureGate in ComponentGlobalsRegistry because the changes done by ComponentGlobalsRegistry.Set() will not be undone at the end of the test.
+	if !featureGate.EmulationVersion().EqualTo(utilfeature.DefaultMutableFeatureGate.EmulationVersion()) {
+		featuregatetesting.SetFeatureGateEmulationVersionDuringTest(t, utilfeature.DefaultMutableFeatureGate, effectiveVersion.EmulationVersion())
+	}
+	for f := range utilfeature.DefaultMutableFeatureGate.GetAll() {
+		if featureGate.Enabled(f) != utilfeature.DefaultFeatureGate.Enabled(f) {
+			featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, f, featureGate.Enabled(f))
+		}
+	}
+	utilfeature.DefaultMutableFeatureGate.AddMetrics()
 
 	saSigningKeyFile, err := os.CreateTemp("/tmp", "insecure_test_key")
 	if err != nil {

@@ -33,7 +33,7 @@ import (
 	"k8s.io/apiserver/pkg/apis/example2"
 	example2install "k8s.io/apiserver/pkg/apis/example2/install"
 	"k8s.io/apiserver/pkg/storage/storagebackend"
-	version "k8s.io/component-base/version"
+	basecompatibility "k8s.io/component-base/compatibility"
 )
 
 var (
@@ -569,8 +569,7 @@ func TestStorageFactoryCompatibilityVersion(t *testing.T) {
 
 		gvk := gvks[0]
 		t.Run(gvk.GroupKind().String()+"@"+tc.effectiveVersion, func(t *testing.T) {
-			config := NewDefaultResourceEncodingConfig(sch)
-			config.SetEffectiveVersion(version.NewEffectiveVersion(tc.effectiveVersion))
+			config := NewDefaultResourceEncodingConfigForEffectiveVersion(sch, basecompatibility.NewEffectiveVersionFromString(tc.effectiveVersion, "", ""))
 			f := NewDefaultStorageFactory(
 				storagebackend.Config{},
 				"",

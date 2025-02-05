@@ -35,9 +35,13 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	genericapiserveroptions "k8s.io/apiserver/pkg/server/options"
+	"k8s.io/apiserver/pkg/util/compatibility"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	client "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/cert"
+	basecompatibility "k8s.io/component-base/compatibility"
+	featuregatetesting "k8s.io/component-base/featuregate/testing"
 	aggregatorscheme "k8s.io/kube-aggregator/pkg/apiserver/scheme"
 	netutils "k8s.io/utils/net"
 
@@ -136,6 +140,17 @@ func StartTestServer(ctx context.Context, t testing.TB, setup TestServerSetup) (
 	}
 
 	opts := options.NewServerRunOptions()
+	// If EmulationVersion of DefaultFeatureGate is set during test, we need to propagate it to the apiserver ComponentGlobalsRegistry.
+	featureGate := utilfeature.DefaultMutableFeatureGate.DeepCopy()
+	effectiveVersion := compatibility.DefaultKubeEffectiveVersionForTest()
+	effectiveVersion.SetEmulationVersion(featureGate.EmulationVersion())
+	// set up new instance of ComponentGlobalsRegistry instead of using the DefaultComponentGlobalsRegistry to avoid contention in parallel tests.
+	componentGlobalsRegistry := basecompatibility.NewComponentGlobalsRegistry()
+	if err := componentGlobalsRegistry.Register(basecompatibility.DefaultKubeComponent, effectiveVersion, featureGate); err != nil {
+		t.Fatal(err)
+	}
+	opts.GenericServerRunOptions.ComponentGlobalsRegistry = componentGlobalsRegistry
+
 	opts.SecureServing.Listener = listener
 	opts.SecureServing.BindAddress = netutils.ParseIPSloppy("127.0.0.1")
 	opts.SecureServing.ServerCert.CertDirectory = certDir
@@ -157,6 +172,18 @@ func StartTestServer(ctx context.Context, t testing.TB, setup TestServerSetup) (
 	if setup.ModifyServerRunOptions != nil {
 		setup.ModifyServerRunOptions(opts)
 	}
+
+	// If the local ComponentGlobalsRegistry is changed by ModifyServerRunOptions,
+	// we need to copy the new feature values back to the DefaultFeatureGate because most feature checks still use the DefaultFeatureGate.
+	if !featureGate.EmulationVersion().EqualTo(utilfeature.DefaultMutableFeatureGate.EmulationVersion()) {
+		featuregatetesting.SetFeatureGateEmulationVersionDuringTest(t, utilfeature.DefaultMutableFeatureGate, effectiveVersion.EmulationVersion())
+	}
+	for f := range utilfeature.DefaultMutableFeatureGate.GetAll() {
+		if featureGate.Enabled(f) != utilfeature.DefaultFeatureGate.Enabled(f) {
+			featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, f, featureGate.Enabled(f))
+		}
+	}
+	utilfeature.DefaultMutableFeatureGate.AddMetrics()
 
 	completedOptions, err := opts.Complete(ctx)
 	if err != nil {

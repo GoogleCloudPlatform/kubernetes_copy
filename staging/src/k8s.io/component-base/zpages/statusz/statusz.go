@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"time"
 
+	"k8s.io/component-base/compatibility"
 	"k8s.io/component-base/zpages/httputil"
 	"k8s.io/klog/v2"
 )
@@ -62,8 +63,8 @@ type mux interface {
 	Handle(path string, handler http.Handler)
 }
 
-func NewRegistry() statuszRegistry {
-	return registry{}
+func NewRegistry(effectiveVersion compatibility.EffectiveVersion) statuszRegistry {
+	return &registry{effectiveVersion: effectiveVersion}
 }
 
 func Install(m mux, componentName string, reg statuszRegistry) {

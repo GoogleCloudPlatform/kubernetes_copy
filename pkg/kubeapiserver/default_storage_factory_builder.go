@@ -25,7 +25,8 @@ import (
 	"k8s.io/apiserver/pkg/server/resourceconfig"
 	serverstorage "k8s.io/apiserver/pkg/server/storage"
 	"k8s.io/apiserver/pkg/storage/storagebackend"
-	version "k8s.io/component-base/version"
+	"k8s.io/apiserver/pkg/util/compatibility"
+	basecompatibility "k8s.io/component-base/compatibility"
 	"k8s.io/kubernetes/pkg/api/legacyscheme"
 	"k8s.io/kubernetes/pkg/apis/admissionregistration"
 	"k8s.io/kubernetes/pkg/apis/apps"
@@ -61,6 +62,11 @@ func DefaultWatchCacheSizes() map[schema.GroupResource]int {
 
 // NewStorageFactoryConfig returns a new StorageFactoryConfig set up with necessary resource overrides.
 func NewStorageFactoryConfig() *StorageFactoryConfig {
+	return NewStorageFactoryConfigEffectiveVersion(compatibility.DefaultComponentGlobalsRegistry.EffectiveVersionFor(basecompatibility.DefaultKubeComponent))
+}
+
+// NewStorageFactoryConfigEffectiveVersion returns a new StorageFactoryConfig set up with necessary resource overrides for a given EffectiveVersion.
+func NewStorageFactoryConfigEffectiveVersion(effectiveVersion basecompatibility.EffectiveVersion) *StorageFactoryConfig {
 	resources := []schema.GroupVersionResource{
 		// If a resource has to be stored in a version that is not the
 		// latest, then it can be listed here. Usually this is the case
@@ -87,7 +93,7 @@ func NewStorageFactoryConfig() *StorageFactoryConfig {
 
 	return &StorageFactoryConfig{
 		Serializer:                legacyscheme.Codecs,
-		DefaultResourceEncoding:   serverstorage.NewDefaultResourceEncodingConfig(legacyscheme.Scheme),
+		DefaultResourceEncoding:   serverstorage.NewDefaultResourceEncodingConfigForEffectiveVersion(legacyscheme.Scheme, effectiveVersion),
 		ResourceEncodingOverrides: resources,
 	}
 }
@@ -101,7 +107,6 @@ type StorageFactoryConfig struct {
 	Serializer                runtime.StorageSerializer
 	ResourceEncodingOverrides []schema.GroupVersionResource
 	EtcdServersOverrides      []string
-	CurrentVersion            version.EffectiveVersion
 }
 
 // Complete completes the StorageFactoryConfig with provided etcdOptions returning completedStorageFactoryConfig.
