@@ -845,9 +845,11 @@ func (a *HorizontalController) reconcileAutoscaler(ctx context.Context, hpaShare
 
 		logger.V(4).Info("Proposing desired replicas",
 			"desiredReplicas", metricDesiredReplicas,
+			"currentReplicas", currentReplicas,
 			"metric", metricName,
 			"timestamp", metricTimestamp,
-			"scaleTarget", reference)
+			"scaleTarget", reference,
+			"metrics", metricStatuses)
 
 		rescaleMetric := ""
 		if metricDesiredReplicas > desiredReplicas {
@@ -861,9 +863,9 @@ func (a *HorizontalController) reconcileAutoscaler(ctx context.Context, hpaShare
 			rescaleReason = "All metrics below target"
 		}
 		if hpa.Spec.Behavior == nil {
-			desiredReplicas = a.normalizeDesiredReplicas(hpa, key, currentReplicas, desiredReplicas, minReplicas)
+			desiredReplicas = a.normalizeDesiredReplicas(ctx, hpa, key, currentReplicas, desiredReplicas, minReplicas)
 		} else {
-			desiredReplicas = a.normalizeDesiredReplicasWithBehaviors(hpa, key, currentReplicas, desiredReplicas, minReplicas)
+			desiredReplicas = a.normalizeDesiredReplicasWithBehaviors(ctx, hpa, key, currentReplicas, desiredReplicas, minReplicas)
 		}
 		rescale = desiredReplicas != currentReplicas
 	}
@@ -885,6 +887,7 @@ func (a *HorizontalController) reconcileAutoscaler(ctx context.Context, hpaShare
 		a.storeScaleEvent(hpa.Spec.Behavior, key, currentReplicas, desiredReplicas)
 		logger.Info("Successfully rescaled",
 			"HPA", klog.KObj(hpa),
+			"scaleTarget", reference,
 			"currentReplicas", currentReplicas,
 			"desiredReplicas", desiredReplicas,
 			"reason", rescaleReason)
@@ -942,7 +945,7 @@ func (a *HorizontalController) stabilizeRecommendation(key string, prenormalized
 
 // normalizeDesiredReplicas takes the metrics desired replicas value and normalizes it based on the appropriate conditions (i.e. < maxReplicas, >
 // minReplicas, etc...)
-func (a *HorizontalController) normalizeDesiredReplicas(hpa *autoscalingv2.HorizontalPodAutoscaler, key string, currentReplicas int32, prenormalizedDesiredReplicas int32, minReplicas int32) int32 {
+func (a *HorizontalController) normalizeDesiredReplicas(ctx context.Context, hpa *autoscalingv2.HorizontalPodAutoscaler, key string, currentReplicas int32, prenormalizedDesiredReplicas int32, minReplicas int32) int32 {
 	stabilizedRecommendation := a.stabilizeRecommendation(key, prenormalizedDesiredReplicas)
 	if stabilizedRecommendation != prenormalizedDesiredReplicas {
 		setCondition(hpa, autoscalingv2.AbleToScale, v1.ConditionTrue, "ScaleDownStabilized", "recent recommendations were higher than current one, applying the highest recent recommendation")
@@ -957,6 +960,16 @@ func (a *HorizontalController) normalizeDesiredReplicas(hpa *autoscalingv2.Horiz
 	} else {
 		setCondition(hpa, autoscalingv2.ScalingLimited, v1.ConditionTrue, reason, "%s", message)
 	}
+	logger := klog.FromContext(ctx)
+	reference := fmt.Sprintf("%s/%s/%s", hpa.Spec.ScaleTargetRef.Kind, hpa.Namespace, hpa.Spec.ScaleTargetRef.Name)
+	logger.V(4).Info("Normalized desired replicas",
+		"scaleTarget", reference,
+		"currentReplicas", currentReplicas,
+		"desiredReplicas", desiredReplicas,
+		"minReplicas", minReplicas,
+		"stabilizedRecommendation", stabilizedRecommendation,
+		"prenormalizedDesiredReplicas", prenormalizedDesiredReplicas,
+		"reason", reason)
 
 	return desiredReplicas
 }
@@ -977,7 +990,7 @@ type NormalizationArg struct {
 // 2. Apply the scale up/down limits from the hpaSpec.Behaviors (i.e. add no more than 4 pods)
 // 3. Apply the constraints period (i.e. add no more than 4 pods per minute)
 // 4. Apply the stabilization (i.e. add no more than 4 pods per minute, and pick the smallest recommendation during last 5 minutes)
-func (a *HorizontalController) normalizeDesiredReplicasWithBehaviors(hpa *autoscalingv2.HorizontalPodAutoscaler, key string, currentReplicas, prenormalizedDesiredReplicas, minReplicas int32) int32 {
+func (a *HorizontalController) normalizeDesiredReplicasWithBehaviors(ctx context.Context, hpa *autoscalingv2.HorizontalPodAutoscaler, key string, currentReplicas, prenormalizedDesiredReplicas, minReplicas int32) int32 {
 	a.maybeInitScaleDownStabilizationWindow(hpa)
 	normalizationArg := NormalizationArg{
 		Key:               key,
@@ -987,7 +1000,7 @@ func (a *HorizontalController) normalizeDesiredReplicasWithBehaviors(hpa *autosc
 		MaxReplicas:       hpa.Spec.MaxReplicas,
 		CurrentReplicas:   currentReplicas,
 		DesiredReplicas:   prenormalizedDesiredReplicas}
-	stabilizedRecommendation, reason, message := a.stabilizeRecommendationWithBehaviors(normalizationArg)
+	stabilizedRecommendation, reason, message := a.stabilizeRecommendationWithBehaviors(ctx, normalizationArg)
 	normalizationArg.DesiredReplicas = stabilizedRecommendation
 	if stabilizedRecommendation != prenormalizedDesiredReplicas {
 		// "ScaleUpStabilized" || "ScaleDownStabilized"
@@ -995,12 +1008,33 @@ func (a *HorizontalController) normalizeDesiredReplicasWithBehaviors(hpa *autosc
 	} else {
 		setCondition(hpa, autoscalingv2.AbleToScale, v1.ConditionTrue, "ReadyForNewScale", "recommended size matches current size")
 	}
-	desiredReplicas, reason, message := a.convertDesiredReplicasWithBehaviorRate(normalizationArg)
+
+	logger := klog.FromContext(ctx)
+	reference := fmt.Sprintf("%s/%s/%s", hpa.Spec.ScaleTargetRef.Kind, hpa.Namespace, hpa.Spec.ScaleTargetRef.Name)
+	logger.V(4).Info("Normalized desired replicas with behaviors - after stabilized recommendation",
+		"scaleTarget", reference,
+		"currentReplicas", currentReplicas,
+		"minReplicas", minReplicas,
+		"stabilizedRecommendation", stabilizedRecommendation,
+		"prenormalizedDesiredReplicas", prenormalizedDesiredReplicas,
+		"reason", reason,
+		"message", message)
+
+	desiredReplicas, reason, message := a.convertDesiredReplicasWithBehaviorRate(ctx, normalizationArg)
 	if desiredReplicas == stabilizedRecommendation {
 		setCondition(hpa, autoscalingv2.ScalingLimited, v1.ConditionFalse, reason, "%s", message)
 	} else {
 		setCondition(hpa, autoscalingv2.ScalingLimited, v1.ConditionTrue, reason, "%s", message)
 	}
+
+	logger.V(4).Info("Normalized desired replicas with behaviors - after rated recommendation",
+		"scaleTarget", reference,
+		"currentReplicas", currentReplicas,
+		"minReplicas", minReplicas,
+		"stabilizedRecommendation", stabilizedRecommendation,
+		"desiredReplicas", desiredReplicas,
+		"reason", reason,
+		"message", message)
 
 	return desiredReplicas
 }
@@ -1090,7 +1124,7 @@ func (a *HorizontalController) storeScaleEvent(behavior *autoscalingv2.Horizonta
 // stabilizeRecommendationWithBehaviors:
 // - replaces old recommendation with the newest recommendation,
 // - returns {max,min} of recommendations that are not older than constraints.Scale{Up,Down}.DelaySeconds
-func (a *HorizontalController) stabilizeRecommendationWithBehaviors(args NormalizationArg) (int32, string, string) {
+func (a *HorizontalController) stabilizeRecommendationWithBehaviors(ctx context.Context, args NormalizationArg) (int32, string, string) {
 	now := time.Now()
 
 	foundOldSample := false
@@ -1128,6 +1162,20 @@ func (a *HorizontalController) stabilizeRecommendationWithBehaviors(args Normali
 	if recommendation > downRecommendation {
 		recommendation = downRecommendation
 	}
+	// Only keep the recommendations and ignore timestamp for logging.
+	var recommendations []int32
+	for _, rec := range a.recommendations[args.Key] {
+		recommendations = append(recommendations, rec.recommendation)
+	}
+
+	logger := klog.FromContext(ctx)
+	logger.V(4).Info("Stabilizing recommendation",
+		"key", args.Key,
+		"currentReplicas", args.CurrentReplicas,
+		"desiredReplicas", args.DesiredReplicas,
+		"upRecommendation", upRecommendation,
+		"downRecommendation", downRecommendation,
+		"recommendations", recommendations)
 
 	// Record the unstabilized recommendation.
 	if foundOldSample {
@@ -1150,14 +1198,22 @@ func (a *HorizontalController) stabilizeRecommendationWithBehaviors(args Normali
 
 // convertDesiredReplicasWithBehaviorRate performs the actual normalization, given the constraint rate
 // It doesn't consider the stabilizationWindow, it is done separately
-func (a *HorizontalController) convertDesiredReplicasWithBehaviorRate(args NormalizationArg) (int32, string, string) {
+func (a *HorizontalController) convertDesiredReplicasWithBehaviorRate(ctx context.Context, args NormalizationArg) (int32, string, string) {
 	var possibleLimitingReason, possibleLimitingMessage string
+	logger := klog.FromContext(ctx)
 
 	if args.DesiredReplicas > args.CurrentReplicas {
 		a.scaleUpEventsLock.RLock()
 		defer a.scaleUpEventsLock.RUnlock()
 		a.scaleDownEventsLock.RLock()
 		defer a.scaleDownEventsLock.RUnlock()
+		logger.V(4).Info("Converting desired replicas with behavior rate - scale up",
+			"key", args.Key,
+			"currentReplicas", args.CurrentReplicas,
+			"desiredReplicas", args.DesiredReplicas,
+			"scaleUpEvents", a.scaleUpEvents[args.Key],
+			"scaleDownEvents", a.scaleDownEvents[args.Key])
+
 		scaleUpLimit := calculateScaleUpLimitWithScalingRules(args.CurrentReplicas, a.scaleUpEvents[args.Key], a.scaleDownEvents[args.Key], args.ScaleUpBehavior)
 
 		if scaleUpLimit < args.CurrentReplicas {
@@ -1181,6 +1237,13 @@ func (a *HorizontalController) convertDesiredReplicasWithBehaviorRate(args Norma
 		defer a.scaleUpEventsLock.RUnlock()
 		a.scaleDownEventsLock.RLock()
 		defer a.scaleDownEventsLock.RUnlock()
+		logger.V(4).Info("Converting desired replicas with behavior rate - scale down",
+			"key", args.Key,
+			"currentReplicas", args.CurrentReplicas,
+			"desiredReplicas", args.DesiredReplicas,
+			"scaleUpEvents", a.scaleUpEvents[args.Key],
+			"scaleDownEvents", a.scaleDownEvents[args.Key])
+
 		scaleDownLimit := calculateScaleDownLimitWithBehaviors(args.CurrentReplicas, a.scaleUpEvents[args.Key], a.scaleDownEvents[args.Key], args.ScaleDownBehavior)
 
 		if scaleDownLimit > args.CurrentReplicas {

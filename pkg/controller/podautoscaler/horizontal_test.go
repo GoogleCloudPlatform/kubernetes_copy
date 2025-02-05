@@ -4315,6 +4315,42 @@ func TestScalingWithRules(t *testing.T) {
 			expectedReplicas:             16,
 			expectedCondition:            "ScaleUpLimit",
 		},
+		{
+			name:                         "scaleUp with percent policy and no previous events, thus scaled up within range",
+			scaleUpEvents:                generateEventsUniformDistribution([]int{0}, 120),
+			scaleDownEvents:              generateEventsUniformDistribution([]int{0}, 120),
+			specMinReplicas:              3,
+			specMaxReplicas:              6,
+			scaleUpRules:                 generateScalingRules(0, 0, 20, 600, 300),
+			currentReplicas:              3,
+			prenormalizedDesiredReplicas: 4,
+			expectedReplicas:             4,
+			expectedCondition:            "DesiredWithinRange",
+		},
+		{
+			name:                         "scaleUp with both pod and percent policy and previous scale up events, thus no scale up",
+			scaleUpEvents:                generateEventsUniformDistribution([]int{2}, 120),
+			scaleDownEvents:              generateEventsUniformDistribution([]int{0}, 120),
+			specMinReplicas:              3,
+			specMaxReplicas:              6,
+			scaleUpRules:                 generateScalingRules(1, 600, 20, 600, 300),
+			currentReplicas:              3,
+			prenormalizedDesiredReplicas: 4,
+			expectedReplicas:             3,
+			expectedCondition:            "ScaleUpLimit",
+		},
+		{
+			name:                         "scaleUp with percent policy and previous events but still be able to scale up with limited rate",
+			scaleUpEvents:                generateEventsUniformDistribution([]int{1}, 600),
+			scaleDownEvents:              generateEventsUniformDistribution([]int{0}, 600),
+			specMinReplicas:              3,
+			specMaxReplicas:              20,
+			scaleUpRules:                 generateScalingRules(0, 0, 20, 600, 300),
+			currentReplicas:              10,
+			prenormalizedDesiredReplicas: 12,
+			expectedReplicas:             11,
+			expectedCondition:            "ScaleUpLimit",
+		},
 		// ScaleDown with PeriodSeconds usage
 		{
 			name:                         "scaleDown with default policy and previous events",
@@ -4486,6 +4522,7 @@ func TestScalingWithRules(t *testing.T) {
 		},
 	}
 
+	tCtx := ktesting.Init(t)
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 
@@ -4510,7 +4547,7 @@ func TestScalingWithRules(t *testing.T) {
 				CurrentReplicas:   tc.currentReplicas,
 			}
 
-			replicas, condition, _ := hc.convertDesiredReplicasWithBehaviorRate(arg)
+			replicas, condition, _ := hc.convertDesiredReplicasWithBehaviorRate(tCtx, arg)
 			assert.Equal(t, tc.expectedReplicas, replicas, "expected replicas do not match with converted replicas")
 			assert.Equal(t, tc.expectedCondition, condition, "HPA condition does not match with expected condition")
 		})
@@ -4865,6 +4902,7 @@ func TestNormalizeDesiredReplicasWithBehavior(t *testing.T) {
 			scaleDownStabilizationWindowSeconds: 300,
 		},
 	}
+	tCtx := ktesting.Init(t)
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			hc := HorizontalController{
@@ -4883,7 +4921,7 @@ func TestNormalizeDesiredReplicasWithBehavior(t *testing.T) {
 					StabilizationWindowSeconds: &tc.scaleDownStabilizationWindowSeconds,
 				},
 			}
-			r, _, _ := hc.stabilizeRecommendationWithBehaviors(arg)
+			r, _, _ := hc.stabilizeRecommendationWithBehaviors(tCtx, arg)
 			assert.Equal(t, tc.expectedStabilizedReplicas, r, "expected replicas do not match")
 			if tc.expectedRecommendations != nil {
 				if !assert.Len(t, hc.recommendations[tc.key], len(tc.expectedRecommendations), "stored recommendations differ in length") {
