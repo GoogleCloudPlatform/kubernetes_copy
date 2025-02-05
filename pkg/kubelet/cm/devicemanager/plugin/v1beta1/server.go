@@ -24,6 +24,8 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/opencontainers/selinux/go-selinux"
 	"google.golang.org/grpc"
@@ -38,6 +40,11 @@ import (
 	"k8s.io/kubernetes/pkg/kubelet/pluginmanager/cache"
 )
 
+const (
+	retryInterval = 1 * time.Second
+	maxServeFails = 5
+)
+
 // Server interface provides methods for Device plugin registration server.
 type Server interface {
 	cache.PluginHandler
@@ -47,22 +54,79 @@ type Server interface {
 	SocketPath() string
 }
 
+// GRPCServer is an interface that abstracts the functionality of a gRPC server.
+// This interface is implemented by *grpc.Server, but can also be implemented by
+// mock objects for testing purposes.
+type GRPCServer interface {
+	RegisterService(*grpc.ServiceDesc, any)
+	Serve(net.Listener) error
+	Stop()
+	GracefulStop()
+	GetServiceInfo() map[string]grpc.ServiceInfo
+}
+
+// grpcServerAdapter is an adapter that implements the GRPCServer interface by
+// wrapping a *grpc.Server. This allows us to use the real gRPC server in
+// production while using mock implementations for testing.
+type grpcServerAdapter struct {
+	*grpc.Server
+}
+
+func NewGRPCServerAdapter(server *grpc.Server) GRPCServer {
+	return &grpcServerAdapter{Server: server}
+}
+
+func (a *grpcServerAdapter) RegisterService(sd *grpc.ServiceDesc, ss any) {
+	a.Server.RegisterService(sd, ss)
+}
+
+func (a *grpcServerAdapter) Serve(lis net.Listener) error {
+	return a.Server.Serve(lis)
+}
+
+func (a *grpcServerAdapter) Stop() {
+	a.Server.Stop()
+}
+
+func (a *grpcServerAdapter) GracefulStop() {
+	a.Server.GracefulStop()
+}
+
+func (a *grpcServerAdapter) GetServiceInfo() map[string]grpc.ServiceInfo {
+	return a.Server.GetServiceInfo()
+}
+
 type server struct {
 	socketName string
 	socketDir  string
 	mutex      sync.Mutex
 	wg         sync.WaitGroup
+	ctx        context.Context
+	cancel     context.CancelFunc
 	grpc       *grpc.Server
+	grpcServer GRPCServer
 	rhandler   RegistrationHandler
 	chandler   ClientHandler
 	clients    map[string]Client
 
 	// isStarted indicates whether the service has started successfully.
-	isStarted bool
+	//
+	isStarted atomic.Bool
+	// exceptionMonitor is used to count the number of retry attempts after a gRPC serve failure.
+	exceptionMonitor atomic.Int32
+}
+
+type Option func(*server)
+
+func WithGRPCServer(grpc *grpc.Server, grpcServer GRPCServer) Option {
+	return func(s *server) {
+		s.grpcServer = grpcServer
+		s.grpc = grpc
+	}
 }
 
 // NewServer returns an initialized device plugin registration server.
-func NewServer(socketPath string, rh RegistrationHandler, ch ClientHandler) (Server, error) {
+func NewServer(socketPath string, rh RegistrationHandler, ch ClientHandler, opts ...Option) (Server, error) {
 	if socketPath == "" || !filepath.IsAbs(socketPath) {
 		return nil, fmt.Errorf(errBadSocket+" %s", socketPath)
 	}
@@ -70,12 +134,19 @@ func NewServer(socketPath string, rh RegistrationHandler, ch ClientHandler) (Ser
 	dir, name := filepath.Split(socketPath)
 
 	klog.V(2).InfoS("Creating device plugin registration server", "version", api.Version, "socket", socketPath)
+	defaultGrpc := grpc.NewServer([]grpc.ServerOption{}...)
 	s := &server{
 		socketName: name,
 		socketDir:  dir,
 		rhandler:   rh,
 		chandler:   ch,
 		clients:    make(map[string]Client),
+		grpcServer: NewGRPCServerAdapter(defaultGrpc),
+		grpc:       defaultGrpc,
+	}
+
+	for _, opt := range opts {
+		opt(s)
 	}
 
 	return s, nil
@@ -103,25 +174,84 @@ func (s *server) Start() error {
 		return err
 	}
 
-	ln, err := net.Listen("unix", s.SocketPath())
+	api.RegisterRegistrationServer(s.grpc, s)
+	s.ctx, s.cancel = context.WithCancel(context.Background())
+	s.wg.Add(1)
+	go func(ctx context.Context) {
+		defer s.wg.Done()
+		s.serveWithRetry(ctx)
+	}(s.ctx)
+
+	return nil
+}
+
+// serveWithRetry serves the gRPC server with retry.
+func (s *server) serveWithRetry(ctx context.Context) {
+	for {
+		s.setHealthy()
+		serveErrCh := make(chan error, 1)
+		s.wg.Add(1)
+		go func() {
+			defer s.wg.Done()
+			err := s.serve()
+			serveErrCh <- err
+			close(serveErrCh)
+			s.setUnhealthy()
+		}()
+
+		select {
+		case <-ctx.Done():
+			klog.InfoS("Context done, stopping server")
+			return
+		case err := <-serveErrCh:
+			if err == nil {
+				// Serve completes normally, no retry needed
+				return
+			}
+			time.Sleep(retryInterval)
+			klog.ErrorS(err, "Failed to serve device plugin registration grpc server, retrying...")
+			continue
+		}
+	}
+}
+
+func (s *server) serve() error {
+	ln, err := s.listen()
 	if err != nil {
-		klog.ErrorS(err, "Failed to listen to socket while starting device plugin registry")
+		klog.ErrorS(err, "Failed to listen to socket while starting device plugin registry", "socket", s.socketDir)
 		return err
 	}
+	if err := s.grpcServer.Serve(ln); err != nil {
+		klog.ErrorS(err, "Error while serving device plugin registration grpc server")
+		return err
+	}
+	return nil
+}
 
-	s.wg.Add(1)
-	s.grpc = grpc.NewServer([]grpc.ServerOption{}...)
+func (s *server) listen() (net.Listener, error) {
+	if err := s.cleanupSocket(); err != nil {
+		return nil, fmt.Errorf("failed to remove existing socket: %w", err)
+	}
+	return net.Listen("unix", s.SocketPath())
+}
 
-	api.RegisterRegistrationServer(s.grpc, s)
-	go func() {
-		defer s.wg.Done()
-		s.setHealthy()
-		if err = s.grpc.Serve(ln); err != nil {
-			s.setUnhealthy()
-			klog.ErrorS(err, "Error while serving device plugin registration grpc server")
+func (s *server) isFileExist() bool {
+	if _, err := os.Stat(s.SocketPath()); err != nil {
+		if os.IsNotExist(err) {
+			return false
 		}
-	}()
+		klog.V(2).InfoS("Failed to get socket file", "error", err)
+	}
+	return true
+}
 
+func (s *server) cleanupSocket() error {
+	if !s.isFileExist() {
+		return nil
+	}
+	if err := os.Remove(s.SocketPath()); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -139,7 +269,8 @@ func (s *server) Stop() error {
 		return nil
 	}
 
-	s.grpc.Stop()
+	s.cancel()
+	s.grpcServer.Stop()
 	s.wg.Wait()
 	s.grpc = nil
 	// During kubelet termination, we do not need the registration server,
@@ -207,18 +338,25 @@ func (s *server) Name() string {
 }
 
 func (s *server) Check(_ *http.Request) error {
-	if s.isStarted {
-		return nil
+	currentFails := s.exceptionMonitor.Load()
+	if !s.isStarted.Load() && currentFails >= maxServeFails {
+		// Health check failure requires both conditions to be met: isStarted is false and
+		// the number of failed retry attempts exceeds maxServeFails.
+		// After obtaining a failed health check result, the exception counter exceptionMonitor should be initialized to 0.
+		// The purpose of this is to ensure that the number of retry attempts after a gRPC serve failure reaches maxServeFails.
+		s.exceptionMonitor.Store(0)
+		return fmt.Errorf("device plugin registration gRPC server failed and no device plugins can register")
 	}
-	return fmt.Errorf("device plugin registration gRPC server failed and no device plugins can register")
+	return nil
 }
 
 // setHealthy sets the health status of the gRPC server.
 func (s *server) setHealthy() {
-	s.isStarted = true
+	s.isStarted.Store(true)
 }
 
 // setUnhealthy sets the health status of the gRPC server to unhealthy.
 func (s *server) setUnhealthy() {
-	s.isStarted = false
+	s.isStarted.Store(false)
+	s.exceptionMonitor.Add(1)
 }
