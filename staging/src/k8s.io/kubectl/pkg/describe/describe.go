@@ -4282,8 +4282,8 @@ func describeHorizontalPodAutoscalerV1(hpa *autoscalingv1.HorizontalPodAutoscale
 
 func describeNodeResource(nodeNonTerminatedPodsList *corev1.PodList, node *corev1.Node, w PrefixWriter) {
 	w.Write(LEVEL_0, "Non-terminated Pods:\t(%d in total)\n", len(nodeNonTerminatedPodsList.Items))
-	w.Write(LEVEL_1, "Namespace\tName\t\tCPU Requests\tCPU Limits\tMemory Requests\tMemory Limits\tAge\n")
-	w.Write(LEVEL_1, "---------\t----\t\t------------\t----------\t---------------\t-------------\t---\n")
+	w.Write(LEVEL_1, "Namespace\tName\t\tCPU Requests\tCPU Limits\tMemory Requests\tMemory Limits\tContainer Count\tAge\n")
+	w.Write(LEVEL_1, "---------\t----\t\t------------\t----------\t---------------\t-------------\t---------------\t---\n")
 	allocatable := node.Status.Capacity
 	if len(node.Status.Allocatable) > 0 {
 		allocatable = node.Status.Allocatable
@@ -4296,9 +4296,9 @@ func describeNodeResource(nodeNonTerminatedPodsList *corev1.PodList, node *corev
 		fractionCpuLimit := float64(cpuLimit.MilliValue()) / float64(allocatable.Cpu().MilliValue()) * 100
 		fractionMemoryReq := float64(memoryReq.Value()) / float64(allocatable.Memory().Value()) * 100
 		fractionMemoryLimit := float64(memoryLimit.Value()) / float64(allocatable.Memory().Value()) * 100
-		w.Write(LEVEL_1, "%s\t%s\t\t%s (%d%%)\t%s (%d%%)\t%s (%d%%)\t%s (%d%%)\t%s\n", pod.Namespace, pod.Name,
+		w.Write(LEVEL_1, "%s\t%s\t\t%s (%d%%)\t%s (%d%%)\t%s (%d%%)\t%s (%d%%)\t %d\t%s\n", pod.Namespace, pod.Name,
 			cpuReq.String(), int64(fractionCpuReq), cpuLimit.String(), int64(fractionCpuLimit),
-			memoryReq.String(), int64(fractionMemoryReq), memoryLimit.String(), int64(fractionMemoryLimit), translateTimestampSince(pod.CreationTimestamp))
+			memoryReq.String(), int64(fractionMemoryReq), memoryLimit.String(), int64(fractionMemoryLimit), len(pod.Spec.Containers), translateTimestampSince(pod.CreationTimestamp))
 	}
 
 	w.Write(LEVEL_0, "Allocated resources:\n  (Total limits may be over 100 percent, i.e., overcommitted.)\n")
