@@ -216,3 +216,51 @@ func TestStartedAndCompletedOpenTelemetryTracing(t *testing.T) {
 		t.Fatalf("got %s; expected span.Name == my-filter", span.Name())
 	}
 }
+
+func TestNestedStartedAndCompletedOpenTelemetryTracing(t *testing.T) {
+	outerFilterName := "outer-filter"
+	innerFilterName := "inner-filter"
+	// Seup OTel for testing
+	fakeRecorder := tracetest.NewSpanRecorder()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(fakeRecorder))
+
+	// base handler func
+	var callCount int
+	handler := http.HandlerFunc(func(_ http.ResponseWriter, req *http.Request) {
+		// we expect the handler to be invoked just once.
+		callCount++
+	})
+	// wrap the handler with the inner start and completed handler
+	wrapped := TrackCompleted(handler)
+	wrapped = TrackStarted(wrapped, tp, innerFilterName)
+
+	// wrap with an external handler, nesting the inner span
+	wrapped = TrackCompleted(wrapped)
+	wrapped = TrackStarted(wrapped, tp, outerFilterName)
+
+	testRequest, err := http.NewRequest(http.MethodGet, "/api/v1/namespaces", nil)
+	if err != nil {
+		t.Fatalf("failed to create new http request - %v", err)
+	}
+
+	wrapped.ServeHTTP(httptest.NewRecorder(), testRequest)
+
+	if callCount != 1 {
+		t.Errorf("expected the given handler to be invoked once, but was actually invoked %d times", callCount)
+	}
+
+	checkSpans(t, fakeRecorder.Started(), []string{outerFilterName, innerFilterName})
+	checkSpans(t, fakeRecorder.Ended(), []string{innerFilterName, outerFilterName})
+}
+
+func checkSpans[T sdktrace.ReadOnlySpan](t *testing.T, output []T, spanNames []string) {
+	if len(output) != len(spanNames) {
+		t.Fatalf("got %d; expected len(output) == %d", len(output), len(spanNames))
+	}
+	for idx, spanName := range spanNames {
+		span := output[idx]
+		if span.Name() != spanName {
+			t.Fatalf("index %d: got %s; expected span.Name == %s", idx, span.Name(), spanName)
+		}
+	}
+}
