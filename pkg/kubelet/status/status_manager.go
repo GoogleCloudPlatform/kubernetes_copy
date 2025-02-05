@@ -1086,9 +1086,13 @@ func normalizeStatus(pod *v1.Pod, status *v1.PodStatus) *v1.PodStatus {
 func mergePodStatus(oldPodStatus, newPodStatus v1.PodStatus, couldHaveRunningContainers bool) v1.PodStatus {
 	podConditions := make([]v1.PodCondition, 0, len(oldPodStatus.Conditions)+len(newPodStatus.Conditions))
 
+	var oldPodReady v1.ConditionStatus
 	for _, c := range oldPodStatus.Conditions {
 		if !kubetypes.PodConditionByKubelet(c.Type) {
 			podConditions = append(podConditions, c)
+		}
+		if c.Type == v1.PodReady {
+			oldPodReady = c.Status
 		}
 	}
 
@@ -1096,6 +1100,11 @@ func mergePodStatus(oldPodStatus, newPodStatus v1.PodStatus, couldHaveRunningCon
 
 	for _, c := range newPodStatus.Conditions {
 		if kubetypes.PodConditionByKubelet(c.Type) {
+			// for kubelet disconnect with controlplane for some time and the node controller updated PodReady to False
+			// now kubelet comes back again, it should aware of the status change and refreshes the LastTransitionTime
+			if c.Type == v1.PodReady && oldPodReady == v1.ConditionFalse && c.Status == v1.ConditionTrue {
+				c.LastTransitionTime = metav1.Now()
+			}
 			podConditions = append(podConditions, c)
 		} else if kubetypes.PodConditionSharedByKubelet(c.Type) {
 			// we replace or append all the "shared by kubelet" conditions

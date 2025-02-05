@@ -2179,3 +2179,38 @@ func getPodStatus() v1.PodStatus {
 		Message: "Message",
 	}
 }
+
+func TestMergePodStatusForNotReadyToReady(t *testing.T) {
+	old := metav1.NewTime(time.Now().Add(-100 * time.Second))
+	oldPodStatus := v1.PodStatus{
+		Phase: v1.PodRunning,
+		Conditions: []v1.PodCondition{
+			{
+				Type:               v1.PodReady,
+				Status:             v1.ConditionFalse,
+				LastTransitionTime: old,
+			},
+			{
+				Type:   v1.PodScheduled,
+				Status: v1.ConditionTrue,
+			},
+		},
+		Message: "Message",
+	}
+	newPodStatus := v1.PodStatus{
+		Phase: v1.PodRunning,
+		Conditions: []v1.PodCondition{
+			{
+				Type:   v1.PodReady,
+				Status: v1.ConditionTrue,
+			},
+			{
+				Type:   v1.PodScheduled,
+				Status: v1.ConditionTrue,
+			},
+		},
+		Message: "Message",
+	}
+	output := mergePodStatus(oldPodStatus, newPodStatus, true)
+	assert.True(t, output.Conditions[0].LastTransitionTime.After(old.Time))
+}
