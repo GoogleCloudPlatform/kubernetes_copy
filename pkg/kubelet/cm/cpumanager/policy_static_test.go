@@ -564,6 +564,64 @@ func TestStaticPolicyAdd(t *testing.T) {
 			expCPUAlloc:     true,
 			expCSet:         cpuset.New(1, 2, 3, 4, 5, 7, 8, 9, 10, 11),
 		},
+		{
+			// The purpose of this test is to verify that SMTAlignment consider
+			// pre-allocated CPUs assigned to the container.
+			// for example, in case of kubelet restart.
+			description: "GuPodManyCores, DualSocketHT, ExpectReAllocCPUs",
+			topo:        topoDualSocketHT,
+			options: map[string]string{
+				FullPCPUsOnlyOption: "true",
+			},
+			numReservedCPUs: 4,
+			reservedCPUs:    newCPUSetPtr(0, 1, 6, 7),
+			pod:             makePod("fakePod", "fakeContainer", "6", "6"),
+			stAssignments: state.ContainerCPUAssignments{
+				"fakePod": map[string]cpuset.CPUSet{
+					"fakeContainer": cpuset.New(2, 3, 4, 8, 9, 10),
+				},
+			},
+			stDefaultCPUSet: cpuset.New(0, 1, 5, 6, 7, 11),
+			expErr:          nil,
+			expCPUAlloc:     true,
+			expCSet:         cpuset.New(2, 3, 4, 8, 9, 10),
+		},
+		{
+			description: "GuPodManyCores, DualSocketHT, ExpectReAllocCPUs",
+			topo:        topoDualSocketHT,
+			options: map[string]string{
+				FullPCPUsOnlyOption: "true",
+			},
+			numReservedCPUs: 2,
+			reservedCPUs:    newCPUSetPtr(0, 6),
+			pod: makeMultiContainerPod(
+				[]struct{ request, limit string }{},
+				[]struct{ request, limit string }{{"4000m", "4000m"}, {"4000m", "4000m"}}),
+			stAssignments: state.ContainerCPUAssignments{
+				"podUID": map[string]cpuset.CPUSet{
+					"appContainer-0": cpuset.New(2, 3, 8, 9),
+					"appContainer-1": cpuset.New(1, 4, 7, 10),
+				},
+			},
+			stDefaultCPUSet: cpuset.New(0, 5, 6, 11),
+			expErr:          nil,
+			expCPUAlloc:     true,
+			expCSet:         cpuset.New(2, 3, 8, 9),
+		},
+		{
+			description: "GuPodManyCores, DualSocketHT, NotEnoughAvailable, NoAlloc",
+			topo:        topoDualSocketHT,
+			options: map[string]string{
+				FullPCPUsOnlyOption: "true",
+			},
+			numReservedCPUs: 4,
+			reservedCPUs:    newCPUSetPtr(0, 1, 6, 7),
+			pod:             makePod("fakePod", "fakeContainer", "10", "10"),
+			stAssignments:   state.ContainerCPUAssignments{},
+			stDefaultCPUSet: cpuset.New(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11),
+			expErr:          SMTAlignmentError{RequestedCPUs: 10, CpusPerCore: 2, AvailablePhysicalCPUs: 8, CausedByPhysicalCPUs: true},
+			expCPUAlloc:     false,
+		},
 	}
 	newNUMAAffinity := func(bits ...int) bitmask.BitMask {
 		affinity, _ := bitmask.NewBitMask(bits...)
@@ -636,7 +694,10 @@ func runStaticPolicyTestCase(t *testing.T, testCase staticPolicyTest) {
 	if testCase.reservedCPUs != nil {
 		cpus = testCase.reservedCPUs.Clone()
 	}
-	policy, _ := NewStaticPolicy(testCase.topo, testCase.numReservedCPUs, cpus, tm, testCase.options)
+	policy, err := NewStaticPolicy(testCase.topo, testCase.numReservedCPUs, cpus, tm, testCase.options)
+	if err != nil {
+		t.Fatalf("failed to initialized StaticPolicy error (%v)", err)
+	}
 
 	st := &mockState{
 		assignments:   testCase.stAssignments,
@@ -644,7 +705,7 @@ func runStaticPolicyTestCase(t *testing.T, testCase staticPolicyTest) {
 	}
 
 	container := &testCase.pod.Spec.Containers[0]
-	err := policy.Allocate(st, testCase.pod, container)
+	err = policy.Allocate(st, testCase.pod, container)
 	if !reflect.DeepEqual(err, testCase.expErr) {
 		t.Errorf("StaticPolicy Allocate() error (%v). expected add error: %q but got: %q",
 			testCase.description, testCase.expErr, err)

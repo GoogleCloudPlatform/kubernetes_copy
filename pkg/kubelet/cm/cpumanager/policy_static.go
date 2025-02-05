@@ -354,6 +354,12 @@ func (p *staticPolicy) Allocate(s state.State, pod *v1.Pod, container *v1.Contai
 
 		availablePhysicalCPUs := p.GetAvailablePhysicalCPUs(s).Size()
 
+		// availablePhysicalCPUs should consider guaranteed CPUs that already allocated to the Container.
+		// This might happen after a kubelet restart, for example.
+		if allocate, exists := s.GetCPUSet(string(pod.UID), container.Name); exists {
+			availablePhysicalCPUs += allocate.Size()
+		}
+
 		// It's legal to reserve CPUs which are not core siblings. In this case the CPU allocator can descend to single cores
 		// when picking CPUs. This will void the guarantee of FullPhysicalCPUsOnly. To prevent this, we need to additionally consider
 		// all the core siblings of the reserved CPUs as unavailable when computing the free CPUs, before to start the actual allocation.

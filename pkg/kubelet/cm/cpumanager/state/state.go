@@ -17,6 +17,9 @@ limitations under the License.
 package state
 
 import (
+	"fmt"
+	"strings"
+
 	"k8s.io/utils/cpuset"
 )
 
@@ -33,6 +36,32 @@ func (as ContainerCPUAssignments) Clone() ContainerCPUAssignments {
 		}
 	}
 	return ret
+}
+
+// String provides a constructed representation of ContainerCPUAssignments
+func (as ContainerCPUAssignments) String() string {
+	var sb strings.Builder
+	sb.WriteString("{")
+	podsCount := len(as)
+	for pod, containerMap := range as {
+		sb.WriteString(fmt.Sprintf("%q:{", pod))
+
+		containersCount := len(containerMap)
+		for container, cpus := range containerMap {
+			sb.WriteString(fmt.Sprintf("%q:%q", container, cpus.String()))
+			if containersCount > 1 {
+				sb.WriteString(",")
+			}
+			containersCount--
+		}
+		sb.WriteString("}")
+		if podsCount > 1 {
+			sb.WriteString(",")
+		}
+		podsCount--
+	}
+	sb.WriteString("}")
+	return sb.String()
 }
 
 // Reader interface used to read current cpu/pod assignment state

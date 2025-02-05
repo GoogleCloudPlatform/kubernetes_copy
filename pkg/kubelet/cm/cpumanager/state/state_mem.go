@@ -93,7 +93,7 @@ func (s *stateMemory) SetCPUAssignments(a ContainerCPUAssignments) {
 	defer s.Unlock()
 
 	s.assignments = a.Clone()
-	klog.InfoS("Updated CPUSet assignments", "assignments", a)
+	klog.InfoS("Updated CPUSet assignments", "assignments", a.String())
 }
 
 func (s *stateMemory) Delete(podUID string, containerName string) {
