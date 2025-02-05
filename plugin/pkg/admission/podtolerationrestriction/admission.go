@@ -108,7 +108,16 @@ func (p *Plugin) Admit(ctx context.Context, a admission.Attributes, o admission.
 	}
 	// Final merge of tolerations irrespective of pod type.
 	if len(extraTolerations) > 0 {
-		pod.Spec.Tolerations = tolerations.MergeTolerations(pod.Spec.Tolerations, extraTolerations)
+		mergedOldTolerations := tolerations.MergeTolerations(pod.Spec.Tolerations, nil)
+		mergedNewTolerations := tolerations.MergeTolerations(pod.Spec.Tolerations, extraTolerations)
+		if len(mergedOldTolerations) != len(pod.Spec.Tolerations) {
+			// skip if no change
+			if len(mergedNewTolerations) > len(mergedOldTolerations) {
+				pod.Spec.Tolerations = append(pod.Spec.Tolerations, extraTolerations...)
+			}
+		} else {
+			pod.Spec.Tolerations = mergedNewTolerations
+		}
 	}
 	return p.Validate(ctx, a, o)
 }

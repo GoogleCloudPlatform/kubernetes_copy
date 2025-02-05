@@ -224,6 +224,33 @@ func TestPodAdmission(t *testing.T) {
 			admit:    true,
 			testName: "added memoryPressure/DiskPressure for Guaranteed pod",
 		},
+		{
+			pod:                       guaranteedPod,
+			defaultClusterTolerations: []api.Toleration{},
+			namespaceTolerations:      []api.Toleration{},
+			whitelist:                 []api.Toleration{},
+			podTolerations:            []api.Toleration{{Operator: api.TolerationOpExists, Effect: "NoExecute", TolerationSeconds: nil}, {Key: "testKey", Operator: "Equal", Value: "testValue", Effect: "NoExecute", TolerationSeconds: nil}},
+			mergedTolerations: []api.Toleration{
+				{Operator: api.TolerationOpExists, Effect: "NoExecute", TolerationSeconds: nil},
+				{Key: "testKey", Operator: "Equal", Value: "testValue", Effect: "NoExecute", TolerationSeconds: nil},
+				{Key: corev1.TaintNodeMemoryPressure, Operator: api.TolerationOpExists, Effect: api.TaintEffectNoSchedule, TolerationSeconds: nil},
+			},
+			admit:    true,
+			testName: "added memoryPressure/DiskPressure for Guaranteed pod with dup tolerations",
+		},
+		{
+			pod:                       guaranteedPod,
+			defaultClusterTolerations: []api.Toleration{},
+			namespaceTolerations:      []api.Toleration{},
+			whitelist:                 []api.Toleration{},
+			podTolerations:            []api.Toleration{{Operator: api.TolerationOpExists, Effect: "NoSchedule", TolerationSeconds: nil}, {Key: "testKey", Operator: "Equal", Value: "testValue", Effect: "NoSchedule", TolerationSeconds: nil}},
+			mergedTolerations: []api.Toleration{
+				{Operator: api.TolerationOpExists, Effect: "NoSchedule", TolerationSeconds: nil},
+				{Key: "testKey", Operator: "Equal", Value: "testValue", Effect: "NoSchedule", TolerationSeconds: nil},
+			},
+			admit:    true,
+			testName: "added memoryPressure/DiskPressure for Guaranteed pod with dup tolerations and existing toleration",
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.testName, func(t *testing.T) {
