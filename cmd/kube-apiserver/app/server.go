@@ -139,10 +139,11 @@ cluster's shared state through which all other components interact.`,
 
 // Run runs the specified APIServer.  This should never exit.
 func Run(ctx context.Context, opts options.CompletedOptions) error {
+	logger := klog.FromContext(ctx)
 	// To help debugging, immediately log version
-	klog.Infof("Version: %+v", utilversion.Get())
+	logger.Info("Version information", "version", utilversion.Get())
 
-	klog.InfoS("Golang settings", "GOGC", os.Getenv("GOGC"), "GOMAXPROCS", os.Getenv("GOMAXPROCS"), "GOTRACEBACK", os.Getenv("GOTRACEBACK"))
+	logger.Info("Golang settings", "GOGC", os.Getenv("GOGC"), "GOMAXPROCS", os.Getenv("GOMAXPROCS"), "GOTRACEBACK", os.Getenv("GOTRACEBACK"))
 
 	config, err := NewConfig(opts)
 	if err != nil {

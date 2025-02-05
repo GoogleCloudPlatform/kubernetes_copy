@@ -170,6 +170,7 @@ func StartTestServer(t ktesting.TB, instanceOptions *TestServerInstanceOptions, 
 		return result, fmt.Errorf("failed to create temp dir: %v", err)
 	}
 
+	logger := klog.FromContext(tCtx)
 	var errCh chan error
 	tearDown := func() {
 		// Cancel is stopping apiserver and cleaning up
@@ -181,7 +182,7 @@ func StartTestServer(t ktesting.TB, instanceOptions *TestServerInstanceOptions, 
 		if errCh != nil {
 			err, ok := <-errCh
 			if ok && err != nil {
-				klog.Errorf("Failed to shutdown test server clearly: %v", err)
+				logger.Error(err, "Failed to shutdown test server clearly")
 			}
 		}
 		os.RemoveAll(result.TmpDir)
