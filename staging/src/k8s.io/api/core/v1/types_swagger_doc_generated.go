@@ -1347,6 +1347,7 @@ var map_NodeSystemInfo = map[string]string{
 	"kubeProxyVersion":        "Deprecated: KubeProxy Version reported by the node.",
 	"operatingSystem":         "The Operating System reported by the node",
 	"architecture":            "The Architecture reported by the node",
+	"swapInfo":                "Swap Info reported by the node.",
 }
 
 func (NodeSystemInfo) SwaggerDoc() map[string]string {
@@ -2546,6 +2547,15 @@ var map_StorageOSVolumeSource = map[string]string{
 
 func (StorageOSVolumeSource) SwaggerDoc() map[string]string {
 	return map_StorageOSVolumeSource
+}
+
+var map_SwapInfo = map[string]string{
+	"":         "SwapInfo represents swap memory information.",
+	"capacity": "Total amount of swap memory in bytes.",
+}
+
+func (SwapInfo) SwaggerDoc() map[string]string {
+	return map_SwapInfo
 }
 
 var map_Sysctl = map[string]string{

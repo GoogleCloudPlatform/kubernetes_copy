@@ -21,16 +21,17 @@ package v1
 // NodeSystemInfoApplyConfiguration represents a declarative configuration of the NodeSystemInfo type for use
 // with apply.
 type NodeSystemInfoApplyConfiguration struct {
-	MachineID               *string `json:"machineID,omitempty"`
-	SystemUUID              *string `json:"systemUUID,omitempty"`
-	BootID                  *string `json:"bootID,omitempty"`
-	KernelVersion           *string `json:"kernelVersion,omitempty"`
-	OSImage                 *string `json:"osImage,omitempty"`
-	ContainerRuntimeVersion *string `json:"containerRuntimeVersion,omitempty"`
-	KubeletVersion          *string `json:"kubeletVersion,omitempty"`
-	KubeProxyVersion        *string `json:"kubeProxyVersion,omitempty"`
-	OperatingSystem         *string `json:"operatingSystem,omitempty"`
-	Architecture            *string `json:"architecture,omitempty"`
+	MachineID               *string                     `json:"machineID,omitempty"`
+	SystemUUID              *string                     `json:"systemUUID,omitempty"`
+	BootID                  *string                     `json:"bootID,omitempty"`
+	KernelVersion           *string                     `json:"kernelVersion,omitempty"`
+	OSImage                 *string                     `json:"osImage,omitempty"`
+	ContainerRuntimeVersion *string                     `json:"containerRuntimeVersion,omitempty"`
+	KubeletVersion          *string                     `json:"kubeletVersion,omitempty"`
+	KubeProxyVersion        *string                     `json:"kubeProxyVersion,omitempty"`
+	OperatingSystem         *string                     `json:"operatingSystem,omitempty"`
+	Architecture            *string                     `json:"architecture,omitempty"`
+	SwapInfo                *SwapInfoApplyConfiguration `json:"swapInfo,omitempty"`
 }
 
 // NodeSystemInfoApplyConfiguration constructs a declarative configuration of the NodeSystemInfo type for use with
@@ -116,5 +117,13 @@ func (b *NodeSystemInfoApplyConfiguration) WithOperatingSystem(value string) *No
 // If called multiple times, the Architecture field is set to the value of the last call.
 func (b *NodeSystemInfoApplyConfiguration) WithArchitecture(value string) *NodeSystemInfoApplyConfiguration {
 	b.Architecture = &value
+	return b
+}
+
+// WithSwapInfo sets the SwapInfo field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the SwapInfo field is set to the value of the last call.
+func (b *NodeSystemInfoApplyConfiguration) WithSwapInfo(value *SwapInfoApplyConfiguration) *NodeSystemInfoApplyConfiguration {
+	b.SwapInfo = value
 	return b
 }
