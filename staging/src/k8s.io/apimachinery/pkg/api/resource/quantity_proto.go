@@ -26,6 +26,7 @@ import (
 
 var _ proto.Sizer = &Quantity{}
 
+// Marshal returns the Quantity encoded in Protobuf format.
 func (m *Quantity) Marshal() (data []byte, err error) {
 	size := m.Size()
 	data = make([]byte, size)
@@ -75,6 +76,7 @@ func encodeVarintGenerated(data []byte, offset int, v uint64) int {
 	return base
 }
 
+// Size returns the number of bytes required to marshal the Quantity to Protobuf.
 func (m *Quantity) Size() (n int) {
 	var l int
 	_ = l
