@@ -32,9 +32,13 @@ func PodSandboxChanged(pod *v1.Pod, podStatus *kubecontainer.PodStatus) (bool, u
 	}
 
 	readySandboxCount := 0
+	maxAttempt := uint32(0)
 	for _, s := range podStatus.SandboxStatuses {
 		if s.State == runtimeapi.PodSandboxState_SANDBOX_READY {
 			readySandboxCount++
+		}
+		if s.Metadata.Attempt > maxAttempt {
+			maxAttempt = s.Metadata.Attempt
 		}
 	}
 
@@ -42,26 +46,26 @@ func PodSandboxChanged(pod *v1.Pod, podStatus *kubecontainer.PodStatus) (bool, u
 	sandboxStatus := podStatus.SandboxStatuses[0]
 	if readySandboxCount > 1 {
 		klog.V(2).InfoS("Multiple sandboxes are ready for Pod. Need to reconcile them", "pod", klog.KObj(pod))
-		return true, sandboxStatus.Metadata.Attempt + 1, sandboxStatus.Id
+		return true, maxAttempt + 1, sandboxStatus.Id
 	}
 	if sandboxStatus.State != runtimeapi.PodSandboxState_SANDBOX_READY {
 		klog.V(2).InfoS("No ready sandbox for pod can be found. Need to start a new one", "pod", klog.KObj(pod))
-		return true, sandboxStatus.Metadata.Attempt + 1, sandboxStatus.Id
+		return true, maxAttempt + 1, sandboxStatus.Id
 	}
 
 	// Needs to create a new sandbox when network namespace changed.
 	if sandboxStatus.GetLinux().GetNamespaces().GetOptions().GetNetwork() != NetworkNamespaceForPod(pod) {
 		klog.V(2).InfoS("Sandbox for pod has changed. Need to start a new one", "pod", klog.KObj(pod))
-		return true, sandboxStatus.Metadata.Attempt + 1, ""
+		return true, maxAttempt + 1, ""
 	}
 
 	// Needs to create a new sandbox when the sandbox does not have an IP address.
 	if !kubecontainer.IsHostNetworkPod(pod) && sandboxStatus.Network != nil && sandboxStatus.Network.Ip == "" {
 		klog.V(2).InfoS("Sandbox for pod has no IP address. Need to start a new one", "pod", klog.KObj(pod))
-		return true, sandboxStatus.Metadata.Attempt + 1, sandboxStatus.Id
+		return true, maxAttempt + 1, sandboxStatus.Id
 	}
 
-	return false, sandboxStatus.Metadata.Attempt, sandboxStatus.Id
+	return false, maxAttempt, sandboxStatus.Id
 }
 
 // IpcNamespaceForPod returns the runtimeapi.NamespaceMode

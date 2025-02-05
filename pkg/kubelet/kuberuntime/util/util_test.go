@@ -155,6 +155,26 @@ func TestPodSandboxChanged(t *testing.T) {
 			expectedAttempt:   0,
 			expectedSandboxID: "sandboxID1",
 		},
+		"Pod with multiple sandboxes but ready one is not latest": {
+			pod: &v1.Pod{},
+			status: &kubecontainer.PodStatus{
+				SandboxStatuses: []*runtimeapi.PodSandboxStatus{
+					{
+						Id:       "sandboxID1",
+						Metadata: &runtimeapi.PodSandboxMetadata{Attempt: uint32(0)},
+						State:    runtimeapi.PodSandboxState_SANDBOX_READY,
+					},
+					{
+						Id:       "sandboxID2",
+						Metadata: &runtimeapi.PodSandboxMetadata{Attempt: uint32(1)},
+						State:    runtimeapi.PodSandboxState_SANDBOX_NOTREADY,
+					},
+				},
+			},
+			expectedChanged:   false,
+			expectedAttempt:   1,
+			expectedSandboxID: "sandboxID1",
+		},
 	} {
 		t.Run(desc, func(t *testing.T) {
 			changed, attempt, id := PodSandboxChanged(test.pod, test.status)
