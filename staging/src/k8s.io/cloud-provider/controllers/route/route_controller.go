@@ -446,10 +446,14 @@ func (rc *RouteController) isResponsibleForRoute(route *cloudprovider.Route) boo
 func getRouteAction(routes []*cloudprovider.Route, cidr string, nodeName types.NodeName, realNodeAddrs []v1.NodeAddress) routeAction {
 	for _, route := range routes {
 		if route.DestinationCIDR == cidr {
-			if !route.EnableNodeAddresses || equalNodeAddrs(realNodeAddrs, route.TargetNodeAddresses) {
+			if route.GatewayAddress != "" {
+				if hasAddressValue(realNodeAddrs, route.GatewayAddress) {
+					return keep
+				}
+			} else if !route.EnableNodeAddresses || equalNodeAddrs(realNodeAddrs, route.TargetNodeAddresses) {
 				return keep
 			}
-			klog.Infof("Node addresses have changed from %v to %v", route.TargetNodeAddresses, realNodeAddrs)
+			klog.Infof("Node addresses have changed to %v", realNodeAddrs)
 			return update
 		}
 	}
@@ -473,4 +477,14 @@ func equalNodeAddrs(addrs0 []v1.NodeAddress, addrs1 []v1.NodeAddress) bool {
 		}
 	}
 	return true
+}
+
+func hasAddressValue(nodeAddresses []v1.NodeAddress, routeGatewayAddress string) bool {
+	for _, value := range nodeAddresses {
+		if value.Address == routeGatewayAddress {
+			return true
+		}
+	}
+
+	return false
 }

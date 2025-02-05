@@ -237,6 +237,8 @@ type Route struct {
 	// DestinationCIDR is the CIDR format IP range that this routing rule
 	// applies to.
 	DestinationCIDR string
+	// GatewayAddress is the address that this routing rule applies to.
+	GatewayAddress string
 	// Blackhole is set to true if this is a blackhole route
 	// The node controller will delete the route if it is in the managed range.
 	Blackhole bool
