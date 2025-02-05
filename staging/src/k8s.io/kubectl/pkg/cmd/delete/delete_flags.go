@@ -120,7 +120,7 @@ func (f *DeleteFlags) AddFlags(cmd *cobra.Command) {
 		cmdutil.AddLabelSelectorFlagVar(cmd, f.LabelSelector)
 	}
 	if f.FieldSelector != nil {
-		cmd.Flags().StringVarP(f.FieldSelector, "field-selector", "", *f.FieldSelector, "Selector (field query) to filter on, supports '=', '==', and '!='.(e.g. --field-selector key1=value1,key2=value2). The server only supports a limited number of field queries per type.")
+		cmd.Flags().StringVarP(f.FieldSelector, "field-selector", "F", *f.FieldSelector, "Selector (field query) to filter on, supports '=', '==', and '!='.(e.g. --field-selector key1=value1,key2=value2). The server only supports a limited number of field queries per type.")
 	}
 	if f.All != nil {
 		cmd.Flags().BoolVar(f.All, "all", *f.All, "Delete all resources, in the namespace of the specified resource types.")

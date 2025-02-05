@@ -183,7 +183,7 @@ func (flags *AnnotateFlags) AddFlags(cmd *cobra.Command, ioStreams genericioopti
 	cmd.Flags().BoolVar(&flags.overwrite, "overwrite", flags.overwrite, "If true, allow annotations to be overwritten, otherwise reject annotation updates that overwrite existing annotations.")
 	cmd.Flags().BoolVar(&flags.List, "list", flags.List, "If true, display the annotations for a given resource.")
 	cmd.Flags().BoolVar(&flags.Local, "local", flags.Local, "If true, annotation will NOT contact api-server but run locally.")
-	cmd.Flags().StringVar(&flags.FieldSelector, "field-selector", flags.FieldSelector, "Selector (field query) to filter on, supports '=', '==', and '!='.(e.g. --field-selector key1=value1,key2=value2). The server only supports a limited number of field queries per type.")
+	cmd.Flags().StringVarP(&flags.FieldSelector, "field-selector", "F", flags.FieldSelector, "Selector (field query) to filter on, supports '=', '==', and '!='.(e.g. --field-selector key1=value1,key2=value2). The server only supports a limited number of field queries per type.")
 	cmd.Flags().BoolVar(&flags.All, "all", flags.All, "Select all resources, in the namespace of the specified resource types.")
 	cmd.Flags().BoolVarP(&flags.AllNamespaces, "all-namespaces", "A", flags.AllNamespaces, "If true, check the specified action in all namespaces.")
 	cmd.Flags().StringVar(&flags.resourceVersion, "resource-version", flags.resourceVersion, i18n.T("If non-empty, the annotation update will only succeed if this is the current resource-version for the object. Only valid when specifying a single resource."))
