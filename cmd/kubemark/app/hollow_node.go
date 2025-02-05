@@ -183,7 +183,8 @@ func NewHollowNodeCommand() *cobra.Command {
 
 func run(ctx context.Context, config *hollowNodeConfig) error {
 	// To help debugging, immediately log version and print flags.
-	klog.Infof("Version: %+v", version.Get())
+	logger := klog.FromContext(ctx)
+	logger.Info("Version information", "version", version.Get())
 
 	if !knownMorphs.Has(config.Morph) {
 		return fmt.Errorf("Unknown morph: %v. allowed values: %v", config.Morph, knownMorphs.List())
