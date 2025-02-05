@@ -959,6 +959,112 @@ func TestDeltaFIFO_PopShouldUnblockWhenClosed(t *testing.T) {
 	}
 }
 
+func TestDeltaFIFO_createListerStateThatNeverExisted(t *testing.T) {
+	order1_X_create := testFifoObject{
+		name: "x",
+		val:  "no ip",
+	}
+	order2_X_assignIP := testFifoObject{
+		name: "x",
+		val:  "ip=6",
+	}
+	order3_Y_create := testFifoObject{
+		name: "y",
+		val:  "no ip",
+	}
+	order4_X_delete := testFifoObject{
+		name: "x",
+		val:  "delete",
+	}
+	order5_Y_assignIP := testFifoObject{
+		name: "y",
+		val:  "ip=6",
+	}
+	// taken together, these event, in order, never have X and Y with the same IP at the same time
+	// The challenge in this test is to use this ordering with nothing interrupting, but time to produce a situation
+	// where the observer believes that X and Y have the same IP at the same time, which never actually happened.
+
+	keyToVal := map[string]string{}
+	processFn := func(deltaObj interface{}, isInInitialList bool) error {
+		if deltas, ok := deltaObj.(Deltas); ok {
+			// from oldest to newest
+			for _, d := range deltas {
+				obj := d.Object
+
+				switch d.Type {
+				case Sync, Replaced, Added, Updated:
+					keyToVal[obj.(testFifoObject).name] = obj.(testFifoObject).val.(string)
+
+				case Deleted:
+					delete(keyToVal, obj.(testFifoObject).name)
+				}
+			}
+		}
+		return nil
+	}
+
+	f := NewDeltaFIFOWithOptions(DeltaFIFOOptions{
+		KeyFunction: testFifoObjectKeyFunc,
+		KnownObjects: literalListerGetter(func() []testFifoObject {
+			ret := []testFifoObject{}
+			for k, v := range keyToVal {
+				ret = append(ret, testFifoObject{
+					name: k,
+					val:  v,
+				})
+			}
+			return ret
+		}),
+	})
+
+	if err := f.Add(order1_X_create); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Update(order2_X_assignIP); err != nil {
+		t.Fatal(err)
+	}
+
+	// consume the events for x
+	if _, err := f.Pop(processFn); err != nil {
+		t.Fatal(err)
+	}
+	if e, a := "ip=6", keyToVal["x"]; e != a {
+		t.Fatalf("expected %q, got %q", e, a)
+	}
+
+	if err := f.Add(order3_Y_create); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Delete(order4_X_delete); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Update(order5_Y_assignIP); err != nil {
+		t.Fatal(err)
+	}
+
+	// consume the events for y
+	if _, err := f.Pop(processFn); err != nil {
+		t.Fatal(err)
+	}
+	// this verification means we have a lister state that never actually existed
+	if e, a := "ip=6", keyToVal["x"]; e != a {
+		t.Fatalf("expected %q, got %q", e, a)
+	}
+	if e, a := "ip=6", keyToVal["y"]; e != a {
+		t.Fatalf("expected %q, got %q", e, a)
+	}
+
+	if _, err := f.Pop(processFn); err != nil {
+		t.Fatal(err)
+	}
+	if e, a := "", keyToVal["x"]; e != a {
+		t.Fatalf("expected %q, got %q", e, a)
+	}
+	if e, a := "ip=6", keyToVal["y"]; e != a {
+		t.Fatalf("expected %q, got %q", e, a)
+	}
+}
+
 func BenchmarkDeltaFIFOListKeys(b *testing.B) {
 	f := NewDeltaFIFOWithOptions(DeltaFIFOOptions{KeyFunction: testFifoObjectKeyFunc})
 	const amount = 10000
