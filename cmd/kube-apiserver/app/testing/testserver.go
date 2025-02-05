@@ -46,6 +46,7 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/version"
 	"k8s.io/apimachinery/pkg/util/wait"
+	sserver "k8s.io/apiserver/pkg/server"
 	serveroptions "k8s.io/apiserver/pkg/server/options"
 	"k8s.io/apiserver/pkg/storage/storagebackend"
 	"k8s.io/apiserver/pkg/storageversion"
@@ -60,7 +61,6 @@ import (
 	logsapi "k8s.io/component-base/logs/api/v1"
 	utilversion "k8s.io/component-base/version"
 	"k8s.io/klog/v2"
-	"k8s.io/kube-aggregator/pkg/apiserver"
 	"k8s.io/kubernetes/pkg/features"
 	testutil "k8s.io/kubernetes/test/utils"
 	"k8s.io/kubernetes/test/utils/ktesting"
@@ -451,8 +451,11 @@ func StartTestServer(t ktesting.TB, instanceOptions *TestServerInstanceOptions, 
 			if instanceOptions.StorageVersionWrapFunc != nil {
 				// We hardcode the param instead of having a new instanceOptions field
 				// to avoid confusing users with more options.
-				storageVersionCheck := fmt.Sprintf("poststarthook/%s", apiserver.StorageVersionPostStartHookName)
+				storageVersionCheck := fmt.Sprintf("poststarthook/%s-%s", sserver.StorageVersionPostStartHookName, sserver.KubeAPIServer)
 				req.Param("exclude", storageVersionCheck)
+				storageVersionCheck = fmt.Sprintf("poststarthook/%s-%s", sserver.StorageVersionPostStartHookName, sserver.KubeAggregator)
+				req.Param("exclude", storageVersionCheck)
+
 			}
 			result := req.Do(context.TODO())
 			status := 0

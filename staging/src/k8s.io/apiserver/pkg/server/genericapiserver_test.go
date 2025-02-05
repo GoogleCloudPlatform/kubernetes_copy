@@ -128,7 +128,7 @@ func testGetOpenAPIDefinitions(_ kubeopenapi.ReferenceCallback) map[string]kubeo
 
 // setUp is a convience function for setting up for (most) tests.
 func setUp(t *testing.T) (Config, *assert.Assertions) {
-	config := NewConfig(codecs)
+	config := NewConfig(codecs, "test")
 	config.ExternalAddress = "192.168.10.4:443"
 	config.PublicAddress = netutils.ParseIPSloppy("192.168.10.4")
 	config.LegacyAPIGroupPrefixes = sets.NewString("/api")
@@ -144,7 +144,7 @@ func setUp(t *testing.T) (Config, *assert.Assertions) {
 	config.OpenAPIV3Config = DefaultOpenAPIV3Config(testGetOpenAPIDefinitions, openapinamer.NewDefinitionNamer(runtime.NewScheme()))
 	config.OpenAPIV3Config.Info.Version = "unversioned"
 	sharedInformers := informers.NewSharedInformerFactory(clientset, config.LoopbackClientConfig.Timeout)
-	config.Complete(sharedInformers)
+	config.Complete(sharedInformers, nil)
 
 	return *config, assert.New(t)
 }
@@ -152,7 +152,7 @@ func setUp(t *testing.T) (Config, *assert.Assertions) {
 func newMaster(t *testing.T) (*GenericAPIServer, Config, *assert.Assertions) {
 	config, assert := setUp(t)
 
-	s, err := config.Complete(nil).New("test", NewEmptyDelegate())
+	s, err := config.Complete(nil, nil).New("test", NewEmptyDelegate())
 	if err != nil {
 		t.Fatalf("Error in bringing up the server: %v", err)
 	}
@@ -176,7 +176,7 @@ func TestInstallAPIGroups(t *testing.T) {
 	config.LegacyAPIGroupPrefixes = sets.NewString("/apiPrefix")
 	config.DiscoveryAddresses = discovery.DefaultAddresses{DefaultAddress: "ExternalAddress"}
 
-	s, err := config.Complete(nil).New("test", NewEmptyDelegate())
+	s, err := config.Complete(nil, nil).New("test", NewEmptyDelegate())
 	if err != nil {
 		t.Fatalf("Error in bringing up the server: %v", err)
 	}
@@ -410,7 +410,7 @@ func TestCustomHandlerChain(t *testing.T) {
 		called = true
 	})
 
-	s, err := config.Complete(nil).New("test", NewEmptyDelegate())
+	s, err := config.Complete(nil, nil).New("test", NewEmptyDelegate())
 	if err != nil {
 		t.Fatalf("Error in bringing up the server: %v", err)
 	}
@@ -464,7 +464,7 @@ func TestNotRestRoutesHaveAuth(t *testing.T) {
 	effectiveVersion.Set(effectiveVersion.BinaryVersion().WithInfo(kubeVersion), effectiveVersion.EmulationVersion(), effectiveVersion.MinCompatibilityVersion())
 	config.EffectiveVersion = effectiveVersion
 
-	s, err := config.Complete(nil).New("test", NewEmptyDelegate())
+	s, err := config.Complete(nil, nil).New("test", NewEmptyDelegate())
 	if err != nil {
 		t.Fatalf("Error in bringing up the server: %v", err)
 	}
@@ -496,7 +496,7 @@ func TestMuxAndDiscoveryCompleteSignals(t *testing.T) {
 	cfg, assert := setUp(t)
 
 	// scenario 1: single server with some signals
-	root, err := cfg.Complete(nil).New("rootServer", NewEmptyDelegate())
+	root, err := cfg.Complete(nil, nil).New("rootServer", NewEmptyDelegate())
 	assert.NoError(err)
 	if len(root.MuxAndDiscoveryCompleteSignals()) != 0 {
 		assert.Error(fmt.Errorf("unexpected signals %v registered in the root server", root.MuxAndDiscoveryCompleteSignals()))
@@ -507,13 +507,13 @@ func TestMuxAndDiscoveryCompleteSignals(t *testing.T) {
 	}
 
 	// scenario 2: multiple servers with some signals
-	delegate, err := cfg.Complete(nil).New("delegateServer", NewEmptyDelegate())
+	delegate, err := cfg.Complete(nil, nil).New("delegateServer", NewEmptyDelegate())
 	assert.NoError(err)
 	delegate.RegisterMuxAndDiscoveryCompleteSignal("delegateTestSignal", make(chan struct{}))
 	if len(delegate.MuxAndDiscoveryCompleteSignals()) != 1 {
 		assert.Error(fmt.Errorf("unexpected signals %v registered in the delegate server", delegate.MuxAndDiscoveryCompleteSignals()))
 	}
-	newRoot, err := cfg.Complete(nil).New("newRootServer", delegate)
+	newRoot, err := cfg.Complete(nil, nil).New("newRootServer", delegate)
 	assert.NoError(err)
 	if len(newRoot.MuxAndDiscoveryCompleteSignals()) != 1 {
 		assert.Error(fmt.Errorf("unexpected signals %v registered in the newRoot server", newRoot.MuxAndDiscoveryCompleteSignals()))
@@ -613,7 +613,7 @@ func TestGracefulShutdown(t *testing.T) {
 		return handler
 	}
 
-	s, err := config.Complete(nil).New("test", NewEmptyDelegate())
+	s, err := config.Complete(nil, nil).New("test", NewEmptyDelegate())
 	if err != nil {
 		t.Fatalf("Error in bringing up the server: %v", err)
 	}
@@ -769,7 +769,7 @@ func TestWarningWithRequestTimeout(t *testing.T) {
 // builds a handler chain with the given user handler as used by GenericAPIServer.
 func newGenericAPIServerHandlerChain(t *testing.T, path string, handler http.Handler) http.Handler {
 	config, _ := setUp(t)
-	s, err := config.Complete(nil).New("test", NewEmptyDelegate())
+	s, err := config.Complete(nil, nil).New("test", NewEmptyDelegate())
 	if err != nil {
 		t.Fatalf("Error in bringing up the server: %v", err)
 	}

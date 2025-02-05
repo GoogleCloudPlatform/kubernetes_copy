@@ -77,6 +77,7 @@ func NewConfig(opts options.CompletedOptions) (*Config, error) {
 	}
 
 	genericConfig, versionedInformers, storageFactory, err := controlplaneapiserver.BuildGenericConfig(
+		"kube-apiserver",
 		opts.CompletedOptions,
 		[]*runtime.Scheme{legacyscheme.Scheme, apiextensionsapiserver.Scheme, aggregatorscheme.Scheme},
 		controlplane.DefaultAPIResourceConfigSource(),

@@ -90,7 +90,7 @@ func setUp(t *testing.T) (*etcd3testing.EtcdTestServer, Config, *assert.Assertio
 
 	config := &Config{
 		ControlPlane: controlplaneapiserver.Config{
-			Generic: genericapiserver.NewConfig(legacyscheme.Codecs),
+			Generic: genericapiserver.NewConfig(legacyscheme.Codecs, "test"),
 			Extra: controlplaneapiserver.Extra{
 				APIResourceConfigSource: DefaultAPIResourceConfigSource(),
 			},

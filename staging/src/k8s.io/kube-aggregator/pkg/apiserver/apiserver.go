@@ -23,20 +23,18 @@ import (
 	"sync"
 	"time"
 
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/sets"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apiserver/pkg/endpoints/discovery/aggregated"
 	genericfeatures "k8s.io/apiserver/pkg/features"
 	peerreconcilers "k8s.io/apiserver/pkg/reconcilers"
+	"k8s.io/apiserver/pkg/server"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	"k8s.io/apiserver/pkg/server/dynamiccertificates"
 	"k8s.io/apiserver/pkg/server/egressselector"
 	serverstorage "k8s.io/apiserver/pkg/server/storage"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/transport"
 	"k8s.io/component-base/metrics/legacyregistry"
 	"k8s.io/component-base/tracing"
@@ -203,7 +201,7 @@ func (cfg *Config) Complete() CompletedConfig {
 
 // NewWithDelegate returns a new instance of APIAggregator from the given config.
 func (c completedConfig) NewWithDelegate(delegationTarget genericapiserver.DelegationTarget) (*APIAggregator, error) {
-	genericServer, err := c.GenericConfig.New("kube-aggregator", delegationTarget)
+	genericServer, err := c.GenericConfig.New(server.KubeAggregator, delegationTarget)
 	if err != nil {
 		return nil, err
 	}
@@ -400,57 +398,6 @@ func (c completedConfig) NewWithDelegate(delegationTarget genericapiserver.Deleg
 			return nil
 		})
 	}
-
-	if utilfeature.DefaultFeatureGate.Enabled(genericfeatures.StorageVersionAPI) &&
-		utilfeature.DefaultFeatureGate.Enabled(genericfeatures.APIServerIdentity) {
-		// Spawn a goroutine in aggregator apiserver to update storage version for
-		// all built-in resources
-		s.GenericAPIServer.AddPostStartHookOrDie(StorageVersionPostStartHookName, func(hookContext genericapiserver.PostStartHookContext) error {
-			// Wait for apiserver-identity to exist first before updating storage
-			// versions, to avoid storage version GC accidentally garbage-collecting
-			// storage versions.
-			kubeClient, err := kubernetes.NewForConfig(hookContext.LoopbackClientConfig)
-			if err != nil {
-				return err
-			}
-			if err := wait.PollImmediateUntil(100*time.Millisecond, func() (bool, error) {
-				_, err := kubeClient.CoordinationV1().Leases(metav1.NamespaceSystem).Get(
-					context.TODO(), s.GenericAPIServer.APIServerID, metav1.GetOptions{})
-				if apierrors.IsNotFound(err) {
-					return false, nil
-				}
-				if err != nil {
-					return false, err
-				}
-				return true, nil
-			}, hookContext.Done()); err != nil {
-				return fmt.Errorf("failed to wait for apiserver-identity lease %s to be created: %v",
-					s.GenericAPIServer.APIServerID, err)
-			}
-			// Technically an apiserver only needs to update storage version once during bootstrap.
-			// Reconcile StorageVersion objects every 10 minutes will help in the case that the
-			// StorageVersion objects get accidentally modified/deleted by a different agent. In that
-			// case, the reconciliation ensures future storage migration still works. If nothing gets
-			// changed, the reconciliation update is a noop and gets short-circuited by the apiserver,
-			// therefore won't change the resource version and trigger storage migration.
-			go wait.PollImmediateUntil(10*time.Minute, func() (bool, error) {
-				// All apiservers (aggregator-apiserver, kube-apiserver, apiextensions-apiserver)
-				// share the same generic apiserver config. The same StorageVersion manager is used
-				// to register all built-in resources when the generic apiservers install APIs.
-				s.GenericAPIServer.StorageVersionManager.UpdateStorageVersions(hookContext.LoopbackClientConfig, s.GenericAPIServer.APIServerID)
-				return false, nil
-			}, hookContext.Done())
-			// Once the storage version updater finishes the first round of update,
-			// the PostStartHook will return to unblock /healthz. The handler chain
-			// won't block write requests anymore. Check every second since it's not
-			// expensive.
-			wait.PollImmediateUntil(1*time.Second, func() (bool, error) {
-				return s.GenericAPIServer.StorageVersionManager.Completed(), nil
-			}, hookContext.Done())
-			return nil
-		})
-	}
-
 	return s, nil
 }
 

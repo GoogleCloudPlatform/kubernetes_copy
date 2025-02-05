@@ -53,6 +53,7 @@ func TestBuildGenericConfig(t *testing.T) {
 	}
 
 	genericConfig, _, storageFactory, err := BuildGenericConfig(
+		"test-apiserver",
 		completedOptions,
 		[]*runtime.Scheme{legacyscheme.Scheme, extensionsapiserver.Scheme, aggregatorscheme.Scheme},
 		nil,

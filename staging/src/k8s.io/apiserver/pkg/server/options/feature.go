@@ -36,7 +36,7 @@ type FeatureOptions struct {
 }
 
 func NewFeatureOptions() *FeatureOptions {
-	defaults := server.NewConfig(serializer.CodecFactory{})
+	defaults := server.NewConfig(serializer.CodecFactory{}, server.KubeAPIServer)
 
 	return &FeatureOptions{
 		EnableProfiling:           defaults.EnableProfiling,

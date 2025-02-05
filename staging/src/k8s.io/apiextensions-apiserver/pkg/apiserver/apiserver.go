@@ -45,6 +45,7 @@ import (
 	"k8s.io/apiserver/pkg/endpoints/discovery/aggregated"
 	genericregistry "k8s.io/apiserver/pkg/registry/generic"
 	"k8s.io/apiserver/pkg/registry/rest"
+	"k8s.io/apiserver/pkg/server"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	serverstorage "k8s.io/apiserver/pkg/server/storage"
 	"k8s.io/apiserver/pkg/util/webhook"
@@ -125,7 +126,7 @@ func (cfg *Config) Complete() CompletedConfig {
 
 // New returns a new instance of CustomResourceDefinitions from the given config.
 func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget) (*CustomResourceDefinitions, error) {
-	genericServer, err := c.GenericConfig.New("apiextensions-apiserver", delegationTarget)
+	genericServer, err := c.GenericConfig.New(server.KubeAPIExtensionsAPIServer, delegationTarget)
 	if err != nil {
 		return nil, err
 	}

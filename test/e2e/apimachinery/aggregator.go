@@ -734,6 +734,12 @@ func TestSampleAPIServer(ctx context.Context, f *framework.Framework, aggrclient
 	apiServiceLabelSelector := labels.SelectorFromSet(updatedApiService.Labels).String()
 	ginkgo.By(fmt.Sprintf("APIService deleteCollection with labelSelector: %q", apiServiceLabelSelector))
 
+	ginkgo.By("List StorageVersions")
+	listStorageVersions, err := client.InternalV1alpha1().StorageVersions().List(ctx, metav1.ListOptions{})
+	framework.Logf("Neww RICHAAA Found these SVs %s", listStorageVersions)
+
+	framework.ExpectNoError(err, "No response for /apis/internal.apiserver.k8s.io/v1alpha1 Error: %v", err)
+
 	err = aggrclient.ApiregistrationV1().APIServices().DeleteCollection(ctx,
 		metav1.DeleteOptions{},
 		metav1.ListOptions{LabelSelector: apiServiceLabelSelector})

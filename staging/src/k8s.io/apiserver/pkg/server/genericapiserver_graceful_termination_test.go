@@ -1033,7 +1033,7 @@ func newGenericAPIServer(t *testing.T, fAudit *fakeAudit, keepListening bool) *G
 	config.AuditPolicyRuleEvaluator = fAudit
 	config.AuditBackend = fAudit
 
-	s, err := config.Complete(nil).New("test", NewEmptyDelegate())
+	s, err := config.Complete(nil, nil).New("test", NewEmptyDelegate())
 	if err != nil {
 		t.Fatalf("Error in bringing up the server: %v", err)
 	}

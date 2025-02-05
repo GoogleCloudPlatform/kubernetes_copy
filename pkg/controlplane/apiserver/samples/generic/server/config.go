@@ -78,6 +78,7 @@ func NewConfig(opts options.CompletedOptions) (*Config, error) {
 	}
 
 	genericConfig, versionedInformers, storageFactory, err := controlplaneapiserver.BuildGenericConfig(
+		"sample-generic-controlplane",
 		opts,
 		[]*runtime.Scheme{legacyscheme.Scheme, apiextensionsapiserver.Scheme, aggregatorscheme.Scheme},
 		controlplane.DefaultAPIResourceConfigSource(),

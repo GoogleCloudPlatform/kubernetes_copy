@@ -32,17 +32,19 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/google/uuid"
 	"golang.org/x/crypto/cryptobyte"
 	jsonpatch "gopkg.in/evanphx/json-patch.v4"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/apimachinery/pkg/util/version"
+	"k8s.io/apimachinery/pkg/util/wait"
 	utilwaitgroup "k8s.io/apimachinery/pkg/util/waitgroup"
 	"k8s.io/apiserver/pkg/admission"
 	"k8s.io/apiserver/pkg/audit"
@@ -72,10 +74,11 @@ import (
 	utilflowcontrol "k8s.io/apiserver/pkg/util/flowcontrol"
 	flowcontrolrequest "k8s.io/apiserver/pkg/util/flowcontrol/request"
 	"k8s.io/client-go/informers"
+	"k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/component-base/featuregate"
 	"k8s.io/component-base/logs"
-	"k8s.io/component-base/metrics/features"
+	metricsfeatures "k8s.io/component-base/metrics/features"
 	"k8s.io/component-base/metrics/prometheus/slis"
 	"k8s.io/component-base/tracing"
 	utilversion "k8s.io/component-base/version"
@@ -104,6 +107,13 @@ const (
 
 	// APIGroupPrefix is where non-legacy API group will be located.
 	APIGroupPrefix = "/apis"
+
+	StorageVersionPostStartHookName = "built-in-resources-storage-version-updater"
+
+	KubeAPIServer              = "kube-apiserver"
+	KubeAggregator             = "kube-aggregator"
+	KubeAggregatedAPIServer    = "kube-aggregated-apiserver"
+	KubeAPIExtensionsAPIServer = "kube-apiextensions-apiserver"
 )
 
 // Config is a structure used to configure a GenericAPIServer.
@@ -122,6 +132,10 @@ type Config struct {
 	// This is required for proper functioning of the PostStartHooks on a GenericAPIServer
 	// TODO: move into SecureServing(WithLoopback) as soon as insecure serving is gone
 	LoopbackClientConfig *restclient.Config
+
+	// ClientConfig is a config for a loopback connection to the main kube-apiserver from an aggregated apiserver.
+	// This is an optional field.
+	ClientConfig *restclient.Config
 
 	// EgressSelector provides a lookup mechanism for dialing outbound connections.
 	// It does so based on a EgressSelectorConfiguration which was read at startup.
@@ -379,11 +393,11 @@ type AuthorizationInfo struct {
 }
 
 func init() {
-	utilruntime.Must(features.AddFeatureGates(utilfeature.DefaultMutableFeatureGate))
+	utilruntime.Must(metricsfeatures.AddFeatureGates(utilfeature.DefaultMutableFeatureGate))
 }
 
 // NewConfig returns a Config struct with the default values
-func NewConfig(codecs serializer.CodecFactory) *Config {
+func NewConfig(codecs serializer.CodecFactory, name string) *Config {
 	defaultHealthChecks := []healthz.HealthChecker{healthz.PingHealthz, healthz.LogHealthz}
 	var id string
 	if utilfeature.DefaultFeatureGate.Enabled(genericfeatures.APIServerIdentity) {
@@ -401,7 +415,7 @@ func NewConfig(codecs serializer.CodecFactory) *Config {
 			b.AddBytes([]byte(hostname))
 		})
 		b.AddUint16LengthPrefixed(func(b *cryptobyte.Builder) {
-			b.AddBytes([]byte("kube-apiserver"))
+			b.AddBytes([]byte(name))
 		})
 		hashData, err := b.Bytes()
 		if err != nil {
@@ -468,9 +482,9 @@ func NewConfig(codecs serializer.CodecFactory) *Config {
 }
 
 // NewRecommendedConfig returns a RecommendedConfig struct with the default values
-func NewRecommendedConfig(codecs serializer.CodecFactory) *RecommendedConfig {
+func NewRecommendedConfig(codecs serializer.CodecFactory, name string) *RecommendedConfig {
 	return &RecommendedConfig{
-		Config: *NewConfig(codecs),
+		Config: *NewConfig(codecs, name),
 	}
 }
 
@@ -688,10 +702,11 @@ func (c *Config) ShutdownInitiatedNotify() <-chan struct{} {
 
 // Complete fills in any fields not set that are required to have valid data and can be derived
 // from other fields. If you're going to `ApplyOptions`, do that first. It's mutating the receiver.
-func (c *Config) Complete(informers informers.SharedInformerFactory) CompletedConfig {
+func (c *Config) Complete(informers informers.SharedInformerFactory, clientConfig *restclient.Config) CompletedConfig {
 	if c.FeatureGate == nil {
 		c.FeatureGate = utilfeature.DefaultFeatureGate
 	}
+
 	if len(c.ExternalAddress) == 0 && c.PublicAddress != nil {
 		c.ExternalAddress = c.PublicAddress.String()
 	}
@@ -735,13 +750,17 @@ func (c *Config) Complete(informers informers.SharedInformerFactory) CompletedCo
 		}
 	}
 
+	if c.ClientConfig == nil {
+		c.ClientConfig = clientConfig
+	}
+
 	return CompletedConfig{&completedConfig{c, informers}}
 }
 
 // Complete fills in any fields not set that are required to have valid data and can be derived
 // from other fields. If you're going to `ApplyOptions`, do that first. It's mutating the receiver.
 func (c *RecommendedConfig) Complete() CompletedConfig {
-	return c.Config.Complete(c.SharedInformerFactory)
+	return c.Config.Complete(c.SharedInformerFactory, c.ClientConfig)
 }
 
 var defaultAllowedMediaTypes = []string{
@@ -960,6 +979,67 @@ func (c completedConfig) New(name string, delegationTarget DelegationTarget) (*G
 		}
 	}
 
+	if utilfeature.DefaultFeatureGate.Enabled(genericfeatures.StorageVersionAPI) &&
+		utilfeature.DefaultFeatureGate.Enabled(genericfeatures.APIServerIdentity) {
+		// Spawn a goroutine in aggregator apiserver to update storage version for
+		// all built-in resources
+		if !s.isPostStartHookRegistered(fmt.Sprintf("%s-%s", StorageVersionPostStartHookName, name)) {
+			s.AddPostStartHookOrDie(fmt.Sprintf("%s-%s", StorageVersionPostStartHookName, name), func(hookContext PostStartHookContext) error {
+				// Wait for apiserver-identity to exist first before updating storage
+				// versions, to avoid storage version GC accidentally garbage-collecting
+				// storage versions.
+				kubeClient, err := kubernetes.NewForConfig(hookContext.LoopbackClientConfig)
+				if err != nil {
+					return err
+				}
+
+				// TODO: checking for identity leases this way seems not ideal. Wonder if need to have the lease controller moved here as well.
+				// Meaning: do we want identity leases for aggregated-apiservers / extension apiservers?
+				if name != KubeAggregatedAPIServer {
+					if err := wait.PollImmediateUntil(100*time.Millisecond, func() (bool, error) {
+						_, err := kubeClient.CoordinationV1().Leases(metav1.NamespaceSystem).Get(
+							context.TODO(), s.APIServerID, metav1.GetOptions{})
+						if apierrors.IsNotFound(err) {
+							return false, nil
+						}
+						if err != nil {
+							return false, err
+						}
+						return true, nil
+					}, hookContext.Done()); err != nil {
+						return fmt.Errorf("failed to wait for apiserver-identity lease %s to be created: %v",
+							s.APIServerID, err)
+					}
+				}
+				clientConfig := hookContext.LoopbackClientConfig
+				if c.ClientConfig != nil {
+					clientConfig = c.ClientConfig
+				}
+				// Technically an apiserver only needs to update storage version once during bootstrap.
+				// Reconcile StorageVersion objects every 10 minutes will help in the case that the
+				// StorageVersion objects get accidentally modified/deleted by a different agent. In that
+				// case, the reconciliation ensures future storage migration still works. If nothing gets
+				// changed, the reconciliation update is a noop and gets short-circuited by the apiserver,
+				// therefore won't change the resource version and trigger storage migration.
+				go wait.PollImmediateUntil(10*time.Minute, func() (bool, error) {
+					// All apiservers (aggregator-apiserver, kube-apiserver, apiextensions-apiserver)
+					// share the same generic apiserver config. The same StorageVersion manager is used
+					// to register all built-in resources when the generic apiservers install APIs.
+					s.StorageVersionManager.UpdateStorageVersions(clientConfig, s.APIServerID)
+					return false, nil
+				}, hookContext.Done())
+				// Once the storage version updater finishes the first round of update,
+				// the PostStartHook will return to unblock /healthz. The handler chain
+				// won't block write requests anymore. Check every second since it's not
+				// expensive.
+				wait.PollImmediateUntil(1*time.Second, func() (bool, error) {
+					return s.StorageVersionManager.Completed(), nil
+				}, hookContext.Done())
+				return nil
+			})
+		}
+	}
+
 	for _, delegateCheck := range delegationTarget.HealthzChecks() {
 		skip := false
 		for _, existingCheck := range c.HealthzChecks {
@@ -1171,7 +1251,7 @@ func AuthorizeClientBearerToken(loopback *restclient.Config, authn *Authenticati
 	}
 
 	privilegedLoopbackToken := loopback.BearerToken
-	var uid = uuid.New().String()
+	var uid = string(uuid.NewUUID())
 	tokens := make(map[string]*user.DefaultInfo)
 	tokens[privilegedLoopbackToken] = &user.DefaultInfo{
 		Name:   user.APIServerUser,

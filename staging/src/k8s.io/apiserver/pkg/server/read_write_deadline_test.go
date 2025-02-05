@@ -261,7 +261,7 @@ func TestRequestTimeoutBehavior(t *testing.T) {
 				// setup server run option --request-timeout
 				config.RequestTimeout = setup.serverReqTimeout
 
-				s, err := config.Complete(nil).New("test", NewEmptyDelegate())
+				s, err := config.Complete(nil, nil).New("test", NewEmptyDelegate())
 				if err != nil {
 					t.Fatalf("Error in setting up a GenericAPIServer object: %v", err)
 				}

@@ -55,7 +55,7 @@ func setUp(t *testing.T) server.Config {
 	scheme := runtime.NewScheme()
 	codecs := serializer.NewCodecFactory(scheme)
 
-	config := server.NewConfig(codecs)
+	config := server.NewConfig(codecs, "test")
 
 	return *config
 }
@@ -307,7 +307,7 @@ func TestServerRunWithSNI(t *testing.T) {
 				t.Fatalf("failed applying the SecureServingOptions: %v", err)
 			}
 
-			s, err := config.Complete(nil).New("test", server.NewEmptyDelegate())
+			s, err := config.Complete(nil, nil).New("test", server.NewEmptyDelegate())
 			if err != nil {
 				t.Fatalf("failed creating the server: %v", err)
 			}

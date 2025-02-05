@@ -153,7 +153,9 @@ func StartTestServer(t Logger, _ *TestServerInstanceOptions, customFlags []strin
 	}
 	s.APIEnablement.RuntimeConfig.Set("api/all=true")
 
-	fs.Parse(customFlags)
+	if err := fs.Parse(customFlags); err != nil {
+		return result, err
+	}
 
 	if err := featuregate.DefaultComponentGlobalsRegistry.Set(); err != nil {
 		return result, err

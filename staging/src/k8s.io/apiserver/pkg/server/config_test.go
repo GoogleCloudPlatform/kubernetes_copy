@@ -119,7 +119,7 @@ func TestNewWithDelegate(t *testing.T) {
 	_, ctx := ktesting.NewTestContext(t)
 	ctx, cancel := context.WithCancelCause(ctx)
 	defer cancel(errors.New("test is done"))
-	delegateConfig := NewConfig(codecs)
+	delegateConfig := NewConfig(codecs, "test")
 	delegateConfig.ExternalAddress = "192.168.10.4:443"
 	delegateConfig.PublicAddress = netutils.ParseIPSloppy("192.168.10.4")
 	delegateConfig.LegacyAPIGroupPrefixes = sets.NewString("/api")
@@ -135,7 +135,7 @@ func TestNewWithDelegate(t *testing.T) {
 	}))
 
 	sharedInformers := informers.NewSharedInformerFactory(clientset, delegateConfig.LoopbackClientConfig.Timeout)
-	delegateServer, err := delegateConfig.Complete(sharedInformers).New("test", NewEmptyDelegate())
+	delegateServer, err := delegateConfig.Complete(sharedInformers, nil).New("test", NewEmptyDelegate())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -152,7 +152,7 @@ func TestNewWithDelegate(t *testing.T) {
 	// this wires up swagger
 	delegateServer.PrepareRun()
 
-	wrappingConfig := NewConfig(codecs)
+	wrappingConfig := NewConfig(codecs, "test")
 	wrappingConfig.ExternalAddress = "192.168.10.4:443"
 	wrappingConfig.PublicAddress = netutils.ParseIPSloppy("192.168.10.4")
 	wrappingConfig.LegacyAPIGroupPrefixes = sets.NewString("/api")
@@ -164,7 +164,7 @@ func TestNewWithDelegate(t *testing.T) {
 	}))
 
 	sharedInformers = informers.NewSharedInformerFactory(clientset, wrappingConfig.LoopbackClientConfig.Timeout)
-	wrappingServer, err := wrappingConfig.Complete(sharedInformers).New("test", delegateServer)
+	wrappingServer, err := wrappingConfig.Complete(sharedInformers, nil).New("test", delegateServer)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -432,12 +432,12 @@ func TestNewFeatureGatedSerializer(t *testing.T) {
 			MediaTypeType:    "application",
 			MediaTypeSubType: "cbor",
 		}
-	})))
+	})), "test")
 	config.ExternalAddress = "192.168.10.4:443"
 	config.EffectiveVersion = utilversion.NewEffectiveVersion("")
 	config.LoopbackClientConfig = &rest.Config{}
 
-	if _, err := config.Complete(nil).New("test", NewEmptyDelegate()); err != nil {
+	if _, err := config.Complete(nil, nil).New("test", NewEmptyDelegate()); err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
 }

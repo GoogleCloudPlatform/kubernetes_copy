@@ -108,6 +108,7 @@ type Extra struct {
 // the genericapiserver.Config associated with it. The genericapiserver.Config is
 // often shared between multiple delegated apiservers.
 func BuildGenericConfig(
+	name string,
 	s options.CompletedOptions,
 	schemes []*runtime.Scheme,
 	resourceConfig *serverstorage.ResourceConfig,
@@ -118,7 +119,7 @@ func BuildGenericConfig(
 	storageFactory *serverstorage.DefaultStorageFactory,
 	lastErr error,
 ) {
-	genericConfig = genericapiserver.NewConfig(legacyscheme.Codecs)
+	genericConfig = genericapiserver.NewConfig(legacyscheme.Codecs, name)
 	genericConfig.Flagz = s.Flagz
 	genericConfig.MergedResourceConfig = resourceConfig
 

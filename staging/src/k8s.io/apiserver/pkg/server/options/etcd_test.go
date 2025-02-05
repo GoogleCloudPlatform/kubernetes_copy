@@ -356,7 +356,7 @@ func TestKMSHealthzEndpoint(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			serverConfig := server.NewConfig(codecs)
+			serverConfig := server.NewConfig(codecs, "test")
 			etcdOptions := &EtcdOptions{
 				EncryptionProviderConfigFilepath:        tc.encryptionConfigPath,
 				EncryptionProviderConfigAutomaticReload: tc.reload,
@@ -401,7 +401,7 @@ func TestReadinessCheck(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			serverConfig := server.NewConfig(codecs)
+			serverConfig := server.NewConfig(codecs, "test")
 			etcdOptions := &EtcdOptions{SkipHealthEndpoints: tc.skipHealth}
 			if err := etcdOptions.ApplyTo(serverConfig); err != nil {
 				t.Fatalf("Failed to add healthz error: %v", err)
@@ -432,7 +432,7 @@ func healthChecksAreEqual(t *testing.T, want []string, healthChecks []healthz.He
 }
 
 func TestRestOptionsStorageObjectCountTracker(t *testing.T) {
-	serverConfig := server.NewConfig(codecs)
+	serverConfig := server.NewConfig(codecs, "test")
 	etcdOptions := &EtcdOptions{}
 	if err := etcdOptions.ApplyTo(serverConfig); err != nil {
 		t.Fatalf("Failed to apply etcd options error: %v", err)

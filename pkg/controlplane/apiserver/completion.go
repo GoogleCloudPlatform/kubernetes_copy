@@ -33,7 +33,7 @@ type CompletedConfig struct {
 
 func (c *Config) Complete() CompletedConfig {
 	cfg := completedConfig{
-		c.Generic.Complete(c.VersionedInformers),
+		c.Generic.Complete(c.VersionedInformers, nil),
 		&c.Extra,
 	}
 
