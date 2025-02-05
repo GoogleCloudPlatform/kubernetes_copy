@@ -38,16 +38,16 @@ import (
 
 // Controller demonstrates how to implement a controller with client-go.
 type Controller struct {
-	indexer  cache.Indexer
+	store    cache.Store
 	queue    workqueue.TypedRateLimitingInterface[string]
 	informer cache.Controller
 }
 
 // NewController creates a new Controller.
-func NewController(queue workqueue.TypedRateLimitingInterface[string], indexer cache.Indexer, informer cache.Controller) *Controller {
+func NewController(queue workqueue.TypedRateLimitingInterface[string], store cache.Store, informer cache.Controller) *Controller {
 	return &Controller{
 		informer: informer,
-		indexer:  indexer,
+		store:    store,
 		queue:    queue,
 	}
 }
@@ -74,7 +74,7 @@ func (c *Controller) processNextItem() bool {
 // information about the pod to stdout. In case an error happened, it has to simply return the error.
 // The retry logic should not be part of the business logic.
 func (c *Controller) syncToStdout(key string) error {
-	obj, exists, err := c.indexer.GetByKey(key)
+	obj, exists, err := c.store.GetByKey(key)
 	if err != nil {
 		klog.Errorf("Fetching object with key %s from store failed with %v", key, err)
 		return err
@@ -178,36 +178,40 @@ func main() {
 	// whenever the cache is updated, the pod key is added to the workqueue.
 	// Note that when we finally process the item from the workqueue, we might see a newer version
 	// of the Pod than the version which was responsible for triggering the update.
-	indexer, informer := cache.NewIndexerInformer(podListWatcher, &v1.Pod{}, 0, cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
-			key, err := cache.MetaNamespaceKeyFunc(obj)
-			if err == nil {
-				queue.Add(key)
-			}
+	store, informer := cache.NewInformerWithOptions(cache.InformerOptions{
+		ListerWatcher: podListWatcher,
+		ObjectType:    &v1.Pod{},
+		ResyncPeriod:  0,
+		Handler: cache.ResourceEventHandlerFuncs{
+			AddFunc: func(obj interface{}) {
+				key, err := cache.MetaNamespaceKeyFunc(obj)
+				if err == nil {
+					queue.Add(key)
+				}
+			},
+			UpdateFunc: func(old interface{}, new interface{}) {
+				key, err := cache.MetaNamespaceKeyFunc(new)
+				if err == nil {
+					queue.Add(key)
+				}
+			},
+			DeleteFunc: func(obj interface{}) {
+				// IndexerInformer uses a delta queue, therefore for deletes we have to use this
+				// key function.
+				key, err := cache.DeletionHandlingMetaNamespaceKeyFunc(obj)
+				if err == nil {
+					queue.Add(key)
+				}
+			},
 		},
-		UpdateFunc: func(old interface{}, new interface{}) {
-			key, err := cache.MetaNamespaceKeyFunc(new)
-			if err == nil {
-				queue.Add(key)
-			}
-		},
-		DeleteFunc: func(obj interface{}) {
-			// IndexerInformer uses a delta queue, therefore for deletes we have to use this
-			// key function.
-			key, err := cache.DeletionHandlingMetaNamespaceKeyFunc(obj)
-			if err == nil {
-				queue.Add(key)
-			}
-		},
-	}, cache.Indexers{})
-
-	controller := NewController(queue, indexer, informer)
+	})
+	controller := NewController(queue, store, informer)
 
 	// We can now warm up the cache for initial synchronization.
 	// Let's suppose that we knew about a pod "mypod" on our last run, therefore add it to the cache.
 	// If this pod is not there anymore, the controller will be notified about the removal after the
 	// cache has synchronized.
-	indexer.Add(&v1.Pod{
+	store.Add(&v1.Pod{
 		ObjectMeta: meta_v1.ObjectMeta{
 			Name:      "mypod",
 			Namespace: v1.NamespaceDefault,
