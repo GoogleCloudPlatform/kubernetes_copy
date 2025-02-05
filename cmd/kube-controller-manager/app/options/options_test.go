@@ -137,7 +137,7 @@ var args = []string{
 	"--leader-elect=false",
 	"--leader-elect-lease-duration=30s",
 	"--leader-elect-renew-deadline=15s",
-	"--leader-elect-resource-lock=configmap",
+	"--leader-elect-resource-lock=leases",
 	"--leader-elect-retry-period=5s",
 	"--legacy-service-account-token-clean-up-period=8760h",
 	"--master=192.168.4.20",
@@ -193,7 +193,7 @@ func TestAddFlags(t *testing.T) {
 				},
 				ControllerStartInterval: metav1.Duration{Duration: 2 * time.Minute},
 				LeaderElection: componentbaseconfig.LeaderElectionConfiguration{
-					ResourceLock:      "configmap",
+					ResourceLock:      "leases",
 					LeaderElect:       false,
 					LeaseDuration:     metav1.Duration{Duration: 30 * time.Second},
 					RenewDeadline:     metav1.Duration{Duration: 15 * time.Second},
@@ -560,7 +560,7 @@ func TestApplyTo(t *testing.T) {
 				},
 				ControllerStartInterval: metav1.Duration{Duration: 2 * time.Minute},
 				LeaderElection: componentbaseconfig.LeaderElectionConfiguration{
-					ResourceLock:      "configmap",
+					ResourceLock:      "leases",
 					LeaderElect:       false,
 					LeaseDuration:     metav1.Duration{Duration: 30 * time.Second},
 					RenewDeadline:     metav1.Duration{Duration: 15 * time.Second},

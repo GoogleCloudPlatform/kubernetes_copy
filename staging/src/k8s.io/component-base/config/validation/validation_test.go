@@ -70,7 +70,7 @@ func TestValidateClientConnectionConfiguration(t *testing.T) {
 
 func TestValidateLeaderElectionConfiguration(t *testing.T) {
 	validConfig := &config.LeaderElectionConfiguration{
-		ResourceLock:      "configmap",
+		ResourceLock:      "leases",
 		LeaderElect:       true,
 		LeaseDuration:     metav1.Duration{Duration: 30 * time.Second},
 		RenewDeadline:     metav1.Duration{Duration: 15 * time.Second},
