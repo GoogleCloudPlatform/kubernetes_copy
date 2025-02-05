@@ -743,7 +743,7 @@ func WaitForNRestartablePods(ctx context.Context, ps *testutils.PodStore, expect
 	}
 
 	match := func(allPods []*v1.Pod) (func() string, error) {
-		pods = FilterNonRestartablePods(allPods)
+		pods = FilterNonRecreatablePods(allPods)
 		if len(pods) != expect {
 			return func() string {
 				return fmt.Sprintf("expected to find non-restartable %d pods, but found %d:\n%s", expect, len(pods), format.Object(pods, 1))

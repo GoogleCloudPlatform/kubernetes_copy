@@ -63,3 +63,87 @@ func TestGetPodsInNamespace(t *testing.T) {
 		})
 	}
 }
+
+func TestFilterNonRecreatablePods(t *testing.T) {
+	deploymentKind := v1.SchemeGroupVersion.WithKind("Deployment")
+	tests := []struct {
+		name            string
+		pods            []*v1.Pod
+		expectedPodsLen int
+	}{
+		{
+			name: "only normal pods",
+			pods: []*v1.Pod{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "normal-pod-1",
+						OwnerReferences: []metav1.OwnerReference{
+							{
+								APIVersion: deploymentKind.Version,
+								Kind:       deploymentKind.Kind,
+							},
+						},
+					},
+					Spec: v1.PodSpec{
+						RestartPolicy: v1.RestartPolicyAlways,
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "normal-pod-2",
+						OwnerReferences: []metav1.OwnerReference{
+							{
+								APIVersion: deploymentKind.Version,
+								Kind:       deploymentKind.Kind,
+							},
+						},
+					},
+					Spec: v1.PodSpec{
+						RestartPolicy: v1.RestartPolicyAlways,
+					},
+				},
+			},
+			expectedPodsLen: 2,
+		},
+		{
+			name: "naked pod",
+			pods: []*v1.Pod{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:            "naked-pod",
+						OwnerReferences: nil,
+					},
+					Spec: v1.PodSpec{
+						RestartPolicy: v1.RestartPolicyAlways,
+					},
+				},
+			},
+			expectedPodsLen: 0,
+		},
+		{
+			name: "mirror pod",
+			pods: []*v1.Pod{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "mirror-pod",
+						Annotations: map[string]string{
+							v1.MirrorPodAnnotationKey: "true",
+						},
+					},
+					Spec: v1.PodSpec{
+						RestartPolicy: v1.RestartPolicyOnFailure,
+					},
+				},
+			},
+			expectedPodsLen: 0,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			filteredPods := FilterNonRecreatablePods(tt.pods)
+			if len(filteredPods) != tt.expectedPodsLen {
+				t.Errorf("len(filteredPods) = %v, want len = %v", len(filteredPods), tt.expectedPodsLen)
+			}
+		})
+	}
+}

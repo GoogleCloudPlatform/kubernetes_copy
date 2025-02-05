@@ -70,7 +70,7 @@ var _ = SIGDescribe("Restart", framework.WithDisruptive(), func() {
 
 		ginkgo.By("ensuring all pods are running and ready")
 		allPods := ps.List()
-		pods := e2epod.FilterNonRestartablePods(allPods)
+		pods := e2epod.FilterNonRecreatablePods(allPods)
 
 		originalPodNames = make([]string, len(pods))
 		for i, p := range pods {
