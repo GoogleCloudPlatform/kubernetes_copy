@@ -19,6 +19,7 @@ package e2enode
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/onsi/ginkgo/v2"
@@ -50,7 +51,10 @@ var _ = SIGDescribe("CPU Manager Metrics", framework.WithSerial(), feature.CPUMa
 	ginkgo.Context("when querying /metrics", func() {
 		var oldCfg *kubeletconfig.KubeletConfiguration
 		var testPod *v1.Pod
+		var cpuAlloc int64
 		var smtLevel int
+		var uncoreGroupSize int
+		var hasSplitUncore bool
 
 		ginkgo.BeforeEach(func(ctx context.Context) {
 			var err error
@@ -60,7 +64,7 @@ var _ = SIGDescribe("CPU Manager Metrics", framework.WithSerial(), feature.CPUMa
 			}
 
 			fullCPUsOnlyOpt := fmt.Sprintf("option=%s", cpumanager.FullPCPUsOnlyOption)
-			_, cpuAlloc, _ := getLocalNodeCPUDetails(ctx, f)
+			_, cpuAlloc, _ = getLocalNodeCPUDetails(ctx, f)
 			smtLevel = getSMTLevel()
 
 			// strict SMT alignment is trivially verified and granted on non-SMT systems
@@ -75,10 +79,22 @@ var _ = SIGDescribe("CPU Manager Metrics", framework.WithSerial(), feature.CPUMa
 
 			framework.Logf("SMT level %d", smtLevel)
 
+			uncoreGroupSize = getUncoreCPUGroupSize()
+			if uncoreGroupSize == 0 {
+				hasSplitUncore = false
+			} else {
+				// check we do physically have split Uncore but also we have enough CPUs available to run
+				// meaningful tests. We need them both.
+				hasSplitUncore = (cpuAlloc > int64(uncoreGroupSize))
+			}
+
+			framework.Logf("Uncore Group Size %d; Split Uncore detected=%v", uncoreGroupSize, hasSplitUncore)
+
 			// TODO: we assume the first available CPUID is 0, which is pretty fair, but we should probably
 			// check what we do have in the node.
 			cpuPolicyOptions := map[string]string{
-				cpumanager.FullPCPUsOnlyOption: "true",
+				cpumanager.FullPCPUsOnlyOption:            "true",
+				cpumanager.PreferAlignByUnCoreCacheOption: strconv.FormatBool(hasSplitUncore),
 			}
 			newCfg := configureCPUManagerInKubelet(oldCfg,
 				&cpuManagerKubeletArguments{
@@ -165,7 +181,7 @@ var _ = SIGDescribe("CPU Manager Metrics", framework.WithSerial(), feature.CPUMa
 			gomega.Consistently(ctx, getKubeletMetrics, 1*time.Minute, 15*time.Second).Should(matchResourceMetrics)
 		})
 
-		ginkgo.It("should return updated alignment counters when pod successfully run", func(ctx context.Context) {
+		ginkgo.It("should return updated SMT alignment counters when pod successfully run", func(ctx context.Context) {
 			ginkgo.By("Creating the test pod")
 			testPod = e2epod.NewPodClient(f).Create(ctx, makeGuaranteedCPUExclusiveSleeperPod("count-align-smt-ok", smtLevel))
 
@@ -274,6 +290,88 @@ var _ = SIGDescribe("CPU Manager Metrics", framework.WithSerial(), feature.CPUMa
 			ginkgo.By("Ensuring the metrics match the expectations a few more times")
 			gomega.Consistently(ctx, getKubeletMetrics, 30*time.Second, 10*time.Second).Should(matchResourceMetricsIdle)
 		})
+
+		ginkgo.It("should update alignment counters when pod successfully run taking less than uncore cache group", func(ctx context.Context) {
+			if !hasSplitUncore {
+				e2eskipper.Skip("Skipping CPU Manager uncore alignment test - not split Uncore detected")
+			}
+			if smtLevel >= uncoreGroupSize { // how come?!
+				e2eskipper.Skip("Skipping CPU Manager uncore alignment test - SMT level more than Uncore group size - this is unexpected")
+			}
+
+			ginkgo.By("Creating the test pod")
+			testPod = e2epod.NewPodClient(f).Create(ctx, makeGuaranteedCPUExclusiveSleeperPod("count-align-uncore-ok", smtLevel))
+
+			// we updated the kubelet config in BeforeEach, so we can assume we start fresh.
+			// being [Serial], we can also assume noone else but us is running pods.
+			ginkgo.By("Checking the cpumanager metrics right after the kubelet restart, with pod should be admitted")
+
+			idFn := makeCustomPairID("scope", "boundary")
+			matchAlignmentMetrics := gstruct.MatchKeys(gstruct.IgnoreExtras, gstruct.Keys{
+				"kubelet_container_aligned_compute_resources_count": gstruct.MatchElements(idFn, gstruct.IgnoreExtras, gstruct.Elements{
+					"container::uncore_cache": timelessSample(1),
+				}),
+			})
+
+			ginkgo.By("Giving the Kubelet time to update the alignment metrics")
+			gomega.Eventually(ctx, getKubeletMetrics, 1*time.Minute, 15*time.Second).Should(matchAlignmentMetrics)
+			ginkgo.By("Ensuring the metrics match the expectations about alignment metrics a few more times")
+			gomega.Consistently(ctx, getKubeletMetrics, 1*time.Minute, 15*time.Second).Should(matchAlignmentMetrics)
+		})
+
+		ginkgo.It("should update alignment counters when pod successfully run taking a full uncore cache group", func(ctx context.Context) {
+			if !hasSplitUncore {
+				e2eskipper.Skip("Skipping CPU Manager uncore alignment test - not split Uncore detected")
+			}
+
+			ginkgo.By("Creating the test pod")
+			testPod = e2epod.NewPodClient(f).Create(ctx, makeGuaranteedCPUExclusiveSleeperPod("count-align-uncore-ok", uncoreGroupSize))
+
+			// we updated the kubelet config in BeforeEach, so we can assume we start fresh.
+			// being [Serial], we can also assume noone else but us is running pods.
+			ginkgo.By("Checking the cpumanager metrics right after the kubelet restart, with pod should be admitted")
+
+			idFn := makeCustomPairID("scope", "boundary")
+			matchAlignmentMetrics := gstruct.MatchKeys(gstruct.IgnoreExtras, gstruct.Keys{
+				"kubelet_container_aligned_compute_resources_count": gstruct.MatchElements(idFn, gstruct.IgnoreExtras, gstruct.Elements{
+					"container::uncore_cache": timelessSample(1),
+				}),
+			})
+
+			ginkgo.By("Giving the Kubelet time to update the alignment metrics")
+			gomega.Eventually(ctx, getKubeletMetrics, 1*time.Minute, 15*time.Second).Should(matchAlignmentMetrics)
+			ginkgo.By("Ensuring the metrics match the expectations about alignment metrics a few more times")
+			gomega.Consistently(ctx, getKubeletMetrics, 1*time.Minute, 15*time.Second).Should(matchAlignmentMetrics)
+		})
+
+		ginkgo.It("should not update alignment counters when pod successfully run taking more than a uncore cache group", func(ctx context.Context) {
+			if !hasSplitUncore {
+				e2eskipper.Skip("Skipping CPU Manager uncore alignment test - not split Uncore detected")
+			}
+			if cpuAlloc < int64(uncoreGroupSize+smtLevel) {
+				e2eskipper.Skipf("Skipping CPU Manager uncore alignment test - not enough available CPUs (needs %d allocatable %d)", uncoreGroupSize+smtLevel, cpuAlloc)
+			}
+
+			ginkgo.By("Creating the test pod")
+			testPod = e2epod.NewPodClient(f).Create(ctx, makeGuaranteedCPUExclusiveSleeperPod("count-align-uncore-ok", uncoreGroupSize+smtLevel))
+
+			// we updated the kubelet config in BeforeEach, so we can assume we start fresh.
+			// being [Serial], we can also assume noone else but us is running pods.
+			ginkgo.By("Checking the cpumanager metrics right after the kubelet restart, with pod should be admitted")
+
+			idFn := makeCustomPairID("scope", "boundary")
+			matchAlignmentMetrics := gstruct.MatchKeys(gstruct.IgnoreExtras, gstruct.Keys{
+				"kubelet_container_aligned_compute_resources_count": gstruct.MatchElements(idFn, gstruct.IgnoreExtras, gstruct.Elements{
+					"container::uncore_cache": timelessSample(0),
+				}),
+			})
+
+			ginkgo.By("Giving the Kubelet time to update the alignment metrics")
+			gomega.Eventually(ctx, getKubeletMetrics, 1*time.Minute, 15*time.Second).Should(matchAlignmentMetrics)
+			ginkgo.By("Ensuring the metrics match the expectations about alignment metrics a few more times")
+			gomega.Consistently(ctx, getKubeletMetrics, 1*time.Minute, 15*time.Second).Should(matchAlignmentMetrics)
+		})
+
 	})
 })
 

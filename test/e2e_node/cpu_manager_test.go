@@ -18,7 +18,10 @@ package e2enode
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
+	"os"
 	"os/exec"
 	"regexp"
 	"strconv"
@@ -214,6 +217,19 @@ func getSMTLevel() int {
 	framework.ExpectNoError(err)
 	// how many thread sibling you have = SMT level
 	// example: 2-way SMT means 2 threads sibling for each thread
+	cpus, err := cpuset.Parse(strings.TrimSpace(string(out)))
+	framework.ExpectNoError(err)
+	return cpus.Size()
+}
+
+func getUncoreCPUGroupSize() int {
+	cpuID := 0 // this is just the most likely cpu to be present in a random system. No special meaning besides this.
+	out, err := os.ReadFile(fmt.Sprintf("/sys/devices/system/cpu/cpu%d/cache/index3/shared_cpu_list", cpuID))
+	if errors.Is(err, fs.ErrNotExist) {
+		return 0 // no Uncore/LLC cache detected, nothing to do
+	}
+	framework.ExpectNoError(err)
+	// how many cores share a same Uncore/LLC block?
 	cpus, err := cpuset.Parse(strings.TrimSpace(string(out)))
 	framework.ExpectNoError(err)
 	return cpus.Size()
