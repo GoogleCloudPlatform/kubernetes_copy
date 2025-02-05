@@ -132,6 +132,9 @@ func calculateStatus(rs *apps.ReplicaSet, activePods []*v1.Pod, terminatingPods 
 		SetCondition(&newStatus, cond)
 	} else if manageReplicasErr == nil && failureCond != nil {
 		RemoveCondition(&newStatus, apps.ReplicaSetReplicaFailure)
+	} else if manageReplicasErr != nil {
+		// Update the condition message if the error message has changed.
+		UpdateCondition(&newStatus, apps.ReplicaSetReplicaFailure, manageReplicasErr.Error())
 	}
 
 	newStatus.Replicas = int32(len(activePods))
@@ -177,6 +180,20 @@ func SetCondition(status *apps.ReplicaSetStatus, condition apps.ReplicaSetCondit
 // RemoveCondition removes the condition with the provided type from the replicaset status.
 func RemoveCondition(status *apps.ReplicaSetStatus, condType apps.ReplicaSetConditionType) {
 	status.Conditions = filterOutCondition(status.Conditions, condType)
+}
+
+// UpdateCondition Updates the conditional message of the provided type.
+func UpdateCondition(status *apps.ReplicaSetStatus, condType apps.ReplicaSetConditionType, msg string) {
+	currentCond := GetCondition(*status, condType)
+	if currentCond == nil {
+		return
+	}
+	if currentCond.Message == msg {
+		return
+	}
+	newCond := NewReplicaSetCondition(condType, currentCond.Status, currentCond.Reason, msg)
+	status.Conditions = filterOutCondition(status.Conditions, condType)
+	status.Conditions = append(status.Conditions, newCond)
 }
 
 // filterOutCondition returns a new slice of replicaset conditions without conditions with the provided type.
