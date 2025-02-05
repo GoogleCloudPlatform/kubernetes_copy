@@ -19,6 +19,8 @@ package storage
 import (
 	"os"
 
+	"github.com/onsi/ginkgo/v2"
+
 	"k8s.io/kubernetes/test/e2e/framework"
 	"k8s.io/kubernetes/test/e2e/storage/drivers"
 	storageframework "k8s.io/kubernetes/test/e2e/storage/framework"
@@ -49,6 +51,8 @@ var testDrivers = []func() storageframework.TestDriver{
 
 // This executes testSuites for in-tree volumes.
 var _ = utils.SIGDescribe("In-tree Volumes", func() {
+	defer ginkgo.GinkgoRecover()
+
 	gceEnabled := false
 	for _, driver := range framework.TestContext.EnabledVolumeDrivers {
 		switch driver {
