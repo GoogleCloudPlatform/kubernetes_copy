@@ -26,6 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	genericfeatures "k8s.io/apiserver/pkg/features"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	"k8s.io/component-base/tracing"
 
 	"k8s.io/klog/v2"
 
@@ -63,6 +64,7 @@ func withAuthorization(handler http.Handler, a authorizer.Authorizer, s runtime.
 		ctx := req.Context()
 		authorizationStart := time.Now()
 
+		ctx, span := tracing.Start(ctx, "authorization")
 		attributes, err := GetAuthorizerAttributes(ctx)
 		if err != nil {
 			responsewriters.InternalError(w, req, err)
@@ -74,6 +76,7 @@ func withAuthorization(handler http.Handler, a authorizer.Authorizer, s runtime.
 		defer func() {
 			metrics(ctx, authorized, err, authorizationStart, authorizationFinish)
 		}()
+		span.End(500 * time.Millisecond)
 
 		// an authorizer like RBAC could encounter evaluation errors and still allow the request, so authorizer decision is checked before error here.
 		if authorized == authorizer.DecisionAllow {
