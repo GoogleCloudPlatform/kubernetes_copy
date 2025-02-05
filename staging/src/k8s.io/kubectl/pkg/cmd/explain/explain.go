@@ -35,12 +35,17 @@ import (
 
 var (
 	explainLong = templates.LongDesc(i18n.T(`
-		Describe fields and structure of various resources.
+		Describe (sub-)fields and structure of various resources.
 
-		This command describes the fields associated with each supported API resource.
-		Fields are identified via a simple JSONPath identifier:
+		This command describes the (sub-)fields associated with each supported API resource.
+		Fields are identified via a simple JSONPath accessor:
 
-			<type>.<fieldName>[.<fieldName>]
+			<type>.<fieldName>
+
+		Subfield of each field is accessed through the same dotted notation:
+
+			<type>.<fieldName>[.<subfieldName>]
+			<type>.<fieldName>.<subfieldName>[.<subfieldName>]
 
 		Information about each field is retrieved from the server in OpenAPI format.`))
 
