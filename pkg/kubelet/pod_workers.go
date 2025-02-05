@@ -34,6 +34,7 @@ import (
 	"k8s.io/kubernetes/pkg/kubelet/events"
 	"k8s.io/kubernetes/pkg/kubelet/eviction"
 	"k8s.io/kubernetes/pkg/kubelet/metrics"
+	"k8s.io/kubernetes/pkg/kubelet/pleg"
 	kubetypes "k8s.io/kubernetes/pkg/kubelet/types"
 	"k8s.io/kubernetes/pkg/kubelet/util/queue"
 	"k8s.io/utils/clock"
@@ -1245,16 +1246,17 @@ func (p *podWorkers) podWorkerLoop(podUID types.UID, podUpdates <-chan struct{})
 				// when we receive a running pod, we don't need status at all because we are
 				// guaranteed to be terminating and we skip updates to the pod
 			default:
-				// wait until we see the next refresh from the PLEG via the cache (max 2s)
-				// TODO: this adds ~1s of latency on all transitions from sync to terminating
-				//  to terminated, and on all termination retries (including evictions). We should
-				//  improve latency by making the pleg continuous and by allowing pod status
-				//  changes to be refreshed when key events happen (killPod, sync->terminating).
-				//  Improving this latency also reduces the possibility that a terminated
-				//  container's status is garbage collected before we have a chance to update the
-				//  API server (thus losing the exit code).
-				status, err = p.podCache.GetNewerThan(update.Options.Pod.UID, lastSyncTime)
-
+				// When using the generic PLEG, we wait until we see the next refresh from PLEG through the cache (max 2s).
+				// When using the evented PLEG, we directly fetch the pod's real-time status from the cache
+				// because the execution of sync*pod and the reporting of container events by the container
+				// runtime are parallel. This may lead to situations where sync*pod hasn't finished executing, but
+				// the container runtime has already reported container events. If we continue using GetNewerThan,
+				// we might miss some container events unless we force cache refresh for the pod.
+				if pleg.IsEventedPLEGInUse() {
+					status, err = p.podCache.Get(update.Options.Pod.UID)
+				} else {
+					status, err = p.podCache.GetNewerThan(update.Options.Pod.UID, lastSyncTime)
+				}
 				if err != nil {
 					// This is the legacy event thrown by manage pod loop all other events are now dispatched
 					// from syncPodFn

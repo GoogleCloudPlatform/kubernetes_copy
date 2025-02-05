@@ -1027,6 +1027,16 @@ func (m *kubeGenericRuntimeManager) computePodActions(ctx context.Context, pod *
 	for idx, container := range pod.Spec.Containers {
 		containerStatus := podStatus.FindContainerStatusByName(container.Name)
 
+		// In some cases, after syncPod completes,
+		// there may be a delay in container events reported by the container runtime.
+		// This can result in the inability to obtain the latest pod status when entering syncPod again.
+		// This aims to prevent delayed states from interfering with the behavior of syncPod.
+		if containerStatus != nil && pleg.IsEventedPLEGInUse() && kubecontainer.IsContainerPendingStart(containerStatus) {
+			klog.V(4).InfoS("The container's status is Created, but it did not enter the Running state within the grace period. Waiting for the next cycle.", "pod", klog.KObj(pod), "containerName", container.Name)
+			keepCount++
+			continue
+		}
+
 		// Call internal container post-stop lifecycle hook for any non-running container so that any
 		// allocated cpus are released immediately. If the container is restarted, cpus will be re-allocated
 		// to it.
@@ -1642,7 +1652,7 @@ func (m *kubeGenericRuntimeManager) GetPodStatus(ctx context.Context, uid kubety
 			podIPs = m.determinePodSandboxIPs(namespace, name, resp.Status)
 		}
 
-		if idx == 0 && utilfeature.DefaultFeatureGate.Enabled(features.EventedPLEG) {
+		if idx == 0 && pleg.IsEventedPLEGInUse() {
 			if resp.Timestamp == 0 {
 				// If the Evented PLEG is enabled in the kubelet, but not in the runtime
 				// then the pod status we get will not have the timestamp set.
@@ -1669,7 +1679,7 @@ func (m *kubeGenericRuntimeManager) GetPodStatus(ctx context.Context, uid kubety
 		}
 	}
 
-	if !utilfeature.DefaultFeatureGate.Enabled(features.EventedPLEG) {
+	if !pleg.IsEventedPLEGInUse() {
 		// Get statuses of all containers visible in the pod.
 		containerStatuses, err = m.getPodContainerStatuses(ctx, uid, name, namespace)
 		if err != nil {

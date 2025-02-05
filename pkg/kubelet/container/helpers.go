@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"strings"
+	"time"
 
 	"k8s.io/klog/v2"
 
@@ -93,6 +94,7 @@ func ShouldContainerBeRestarted(container *v1.Container, pod *v1.Pod, podStatus 
 	if status.State == ContainerStateUnknown || status.State == ContainerStateCreated {
 		return true
 	}
+
 	// Check RestartPolicy for dead container
 	if pod.Spec.RestartPolicy == v1.RestartPolicyNever {
 		klog.V(4).InfoS("Already ran container, do nothing", "pod", klog.KObj(pod), "containerName", container.Name)
@@ -106,6 +108,15 @@ func ShouldContainerBeRestarted(container *v1.Container, pod *v1.Pod, podStatus 
 		}
 	}
 	return true
+}
+
+// IsContainerPendingStart determines if a container is in the Created state
+// but has not started within a specified grace period.
+func IsContainerPendingStart(status *Status) bool {
+	if status.State == ContainerStateCreated && status.StartedAt.IsZero() && status.FinishedAt.IsZero() {
+		return time.Since(status.CreatedAt).Seconds() < 3
+	}
+	return false
 }
 
 // HashContainer returns the hash of the container. It is used to compare

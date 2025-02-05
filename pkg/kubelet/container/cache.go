@@ -80,7 +80,10 @@ type cache struct {
 
 // NewCache creates a pod cache.
 func NewCache() Cache {
-	return &cache{pods: map[types.UID]*data{}, subscribers: map[types.UID][]*subRecord{}}
+	return &cache{
+		pods:        map[types.UID]*data{},
+		subscribers: map[types.UID][]*subRecord{},
+	}
 }
 
 // Get returns the PodStatus for the pod; callers are expected not to

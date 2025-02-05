@@ -42,11 +42,11 @@ var (
 	eventedPLEGUsageMu = sync.RWMutex{}
 )
 
-// isEventedPLEGInUse indicates whether Evented PLEG is in use. Even after enabling
+// IsEventedPLEGInUse indicates whether Evented PLEG is in use. Even after enabling
 // the Evented PLEG feature gate, there could be several reasons it may not be in use.
 // e.g. Streaming data issues from the runtime or the runtime does not implement the
 // container events stream.
-func isEventedPLEGInUse() bool {
+func IsEventedPLEGInUse() bool {
 	eventedPLEGUsageMu.RLock()
 	defer eventedPLEGUsageMu.RUnlock()
 	return eventedPLEGUsage
@@ -122,7 +122,7 @@ func (e *EventedPLEG) Relist() {
 func (e *EventedPLEG) Start() {
 	e.runningMu.Lock()
 	defer e.runningMu.Unlock()
-	if isEventedPLEGInUse() {
+	if IsEventedPLEGInUse() {
 		return
 	}
 	setEventedPLEGUsage(true)
@@ -136,7 +136,7 @@ func (e *EventedPLEG) Start() {
 func (e *EventedPLEG) Stop() {
 	e.runningMu.Lock()
 	defer e.runningMu.Unlock()
-	if !isEventedPLEGInUse() {
+	if !IsEventedPLEGInUse() {
 		return
 	}
 	setEventedPLEGUsage(false)
@@ -185,7 +185,7 @@ func (e *EventedPLEG) watchEventsChannel() {
 		numAttempts := 0
 		for {
 			if numAttempts >= e.eventedPlegMaxStreamRetries {
-				if isEventedPLEGInUse() {
+				if IsEventedPLEGInUse() {
 					// Fall back to Generic PLEG relisting since Evented PLEG is not working.
 					e.logger.V(4).Info("Fall back to Generic PLEG relisting since Evented PLEG is not working")
 					e.Stop()
@@ -208,7 +208,7 @@ func (e *EventedPLEG) watchEventsChannel() {
 		}
 	}()
 
-	if isEventedPLEGInUse() {
+	if IsEventedPLEGInUse() {
 		e.processCRIEvents(containerEventsResponseCh)
 	}
 }
@@ -270,7 +270,10 @@ func (e *EventedPLEG) processCRIEvents(containerEventsResponseCh chan *runtimeap
 			}
 			shouldSendPLEGEvent = true
 		} else {
-			if e.cache.Set(podID, status, err, time.Unix(0, event.GetCreatedAt())) {
+			// For sandbox events, we only need to update the pod cache without sending events to the pod worker.
+			// The pod worker does not need to handle sandbox events,
+			// sending sandbox events would cause unnecessary race conditions.
+			if e.cache.Set(podID, status, err, time.Unix(0, event.GetCreatedAt())) && !(event.PodSandboxStatus != nil && event.ContainersStatuses == nil) {
 				shouldSendPLEGEvent = true
 			}
 		}
