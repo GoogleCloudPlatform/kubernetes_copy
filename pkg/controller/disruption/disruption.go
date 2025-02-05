@@ -182,21 +182,24 @@ func NewDisruptionControllerInternal(ctx context.Context,
 			workqueue.DefaultTypedControllerRateLimiter[string](),
 			workqueue.TypedRateLimitingQueueConfig[string]{
 				DelayingQueue: workqueue.NewTypedDelayingQueueWithConfig(workqueue.TypedDelayingQueueConfig[string]{
-					Clock: clock,
-					Name:  "disruption",
+					Logger: &logger,
+					Clock:  clock,
+					Name:   "disruption",
 				}),
 			},
 		),
 		recheckQueue: workqueue.NewTypedDelayingQueueWithConfig(workqueue.TypedDelayingQueueConfig[string]{
-			Clock: clock,
-			Name:  "disruption_recheck",
+			Logger: &logger,
+			Clock:  clock,
+			Name:   "disruption_recheck",
 		}),
 		stalePodDisruptionQueue: workqueue.NewTypedRateLimitingQueueWithConfig(
 			workqueue.DefaultTypedControllerRateLimiter[string](),
 			workqueue.TypedRateLimitingQueueConfig[string]{
 				DelayingQueue: workqueue.NewTypedDelayingQueueWithConfig(workqueue.TypedDelayingQueueConfig[string]{
-					Clock: clock,
-					Name:  "stale_pod_disruption",
+					Logger: &logger,
+					Clock:  clock,
+					Name:   "stale_pod_disruption",
 				}),
 			},
 		),
