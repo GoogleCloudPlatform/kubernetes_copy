@@ -779,10 +779,7 @@ func (r *Request) watchInternal(ctx context.Context) (watch.Interface, runtime.D
 	isErrRetryableFunc := func(request *http.Request, err error) bool {
 		// The watch stream mechanism handles many common partial data errors, so closed
 		// connections can be retried in many cases.
-		if net.IsProbableEOF(err) || net.IsTimeout(err) {
-			return true
-		}
-		return false
+		return net.IsProbableEOF(err) || net.IsTimeout(err)
 	}
 	retry := r.retryFn(r.maxRetries)
 	url := r.URL().String()
