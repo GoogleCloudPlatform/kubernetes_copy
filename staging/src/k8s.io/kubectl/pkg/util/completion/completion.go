@@ -321,7 +321,7 @@ func compGetResourceList(restClientGetter genericclioptions.RESTClientGetter, cm
 	o.Complete(restClientGetter, cmd, nil)
 
 	// Get the list of resources
-	o.Output = "name"
+	*o.PrintFlags.OutputFormat = "name"
 	o.Cached = true
 	o.Verbs = []string{"get"}
 	// TODO:Should set --request-timeout=5s
