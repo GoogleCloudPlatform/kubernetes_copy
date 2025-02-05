@@ -404,9 +404,10 @@ func (ContainerPort) SwaggerDoc() map[string]string {
 }
 
 var map_ContainerResizePolicy = map[string]string{
-	"":              "ContainerResizePolicy represents resource resize policy for the container.",
-	"resourceName":  "Name of the resource to which this resource resize policy applies. Supported values: cpu, memory.",
-	"restartPolicy": "Restart policy to apply when specified resource is resized. If not specified, it defaults to NotRequired.",
+    "":              "ContainerResizePolicy represents resource resize policy for the container.",
+    "resourceName":  "Name of the resource to which this resource resize policy applies. Supported values: cpu, memory.",
+    "restartPolicy": "Restart policy to apply when specified resource is resized. If not specified, it defaults to NotRequired.",
+    "note":          "Note: ResizePolicy is not supported for ephemeral containers. Ephemeral containers use spare resources already allocated to the pod and cannot request resource resizing.",
 }
 
 func (ContainerResizePolicy) SwaggerDoc() map[string]string {
@@ -648,7 +649,7 @@ var map_EphemeralContainerCommon = map[string]string{
 	"envFrom":                  "List of sources to populate environment variables in the container. The keys defined within a source must be a C_IDENTIFIER. All invalid keys will be reported as an event when the container is starting. When a key exists in multiple sources, the value associated with the last source will take precedence. Values defined by an Env with a duplicate key will take precedence. Cannot be updated.",
 	"env":                      "List of environment variables to set in the container. Cannot be updated.",
 	"resources":                "Resources are not allowed for ephemeral containers. Ephemeral containers use spare resources already allocated to the pod.",
-	"resizePolicy":             "Resources resize policy for the container.",
+	"resizePolicy":				"Resources resize policy for the container. Note: ResizePolicy is not supported for ephemeral containers. Ephemeral containers use spare resources already allocated to the pod and cannot request resource resizing.",
 	"restartPolicy":            "Restart policy for the container to manage the restart behavior of each container within a pod. This may only be set for init containers. You cannot set this field on ephemeral containers.",
 	"volumeMounts":             "Pod volumes to mount into the container's filesystem. Subpath mounts are not allowed for ephemeral containers. Cannot be updated.",
 	"volumeDevices":            "volumeDevices is the list of block devices to be used by the container.",
