@@ -475,6 +475,18 @@ func (o *DebugOptions) visitNode(ctx context.Context, node *corev1.Node) (*corev
 //
 // visitPod returns a pod and debug container name for subsequent attach, if applicable.
 func (o *DebugOptions) visitPod(ctx context.Context, pod *corev1.Pod) (*corev1.Pod, string, error) {
+	// Display warning message if some capabilities are set by profile and non-root user is specified in .Spec.SecurityContext.RunAsUser.(#1650)
+	if o.Profile == ProfileGeneral || o.Profile == ProfileNetadmin || o.Profile == ProfileSysadmin ||
+		(o.CustomProfile != nil && o.CustomProfile.SecurityContext != nil &&
+			((o.CustomProfile.SecurityContext.Privileged != nil && *o.CustomProfile.SecurityContext.Privileged) ||
+				(o.CustomProfile.SecurityContext.Capabilities != nil && len(o.CustomProfile.SecurityContext.Capabilities.Add) != 0))) {
+		if pod.Spec.SecurityContext.RunAsUser != nil && *pod.Spec.SecurityContext.RunAsUser != 0 {
+			if o.CustomProfile == nil ||
+				(o.CustomProfile.SecurityContext.RunAsUser == nil || *o.CustomProfile.SecurityContext.RunAsUser != 0) {
+				fmt.Fprintln(o.ErrOut, `Warning: Non-root user is specified for the entire target Pod and some capabilities granted by debug profile may not work. Please consider using "--custom" with the custom profile specifying "securityContext.runAsUser: 0".`)
+			}
+		}
+	}
 	if len(o.CopyTo) > 0 {
 		return o.debugByCopy(ctx, pod)
 	}
