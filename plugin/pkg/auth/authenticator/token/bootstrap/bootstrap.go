@@ -88,6 +88,8 @@ func tokenErrorf(s *corev1.Secret, format string, i ...interface{}) {
 //
 //	( token-id ).( token-secret )
 func (t *TokenAuthenticator) AuthenticateToken(ctx context.Context, token string) (*authenticator.Response, bool, error) {
+	logger := klog.FromContext(ctx)
+
 	tokenID, tokenSecret, err := bootstraptokenutil.ParseToken(token)
 	if err != nil {
 		// Token isn't of the correct form, ignore it.
@@ -126,7 +128,7 @@ func (t *TokenAuthenticator) AuthenticateToken(ctx context.Context, token string
 		return nil, false, nil
 	}
 
-	if bootstrapsecretutil.HasExpired(secret, time.Now()) {
+	if bootstrapsecretutil.HasExpired(logger, secret, time.Now()) {
 		// logging done in isSecretExpired method.
 		return nil, false, nil
 	}

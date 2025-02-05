@@ -190,7 +190,7 @@ func (tc *TokenCleaner) syncFunc(ctx context.Context, key string) error {
 func (tc *TokenCleaner) evalSecret(ctx context.Context, o interface{}) {
 	logger := klog.FromContext(ctx)
 	secret := o.(*v1.Secret)
-	ttl, alreadyExpired := bootstrapsecretutil.GetExpiration(secret, time.Now())
+	ttl, alreadyExpired := bootstrapsecretutil.GetExpiration(logger, secret, time.Now())
 	if alreadyExpired {
 		logger.V(3).Info("Deleting expired secret", "secret", klog.KObj(secret))
 		var options metav1.DeleteOptions

@@ -55,7 +55,7 @@ func validateSecretForSigning(ctx context.Context, secret *v1.Secret) (tokenID, 
 	// Ensure this secret hasn't expired.  The TokenCleaner should remove this
 	// but if that isn't working or it hasn't gotten there yet we should check
 	// here.
-	if bootstrapsecretutil.HasExpired(secret, time.Now()) {
+	if bootstrapsecretutil.HasExpired(logger, secret, time.Now()) {
 		return "", "", false
 	}
 

@@ -45,8 +45,8 @@ func GetData(secret *v1.Secret, key string) string {
 }
 
 // HasExpired will identify whether the secret expires
-func HasExpired(secret *v1.Secret, currentTime time.Time) bool {
-	_, expired := GetExpiration(secret, currentTime)
+func HasExpired(logger klog.Logger, secret *v1.Secret, currentTime time.Time) bool {
+	_, expired := GetExpiration(logger, secret, currentTime)
 
 	return expired
 }
@@ -56,22 +56,22 @@ func HasExpired(secret *v1.Secret, currentTime time.Time) bool {
 // timeRemaining indicates how long until it does expire.
 // if the secret has no expiration timestamp, returns 0, false.
 // if there is an error parsing the secret's expiration timestamp, returns 0, true.
-func GetExpiration(secret *v1.Secret, currentTime time.Time) (timeRemaining time.Duration, isExpired bool) {
+func GetExpiration(logger klog.Logger, secret *v1.Secret, currentTime time.Time) (timeRemaining time.Duration, isExpired bool) {
 	expiration := GetData(secret, api.BootstrapTokenExpirationKey)
 	if len(expiration) == 0 {
 		return 0, false
 	}
 	expTime, err := time.Parse(time.RFC3339, expiration)
 	if err != nil {
-		klog.V(3).Infof("Unparseable expiration time (%s) in %s/%s Secret: %v. Treating as expired.",
-			expiration, secret.Namespace, secret.Name, err)
+		logger.V(3).Info("Unparseable expiration time in Secret. Treating as expired.",
+			"expirationTime", expiration, "secretNamespace", secret.Namespace, "secretName", secret.Name, "err", err)
 		return 0, true
 	}
 
 	timeRemaining = expTime.Sub(currentTime)
 	if timeRemaining <= 0 {
-		klog.V(3).Infof("Expired bootstrap token in %s/%s Secret: %v",
-			secret.Namespace, secret.Name, expiration)
+		logger.V(3).Info("Expired bootstrap token in Secret.",
+			"secretNamespace", secret.Namespace, "secretName", secret.Name, "expirationTime", expiration)
 		return 0, true
 	}
 	return timeRemaining, false
