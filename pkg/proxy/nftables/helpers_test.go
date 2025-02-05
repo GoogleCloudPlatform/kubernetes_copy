@@ -283,6 +283,9 @@ var ignoredRegexp = regexp.MustCompile(strings.Join(
 		// Ignore comments (which can only appear at the end of a rule).
 		` *comment "[^"]*"$`,
 
+		// Ignore counters (which can appear in the middle of rules).
+		`counter name ([^ ]*)`,
+
 		// The trace tests only check new connections, so for our purposes, this
 		// check always succeeds (and thus can be ignored).
 		`^ct state new`,

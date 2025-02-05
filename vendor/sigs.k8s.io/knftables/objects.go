@@ -76,15 +76,38 @@ func (table *Table) writeOperation(verb verb, ctx *nftContext, writer io.Writer)
 	// All other cases refer to the table by name
 	fmt.Fprintf(writer, "%s table %s %s", verb, ctx.family, ctx.table)
 	if verb == addVerb || verb == createVerb {
-		if table.Comment != nil && !ctx.noObjectComments {
-			fmt.Fprintf(writer, " { comment %q ; }", *table.Comment)
+		hasComment := table.Comment != nil && !ctx.noObjectComments
+		if hasComment || len(table.Flags) != 0 {
+			fmt.Fprintf(writer, " {")
+			if hasComment {
+				fmt.Fprintf(writer, " comment %q ;", *table.Comment)
+			}
+			if len(table.Flags) != 0 {
+				fmt.Fprintf(writer, " flags ")
+				for i := range table.Flags {
+					if i > 0 {
+						fmt.Fprintf(writer, ",")
+					}
+					fmt.Fprintf(writer, "%s", table.Flags[i])
+				}
+				fmt.Fprintf(writer, " ;")
+			}
+			fmt.Fprintf(writer, " }")
 		}
 	}
 	fmt.Fprintf(writer, "\n")
 }
 
 var tableRegexp = regexp.MustCompile(fmt.Sprintf(
-	`(?:{ comment %s ; })?`, commentGroup))
+	`(?:{ (?:comment %s ; )?(?:flags %s ; )?})?`, commentGroup, noSpaceGroup))
+
+func parseTableFlags(s string) []TableFlag {
+	var res []TableFlag
+	for _, flag := range strings.Split(s, ",") {
+		res = append(res, TableFlag(flag))
+	}
+	return res
+}
 
 func (table *Table) parse(line string) error {
 	match := tableRegexp.FindStringSubmatch(line)
@@ -92,6 +115,9 @@ func (table *Table) parse(line string) error {
 		return fmt.Errorf("failed parsing table add command")
 	}
 	table.Comment = getComment(match[1])
+	if match[2] != "" {
+		table.Flags = parseTableFlags(match[2])
+	}
 	return nil
 }
 
@@ -100,6 +126,9 @@ func (chain *Chain) validate(verb verb) error {
 	if chain.Hook == nil {
 		if chain.Type != nil || chain.Priority != nil {
 			return fmt.Errorf("regular chain %q must not specify Type or Priority", chain.Name)
+		}
+		if chain.Policy != nil {
+			return fmt.Errorf("regular chain %q must not specify Policy", chain.Name)
 		}
 		if chain.Device != nil {
 			return fmt.Errorf("regular chain %q must not specify Device", chain.Name)
@@ -156,6 +185,9 @@ func (chain *Chain) writeOperation(verb verb, ctx *nftContext, writer io.Writer)
 				} else {
 					fmt.Fprintf(writer, " priority %s ;", *chain.Priority)
 				}
+				if chain.Policy != nil {
+					fmt.Fprintf(writer, " policy %s ;", *chain.Policy)
+				}
 			}
 			if chain.Comment != nil && !ctx.noObjectComments {
 				fmt.Fprintf(writer, " comment %q ;", *chain.Comment)
@@ -168,10 +200,10 @@ func (chain *Chain) writeOperation(verb verb, ctx *nftContext, writer io.Writer)
 	fmt.Fprintf(writer, "\n")
 }
 
-// groups in []: [1]%s(?: {(?: type [2]%s hook [3]%s(?: device "[4]%s")(?: priority [5]%s ;))(?: comment [6]%s ;) })
+// groups in []: [1]%s(?: {(?: type [2]%s hook [3]%s(?: device "[4]%s")(?: priority [5]%s ;)(?: policy [6]%s ;)?)(?: comment [7]%s ;) })
 var chainRegexp = regexp.MustCompile(fmt.Sprintf(
-	`%s(?: {(?: type %s hook %s(?: device "%s")?(?: priority %s ;))?(?: comment %s ;)? })?`,
-	noSpaceGroup, noSpaceGroup, noSpaceGroup, noSpaceGroup, noSpaceGroup, commentGroup))
+	`%s(?: {(?: type %s hook %s(?: device "%s")?(?: priority %s ;)(?: policy %s ;)?)?(?: comment %s ;)? })?`,
+	noSpaceGroup, noSpaceGroup, noSpaceGroup, noSpaceGroup, noSpaceGroup, noSpaceGroup, commentGroup))
 
 func (chain *Chain) parse(line string) error {
 	match := chainRegexp.FindStringSubmatch(line)
@@ -179,7 +211,7 @@ func (chain *Chain) parse(line string) error {
 		return fmt.Errorf("failed parsing chain add command")
 	}
 	chain.Name = match[1]
-	chain.Comment = getComment(match[6])
+	chain.Comment = getComment(match[7])
 	if match[2] != "" {
 		chain.Type = (*BaseChainType)(&match[2])
 	}
@@ -191,6 +223,9 @@ func (chain *Chain) parse(line string) error {
 	}
 	if match[5] != "" {
 		chain.Priority = (*BaseChainPriority)(&match[5])
+	}
+	if match[6] != "" {
+		chain.Policy = (*BaseChainPolicy)(&match[6])
 	}
 	return nil
 }
@@ -578,4 +613,162 @@ func (element *Element) parse(line string) error {
 		element.Set = mapOrSetName
 	}
 	return nil
+}
+
+// Object implementation for Flowtable
+func (flowtable *Flowtable) validate(verb verb) error {
+	switch verb {
+	case addVerb, createVerb:
+		if flowtable.Name == "" {
+			return fmt.Errorf("no name specified for flowtable")
+		}
+		if flowtable.Handle != nil {
+			return fmt.Errorf("cannot specify Handle in %s operation", verb)
+		}
+	case deleteVerb:
+		if flowtable.Name == "" && flowtable.Handle == nil {
+			return fmt.Errorf("must specify either name or handle")
+		}
+	default:
+		return fmt.Errorf("%s is not implemented for flowtables", verb)
+	}
+
+	return nil
+}
+
+func (flowtable *Flowtable) writeOperation(verb verb, ctx *nftContext, writer io.Writer) {
+	// Special case for delete-by-handle
+	if verb == deleteVerb && flowtable.Handle != nil {
+		fmt.Fprintf(writer, "delete flowtable %s %s handle %d", ctx.family, ctx.table, *flowtable.Handle)
+		return
+	}
+
+	fmt.Fprintf(writer, "%s flowtable %s %s %s", verb, ctx.family, ctx.table, flowtable.Name)
+	if verb == addVerb || verb == createVerb {
+		fmt.Fprintf(writer, " {")
+
+		if flowtable.Priority != nil {
+			// since there is only one priority value allowed "filter" just use the value
+			// provided and not try to parse it.
+			fmt.Fprintf(writer, " hook ingress priority %s ;", *flowtable.Priority)
+		}
+
+		if len(flowtable.Devices) > 0 {
+			fmt.Fprintf(writer, " devices = { %s } ;", strings.Join(flowtable.Devices, ", "))
+		}
+
+		fmt.Fprintf(writer, " }")
+	}
+
+	fmt.Fprintf(writer, "\n")
+}
+
+// nft add flowtable inet example_table example_flowtable { hook ingress priority filter ; devices = { eth0 };  }
+var flowtableRegexp = regexp.MustCompile(fmt.Sprintf(
+	`%s(?: {(?: hook ingress priority %s ;)(?: devices = {(.*)} ;) })?`,
+	noSpaceGroup, noSpaceGroup))
+
+func (flowtable *Flowtable) parse(line string) error {
+	match := flowtableRegexp.FindStringSubmatch(line)
+	if match == nil {
+		return fmt.Errorf("failed parsing flowtableRegexp add command")
+	}
+	flowtable.Name = match[1]
+	if match[2] != "" {
+		flowtable.Priority = (*FlowtableIngressPriority)(&match[2])
+	}
+	// to avoid complex regular expressions the regex match everything between the brackets
+	// to match a single interface or a comma separated list of interfaces, and it is postprocessed
+	// here to remove the whitespaces.
+	if match[3] != "" {
+		devices := strings.Split(strings.TrimSpace(match[3]), ",")
+		for i := range devices {
+			devices[i] = strings.TrimSpace(devices[i])
+		}
+		if len(devices) > 0 {
+			flowtable.Devices = devices
+		}
+	}
+	return nil
+}
+
+// nft add counter [family] table name [{ [ packets packets bytes bytes ; ] [ comment comment ; }]
+// ([^ ]*)(?: {(?: packets ([0-9]*) bytes ([0-9]*) ;)?(?: comment (".*") ;)? })?
+var counterRegexp = regexp.MustCompile(fmt.Sprintf(
+	`%s(?: {(?: packets %s bytes %s ;)?(?: comment %s ;)? })?`,
+	noSpaceGroup, numberGroup, numberGroup, commentGroup))
+
+func (counter *Counter) parse(line string) error {
+	match := counterRegexp.FindStringSubmatch(line)
+	if match == nil {
+		return fmt.Errorf("failed parsing table add command")
+	}
+	counter.Name = match[1]
+	if match[2] != "" {
+		counter.Packets = PtrTo(uint64(*parseInt(match[2])))
+	}
+	if match[3] != "" {
+		counter.Bytes = PtrTo(uint64(*parseInt(match[3])))
+	}
+	if match[4] != "" {
+		counter.Comment = getComment(match[4])
+	}
+	return nil
+}
+
+// Object implementation for Counter
+func (counter *Counter) validate(verb verb) error {
+	switch verb {
+	case addVerb, createVerb:
+		if counter.Name == "" {
+			return fmt.Errorf("no counter name specified")
+		}
+		if counter.Handle != nil {
+			return fmt.Errorf("cannot specify Handle in %s operation", verb)
+		}
+		if counter.Packets != nil && counter.Bytes == nil {
+			return fmt.Errorf("cannot specify Packets without Bytes in %s operation", verb)
+		}
+		if counter.Packets == nil && counter.Bytes != nil {
+			return fmt.Errorf("cannot specify Bytes without Packets in %s operation", verb)
+		}
+	case deleteVerb:
+		if counter.Name == "" && counter.Handle == nil {
+			return fmt.Errorf("neither counter name nor handle specified")
+		}
+	case resetVerb:
+		if counter.Name == "" {
+			return fmt.Errorf("no counter name specified")
+		}
+	default:
+		return fmt.Errorf("%s is not implemented for counters", verb)
+	}
+	return nil
+}
+
+func (counter *Counter) writeOperation(verb verb, ctx *nftContext, writer io.Writer) {
+	// Special case for delete-by-handle
+	if verb == deleteVerb && counter.Handle != nil {
+		fmt.Fprintf(writer, "delete counter %s %s handle %d", ctx.family, ctx.table, *counter.Handle)
+		return
+	}
+
+	fmt.Fprintf(writer, "%s counter %s %s ", verb, ctx.family, ctx.table)
+	switch verb {
+	case addVerb, createVerb:
+		fmt.Fprint(writer, counter.Name)
+		if counter.Comment != nil || counter.Packets != nil || counter.Bytes != nil {
+			fmt.Fprintf(writer, " {")
+			if counter.Packets != nil && counter.Bytes != nil {
+				fmt.Fprintf(writer, " packets %d bytes %d ;", *counter.Packets, *counter.Bytes)
+			}
+			if counter.Comment != nil && (verb == addVerb || verb == createVerb) {
+				fmt.Fprintf(writer, " comment %q ;", *counter.Comment)
+			}
+			fmt.Fprintf(writer, " }")
+		}
+	default:
+		fmt.Fprint(writer, counter.Name)
+	}
+	fmt.Fprintf(writer, "\n")
 }

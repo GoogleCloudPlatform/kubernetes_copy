@@ -253,4 +253,5 @@ replace (
 	k8s.io/sample-apiserver => ./staging/src/k8s.io/sample-apiserver
 	k8s.io/sample-cli-plugin => ./staging/src/k8s.io/sample-cli-plugin
 	k8s.io/sample-controller => ./staging/src/k8s.io/sample-controller
+	sigs.k8s.io/knftables => github.com/aroradaman/knftables v0.0.0-20250120151238-53ae89be4ecf
 )

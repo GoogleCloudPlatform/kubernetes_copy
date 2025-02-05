@@ -1,5 +1,16 @@
 # ChangeLog
 
+## v0.0.18
+
+- Added locking to `Fake` to allow it to be safely used concurrently.
+  (`@npinaeva`)
+
+- Added a `Flowtable` object, and `Fake` support for correctly parsing
+  flowtable references. (`@aojea`)
+
+- Fixed a bug in `Fake.ParseDump`, which accidentally required the
+  table to have a comment. (`@danwinship`)
+
 ## v0.0.17
 
 - `ListRules()` now accepts `""` for the chain name, meaning to list

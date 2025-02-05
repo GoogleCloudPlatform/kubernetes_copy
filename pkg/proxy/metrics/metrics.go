@@ -17,6 +17,8 @@ limitations under the License.
 package metrics
 
 import (
+	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -25,6 +27,7 @@ import (
 	"k8s.io/klog/v2"
 	kubeproxyconfig "k8s.io/kubernetes/pkg/proxy/apis/config"
 	"k8s.io/kubernetes/pkg/proxy/util/nfacct"
+	"sigs.k8s.io/knftables"
 )
 
 const kubeProxySubsystem = "kubeproxy"
@@ -283,6 +286,14 @@ var (
 		"Number of packets accepted on nodeports of loopback interface",
 		nil, nil, metrics.ALPHA, "")
 	LocalhostNodePortAcceptedNFAcctCounter = "localhost_nps_accepted_pkts"
+
+	// trafficToInvalidServicePortsDescription describe the metrics for the number of packets rejected
+	// by nftables which were destined for invalid ports of the ClustersIPs.
+	trafficToInvalidServicePortsDescription = metrics.NewDesc(
+		"kubeproxy_nftables_packets_to_invalid_ports_rejected",
+		"Number of packets rejected on invalid ports of ClusterIPs",
+		nil, nil, metrics.ALPHA, "")
+	TrafficToInvalidServicePortsCounter = "traffic-to-invalid-ports"
 )
 
 var registerMetricsOnce sync.Once
@@ -330,7 +341,10 @@ func RegisterMetrics(mode kubeproxyconfig.ProxyMode) {
 			legacyregistry.MustRegister(SyncPartialProxyRulesLatency)
 			legacyregistry.MustRegister(NFTablesSyncFailuresTotal)
 			legacyregistry.MustRegister(NFTablesCleanupFailuresTotal)
-
+			trafficToInvalidServicePortsDescriptionMetricsCollector := newNFTablesMetricCollector(TrafficToInvalidServicePortsCounter, trafficToInvalidServicePortsDescription)
+			if trafficToInvalidServicePortsDescriptionMetricsCollector != nil {
+				legacyregistry.CustomMustRegister(trafficToInvalidServicePortsDescriptionMetricsCollector)
+			}
 		case kubeproxyconfig.ProxyModeKernelspace:
 			// currently no winkernel-specific metrics
 		}
@@ -382,6 +396,71 @@ func (n *nfacctMetricCollector) CollectWithStability(ch chan<- metrics.Metric) {
 			} else {
 				ch <- metric
 			}
+		}
+	}
+}
+
+type nftablesMetricCollector struct {
+	metrics.BaseStableCollector
+	clients     [2]knftables.Interface
+	counter     string
+	description *metrics.Desc
+}
+
+func newNFTablesMetricCollector(counter string, description *metrics.Desc) *nftablesMetricCollector {
+	var clients [2]knftables.Interface
+	for i, ipFamily := range []knftables.Family{knftables.IPv4Family, knftables.IPv6Family} {
+		client, err := knftables.New(ipFamily, "kube-proxy")
+		if err != nil {
+			klog.ErrorS(err, "failed to initialize nftables client")
+			return nil
+		}
+		clients[i] = client
+	}
+
+	return &nftablesMetricCollector{
+		clients:     clients,
+		counter:     counter,
+		description: description,
+	}
+}
+
+// DescribeWithStability implements the metrics.StableCollector interface.
+func (n *nftablesMetricCollector) DescribeWithStability(ch chan<- *metrics.Desc) {
+	ch <- n.description
+}
+
+// CollectWithStability implements the metrics.StableCollector interface.
+func (n *nftablesMetricCollector) CollectWithStability(ch chan<- metrics.Metric) {
+	getCounterPackets := func(client knftables.Interface, counterName string) (uint64, error) {
+		counters, err := client.ListCounters(context.TODO())
+		if err != nil {
+			return 0, err
+		}
+		for _, counter := range counters {
+			if counter.Name == counterName {
+				return *counter.Packets, nil
+			}
+		}
+		return 0, fmt.Errorf("counter '%s' not found", counterName)
+	}
+
+	if n.clients[0] != nil && n.clients[1] != nil {
+		var packetsTotal uint64
+		for _, client := range n.clients {
+			packet, err := getCounterPackets(client, n.counter)
+			if err != nil {
+				klog.ErrorS(err, "failed to collect nftables counter", "counter", n.counter)
+				return
+			}
+			packetsTotal += packet
+		}
+
+		metric, err := metrics.NewConstMetric(n.description, metrics.CounterValue, float64(packetsTotal))
+		if err != nil {
+			klog.ErrorS(err, "failed to create constant metric")
+		} else {
+			ch <- metric
 		}
 	}
 }

@@ -41,7 +41,7 @@ type Interface interface {
 	Check(ctx context.Context, tx *Transaction) error
 
 	// List returns a list of the names of the objects of objectType ("chain", "set",
-	// or "map") in the table. If there are no such objects, this will return an empty
+	// "map" or "counter") in the table. If there are no such objects, this will return an empty
 	// list and no error.
 	List(ctx context.Context, objectType string) ([]string, error)
 
@@ -58,6 +58,9 @@ type Interface interface {
 	// be "set" or "map".) If the set/map exists but contains no elements, this will
 	// return an empty list and no error.
 	ListElements(ctx context.Context, objectType, name string) ([]*Element, error)
+
+	// ListCounters returns a list of the counters.
+	ListCounters(ctx context.Context) ([]*Counter, error)
 }
 
 type nftContext struct {
@@ -511,4 +514,40 @@ func parseElementValue(json interface{}) ([]string, error) {
 	}
 
 	return nil, fmt.Errorf("could not parse element value %q", json)
+}
+
+// ListCounters is part of Interface
+func (nft *realNFTables) ListCounters(ctx context.Context) ([]*Counter, error) {
+	cmd := exec.CommandContext(ctx, nft.path, "--json", "list", "counters", "table", string(nft.family), nft.table)
+	out, err := nft.exec.Run(cmd)
+	if err != nil {
+		return nil, fmt.Errorf("failed to run nft: %w", err)
+	}
+
+	objects, err := getJSONObjects(out, "counter")
+	if err != nil {
+		return nil, err
+	}
+
+	objectToCounter := func(object map[string]interface{}) *Counter {
+		counter := &Counter{
+			Name:    object["name"].(string),
+			Packets: PtrTo(uint64(object["packets"].(float64))),
+			Bytes:   PtrTo(uint64(object["bytes"].(float64))),
+		}
+		if handle, ok := jsonVal[string](object, "comment"); ok {
+			counter.Comment = PtrTo(handle)
+		}
+		if handle, ok := jsonVal[float64](object, "handle"); ok {
+			counter.Handle = PtrTo(int(handle))
+		}
+
+		return counter
+	}
+
+	counters := make([]*Counter, 0, len(objects))
+	for _, object := range objects {
+		counters = append(counters, objectToCounter(object))
+	}
+	return counters, nil
 }

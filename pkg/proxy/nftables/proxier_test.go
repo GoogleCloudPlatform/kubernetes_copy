@@ -167,7 +167,9 @@ var baseRules = dedent.Dedent(`
 	add chain ip kube-proxy services
 	add chain ip kube-proxy service-endpoints-check
 
-	add rule ip kube-proxy cluster-ips-check ip daddr @cluster-ips reject comment "Reject traffic to invalid ports of ClusterIPs"
+	add counter ip kube-proxy traffic-to-invalid-ports { packets 0 bytes 0 ; comment "track packets sent to invalid ports of cluster ips" ; }
+
+	add rule ip kube-proxy cluster-ips-check ip daddr @cluster-ips counter name traffic-to-invalid-ports reject comment "Reject traffic to invalid ports of ClusterIPs"
 	add rule ip kube-proxy cluster-ips-check ip daddr { 172.30.0.0/16 } drop comment "Drop traffic to unallocated ClusterIPs"
 	add rule ip kube-proxy filter-prerouting ct state new jump firewall-check
 	add rule ip kube-proxy filter-forward ct state new jump service-endpoints-check
