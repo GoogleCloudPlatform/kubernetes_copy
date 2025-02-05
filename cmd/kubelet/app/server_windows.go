@@ -37,7 +37,7 @@ func checkPermissions() error {
 
 	// For Windows user.UserName contains the login name and user.Name contains
 	// the user's display name - https://pkg.go.dev/os/user#User
-	klog.InfoS("Kubelet is running as", "login name", u.Username, "dispaly name", u.Name)
+	klog.InfoS("Kubelet is running as", "login name", u.Username, "display name", u.Name)
 
 	if !windows.GetCurrentProcessToken().IsElevated() {
 		return errors.New("kubelet needs to run with elevated permissions!")
