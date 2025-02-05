@@ -27,7 +27,6 @@ import (
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
 	clientset "k8s.io/client-go/kubernetes"
-	"k8s.io/kubernetes/test/e2e/feature"
 	"k8s.io/kubernetes/test/e2e/framework"
 	e2enode "k8s.io/kubernetes/test/e2e/framework/node"
 	e2epod "k8s.io/kubernetes/test/e2e/framework/pod"
@@ -43,7 +42,6 @@ import (
 /*
 This test assumes the following:
 - The infra is GCP.
-- NodeOutOfServiceVolumeDetach feature is enabled.
 
 This test performs the following:
 - Deploys a gce-pd csi driver
@@ -58,7 +56,7 @@ This test performs the following:
 - Removes the `out-of-service` taint from the node.
 */
 
-var _ = utils.SIGDescribe(feature.NodeOutOfServiceVolumeDetach, framework.WithDisruptive(), "[LinuxOnly] NonGracefulNodeShutdown", func() {
+var _ = utils.SIGDescribe(framework.WithDisruptive(), "[LinuxOnly] NonGracefulNodeShutdown", func() {
 	var (
 		c  clientset.Interface
 		ns string

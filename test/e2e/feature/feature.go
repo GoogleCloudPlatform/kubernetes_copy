@@ -330,9 +330,6 @@ var (
 	// TODO: document the feature (owning SIG, when to use this feature for a test)
 	NodeLogQuery = framework.WithFeature(framework.ValidFeatures.Add("NodeLogQuery"))
 
-	// TODO: document the feature (owning SIG, when to use this feature for a test)
-	NodeOutOfServiceVolumeDetach = framework.WithFeature(framework.ValidFeatures.Add("NodeOutOfServiceVolumeDetach"))
-
 	// Owner: sig-node
 	// Tests aiming to verify oom_score functionality
 	OOMScoreAdj = framework.WithFeature(framework.ValidFeatures.Add("OOMScoreAdj"))
