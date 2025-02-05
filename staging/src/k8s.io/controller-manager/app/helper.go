@@ -28,21 +28,21 @@ import (
 	"k8s.io/klog/v2"
 )
 
-// WaitForAPIServer waits for the API Server's /healthz endpoint to report "ok" with timeout.
+// WaitForAPIServer waits for the API Server's /readyz endpoint to report "ok" with timeout.
 func WaitForAPIServer(client clientset.Interface, timeout time.Duration) error {
 	var lastErr error
 
 	err := wait.PollImmediate(time.Second, timeout, func() (bool, error) {
-		healthStatus := 0
-		result := client.Discovery().RESTClient().Get().AbsPath("/healthz").Do(context.TODO()).StatusCode(&healthStatus)
+		readyStatus := 0
+		result := client.Discovery().RESTClient().Get().AbsPath("/readyz").Do(context.TODO()).StatusCode(&readyStatus)
 		if result.Error() != nil {
-			lastErr = fmt.Errorf("failed to get apiserver /healthz status: %v", result.Error())
+			lastErr = fmt.Errorf("failed to get apiserver /readyz status: %w", result.Error())
 			return false, nil
 		}
-		if healthStatus != http.StatusOK {
+		if readyStatus != http.StatusOK {
 			content, _ := result.Raw()
-			lastErr = fmt.Errorf("APIServer isn't healthy: %v", string(content))
-			klog.Warningf("APIServer isn't healthy yet: %v. Waiting a little while.", string(content))
+			lastErr = fmt.Errorf("APIServer isn't ready: %v", string(content))
+			klog.Warningf("APIServer isn't ready yet: %v. Waiting a little while.", string(content))
 			return false, nil
 		}
 
