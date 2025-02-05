@@ -63,15 +63,15 @@ func GetExpiration(secret *v1.Secret, currentTime time.Time) (timeRemaining time
 	}
 	expTime, err := time.Parse(time.RFC3339, expiration)
 	if err != nil {
-		klog.V(3).Infof("Unparseable expiration time (%s) in %s/%s Secret: %v. Treating as expired.",
-			expiration, secret.Namespace, secret.Name, err)
+		klog.V(3).InfoS("Unparseable expiration time",
+			"expirationTime", expiration, "secretNamespace", secret.Namespace, "secretName", secret.Name, "error", err)
 		return 0, true
 	}
 
 	timeRemaining = expTime.Sub(currentTime)
 	if timeRemaining <= 0 {
-		klog.V(3).Infof("Expired bootstrap token in %s/%s Secret: %v",
-			secret.Namespace, secret.Name, expiration)
+		klog.V(3).InfoS("Expired bootstrap token",
+			"secretNamespace", secret.Namespace, "secretName", secret.Name, "expirationTime", expiration)
 		return 0, true
 	}
 	return timeRemaining, false
