@@ -236,6 +236,9 @@ func SetDefaults_KubeletConfiguration(obj *kubeletconfigv1beta1.KubeletConfigura
 	if obj.EvictionPressureTransitionPeriod == zeroDuration {
 		obj.EvictionPressureTransitionPeriod = metav1.Duration{Duration: 5 * time.Minute}
 	}
+	if obj.MergeDefaultEvictionSettings == nil {
+		obj.MergeDefaultEvictionSettings = ptr.To(false)
+	}
 	if obj.EnableControllerAttachDetach == nil {
 		obj.EnableControllerAttachDetach = ptr.To(true)
 	}
