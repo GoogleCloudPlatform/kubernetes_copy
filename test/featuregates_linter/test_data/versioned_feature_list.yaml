@@ -148,16 +148,6 @@
     lockToDefault: true
     preRelease: GA
     version: "1.31"
-- name: AppArmorFields
-  versionedSpecs:
-  - default: true
-    lockToDefault: false
-    preRelease: Beta
-    version: "1.30"
-  - default: true
-    lockToDefault: true
-    preRelease: GA
-    version: "1.31"
 - name: AuthorizeNodeWithSelectors
   versionedSpecs:
   - default: false

@@ -64,9 +64,6 @@ const (
 	// owner: @tallclair
 	AppArmor featuregate.Feature = "AppArmor"
 
-	// owner: @tallclair
-	AppArmorFields featuregate.Feature = "AppArmorFields"
-
 	// owner: @liggitt
 	// kep: https://kep.k8s.io/4601
 	//
