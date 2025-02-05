@@ -18,6 +18,7 @@ package kubelet
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
@@ -61,6 +62,17 @@ type KillPodOptions struct {
 	PodStatusFunc PodStatusFunc
 	// PodTerminationGracePeriodSecondsOverride is optional override to use if a pod is being killed as part of kill operation.
 	PodTerminationGracePeriodSecondsOverride *int64
+}
+
+func (k *KillPodOptions) MarshalJSON() ([]byte, error) {
+	t := struct {
+		Evict                                    bool
+		PodTerminationGracePeriodSecondsOverride *int64
+	}{
+		Evict:                                    k.Evict,
+		PodTerminationGracePeriodSecondsOverride: k.PodTerminationGracePeriodSecondsOverride,
+	}
+	return json.Marshal(t)
 }
 
 // UpdatePodOptions is an options struct to pass to a UpdatePod operation.
