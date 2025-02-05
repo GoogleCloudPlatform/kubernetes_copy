@@ -1139,6 +1139,7 @@ func MakeResourceSlice(nodeName, driverName string) *ResourceSliceWrapper {
 	wrapper.Name = nodeName + "-" + driverName
 	wrapper.Spec.NodeName = nodeName
 	wrapper.Spec.Pool.Name = nodeName
+	wrapper.Spec.Pool.ResourceSliceCount = 1
 	wrapper.Spec.Driver = driverName
 	return wrapper
 }
@@ -1163,6 +1164,25 @@ func (wrapper *ResourceSliceWrapper) Devices(names ...string) *ResourceSliceWrap
 // Device sets the devices field of the inner object.
 func (wrapper *ResourceSliceWrapper) Device(name string, attrs map[resourceapi.QualifiedName]resourceapi.DeviceAttribute) *ResourceSliceWrapper {
 	wrapper.Spec.Devices = append(wrapper.Spec.Devices, resourceapi.Device{Name: name, Basic: &resourceapi.BasicDevice{Attributes: attrs}})
+	return wrapper
+}
+
+type DeviceClassWrapper struct {
+	resourceapi.DeviceClass
+}
+
+func MakeDeviceClass(name string) *DeviceClassWrapper {
+	wrapper := new(DeviceClassWrapper)
+	wrapper.Name = name
+	return wrapper
+}
+
+func (wrapper *DeviceClassWrapper) Obj() *resourceapi.DeviceClass {
+	return &wrapper.DeviceClass
+}
+
+func (wrapper *DeviceClassWrapper) Selectors(selector resourceapi.DeviceSelector) *DeviceClassWrapper {
+	wrapper.Spec.Selectors = append(wrapper.Spec.Selectors, selector)
 	return wrapper
 }
 

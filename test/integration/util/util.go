@@ -875,6 +875,22 @@ func CreatePausePodWithResource(cs clientset.Interface, podName string,
 	return CreatePausePod(cs, InitPausePod(&conf))
 }
 
+func CreateDeviceClass(cs clientset.Interface, deviceClass *resourceapi.DeviceClass) (*resourceapi.DeviceClass, error) {
+	return cs.ResourceV1beta1().DeviceClasses().Create(context.TODO(), deviceClass, metav1.CreateOptions{})
+}
+
+// CreateResourceClaim creates a ResourceClaim with the given config and
+// returns its pointer and error status.
+func CreateResourceClaim(cs clientset.Interface, resourceclaim *resourceapi.ResourceClaim) (*resourceapi.ResourceClaim, error) {
+	return cs.ResourceV1beta1().ResourceClaims(resourceclaim.Namespace).Create(context.TODO(), resourceclaim, metav1.CreateOptions{})
+}
+
+// CreateResourceSlice creates a ResourceClaim with the given config and
+// returns its pointer and error status.
+func CreateResourceSlice(cs clientset.Interface, resourceslice *resourceapi.ResourceSlice) (*resourceapi.ResourceSlice, error) {
+	return cs.ResourceV1beta1().ResourceSlices().Create(context.TODO(), resourceslice, metav1.CreateOptions{})
+}
+
 // CreatePVC creates a PersistentVolumeClaim with the given config and returns
 // its pointer and error status.
 func CreatePVC(cs clientset.Interface, pvc *v1.PersistentVolumeClaim) (*v1.PersistentVolumeClaim, error) {

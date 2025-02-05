@@ -23,6 +23,7 @@ import (
 	"time"
 
 	v1 "k8s.io/api/core/v1"
+	resourceapi "k8s.io/api/resource/v1beta1"
 	storagev1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -66,6 +67,12 @@ type CoreResourceEnqueueTestCase struct {
 	InitialCSIDrivers []*storagev1.CSIDriver
 	// InitialStorageCapacities are the list of CSIStorageCapacity to be created at first.
 	InitialStorageCapacities []*storagev1.CSIStorageCapacity
+	// InitialDeviceClasses are the list of DeviceClass to be created at first.
+	InitialDeviceClasses []*resourceapi.DeviceClass
+	// InitialResourceClaims are the list of ResourceClaim to be created at first.
+	InitialResourceClaims []*resourceapi.ResourceClaim
+	// InitialResourceSlices are the list of ResourceSlice to be created at first.
+	InitialResourceSlices []*resourceapi.ResourceSlice
 	// Pods are the list of Pods to be created.
 	// All of them are expected to be unschedulable at first.
 	Pods []*v1.Pod
@@ -2123,9 +2130,68 @@ var CoreResourceEnqueueTestCases = []*CoreResourceEnqueueTestCase{
 		WantRequeuedPods:          sets.New("pod2"),
 		EnableSchedulingQueueHint: sets.New(true),
 	},
+	{
+		Name:         "Pod rejected by the DRA plugin and is requeued when the resource slice is added",
+		InitialNodes: []*v1.Node{st.MakeNode().Name("fake-node").Label("node", "fake-node").Obj()},
+		InitialDeviceClasses: []*resourceapi.DeviceClass{
+			st.MakeDeviceClass("my-resource-class").Obj(),
+		},
+		InitialResourceClaims: []*resourceapi.ResourceClaim{
+			st.MakeResourceClaim().
+				Name("resourceclaim1").
+				Request("my-resource-class").
+				OwnerReference("pod1", "1234", v1.SchemeGroupVersion.WithKind("Pod")).
+				Obj(),
+		},
+		Pods: []*v1.Pod{
+			st.MakePod().Name("pod1").UID("1234").Container("image").
+				PodResourceClaims(v1.PodResourceClaim{Name: "resource-name", ResourceClaimName: ptr.To(string("resourceclaim1"))}).
+				Obj(),
+		},
+		TriggerFn: func(testCtx *testutils.TestContext) (map[framework.ClusterEvent]uint64, error) {
+			rs := st.MakeResourceSlice("fake-node", "test-driver").Device("instance-1", nil).Obj()
+			if _, err := testCtx.ClientSet.ResourceV1beta1().ResourceSlices().Create(testCtx.Ctx, rs, metav1.CreateOptions{}); err != nil {
+				return nil, fmt.Errorf("failed to add ResourceSlice : %w", err)
+			}
+			return map[framework.ClusterEvent]uint64{{Resource: framework.ResourceSlice, ActionType: framework.Add}: 1}, nil
+		},
+		WantRequeuedPods:          sets.New("pod1"),
+		EnableSchedulingQueueHint: sets.New(true),
+	},
+	{
+		Name:         "Pod rejected by the DRA plugin and is requeued when the resource slice is updated",
+		InitialNodes: []*v1.Node{st.MakeNode().Name("fake-node").Label("node", "fake-node").Obj()},
+		InitialDeviceClasses: []*resourceapi.DeviceClass{
+			st.MakeDeviceClass("my-resource-class").Obj(),
+		},
+		InitialResourceSlices: []*resourceapi.ResourceSlice{
+			st.MakeResourceSlice("fake-node", "test-driver").Obj(),
+		},
+		InitialResourceClaims: []*resourceapi.ResourceClaim{
+			st.MakeResourceClaim().
+				Name("resourceclaim1").
+				Request("my-resource-class").
+				OwnerReference("pod1", "1234", v1.SchemeGroupVersion.WithKind("Pod")).
+				Obj(),
+		},
+		Pods: []*v1.Pod{
+			st.MakePod().Name("pod1").UID("1234").Container("image").
+				PodResourceClaims(v1.PodResourceClaim{Name: "resource-name", ResourceClaimName: ptr.To(string("resourceclaim1"))}).
+				Obj(),
+		},
+		TriggerFn: func(testCtx *testutils.TestContext) (map[framework.ClusterEvent]uint64, error) {
+			rs := st.MakeResourceSlice("fake-node", "test-driver").Device("instance-1", map[resourceapi.QualifiedName]resourceapi.DeviceAttribute{resourceapi.QualifiedName("healthy"): {BoolValue: ptr.To(true)}}).Obj()
+			if _, err := testCtx.ClientSet.ResourceV1beta1().ResourceSlices().Update(testCtx.Ctx, rs, metav1.UpdateOptions{}); err != nil {
+				return nil, fmt.Errorf("failed to update ResourceSlice : %w", err)
+			}
+			return map[framework.ClusterEvent]uint64{{Resource: framework.ResourceSlice, ActionType: framework.Update}: 1}, nil
+		},
+		WantRequeuedPods:          sets.New("pod1"),
+		EnableSchedulingQueueHint: sets.New(true),
+	},
 }
 
-// TestCoreResourceEnqueue verify Pods failed by in-tree default plugins can be
+// RunTestCoreResourceEnqueue verify Pods failed by in-tree default plugins can be
 // moved properly upon their registered events.
 func RunTestCoreResourceEnqueue(t *testing.T, tt *CoreResourceEnqueueTestCase) {
 	t.Helper()
@@ -2213,6 +2279,25 @@ func RunTestCoreResourceEnqueue(t *testing.T, tt *CoreResourceEnqueueTestCase) {
 		pvc.Namespace = ns
 		if _, err := testutils.CreatePVC(cs, pvc); err != nil {
 			t.Fatalf("Failed to create a PVC %q: %v", pvc.Name, err)
+		}
+	}
+
+	for _, dc := range tt.InitialDeviceClasses {
+		if _, err := testutils.CreateDeviceClass(cs, dc); err != nil {
+			t.Fatalf("Failed to create a DeviceClass %q: %v", dc.Name, err)
+		}
+	}
+
+	for _, rc := range tt.InitialResourceClaims {
+		rc.Namespace = ns
+		if _, err := testutils.CreateResourceClaim(cs, rc); err != nil {
+			t.Fatalf("Failed to create a ResourceClaim %q: %v", rc.Name, err)
+		}
+	}
+
+	for _, rs := range tt.InitialResourceSlices {
+		if _, err := testutils.CreateResourceSlice(cs, rs); err != nil {
+			t.Fatalf("Failed to create a ResourceSlice %q: %v", rs.Name, err)
 		}
 	}
 

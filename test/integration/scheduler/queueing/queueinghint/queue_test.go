@@ -37,6 +37,7 @@ func TestCoreResourceEnqueue(t *testing.T) {
 		// Note: if EnableSchedulingQueueHint is nil, we assume the test should be run both with/without the feature gate.
 		t.Run(strings.Join(append(tt.EnablePlugins, tt.Name), "/"), func(t *testing.T) {
 			featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.SchedulerQueueingHints, true)
+			featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.DynamicResourceAllocation, true)
 			queueing.RunTestCoreResourceEnqueue(t, tt)
 		})
 	}
