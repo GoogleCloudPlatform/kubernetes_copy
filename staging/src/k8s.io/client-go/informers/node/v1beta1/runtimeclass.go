@@ -61,13 +61,25 @@ func NewFilteredRuntimeClassInformer(client kubernetes.Interface, resyncPeriod t
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.NodeV1beta1().RuntimeClasses().List(context.TODO(), options)
+				return client.NodeV1beta1().RuntimeClasses().List(context.Background(), options)
 			},
 			WatchFunc: func(options v1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.NodeV1beta1().RuntimeClasses().Watch(context.TODO(), options)
+				return client.NodeV1beta1().RuntimeClasses().Watch(context.Background(), options)
+			},
+			ListWithContextFunc: func(ctx context.Context, options v1.ListOptions) (runtime.Object, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.NodeV1beta1().RuntimeClasses().List(ctx, options)
+			},
+			WatchFuncWithContext: func(ctx context.Context, options v1.ListOptions) (watch.Interface, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.NodeV1beta1().RuntimeClasses().Watch(ctx, options)
 			},
 		},
 		&apinodev1beta1.RuntimeClass{},

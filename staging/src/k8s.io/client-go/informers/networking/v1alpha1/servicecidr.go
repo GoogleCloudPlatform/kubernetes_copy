@@ -61,13 +61,25 @@ func NewFilteredServiceCIDRInformer(client kubernetes.Interface, resyncPeriod ti
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.NetworkingV1alpha1().ServiceCIDRs().List(context.TODO(), options)
+				return client.NetworkingV1alpha1().ServiceCIDRs().List(context.Background(), options)
 			},
 			WatchFunc: func(options v1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.NetworkingV1alpha1().ServiceCIDRs().Watch(context.TODO(), options)
+				return client.NetworkingV1alpha1().ServiceCIDRs().Watch(context.Background(), options)
+			},
+			ListWithContextFunc: func(ctx context.Context, options v1.ListOptions) (runtime.Object, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.NetworkingV1alpha1().ServiceCIDRs().List(ctx, options)
+			},
+			WatchFuncWithContext: func(ctx context.Context, options v1.ListOptions) (watch.Interface, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.NetworkingV1alpha1().ServiceCIDRs().Watch(ctx, options)
 			},
 		},
 		&apinetworkingv1alpha1.ServiceCIDR{},

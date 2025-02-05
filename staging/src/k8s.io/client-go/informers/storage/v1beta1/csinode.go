@@ -61,13 +61,25 @@ func NewFilteredCSINodeInformer(client kubernetes.Interface, resyncPeriod time.D
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.StorageV1beta1().CSINodes().List(context.TODO(), options)
+				return client.StorageV1beta1().CSINodes().List(context.Background(), options)
 			},
 			WatchFunc: func(options v1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.StorageV1beta1().CSINodes().Watch(context.TODO(), options)
+				return client.StorageV1beta1().CSINodes().Watch(context.Background(), options)
+			},
+			ListWithContextFunc: func(ctx context.Context, options v1.ListOptions) (runtime.Object, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.StorageV1beta1().CSINodes().List(ctx, options)
+			},
+			WatchFuncWithContext: func(ctx context.Context, options v1.ListOptions) (watch.Interface, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.StorageV1beta1().CSINodes().Watch(ctx, options)
 			},
 		},
 		&apistoragev1beta1.CSINode{},

@@ -62,13 +62,25 @@ func NewFilteredDaemonSetInformer(client kubernetes.Interface, namespace string,
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.AppsV1().DaemonSets(namespace).List(context.TODO(), options)
+				return client.AppsV1().DaemonSets(namespace).List(context.Background(), options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.AppsV1().DaemonSets(namespace).Watch(context.TODO(), options)
+				return client.AppsV1().DaemonSets(namespace).Watch(context.Background(), options)
+			},
+			ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.AppsV1().DaemonSets(namespace).List(ctx, options)
+			},
+			WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.AppsV1().DaemonSets(namespace).Watch(ctx, options)
 			},
 		},
 		&apiappsv1.DaemonSet{},

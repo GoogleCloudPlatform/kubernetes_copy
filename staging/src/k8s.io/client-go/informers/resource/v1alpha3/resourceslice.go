@@ -61,13 +61,25 @@ func NewFilteredResourceSliceInformer(client kubernetes.Interface, resyncPeriod 
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.ResourceV1alpha3().ResourceSlices().List(context.TODO(), options)
+				return client.ResourceV1alpha3().ResourceSlices().List(context.Background(), options)
 			},
 			WatchFunc: func(options v1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.ResourceV1alpha3().ResourceSlices().Watch(context.TODO(), options)
+				return client.ResourceV1alpha3().ResourceSlices().Watch(context.Background(), options)
+			},
+			ListWithContextFunc: func(ctx context.Context, options v1.ListOptions) (runtime.Object, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.ResourceV1alpha3().ResourceSlices().List(ctx, options)
+			},
+			WatchFuncWithContext: func(ctx context.Context, options v1.ListOptions) (watch.Interface, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.ResourceV1alpha3().ResourceSlices().Watch(ctx, options)
 			},
 		},
 		&apiresourcev1alpha3.ResourceSlice{},

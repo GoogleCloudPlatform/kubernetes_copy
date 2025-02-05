@@ -61,13 +61,25 @@ func NewFilteredFischerInformer(client versioned.Interface, resyncPeriod time.Du
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.WardleV1alpha1().Fischers().List(context.TODO(), options)
+				return client.WardleV1alpha1().Fischers().List(context.Background(), options)
 			},
 			WatchFunc: func(options v1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.WardleV1alpha1().Fischers().Watch(context.TODO(), options)
+				return client.WardleV1alpha1().Fischers().Watch(context.Background(), options)
+			},
+			ListWithContextFunc: func(ctx context.Context, options v1.ListOptions) (runtime.Object, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.WardleV1alpha1().Fischers().List(ctx, options)
+			},
+			WatchFuncWithContext: func(ctx context.Context, options v1.ListOptions) (watch.Interface, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.WardleV1alpha1().Fischers().Watch(ctx, options)
 			},
 		},
 		&apiswardlev1alpha1.Fischer{},

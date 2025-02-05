@@ -61,13 +61,25 @@ func NewFilteredValidatingAdmissionPolicyInformer(client kubernetes.Interface, r
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.AdmissionregistrationV1alpha1().ValidatingAdmissionPolicies().List(context.TODO(), options)
+				return client.AdmissionregistrationV1alpha1().ValidatingAdmissionPolicies().List(context.Background(), options)
 			},
 			WatchFunc: func(options v1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.AdmissionregistrationV1alpha1().ValidatingAdmissionPolicies().Watch(context.TODO(), options)
+				return client.AdmissionregistrationV1alpha1().ValidatingAdmissionPolicies().Watch(context.Background(), options)
+			},
+			ListWithContextFunc: func(ctx context.Context, options v1.ListOptions) (runtime.Object, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.AdmissionregistrationV1alpha1().ValidatingAdmissionPolicies().List(ctx, options)
+			},
+			WatchFuncWithContext: func(ctx context.Context, options v1.ListOptions) (watch.Interface, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.AdmissionregistrationV1alpha1().ValidatingAdmissionPolicies().Watch(ctx, options)
 			},
 		},
 		&apiadmissionregistrationv1alpha1.ValidatingAdmissionPolicy{},

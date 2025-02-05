@@ -61,13 +61,25 @@ func NewFilteredNamespaceInformer(client kubernetes.Interface, resyncPeriod time
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.CoreV1().Namespaces().List(context.TODO(), options)
+				return client.CoreV1().Namespaces().List(context.Background(), options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.CoreV1().Namespaces().Watch(context.TODO(), options)
+				return client.CoreV1().Namespaces().Watch(context.Background(), options)
+			},
+			ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.CoreV1().Namespaces().List(ctx, options)
+			},
+			WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.CoreV1().Namespaces().Watch(ctx, options)
 			},
 		},
 		&apicorev1.Namespace{},

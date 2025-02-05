@@ -61,13 +61,25 @@ func NewFilteredFlowSchemaInformer(client kubernetes.Interface, resyncPeriod tim
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.FlowcontrolV1beta2().FlowSchemas().List(context.TODO(), options)
+				return client.FlowcontrolV1beta2().FlowSchemas().List(context.Background(), options)
 			},
 			WatchFunc: func(options v1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.FlowcontrolV1beta2().FlowSchemas().Watch(context.TODO(), options)
+				return client.FlowcontrolV1beta2().FlowSchemas().Watch(context.Background(), options)
+			},
+			ListWithContextFunc: func(ctx context.Context, options v1.ListOptions) (runtime.Object, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.FlowcontrolV1beta2().FlowSchemas().List(ctx, options)
+			},
+			WatchFuncWithContext: func(ctx context.Context, options v1.ListOptions) (watch.Interface, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.FlowcontrolV1beta2().FlowSchemas().Watch(ctx, options)
 			},
 		},
 		&apiflowcontrolv1beta2.FlowSchema{},

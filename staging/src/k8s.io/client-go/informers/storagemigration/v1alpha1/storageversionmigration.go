@@ -61,13 +61,25 @@ func NewFilteredStorageVersionMigrationInformer(client kubernetes.Interface, res
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.StoragemigrationV1alpha1().StorageVersionMigrations().List(context.TODO(), options)
+				return client.StoragemigrationV1alpha1().StorageVersionMigrations().List(context.Background(), options)
 			},
 			WatchFunc: func(options v1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.StoragemigrationV1alpha1().StorageVersionMigrations().Watch(context.TODO(), options)
+				return client.StoragemigrationV1alpha1().StorageVersionMigrations().Watch(context.Background(), options)
+			},
+			ListWithContextFunc: func(ctx context.Context, options v1.ListOptions) (runtime.Object, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.StoragemigrationV1alpha1().StorageVersionMigrations().List(ctx, options)
+			},
+			WatchFuncWithContext: func(ctx context.Context, options v1.ListOptions) (watch.Interface, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.StoragemigrationV1alpha1().StorageVersionMigrations().Watch(ctx, options)
 			},
 		},
 		&apistoragemigrationv1alpha1.StorageVersionMigration{},

@@ -363,7 +363,7 @@ func TestUpdate(t *testing.T) {
 	// everything we've added has been deleted.
 	watchCh := make(chan struct{})
 	_, controller := NewInformer(
-		&testLW{
+		&ListWatch{
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				watch, err := source.Watch(options)
 				close(watchCh)

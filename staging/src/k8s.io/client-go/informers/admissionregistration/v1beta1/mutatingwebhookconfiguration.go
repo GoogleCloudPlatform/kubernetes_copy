@@ -61,13 +61,25 @@ func NewFilteredMutatingWebhookConfigurationInformer(client kubernetes.Interface
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.AdmissionregistrationV1beta1().MutatingWebhookConfigurations().List(context.TODO(), options)
+				return client.AdmissionregistrationV1beta1().MutatingWebhookConfigurations().List(context.Background(), options)
 			},
 			WatchFunc: func(options v1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.AdmissionregistrationV1beta1().MutatingWebhookConfigurations().Watch(context.TODO(), options)
+				return client.AdmissionregistrationV1beta1().MutatingWebhookConfigurations().Watch(context.Background(), options)
+			},
+			ListWithContextFunc: func(ctx context.Context, options v1.ListOptions) (runtime.Object, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.AdmissionregistrationV1beta1().MutatingWebhookConfigurations().List(ctx, options)
+			},
+			WatchFuncWithContext: func(ctx context.Context, options v1.ListOptions) (watch.Interface, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.AdmissionregistrationV1beta1().MutatingWebhookConfigurations().Watch(ctx, options)
 			},
 		},
 		&apiadmissionregistrationv1beta1.MutatingWebhookConfiguration{},

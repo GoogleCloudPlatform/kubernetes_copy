@@ -61,13 +61,25 @@ func NewFilteredIngressClassInformer(client kubernetes.Interface, resyncPeriod t
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.NetworkingV1beta1().IngressClasses().List(context.TODO(), options)
+				return client.NetworkingV1beta1().IngressClasses().List(context.Background(), options)
 			},
 			WatchFunc: func(options v1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.NetworkingV1beta1().IngressClasses().Watch(context.TODO(), options)
+				return client.NetworkingV1beta1().IngressClasses().Watch(context.Background(), options)
+			},
+			ListWithContextFunc: func(ctx context.Context, options v1.ListOptions) (runtime.Object, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.NetworkingV1beta1().IngressClasses().List(ctx, options)
+			},
+			WatchFuncWithContext: func(ctx context.Context, options v1.ListOptions) (watch.Interface, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.NetworkingV1beta1().IngressClasses().Watch(ctx, options)
 			},
 		},
 		&apinetworkingv1beta1.IngressClass{},

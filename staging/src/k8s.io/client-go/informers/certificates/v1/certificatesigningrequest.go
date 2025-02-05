@@ -61,13 +61,25 @@ func NewFilteredCertificateSigningRequestInformer(client kubernetes.Interface, r
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.CertificatesV1().CertificateSigningRequests().List(context.TODO(), options)
+				return client.CertificatesV1().CertificateSigningRequests().List(context.Background(), options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.CertificatesV1().CertificateSigningRequests().Watch(context.TODO(), options)
+				return client.CertificatesV1().CertificateSigningRequests().Watch(context.Background(), options)
+			},
+			ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.CertificatesV1().CertificateSigningRequests().List(ctx, options)
+			},
+			WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.CertificatesV1().CertificateSigningRequests().Watch(ctx, options)
 			},
 		},
 		&apicertificatesv1.CertificateSigningRequest{},

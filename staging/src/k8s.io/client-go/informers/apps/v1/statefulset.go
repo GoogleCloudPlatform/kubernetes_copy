@@ -62,13 +62,25 @@ func NewFilteredStatefulSetInformer(client kubernetes.Interface, namespace strin
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.AppsV1().StatefulSets(namespace).List(context.TODO(), options)
+				return client.AppsV1().StatefulSets(namespace).List(context.Background(), options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.AppsV1().StatefulSets(namespace).Watch(context.TODO(), options)
+				return client.AppsV1().StatefulSets(namespace).Watch(context.Background(), options)
+			},
+			ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.AppsV1().StatefulSets(namespace).List(ctx, options)
+			},
+			WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.AppsV1().StatefulSets(namespace).Watch(ctx, options)
 			},
 		},
 		&apiappsv1.StatefulSet{},

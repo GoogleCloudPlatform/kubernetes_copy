@@ -20,8 +20,10 @@ import (
 	"sync"
 
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/klog/v2"
 )
 
 func newEventProcessor(out chan<- watch.Event) *eventProcessor {
@@ -103,7 +105,16 @@ func (e *eventProcessor) stop() {
 // NewIndexerInformerWatcher will create an IndexerInformer and wrap it into watch.Interface
 // so you can use it anywhere where you'd have used a regular Watcher returned from Watch method.
 // it also returns a channel you can use to wait for the informers to fully shutdown.
+//
+// Contextual logging: NewIndexerInformerWatcherWithLogger should be used instead of NewIndexerInformerWatcher in code which supports contextual logging.
 func NewIndexerInformerWatcher(lw cache.ListerWatcher, objType runtime.Object) (cache.Indexer, cache.Controller, watch.Interface, <-chan struct{}) {
+	return NewIndexerInformerWatcherWithLogger(klog.Background(), lw, objType)
+}
+
+// NewIndexerInformerWatcherWithLogger will create an IndexerInformer and wrap it into watch.Interface
+// so you can use it anywhere where you'd have used a regular Watcher returned from Watch method.
+// it also returns a channel you can use to wait for the informers to fully shutdown.
+func NewIndexerInformerWatcherWithLogger(logger klog.Logger, lw cache.ListerWatcher, objType runtime.Object) (cache.Indexer, cache.Controller, watch.Interface, <-chan struct{}) {
 	ch := make(chan watch.Event)
 	w := watch.NewProxyWatcher(ch)
 	e := newEventProcessor(ch)
@@ -137,13 +148,18 @@ func NewIndexerInformerWatcher(lw cache.ListerWatcher, objType runtime.Object) (
 		},
 	}, cache.Indexers{})
 
+	// This will get stopped, but without waiting for it.
 	go e.run()
 
 	doneCh := make(chan struct{})
 	go func() {
 		defer close(doneCh)
 		defer e.stop()
-		informer.Run(w.StopChan())
+		// Waiting for w.StopChan() is the traditional behavior which gets
+		// preserved here, with the logger added to support contextual logging.
+		ctx := wait.ContextForChannel(w.StopChan())
+		ctx = klog.NewContext(ctx, logger)
+		informer.RunWithContext(ctx)
 	}()
 
 	return indexer, informer, w, doneCh

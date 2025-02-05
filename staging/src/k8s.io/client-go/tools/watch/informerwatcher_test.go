@@ -320,6 +320,7 @@ func TestNewInformerWatcher(t *testing.T) {
 					return fake.CoreV1().Secrets("").Watch(context.TODO(), options)
 				},
 			}
+			//nolint:logcheck // Intentionally uses the older API.
 			_, _, outputWatcher, informerDoneCh := NewIndexerInformerWatcher(lw, &corev1.Secret{})
 			outputCh := outputWatcher.ResultChan()
 			timeoutCh := time.After(wait.ForeverTestTimeout)
@@ -413,6 +414,7 @@ func TestInformerWatcherDeletedFinalStateUnknown(t *testing.T) {
 			return w, nil
 		},
 	}
+	//nolint:logcheck // Intentionally uses the older API.
 	_, _, w, done := NewIndexerInformerWatcher(lw, &corev1.Secret{})
 	defer w.Stop()
 

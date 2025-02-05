@@ -61,13 +61,25 @@ func NewFilteredStorageVersionInformer(client kubernetes.Interface, resyncPeriod
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.InternalV1alpha1().StorageVersions().List(context.TODO(), options)
+				return client.InternalV1alpha1().StorageVersions().List(context.Background(), options)
 			},
 			WatchFunc: func(options v1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.InternalV1alpha1().StorageVersions().Watch(context.TODO(), options)
+				return client.InternalV1alpha1().StorageVersions().Watch(context.Background(), options)
+			},
+			ListWithContextFunc: func(ctx context.Context, options v1.ListOptions) (runtime.Object, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.InternalV1alpha1().StorageVersions().List(ctx, options)
+			},
+			WatchFuncWithContext: func(ctx context.Context, options v1.ListOptions) (watch.Interface, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.InternalV1alpha1().StorageVersions().Watch(ctx, options)
 			},
 		},
 		&apiapiserverinternalv1alpha1.StorageVersion{},

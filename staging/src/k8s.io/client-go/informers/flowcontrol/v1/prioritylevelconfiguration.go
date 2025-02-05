@@ -61,13 +61,25 @@ func NewFilteredPriorityLevelConfigurationInformer(client kubernetes.Interface, 
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.FlowcontrolV1().PriorityLevelConfigurations().List(context.TODO(), options)
+				return client.FlowcontrolV1().PriorityLevelConfigurations().List(context.Background(), options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.FlowcontrolV1().PriorityLevelConfigurations().Watch(context.TODO(), options)
+				return client.FlowcontrolV1().PriorityLevelConfigurations().Watch(context.Background(), options)
+			},
+			ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.FlowcontrolV1().PriorityLevelConfigurations().List(ctx, options)
+			},
+			WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.FlowcontrolV1().PriorityLevelConfigurations().Watch(ctx, options)
 			},
 		},
 		&apiflowcontrolv1.PriorityLevelConfiguration{},

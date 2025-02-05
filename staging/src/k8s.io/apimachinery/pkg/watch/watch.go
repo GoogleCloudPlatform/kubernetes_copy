@@ -23,6 +23,7 @@ import (
 	"k8s.io/klog/v2"
 
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/utils/ptr"
 )
 
 // Interface can be implemented by anything that knows how to watch and report changes.
@@ -103,21 +104,34 @@ func (w emptyWatch) ResultChan() <-chan Event {
 
 // FakeWatcher lets you test anything that consumes a watch.Interface; threadsafe.
 type FakeWatcher struct {
+	logger  klog.Logger
 	result  chan Event
 	stopped bool
 	sync.Mutex
 }
 
+var _ Interface = &FakeWatcher{}
+
+// Contextual logging: NewFakeWithOptions and a logger in the FakeOptions should be used instead in code which supports contextual logging.
 func NewFake() *FakeWatcher {
+	return NewFakeWithOptions(FakeOptions{})
+}
+
+// Contextual logging: NewFakeWithOptions and a logger in the FakeOptions should be used instead in code which supports contextual logging.
+func NewFakeWithChanSize(size int, blocking bool) *FakeWatcher {
+	return NewFakeWithOptions(FakeOptions{ChannelSize: size})
+}
+
+func NewFakeWithOptions(options FakeOptions) *FakeWatcher {
 	return &FakeWatcher{
-		result: make(chan Event),
+		logger: ptr.Deref(options.Logger, klog.Background()),
+		result: make(chan Event, options.ChannelSize),
 	}
 }
 
-func NewFakeWithChanSize(size int, blocking bool) *FakeWatcher {
-	return &FakeWatcher{
-		result: make(chan Event, size),
-	}
+type FakeOptions struct {
+	Logger      *klog.Logger
+	ChannelSize int
 }
 
 // Stop implements Interface.Stop().
@@ -125,7 +139,7 @@ func (f *FakeWatcher) Stop() {
 	f.Lock()
 	defer f.Unlock()
 	if !f.stopped {
-		klog.V(4).Infof("Stopping fake watcher.")
+		f.logger.V(4).Info("Stopping fake watcher")
 		close(f.result)
 		f.stopped = true
 	}
@@ -176,13 +190,22 @@ func (f *FakeWatcher) Action(action EventType, obj runtime.Object) {
 
 // RaceFreeFakeWatcher lets you test anything that consumes a watch.Interface; threadsafe.
 type RaceFreeFakeWatcher struct {
+	logger  klog.Logger
 	result  chan Event
 	Stopped bool
 	sync.Mutex
 }
 
+var _ Interface = &RaceFreeFakeWatcher{}
+
+// Contextual logging: RaceFreeFakeWatcherWithLogger should be used instead of NewRaceFreeFake in code which supports contextual logging.
 func NewRaceFreeFake() *RaceFreeFakeWatcher {
+	return NewRaceFreeFakeWithLogger(klog.Background())
+}
+
+func NewRaceFreeFakeWithLogger(logger klog.Logger) *RaceFreeFakeWatcher {
 	return &RaceFreeFakeWatcher{
+		logger: logger,
 		result: make(chan Event, DefaultChanSize),
 	}
 }
@@ -192,7 +215,7 @@ func (f *RaceFreeFakeWatcher) Stop() {
 	f.Lock()
 	defer f.Unlock()
 	if !f.Stopped {
-		klog.V(4).Infof("Stopping fake watcher.")
+		f.logger.V(4).Info("Stopping fake watcher")
 		close(f.result)
 		f.Stopped = true
 	}

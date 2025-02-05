@@ -61,13 +61,25 @@ func NewFilteredPriorityClassInformer(client kubernetes.Interface, resyncPeriod 
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.SchedulingV1alpha1().PriorityClasses().List(context.TODO(), options)
+				return client.SchedulingV1alpha1().PriorityClasses().List(context.Background(), options)
 			},
 			WatchFunc: func(options v1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.SchedulingV1alpha1().PriorityClasses().Watch(context.TODO(), options)
+				return client.SchedulingV1alpha1().PriorityClasses().Watch(context.Background(), options)
+			},
+			ListWithContextFunc: func(ctx context.Context, options v1.ListOptions) (runtime.Object, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.SchedulingV1alpha1().PriorityClasses().List(ctx, options)
+			},
+			WatchFuncWithContext: func(ctx context.Context, options v1.ListOptions) (watch.Interface, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.SchedulingV1alpha1().PriorityClasses().Watch(ctx, options)
 			},
 		},
 		&apischedulingv1alpha1.PriorityClass{},

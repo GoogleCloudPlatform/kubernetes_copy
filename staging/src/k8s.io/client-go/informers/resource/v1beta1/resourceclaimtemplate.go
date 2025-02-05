@@ -62,13 +62,25 @@ func NewFilteredResourceClaimTemplateInformer(client kubernetes.Interface, names
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.ResourceV1beta1().ResourceClaimTemplates(namespace).List(context.TODO(), options)
+				return client.ResourceV1beta1().ResourceClaimTemplates(namespace).List(context.Background(), options)
 			},
 			WatchFunc: func(options v1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.ResourceV1beta1().ResourceClaimTemplates(namespace).Watch(context.TODO(), options)
+				return client.ResourceV1beta1().ResourceClaimTemplates(namespace).Watch(context.Background(), options)
+			},
+			ListWithContextFunc: func(ctx context.Context, options v1.ListOptions) (runtime.Object, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.ResourceV1beta1().ResourceClaimTemplates(namespace).List(ctx, options)
+			},
+			WatchFuncWithContext: func(ctx context.Context, options v1.ListOptions) (watch.Interface, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.ResourceV1beta1().ResourceClaimTemplates(namespace).Watch(ctx, options)
 			},
 		},
 		&apiresourcev1beta1.ResourceClaimTemplate{},
