@@ -19,7 +19,9 @@ package websocket
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -174,6 +176,25 @@ func TestWebSocketRoundTripper_NegotiateCreatesConnection(t *testing.T) {
 	// Compare the expected negotiated subprotocol with the actual subprotocol.
 	actualProtocol := conn.Subprotocol()
 	assert.Equal(t, requestedProtocol, actualProtocol)
+}
+
+func TestWebSocketRoundTripper_CustomDialerError(t *testing.T) {
+	// Validate config without custom dialer set does *not* return an error.
+	rt, upgradeRT, err := RoundTripperFor(&restclient.Config{Host: "fakehost"})
+	require.NoError(t, err)
+	require.NotNil(t, rt, "roundtripper should be non-nil")
+	require.NotNil(t, upgradeRT, "upgrade roundtripper should be non-nil")
+	// Validate that custom dialer returns error.
+	rt, upgradeRT, err = RoundTripperFor(&restclient.Config{
+		Host: "fakehost",
+		Dial: func(context.Context, string, string) (net.Conn, error) {
+			return nil, fmt.Errorf("not used")
+		},
+	})
+	require.Error(t, err)
+	require.ErrorContains(t, err, "custom dial function not supported for streaming connections")
+	require.Nil(t, rt, "invalid rest config should cause roundtripper to be nil, got (%v)", rt)
+	require.Nil(t, upgradeRT, "invalid rest config should cause upgrade roundtripper to be nil, got (%v)", upgradeRT)
 }
 
 // websocketStreams contains the WebSocket connection and streams from a server.

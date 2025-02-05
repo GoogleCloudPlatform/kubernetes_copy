@@ -150,6 +150,7 @@ type Config struct {
 	Timeout time.Duration
 
 	// Dial specifies the dial function for creating unencrypted TCP connections.
+	// NOTE: This custom Dial function is NOT supported for streaming connections.
 	Dial func(ctx context.Context, network, address string) (net.Conn, error)
 
 	// Proxy is the proxy func to be used for all requests made by this
