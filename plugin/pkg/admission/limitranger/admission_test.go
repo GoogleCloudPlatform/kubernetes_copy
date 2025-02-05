@@ -1037,7 +1037,7 @@ func TestLimitRanger_GetLimitRangesFixed22422(t *testing.T) {
 
 	// and here we wait for all the goroutines
 	wg.Wait()
-	// since all the calls with the same namespace will be holded, they must be catched on the singleflight group,
+	// since all the calls with the same namespace will be holded, they must be caught on the singleflight group,
 	// There are two different sets of namespace calls
 	// hence only 2
 	if testCount != 1 {

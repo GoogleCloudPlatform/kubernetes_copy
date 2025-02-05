@@ -187,8 +187,8 @@ func TestHandles(t *testing.T) {
 		admission.Connect: false,
 		admission.Delete:  false,
 	} {
-		nodeEnvionment := NewPodNodeSelector(nil)
-		if e, a := shouldHandle, nodeEnvionment.Handles(op); e != a {
+		nodeEnvironment := NewPodNodeSelector(nil)
+		if e, a := shouldHandle, nodeEnvironment.Handles(op); e != a {
 			t.Errorf("%v: shouldHandle=%t, handles=%t", op, e, a)
 		}
 	}

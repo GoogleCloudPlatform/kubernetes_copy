@@ -919,7 +919,7 @@ func TestContainerCombinations(t *testing.T) {
 	}
 }
 
-// fakeAttributes decorate kadmission.Attributes. It's used to trace the added annotations.
+// fakeAttributes decorate admission.Attributes. It's used to trace the added annotations.
 type fakeAttributes struct {
 	admission.Attributes
 	annotations map[string]string

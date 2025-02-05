@@ -178,7 +178,7 @@ func (c *controller[T]) Run(ctx context.Context) error {
 		// ctx cancelled during cache sync. return early
 		err := ctx.Err()
 		if err == nil {
-			// if context wasnt cancelled then the sync failed for another reason
+			// if context wasn't cancelled then the sync failed for another reason
 			err = errors.New("cache sync failed")
 		}
 		return err

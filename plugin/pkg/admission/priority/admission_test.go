@@ -241,7 +241,7 @@ func TestPriorityClassAdmission(t *testing.T) {
 			t.Errorf("Test %q: unexpected error received: %v", test.name, err)
 		}
 		if err == nil && test.expectError {
-			t.Errorf("Test %q: expected error and no error recevied", test.name)
+			t.Errorf("Test %q: expected error and no error received", test.name)
 		}
 	}
 }
@@ -561,7 +561,7 @@ func TestPodAdmission(t *testing.T) {
 				PreemptionPolicy:  &preemptLowerPriority,
 			},
 		},
-		// pod[13]: Pod with a preemption policy that does't match the resolved preemption policy
+		// pod[13]: Pod with a preemption policy that doesn't match the resolved preemption policy
 		{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "pod-preemption-policy-not-matching-resolved-preemption-policy",
@@ -756,7 +756,7 @@ func TestPodAdmission(t *testing.T) {
 			}
 		}
 		if err == nil && test.expectError {
-			t.Errorf("Test %q: expected error and no error recevied", test.name)
+			t.Errorf("Test %q: expected error and no error received", test.name)
 		}
 	}
 }

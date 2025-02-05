@@ -65,7 +65,7 @@ type quotaEvaluator struct {
 	workLock   sync.Mutex
 	work       map[string][]*admissionWaiter
 	dirtyWork  map[string][]*admissionWaiter
-	inProgress sets.String
+	inProgress sets.Set[string]
 
 	// controls the run method so that we can cleanly conform to the Evaluator interface
 	workers int
@@ -125,7 +125,7 @@ func NewQuotaEvaluator(quotaAccessor QuotaAccessor, ignoredResources map[schema.
 		queue:      workqueue.NewTypedWithConfig(workqueue.TypedQueueConfig[string]{Name: "admission_quota_controller"}),
 		work:       map[string][]*admissionWaiter{},
 		dirtyWork:  map[string][]*admissionWaiter{},
-		inProgress: sets.String{},
+		inProgress: sets.New[string](),
 
 		workers: workers,
 		stopCh:  stopCh,
@@ -434,7 +434,7 @@ func CheckRequest(quotas []corev1.ResourceQuota, a admission.Attributes, evaluat
 		}
 		limitedResourceNames = limitedByDefault(deltaUsage, limitedResources)
 	}
-	limitedResourceNamesSet := quota.ToSet(limitedResourceNames)
+	limitedResourceNamesSet := sets.Set[string](quota.ToSet(limitedResourceNames))
 
 	// find the set of quotas that are pertinent to this request
 	// reject if we match the quota, but usage is not calculated yet
@@ -444,7 +444,7 @@ func CheckRequest(quotas []corev1.ResourceQuota, a admission.Attributes, evaluat
 	// track the cumulative set of resources that were required across all quotas
 	// this is needed to know if we have satisfied any constraints where consumption
 	// was limited by default.
-	restrictedResourcesSet := sets.String{}
+	restrictedResourcesSet := sets.New[string]()
 	restrictedScopes := []corev1.ScopedResourceSelectorRequirement{}
 	for i := range quotas {
 		resourceQuota := quotas[i]
@@ -532,7 +532,7 @@ func CheckRequest(quotas []corev1.ResourceQuota, a admission.Attributes, evaluat
 	// if not, we reject the request.
 	hasNoCoveringQuota := limitedResourceNamesSet.Difference(restrictedResourcesSet)
 	if len(hasNoCoveringQuota) > 0 {
-		return quotas, admission.NewForbidden(a, fmt.Errorf("insufficient quota to consume: %v", strings.Join(hasNoCoveringQuota.List(), ",")))
+		return quotas, admission.NewForbidden(a, fmt.Errorf("insufficient quota to consume: %v", strings.Join(sets.List(hasNoCoveringQuota), ",")))
 	}
 
 	// verify that for every scope that had limited access enabled

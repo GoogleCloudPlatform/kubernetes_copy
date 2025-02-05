@@ -29,7 +29,7 @@ import (
 
 // WithReinvocationTesting wraps a mutating admission handler and reinvokes it each time Admit is
 // called. It checks the admission output object and reports a test error if the admission handler
-// performs non-idempotent mutatations to the object.
+// performs non-idempotent mutations to the object.
 func WithReinvocationTesting(t *testing.T, admission admission.MutationInterface) admission.MutationInterface {
 	return &reinvoker{t, admission}
 }
@@ -40,7 +40,7 @@ type reinvoker struct {
 }
 
 // Admit reinvokes the admission handler and reports a test error if the admission handler performs
-// non-idempotent mutatations to the admission object.
+// non-idempotent mutations to the admission object.
 func (r *reinvoker) Admit(ctx context.Context, a admission.Attributes, o admission.ObjectInterfaces) error {
 	r.t.Helper()
 	outputs := []runtime.Object{}

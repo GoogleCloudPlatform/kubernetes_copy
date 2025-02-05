@@ -128,7 +128,7 @@ func (self *WantAuthorizerAdmission) ValidateInitialization() error      { retur
 var _ admission.Interface = &WantAuthorizerAdmission{}
 var _ initializer.WantsAuthorizer = &WantAuthorizerAdmission{}
 
-// WantDrainedNotification is a test stub that filfills the WantsDrainedNotification interface.
+// WantDrainedNotification is a test stub that fulfills the WantsDrainedNotification interface.
 type WantDrainedNotification struct {
 	stopCh <-chan struct{}
 }

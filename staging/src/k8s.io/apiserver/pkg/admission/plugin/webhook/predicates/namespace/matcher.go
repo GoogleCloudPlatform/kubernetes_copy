@@ -95,8 +95,8 @@ func (m *Matcher) GetNamespaceLabels(attr admission.Attributes) (map[string]stri
 	return namespace.Labels, nil
 }
 
-// MatchNamespaceSelector decideds whether the request matches the
-// namespaceSelctor of the webhook. Only when they match, the webhook is called.
+// MatchNamespaceSelector decides whether the request matches the
+// namespaceSelector of the webhook. Only when they match, the webhook is called.
 func (m *Matcher) MatchNamespaceSelector(p NamespaceSelectorProvider, attr admission.Attributes) (bool, *apierrors.StatusError) {
 	namespaceName := attr.GetNamespace()
 	if len(namespaceName) == 0 && attr.GetResource().Resource != "namespaces" {

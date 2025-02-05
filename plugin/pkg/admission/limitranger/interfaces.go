@@ -28,7 +28,7 @@ type LimitRangerActions interface {
 	MutateLimit(limitRange *corev1.LimitRange, kind string, obj runtime.Object) error
 	// ValidateLimits is a pluggable function to enforce limits on the object.
 	ValidateLimit(limitRange *corev1.LimitRange, kind string, obj runtime.Object) error
-	// SupportsAttributes is a pluggable function to allow overridding what resources the limitranger
+	// SupportsAttributes is a pluggable function to allow overriding what resources the limitranger
 	// supports.
 	SupportsAttributes(attr admission.Attributes) bool
 	// SupportsLimit is a pluggable function to allow ignoring limits that should not be applied

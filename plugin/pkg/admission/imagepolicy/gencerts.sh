@@ -54,12 +54,12 @@ openssl req -x509 -new -nodes -key caKey.pem -days 100000 -out caCert.pem -subj 
 openssl genrsa -out badCAKey.pem 2048
 openssl req -x509 -new -nodes -key badCAKey.pem -days 100000 -out badCACert.pem -subj "/CN=webhook_imagepolicy_ca"
 
-# Create a server certiticate
+# Create a server certificate
 openssl genrsa -out serverKey.pem 2048
 openssl req -new -key serverKey.pem -out server.csr -subj "/CN=webhook_imagepolicy_server" -config server.conf
 openssl x509 -req -in server.csr -CA caCert.pem -CAkey caKey.pem -CAcreateserial -out serverCert.pem -days 100000 -extensions v3_req -extfile server.conf
 
-# Create a client certiticate
+# Create a client certificate
 openssl genrsa -out clientKey.pem 2048
 openssl req -new -key clientKey.pem -out client.csr -subj "/CN=webhook_imagepolicy_client" -config client.conf
 openssl x509 -req -in client.csr -CA caCert.pem -CAkey caKey.pem -CAcreateserial -out clientCert.pem -days 100000 -extensions v3_req -extfile client.conf

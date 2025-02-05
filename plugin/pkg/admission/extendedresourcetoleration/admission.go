@@ -68,7 +68,7 @@ func (p *plugin) Admit(ctx context.Context, attributes admission.Attributes, o a
 		return errors.NewBadRequest(fmt.Sprintf("expected *core.Pod but got %T", attributes.GetObject()))
 	}
 
-	resources := sets.String{}
+	resources := sets.New[string]()
 	for _, container := range pod.Spec.Containers {
 		for resourceName := range container.Resources.Requests {
 			if helper.IsExtendedResourceName(resourceName) {
@@ -86,7 +86,7 @@ func (p *plugin) Admit(ctx context.Context, attributes admission.Attributes, o a
 
 	// Doing .List() so that we get a stable sorted list.
 	// This allows us to test adding tolerations for multiple extended resources.
-	for _, resource := range resources.List() {
+	for _, resource := range sets.List(resources) {
 		helper.AddOrUpdateTolerationInPod(pod, &core.Toleration{
 			Key:      resource,
 			Operator: core.TolerationOpExists,

@@ -35,7 +35,7 @@ type BindingAccessor interface {
 
 	// GetPolicyName returns the name of the (Validating/Mutating)AdmissionPolicy,
 	// which is cluster-scoped, so namespace is usually left blank.
-	// But we leave the door open to add a namespaced vesion in the future
+	// But we leave the door open to add a namespaced version in the future
 	GetPolicyName() types.NamespacedName
 	GetParamRef() *v1.ParamRef
 

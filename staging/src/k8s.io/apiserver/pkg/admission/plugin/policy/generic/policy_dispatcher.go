@@ -182,7 +182,7 @@ func (d *policyDispatcher[P, B, E]) Dispatch(ctx context.Context, a admission.At
 			}
 
 			// If params is empty and there was no error, that means that
-			// ParamNotFoundAction is ignore, so it shouldnt be added to list
+			// ParamNotFoundAction is ignore, so it shouldn't be added to list
 			for _, param := range params {
 				relevantHooks = append(relevantHooks, PolicyInvocation[P, B, E]{
 					Policy:    hook.Policy,

@@ -45,7 +45,7 @@ func init() {
 }
 
 // CheckRunAsUser returns a restricted level check
-// that forbides runAsUser=0 in 1.23+
+// that forbids runAsUser=0 in 1.23+
 func CheckRunAsUser() Check {
 	return Check{
 		ID:    "runAsUser",

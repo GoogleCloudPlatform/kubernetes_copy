@@ -113,7 +113,7 @@ func (m *mutatingWebhookConfigurationManager) getConfiguration() ([]webhook.Webh
 // mutating webhook configurations.
 //
 // This function will, first, try to load the webhook accessors from the cache and avoid
-// recreating them, which can be expessive (requiring CEL expression recompilation).
+// recreating them, which can be expensive (requiring CEL expression recompilation).
 func (m *mutatingWebhookConfigurationManager) getMutatingWebhookConfigurations(configurations []*v1.MutatingWebhookConfiguration) []webhook.WebhookAccessor {
 	// The internal order of webhooks for each configuration is provided by the user
 	// but configurations themselves can be in any order. As we are going to run these

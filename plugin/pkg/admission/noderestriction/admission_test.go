@@ -1199,7 +1199,7 @@ func Test_nodePlugin_Admit(t *testing.T) {
 			err:        "not bound to a pod",
 		},
 		{
-			name:       "forbid create of token bound to nonexistant pod",
+			name:       "forbid create of token bound to nonexistent pod",
 			podsGetter: noExistingPods,
 			attributes: admission.NewAttributesRecord(makeTokenRequest("nopod", "someuid", []string{"foo"}), nil, tokenrequestKind, "ns", "mysa", svcacctResource, "token", admission.Create, &metav1.CreateOptions{}, false, mynode),
 			err:        "not found",

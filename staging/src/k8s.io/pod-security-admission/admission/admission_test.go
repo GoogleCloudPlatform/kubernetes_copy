@@ -725,7 +725,7 @@ func TestValidatePodAndController(t *testing.T) {
 		subresource string
 
 		skipPod        bool // Whether to skip the ValidatePod test case.
-		skipDeployment bool // Whteher to skip the ValidatePodController test case.
+		skipDeployment bool // Whether to skip the ValidatePodController test case.
 
 		expectAllowed bool
 		expectReason  metav1.StatusReason

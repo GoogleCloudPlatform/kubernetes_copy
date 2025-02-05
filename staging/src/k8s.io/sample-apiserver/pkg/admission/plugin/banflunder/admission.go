@@ -85,7 +85,7 @@ func (d *DisallowFlunder) Admit(ctx context.Context, a admission.Attributes, o a
 }
 
 // SetInternalWardleInformerFactory gets Lister from SharedInformerFactory.
-// The lister knows how to lists Fischers.
+// The lister knows how to list Fischers.
 func (d *DisallowFlunder) SetInternalWardleInformerFactory(f informers.SharedInformerFactory) {
 	d.lister = f.Wardle().V1alpha1().Fischers().Lister()
 	d.SetReadyFunc(f.Wardle().V1alpha1().Fischers().Informer().HasSynced)

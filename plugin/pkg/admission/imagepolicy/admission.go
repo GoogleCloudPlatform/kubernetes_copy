@@ -49,7 +49,7 @@ const PluginName = "ImagePolicyWebhook"
 const ephemeralcontainers = "ephemeralcontainers"
 
 // AuditKeyPrefix is used as the prefix for all audit keys handled by this
-// pluggin. Some well known suffixes are listed below.
+// plugin. Some well known suffixes are listed below.
 var AuditKeyPrefix = strings.ToLower(PluginName) + ".image-policy.k8s.io/"
 
 const (

@@ -307,7 +307,7 @@ var _ = SIGDescribe("ValidatingAdmissionPolicy [Privileged:ClusterAdmin]", func(
 				return extensionsClient.ApiextensionsV1().CustomResourceDefinitions().Delete(ctx, name, metav1.DeleteOptions{})
 			}, crd.Name)
 		})
-		ginkgo.By("creating a vaild policy for crontabs", func() {
+		ginkgo.By("creating a valid policy for crontabs", func() {
 			policy = newValidatingAdmissionPolicyBuilder(f.UniqueName+".correct-crd-policy.example.com").
 				MatchUniqueNamespace(f.UniqueName).
 				StartResourceRule().

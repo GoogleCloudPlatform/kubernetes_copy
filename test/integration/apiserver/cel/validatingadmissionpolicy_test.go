@@ -903,7 +903,7 @@ func Test_ValidatingAdmissionPolicy_UpdateParamKind(t *testing.T) {
 
 	// validate that namespaces starting with "secret-" are allowed
 	// and namespaces starting with "configmap-" are disallowed
-	// wait loop is required here since ConfigMaps were previousy allowed and we need to wait for the new policy
+	// wait loop is required here since ConfigMaps were previously allowed and we need to wait for the new policy
 	// to be enforced
 	if waitErr := wait.PollImmediate(time.Millisecond*10, wait.ForeverTestTimeout, func() (bool, error) {
 		disallowedNamespace = &v1.Namespace{
@@ -1688,7 +1688,7 @@ func Test_ValidatingAdmissionPolicy_MatchWithMatchPolicyExact(t *testing.T) {
 		t.Errorf("v1 panadas did not match against policy, err: %v", err)
 	}
 
-	// v2 panadas is allowed since policy specificed match policy Exact and only matched against v1
+	// v2 panadas is allowed since policy specified match policy Exact and only matched against v1
 	_, err = dynamicClient.Resource(schema.GroupVersionResource{Group: "awesome.bears.com", Version: "v2", Resource: "pandas"}).Create(context.TODO(), v2Resource, metav1.CreateOptions{})
 	if err != nil {
 		t.Error(err)

@@ -65,7 +65,7 @@ type LimitRanger struct {
 	actions LimitRangerActions
 	lister  corev1listers.LimitRangeLister
 
-	// liveLookups holds the last few live lookups we've done to help ammortize cost on repeated lookup failures.
+	// liveLookups holds the last few live lookups we've done to help amortize cost on repeated lookup failures.
 	// This let's us handle the case of latent caches, by looking up actual results for a namespace on cache miss/no results.
 	// We track the lookup result here so that for repeated requests, we don't look it up very often.
 	liveLookupCache *lru.Cache
@@ -579,7 +579,7 @@ func podRequests(pod *api.Pod, opts podResourcesOptions) api.ResourceList {
 		addResourceList(reqs, containerReqs)
 	}
 
-	restartableInitCotnainerReqs := api.ResourceList{}
+	restartableInitContainerReqs := api.ResourceList{}
 	initContainerReqs := api.ResourceList{}
 	// init containers define the minimum of any resource
 	// Note: In-place resize is not allowed for InitContainers, so no need to check for ResizeStatus value
@@ -591,12 +591,12 @@ func podRequests(pod *api.Pod, opts podResourcesOptions) api.ResourceList {
 			addResourceList(reqs, containerReqs)
 
 			// track our cumulative restartable init container resources
-			addResourceList(restartableInitCotnainerReqs, containerReqs)
-			containerReqs = restartableInitCotnainerReqs
+			addResourceList(restartableInitContainerReqs, containerReqs)
+			containerReqs = restartableInitContainerReqs
 		} else {
 			tmp := api.ResourceList{}
 			addResourceList(tmp, containerReqs)
-			addResourceList(tmp, restartableInitCotnainerReqs)
+			addResourceList(tmp, restartableInitContainerReqs)
 			containerReqs = tmp
 		}
 

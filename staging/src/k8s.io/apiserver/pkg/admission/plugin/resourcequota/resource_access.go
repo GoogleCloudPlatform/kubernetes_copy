@@ -48,7 +48,7 @@ type quotaAccessor struct {
 	// lister can list/get quota objects from a shared informer's cache
 	lister corev1listers.ResourceQuotaLister
 
-	// liveLookups holds the last few live lookups we've done to help ammortize cost on repeated lookup failures.
+	// liveLookups holds the last few live lookups we've done to help amortize cost on repeated lookup failures.
 	// This lets us handle the case of latent caches, by looking up actual results for a namespace on cache miss/no results.
 	// We track the lookup result here so that for repeated requests, we don't look it up very often.
 	liveLookupCache *lru.Cache

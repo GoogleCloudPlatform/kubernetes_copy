@@ -18,7 +18,7 @@ limitations under the License.
 // take RuntimeClass into account. For RuntimeClass definitions which describe an overhead associated
 // with running a pod, this admission controller will set the pod.Spec.Overhead field accordingly. This
 // field should only be set through this controller, so validation will be carried out to ensure the pod's
-// value matches what is defined in the coresponding RuntimeClass.
+// value matches what is defined in the corresponding RuntimeClass.
 package runtimeclass
 
 import (
@@ -113,7 +113,7 @@ func (r *RuntimeClass) Admit(ctx context.Context, attributes admission.Attribute
 	return nil
 }
 
-// Validate makes sure that pod adhere's to RuntimeClass's definition
+// Validate makes sure that pod adheres to RuntimeClass's definition
 func (r *RuntimeClass) Validate(ctx context.Context, attributes admission.Attributes, o admission.ObjectInterfaces) error {
 	// Ignore all calls to subresources or resources other than pods.
 	if shouldIgnore(attributes) {

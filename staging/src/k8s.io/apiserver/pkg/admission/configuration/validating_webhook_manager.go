@@ -113,7 +113,7 @@ func (v *validatingWebhookConfigurationManager) getConfiguration() ([]webhook.We
 // mutating webhook configurations.
 //
 // This function will, first, try to load the webhook accessors from the cache and avoid
-// recreating them, which can be expessive (requiring CEL expression recompilation).
+// recreating them, which can be expensive (requiring CEL expression recompilation).
 func (v *validatingWebhookConfigurationManager) getValidatingWebhookConfigurations(configurations []*v1.ValidatingWebhookConfiguration) []webhook.WebhookAccessor {
 	sort.SliceStable(configurations, ValidatingWebhookConfigurationSorter(configurations).ByName)
 	size := 0

@@ -252,7 +252,7 @@ func TestAdmission(t *testing.T) {
 			t.Errorf("Test %q: unexpected error received: %v", test.name, err)
 		}
 		if err == nil && test.expectError {
-			t.Errorf("Test %q: expected error and no error recevied", test.name)
+			t.Errorf("Test %q: expected error and no error received", test.name)
 		}
 
 		class := ""

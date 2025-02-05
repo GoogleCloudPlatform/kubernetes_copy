@@ -82,7 +82,7 @@ type CheckResult struct {
 	ForbiddenDetail string
 }
 
-// AggergateCheckResult holds the aggregate result of running CheckPod across multiple checks.
+// AggregateCheckResult holds the aggregate result of running CheckPod across multiple checks.
 type AggregateCheckResult struct {
 	// Allowed indicates if all checks allowed the pod.
 	Allowed bool
