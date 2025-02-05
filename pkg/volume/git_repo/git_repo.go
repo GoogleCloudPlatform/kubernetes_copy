@@ -169,11 +169,15 @@ func (b *gitRepoVolumeMounter) GetAttributes() volume.Attributes {
 
 // SetUp creates new directory and clones a git repo.
 func (b *gitRepoVolumeMounter) SetUp(mounterArgs volume.MounterArgs) error {
-	return b.SetUpAt(b.GetPath(), mounterArgs)
+	return fmt.Errorf("git_repo volume plugin has been disabled.")
+
+	//return b.SetUpAt(b.GetPath(), mounterArgs)
 }
 
 // SetUpAt creates new directory and clones a git repo.
 func (b *gitRepoVolumeMounter) SetUpAt(dir string, mounterArgs volume.MounterArgs) error {
+	return fmt.Errorf("git_repo volume plugin has been disabled.")
+
 	if volumeutil.IsReady(b.getMetaDir()) {
 		return nil
 	}
