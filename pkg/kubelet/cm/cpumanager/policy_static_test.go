@@ -687,6 +687,8 @@ func TestStaticPolicyReuseCPUs(t *testing.T) {
 		staticPolicyTest
 		expCSetAfterAlloc  cpuset.CPUSet
 		expCSetAfterRemove cpuset.CPUSet
+		expAssignments     state.ContainerCPUAssignments
+		removeContainer    string
 	}{
 		{
 			staticPolicyTest: staticPolicyTest{
@@ -701,8 +703,70 @@ func TestStaticPolicyReuseCPUs(t *testing.T) {
 				stAssignments:   state.ContainerCPUAssignments{},
 				stDefaultCPUSet: cpuset.New(0, 1, 2, 3, 4, 5, 6, 7),
 			},
+			expAssignments: state.ContainerCPUAssignments{
+				"podUID": map[string]cpuset.CPUSet{
+					"appContainer-0": cpuset.New(0, 4),
+				}},
 			expCSetAfterAlloc:  cpuset.New(2, 3, 6, 7),
 			expCSetAfterRemove: cpuset.New(1, 2, 3, 5, 6, 7),
+		},
+		{
+			staticPolicyTest: staticPolicyTest{
+				description: "topoDualSocketHT, DeAllocInitContainer",
+				topo:        topoDualSocketNoHT,
+				pod: makeMultiContainerPod(
+					[]struct{ request, limit string }{
+						{"1000m", "1000m"}}, // 1
+					[]struct{ request, limit string }{
+						{"4000m", "4000m"}, // 4, 5, 6, 7:  NUMA 0 is not enough, use CPUs NUMA 1
+						{"2000m", "2000m"}, // 1, 2:  NUMA 0 is enough, use CPUs NUMA 0 and reuse
+					}), // 4, 5, 6, 7, in NUMA 1
+				stAssignments:   state.ContainerCPUAssignments{},
+				stDefaultCPUSet: topoDualSocketNoHT.CPUDetails.CPUs().Difference(cpuset.New(0)), // remove cpu 0 in NUMA 0
+			},
+			expAssignments: state.ContainerCPUAssignments{
+				"podUID": map[string]cpuset.CPUSet{
+					"initContainer-0": cpuset.New(1),
+					"appContainer-0":  cpuset.New(4, 5, 6, 7),
+					"appContainer-1":  cpuset.New(1, 2),
+				},
+			},
+			expCSetAfterAlloc:  cpuset.New(3),
+			expCSetAfterRemove: cpuset.New(3),
+		},
+		{
+			staticPolicyTest: staticPolicyTest{
+				description: "topoDualSocketMultiNumaPerSocketHT, DeAllocInitContainer",
+				topo:        topoDualSocketMultiNumaPerSocketHT, // 80 Core with 4 NUMA
+				pod: makeMultiContainerPod(
+					[]struct{ request, limit string }{
+						{"5000m", "5000m"},  // 1, 41, 2, 42, 40
+						{"5000m", "5000m"}}, // 1, 41, 2, 42, 40
+					[]struct{ request, limit string }{
+						{"20000m", "20000m"}, // 10-19,50-59, skip NUMA 0 because not enough
+						{"7000m", "7000m"},   // 1, 41, 2, 42, 3, 43, 40, NUMA 0 is enough, reuse it
+					}), // 4, 5, 6, 7, in NUMA 1
+				stAssignments:   state.ContainerCPUAssignments{},
+				stDefaultCPUSet: topoDualSocketMultiNumaPerSocketHT.CPUDetails.CPUs().Difference(cpuset.New(0)), // remove cpu 0 in NUMA 0
+			},
+			expAssignments: state.ContainerCPUAssignments{
+				"podUID": map[string]cpuset.CPUSet{
+					"initContainer-0": cpuset.New(1, 41, 2, 42, 40),                                     // 5 CPU in NUMA 0
+					"initContainer-1": cpuset.New(1, 41, 2, 42, 40),                                     // 5 CPU in NUMA 0, can reuse
+					"appContainer-0":  topoDualSocketMultiNumaPerSocketHT.CPUDetails.CPUsInNUMANodes(1), // NUMA 0 is not enough, use CPU in NUMA 1
+					"appContainer-1":  cpuset.New(1, 41, 2, 42, 3, 43, 40),                              // reuse init-container CPU and other CPU in NUMA 0
+				},
+			},
+			expCSetAfterAlloc: topoDualSocketMultiNumaPerSocketHT.CPUDetails.CPUs().
+				Difference(cpuset.New(0)).
+				Difference(cpuset.New(1, 41, 2, 42, 40)).
+				Difference(cpuset.New(1, 41, 2, 42, 3, 43, 40)).
+				Difference(topoDualSocketMultiNumaPerSocketHT.CPUDetails.CPUsInNUMANodes(1)),
+			expCSetAfterRemove: topoDualSocketMultiNumaPerSocketHT.CPUDetails.CPUs().
+				Difference(cpuset.New(0)).
+				Difference(cpuset.New(1, 41, 2, 42, 40)).
+				Difference(cpuset.New(1, 41, 2, 42, 3, 43, 40)).
+				Difference(topoDualSocketMultiNumaPerSocketHT.CPUDetails.CPUsInNUMANodes(1)),
 		},
 	}
 
@@ -723,7 +787,6 @@ func TestStaticPolicyReuseCPUs(t *testing.T) {
 			t.Errorf("StaticPolicy Allocate() error (%v). expected default cpuset %v but got %v",
 				testCase.description, testCase.expCSetAfterAlloc, st.defaultCPUSet)
 		}
-
 		// remove
 		policy.RemoveContainer(st, string(pod.UID), testCase.containerName)
 
@@ -734,6 +797,10 @@ func TestStaticPolicyReuseCPUs(t *testing.T) {
 		if _, found := st.assignments[string(pod.UID)][testCase.containerName]; found {
 			t.Errorf("StaticPolicy RemoveContainer() error (%v). expected (pod %v, container %v) not be in assignments %v",
 				testCase.description, testCase.podUID, testCase.containerName, st.assignments)
+		}
+		if !reflect.DeepEqual(testCase.expAssignments, st.assignments) {
+			t.Errorf("StaticPolicy Assignment error (%v). expected assignments %v but got %v",
+				testCase.description, testCase.expAssignments, st.assignments)
 		}
 	}
 }
