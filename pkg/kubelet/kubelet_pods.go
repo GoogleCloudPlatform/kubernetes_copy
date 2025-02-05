@@ -32,6 +32,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -2441,7 +2442,7 @@ func (kl *Kubelet) findContainer(ctx context.Context, podFullName string, podUID
 }
 
 // RunInContainer runs a command in a container, returns the combined stdout, stderr as an array of bytes
-func (kl *Kubelet) RunInContainer(ctx context.Context, podFullName string, podUID types.UID, containerName string, cmd []string) ([]byte, error) {
+func (kl *Kubelet) RunInContainer(ctx context.Context, podFullName string, podUID types.UID, containerName string, cmd []string, timeout time.Duration) ([]byte, error) {
 	container, err := kl.findContainer(ctx, podFullName, podUID, containerName)
 	if err != nil {
 		return nil, err
@@ -2449,8 +2450,7 @@ func (kl *Kubelet) RunInContainer(ctx context.Context, podFullName string, podUI
 	if container == nil {
 		return nil, fmt.Errorf("container not found (%q)", containerName)
 	}
-	// TODO(tallclair): Pass a proper timeout value.
-	return kl.runner.RunInContainer(ctx, container.ID, cmd, 0)
+	return kl.runner.RunInContainer(ctx, container.ID, cmd, timeout)
 }
 
 // GetExec gets the URL the exec will be served from, or nil if the Kubelet will serve it.

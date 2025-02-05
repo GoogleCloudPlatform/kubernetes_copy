@@ -318,7 +318,9 @@ func TestRunInContainerNoSuchPod(t *testing.T) {
 		kubecontainer.GetPodFullName(&v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: podName, Namespace: podNamespace}}),
 		"",
 		containerName,
-		[]string{"ls"})
+		[]string{"ls"},
+		0,
+	)
 	assert.Error(t, err)
 	assert.Nil(t, output, "output should be nil")
 }
@@ -350,7 +352,7 @@ func TestRunInContainer(t *testing.T) {
 			}},
 		}
 		cmd := []string{"ls"}
-		actualOutput, err := kubelet.RunInContainer(ctx, "podFoo_nsFoo", "", "containerFoo", cmd)
+		actualOutput, err := kubelet.RunInContainer(ctx, "podFoo_nsFoo", "", "containerFoo", cmd, 0)
 		assert.Equal(t, containerID, fakeCommandRunner.ContainerID, "(testError=%v) ID", testError)
 		assert.Equal(t, cmd, fakeCommandRunner.Cmd, "(testError=%v) command", testError)
 		// this isn't 100% foolproof as a bug in a real CommandRunner where it fails to copy to stdout/stderr wouldn't be caught by this test

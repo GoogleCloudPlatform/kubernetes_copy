@@ -272,7 +272,7 @@ type HostInterface interface {
 	GetVersionInfo() (*cadvisorapi.VersionInfo, error)
 	GetCachedMachineInfo() (*cadvisorapi.MachineInfo, error)
 	GetRunningPods(ctx context.Context) ([]*v1.Pod, error)
-	RunInContainer(ctx context.Context, name string, uid types.UID, container string, cmd []string) ([]byte, error)
+	RunInContainer(ctx context.Context, name string, uid types.UID, container string, cmd []string, timeout time.Duration) ([]byte, error)
 	CheckpointContainer(ctx context.Context, podUID types.UID, podFullName, containerName string, options *runtimeapi.CheckpointContainerRequest) error
 	GetKubeletContainerLogs(ctx context.Context, podFullName, containerName string, logOptions *v1.PodLogOptions, stdout, stderr io.Writer) error
 	ServeLogs(w http.ResponseWriter, req *http.Request)
@@ -957,7 +957,22 @@ func (s *Server) getRun(request *restful.Request, response *restful.Response) {
 
 	// For legacy reasons, run uses different query param than exec.
 	params.cmd = strings.Split(request.QueryParameter("cmd"), " ")
-	data, err := s.host.RunInContainer(request.Request.Context(), kubecontainer.GetPodFullName(pod), params.podUID, params.containerName, params.cmd)
+
+	var (
+		timeout time.Duration
+		err     error
+	)
+	queryTimeout := request.QueryParameter("timeout")
+	if queryTimeout != "" {
+		timeout, err = time.ParseDuration(queryTimeout)
+		if err != nil {
+			//nolint:errcheck // Checking the error will not lead into a valuable action
+			response.WriteError(http.StatusInternalServerError, err)
+			return
+		}
+	}
+
+	data, err := s.host.RunInContainer(request.Request.Context(), kubecontainer.GetPodFullName(pod), params.podUID, params.containerName, params.cmd, timeout)
 	if err != nil {
 		response.WriteError(http.StatusInternalServerError, err)
 		return

@@ -81,7 +81,7 @@ type fakeKubelet struct {
 	podsFunc            func() []*v1.Pod
 	runningPodsFunc     func(ctx context.Context) ([]*v1.Pod, error)
 	logFunc             func(w http.ResponseWriter, req *http.Request)
-	runFunc             func(podFullName string, uid types.UID, containerName string, cmd []string) ([]byte, error)
+	runFunc             func(podFullName string, uid types.UID, containerName string, cmd []string, timeout time.Duration) ([]byte, error)
 	getExecCheck        func(string, types.UID, string, []string, remotecommandserver.Options)
 	getAttachCheck      func(string, types.UID, string, remotecommandserver.Options)
 	getPortForwardCheck func(string, string, types.UID, portforward.V4Options)
@@ -134,8 +134,8 @@ func (fk *fakeKubelet) GetHostname() string {
 	return fk.hostnameFunc()
 }
 
-func (fk *fakeKubelet) RunInContainer(_ context.Context, podFullName string, uid types.UID, containerName string, cmd []string) ([]byte, error) {
-	return fk.runFunc(podFullName, uid, containerName, cmd)
+func (fk *fakeKubelet) RunInContainer(_ context.Context, podFullName string, uid types.UID, containerName string, cmd []string, timeout time.Duration) ([]byte, error) {
+	return fk.runFunc(podFullName, uid, containerName, cmd, timeout)
 }
 
 func (fk *fakeKubelet) CheckpointContainer(_ context.Context, podUID types.UID, podFullName, containerName string, options *runtimeapi.CheckpointContainerRequest) error {
@@ -426,7 +426,7 @@ func TestServeRunInContainer(t *testing.T) {
 	expectedPodName := getPodName(podName, podNamespace)
 	expectedContainerName := "baz"
 	expectedCommand := "ls -a"
-	fw.fakeKubelet.runFunc = func(podFullName string, uid types.UID, containerName string, cmd []string) ([]byte, error) {
+	fw.fakeKubelet.runFunc = func(podFullName string, uid types.UID, containerName string, cmd []string, timeout time.Duration) ([]byte, error) {
 		if podFullName != expectedPodName {
 			t.Errorf("expected %s, got %s", expectedPodName, podFullName)
 		}
@@ -467,7 +467,7 @@ func TestServeRunInContainerWithUID(t *testing.T) {
 	expectedPodName := getPodName(podName, podNamespace)
 	expectedContainerName := "baz"
 	expectedCommand := "ls -a"
-	fw.fakeKubelet.runFunc = func(podFullName string, uid types.UID, containerName string, cmd []string) ([]byte, error) {
+	fw.fakeKubelet.runFunc = func(podFullName string, uid types.UID, containerName string, cmd []string, timeout time.Duration) ([]byte, error) {
 		if podFullName != expectedPodName {
 			t.Errorf("expected %s, got %s", expectedPodName, podFullName)
 		}
@@ -498,6 +498,56 @@ func TestServeRunInContainerWithUID(t *testing.T) {
 	result := string(body)
 	if result != output {
 		t.Errorf("expected %s, got %s", output, result)
+	}
+}
+
+func TestServeRunInContainerWithTimeout(t *testing.T) {
+	const (
+		podNamespace  = "namespace"
+		podName       = "pod"
+		containerName = "container"
+		successOutput = "succeed"
+		deadline      = time.Second
+	)
+	for name, tc := range map[string]struct {
+		timeoutValue   string
+		expectedOutput string
+	}{
+		"should succeed with valid timeout": {
+			timeoutValue:   "10s",
+			expectedOutput: successOutput,
+		},
+		"should timeout with valid timeout": {
+			timeoutValue:   fmt.Sprintf("%v", deadline),
+			expectedOutput: context.DeadlineExceeded.Error(),
+		},
+		"should fail with invalid timeout value": {
+			timeoutValue:   "wrong",
+			expectedOutput: "invalid duration",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			fw := newServerTest()
+			defer fw.testHTTPServer.Close()
+
+			fw.fakeKubelet.runFunc = func(podFullName string, uid types.UID, containerName string, cmd []string, timeout time.Duration) ([]byte, error) {
+				if timeout == time.Second {
+					return nil, context.DeadlineExceeded
+				}
+				return []byte(successOutput), nil
+			}
+
+			resp, err := http.Post(fw.testHTTPServer.URL+"/run/"+podNamespace+"/"+podName+"/"+testUID+"/"+containerName+"?cmd=ls&timeout="+tc.timeoutValue, "", nil)
+			require.NoError(t, err)
+			defer func() { require.NoError(t, resp.Body.Close()) }()
+
+			body, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+
+			assert.Contains(t, string(body), tc.expectedOutput)
+		})
 	}
 }
 
