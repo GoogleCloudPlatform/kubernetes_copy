@@ -170,10 +170,7 @@ import (
 // http://joda-time.sourceforge.net/apidocs/org/joda/time/format/ISODateTimeFormat.html#dateTime()
 // ) to obtain a formatter capable of generating timestamps in this format.
 type Timestamp struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-
+	state protoimpl.MessageState `protogen:"open.v1"`
 	// Represents seconds of UTC time since Unix epoch
 	// 1970-01-01T00:00:00Z. Must be from 0001-01-01T00:00:00Z to
 	// 9999-12-31T23:59:59Z inclusive.
@@ -182,7 +179,9 @@ type Timestamp struct {
 	// second values with fractions must still have non-negative nanos values
 	// that count forward in time. Must be from 0 to 999,999,999
 	// inclusive.
-	Nanos int32 `protobuf:"varint,2,opt,name=nanos,proto3" json:"nanos,omitempty"`
+	Nanos         int32 `protobuf:"varint,2,opt,name=nanos,proto3" json:"nanos,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 // Now constructs a new Timestamp from the current time.

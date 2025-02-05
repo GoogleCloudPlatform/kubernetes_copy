@@ -48,9 +48,9 @@ import (
 //	  rpc Bar(google.protobuf.Empty) returns (google.protobuf.Empty);
 //	}
 type Empty struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
+	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Empty) Reset() {

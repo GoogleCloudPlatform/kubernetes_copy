@@ -134,13 +134,9 @@ func (c *counter) Add(v float64) {
 		return
 	}
 
-	for {
-		oldBits := atomic.LoadUint64(&c.valBits)
-		newBits := math.Float64bits(math.Float64frombits(oldBits) + v)
-		if atomic.CompareAndSwapUint64(&c.valBits, oldBits, newBits) {
-			return
-		}
-	}
+	atomicUpdateFloat(&c.valBits, func(oldVal float64) float64 {
+		return oldVal + v
+	})
 }
 
 func (c *counter) AddWithExemplar(v float64, e Labels) {

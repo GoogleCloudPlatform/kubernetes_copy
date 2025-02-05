@@ -37,6 +37,10 @@ const (
 
 	// ValidationValid indicates that unmarshaling the message will succeed.
 	ValidationValid
+
+	// ValidationWrongWireType indicates that a validated field does not have
+	// the expected wire type.
+	ValidationWrongWireType
 )
 
 func (v ValidationStatus) String() string {
@@ -149,11 +153,23 @@ func newValidationInfo(fd protoreflect.FieldDescriptor, ft reflect.Type) validat
 		switch fd.Kind() {
 		case protoreflect.MessageKind:
 			vi.typ = validationTypeMessage
+
+			if ft.Kind() == reflect.Ptr {
+				// Repeated opaque message fields are *[]*T.
+				ft = ft.Elem()
+			}
+
 			if ft.Kind() == reflect.Slice {
 				vi.mi = getMessageInfo(ft.Elem())
 			}
 		case protoreflect.GroupKind:
 			vi.typ = validationTypeGroup
+
+			if ft.Kind() == reflect.Ptr {
+				// Repeated opaque message fields are *[]*T.
+				ft = ft.Elem()
+			}
+
 			if ft.Kind() == reflect.Slice {
 				vi.mi = getMessageInfo(ft.Elem())
 			}

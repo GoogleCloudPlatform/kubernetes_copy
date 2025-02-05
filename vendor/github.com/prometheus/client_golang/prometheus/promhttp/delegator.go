@@ -76,6 +76,12 @@ func (r *responseWriterDelegator) Write(b []byte) (int, error) {
 	return n, err
 }
 
+// Unwrap lets http.ResponseController get the underlying http.ResponseWriter,
+// by implementing the [rwUnwrapper](https://cs.opensource.google/go/go/+/refs/tags/go1.21.4:src/net/http/responsecontroller.go;l=42-44) interface.
+func (r *responseWriterDelegator) Unwrap() http.ResponseWriter {
+	return r.ResponseWriter
+}
+
 type (
 	closeNotifierDelegator struct{ *responseWriterDelegator }
 	flusherDelegator       struct{ *responseWriterDelegator }

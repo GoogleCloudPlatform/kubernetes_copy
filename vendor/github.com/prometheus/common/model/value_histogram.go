@@ -15,6 +15,7 @@ package model
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -32,7 +33,7 @@ func (v FloatString) MarshalJSON() ([]byte, error) {
 
 func (v *FloatString) UnmarshalJSON(b []byte) error {
 	if len(b) < 2 || b[0] != '"' || b[len(b)-1] != '"' {
-		return fmt.Errorf("float value must be a quoted string")
+		return errors.New("float value must be a quoted string")
 	}
 	f, err := strconv.ParseFloat(string(b[1:len(b)-1]), 64)
 	if err != nil {
@@ -141,7 +142,7 @@ type SampleHistogramPair struct {
 
 func (s SampleHistogramPair) MarshalJSON() ([]byte, error) {
 	if s.Histogram == nil {
-		return nil, fmt.Errorf("histogram is nil")
+		return nil, errors.New("histogram is nil")
 	}
 	t, err := json.Marshal(s.Timestamp)
 	if err != nil {
@@ -164,7 +165,7 @@ func (s *SampleHistogramPair) UnmarshalJSON(buf []byte) error {
 		return fmt.Errorf("wrong number of fields: %d != %d", gotLen, wantLen)
 	}
 	if s.Histogram == nil {
-		return fmt.Errorf("histogram is null")
+		return errors.New("histogram is null")
 	}
 	return nil
 }

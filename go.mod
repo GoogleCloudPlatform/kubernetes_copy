@@ -53,13 +53,13 @@ require (
 	github.com/opencontainers/selinux v1.11.1
 	github.com/pkg/errors v0.9.1
 	github.com/pmezard/go-difflib v1.0.0
-	github.com/prometheus/client_golang v1.19.1
+	github.com/prometheus/client_golang v1.21.0-rc.0
 	github.com/prometheus/client_model v0.6.1
-	github.com/prometheus/common v0.55.0
+	github.com/prometheus/common v0.62.0
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/spf13/cobra v1.8.1
 	github.com/spf13/pflag v1.0.5
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 	github.com/vishvananda/netlink v1.3.1-0.20240905180732-b1ce50cfa9be
 	github.com/vishvananda/netns v0.0.4
 	go.etcd.io/etcd/api/v3 v3.5.16
@@ -76,7 +76,7 @@ require (
 	go.uber.org/zap v1.27.0
 	golang.org/x/crypto v0.31.0
 	golang.org/x/net v0.33.0
-	golang.org/x/oauth2 v0.23.0
+	golang.org/x/oauth2 v0.24.0
 	golang.org/x/sync v0.10.0
 	golang.org/x/sys v0.28.0
 	golang.org/x/term v0.27.0
@@ -84,7 +84,7 @@ require (
 	golang.org/x/tools v0.26.0
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240826202546-f6391c0de4c7
 	google.golang.org/grpc v1.65.0
-	google.golang.org/protobuf v1.35.1
+	google.golang.org/protobuf v1.36.1
 	gopkg.in/evanphx/json-patch.v4 v4.12.0
 	gopkg.in/go-jose/go-jose.v2 v2.6.3
 	k8s.io/api v0.0.0
@@ -170,6 +170,8 @@ require (
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/karrick/godirwalk v1.17.0 // indirect
+	github.com/klauspost/compress v1.17.11 // indirect
+	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/liggitt/tabwriter v0.0.0-20181228230101-89fcab3d43de // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mistifyio/go-zfs v2.1.2-0.20190413222219-f784269be439+incompatible // indirect

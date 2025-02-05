@@ -507,7 +507,7 @@ func (m *metricMap) getOrCreateMetricWithLabelValues(
 	return metric
 }
 
-// getOrCreateMetricWithLabelValues retrieves the metric by hash and label value
+// getOrCreateMetricWithLabels retrieves the metric by hash and label value
 // or creates it and returns the new one.
 //
 // This function holds the mutex.

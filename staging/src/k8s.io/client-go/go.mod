@@ -20,13 +20,13 @@ require (
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822
 	github.com/peterbourgon/diskv v2.0.1+incompatible
 	github.com/spf13/pflag v1.0.5
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 	go.uber.org/goleak v1.3.0
 	golang.org/x/net v0.33.0
-	golang.org/x/oauth2 v0.23.0
+	golang.org/x/oauth2 v0.24.0
 	golang.org/x/term v0.27.0
 	golang.org/x/time v0.7.0
-	google.golang.org/protobuf v1.35.1
+	google.golang.org/protobuf v1.36.1
 	gopkg.in/evanphx/json-patch.v4 v4.12.0
 	k8s.io/api v0.0.0
 	k8s.io/apimachinery v0.0.0

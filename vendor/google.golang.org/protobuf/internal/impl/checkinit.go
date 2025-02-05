@@ -35,6 +35,12 @@ func (mi *MessageInfo) checkInitializedPointer(p pointer) error {
 		}
 		return nil
 	}
+
+	var presence presence
+	if mi.presenceOffset.IsValid() {
+		presence = p.Apply(mi.presenceOffset).PresenceInfo()
+	}
+
 	if mi.extensionOffset.IsValid() {
 		e := p.Apply(mi.extensionOffset).Extensions()
 		if err := mi.isInitExtensions(e); err != nil {
@@ -45,6 +51,33 @@ func (mi *MessageInfo) checkInitializedPointer(p pointer) error {
 		if !f.isRequired && f.funcs.isInit == nil {
 			continue
 		}
+
+		if f.presenceIndex != noPresence {
+			if !presence.Present(f.presenceIndex) {
+				if f.isRequired {
+					return errors.RequiredNotSet(string(mi.Desc.Fields().ByNumber(f.num).FullName()))
+				}
+				continue
+			}
+			if f.funcs.isInit != nil {
+				f.mi.init()
+				if f.mi.needsInitCheck {
+					if f.isLazy && p.Apply(f.offset).AtomicGetPointer().IsNil() {
+						lazy := *p.Apply(mi.lazyOffset).LazyInfoPtr()
+						if !lazy.AllowedPartial() {
+							// Nothing to see here, it was checked on unmarshal
+							continue
+						}
+						mi.lazyUnmarshal(p, f.num)
+					}
+					if err := f.funcs.isInit(p.Apply(f.offset), f); err != nil {
+						return err
+					}
+				}
+			}
+			continue
+		}
+
 		fptr := p.Apply(f.offset)
 		if f.isPointer && fptr.Elem().IsNil() {
 			if f.isRequired {

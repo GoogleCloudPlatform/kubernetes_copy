@@ -41,11 +41,38 @@ func (mi *MessageInfo) mergePointer(dst, src pointer, opts mergeOptions) {
 	if src.IsNil() {
 		return
 	}
+
+	var presenceSrc presence
+	var presenceDst presence
+	if mi.presenceOffset.IsValid() {
+		presenceSrc = src.Apply(mi.presenceOffset).PresenceInfo()
+		presenceDst = dst.Apply(mi.presenceOffset).PresenceInfo()
+	}
+
 	for _, f := range mi.orderedCoderFields {
 		if f.funcs.merge == nil {
 			continue
 		}
 		sfptr := src.Apply(f.offset)
+
+		if f.presenceIndex != noPresence {
+			if !presenceSrc.Present(f.presenceIndex) {
+				continue
+			}
+			dfptr := dst.Apply(f.offset)
+			if f.isLazy {
+				if sfptr.AtomicGetPointer().IsNil() {
+					mi.lazyUnmarshal(src, f.num)
+				}
+				if presenceDst.Present(f.presenceIndex) && dfptr.AtomicGetPointer().IsNil() {
+					mi.lazyUnmarshal(dst, f.num)
+				}
+			}
+			f.funcs.merge(dst.Apply(f.offset), sfptr, f, opts)
+			presenceDst.SetPresentUnatomic(f.presenceIndex, mi.presenceSize)
+			continue
+		}
+
 		if f.isPointer && sfptr.Elem().IsNil() {
 			continue
 		}

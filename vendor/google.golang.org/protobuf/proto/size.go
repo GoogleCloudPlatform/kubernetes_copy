@@ -12,11 +12,19 @@ import (
 )
 
 // Size returns the size in bytes of the wire-format encoding of m.
+//
+// Note that Size might return more bytes than Marshal will write in the case of
+// lazily decoded messages that arrive in non-minimal wire format: see
+// https://protobuf.dev/reference/go/size/ for more details.
 func Size(m Message) int {
 	return MarshalOptions{}.Size(m)
 }
 
 // Size returns the size in bytes of the wire-format encoding of m.
+//
+// Note that Size might return more bytes than Marshal will write in the case of
+// lazily decoded messages that arrive in non-minimal wire format: see
+// https://protobuf.dev/reference/go/size/ for more details.
 func (o MarshalOptions) Size(m Message) int {
 	// Treat a nil message interface as an empty message; nothing to output.
 	if m == nil {

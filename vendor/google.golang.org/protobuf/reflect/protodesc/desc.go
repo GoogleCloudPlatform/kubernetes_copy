@@ -13,6 +13,8 @@
 package protodesc
 
 import (
+	"strings"
+
 	"google.golang.org/protobuf/internal/editionssupport"
 	"google.golang.org/protobuf/internal/errors"
 	"google.golang.org/protobuf/internal/filedesc"
@@ -102,12 +104,16 @@ func (o FileOptions) New(fd *descriptorpb.FileDescriptorProto, r Resolver) (prot
 	default:
 		return nil, errors.New("invalid syntax: %q", fd.GetSyntax())
 	}
-	if f.L1.Syntax == protoreflect.Editions && (fd.GetEdition() < editionssupport.Minimum || fd.GetEdition() > editionssupport.Maximum) {
-		return nil, errors.New("use of edition %v not yet supported by the Go Protobuf runtime", fd.GetEdition())
-	}
 	f.L1.Path = fd.GetName()
 	if f.L1.Path == "" {
 		return nil, errors.New("file path must be populated")
+	}
+	if f.L1.Syntax == protoreflect.Editions && (fd.GetEdition() < editionssupport.Minimum || fd.GetEdition() > editionssupport.Maximum) {
+		// Allow cmd/protoc-gen-go/testdata to use any edition for easier
+		// testing of upcoming edition features.
+		if !strings.HasPrefix(fd.GetName(), "cmd/protoc-gen-go/testdata/") {
+			return nil, errors.New("use of edition %v not yet supported by the Go Protobuf runtime", fd.GetEdition())
+		}
 	}
 	f.L1.Package = protoreflect.FullName(fd.GetPackage())
 	if !f.L1.Package.IsValid() && f.L1.Package != "" {

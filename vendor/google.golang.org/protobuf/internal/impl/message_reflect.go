@@ -205,6 +205,11 @@ func (mi *MessageInfo) makeFieldTypes(si structInfo) {
 		case fd.IsList():
 			if fd.Enum() != nil || fd.Message() != nil {
 				ft = fs.Type.Elem()
+
+				if ft.Kind() == reflect.Slice {
+					ft = ft.Elem()
+				}
+
 			}
 			isMessage = fd.Message() != nil
 		case fd.Enum() != nil:

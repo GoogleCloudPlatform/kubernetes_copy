@@ -210,10 +210,7 @@ import (
 //	  "value": "1.212s"
 //	}
 type Any struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-
+	state protoimpl.MessageState `protogen:"open.v1"`
 	// A URL/resource name that uniquely identifies the type of the serialized
 	// protocol buffer message. This string must contain at least
 	// one "/" character. The last segment of the URL's path must represent
@@ -244,7 +241,9 @@ type Any struct {
 	// used with implementation specific semantics.
 	TypeUrl string `protobuf:"bytes,1,opt,name=type_url,json=typeUrl,proto3" json:"type_url,omitempty"`
 	// Must be a valid serialized protocol buffer of the above specified type.
-	Value []byte `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
+	Value         []byte `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 // New marshals src into a new Any instance.

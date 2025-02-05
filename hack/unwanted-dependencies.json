@@ -73,7 +73,6 @@
       "golang.org/x/exp": "This subrepository holds experimental and deprecated packages",
       "golang.org/x/lint": "unmaintained, archive mode",
       "google.golang.org/api": "cloud dependency",
-      "google.golang.org/appengine": "cloud dependency",
       "google.golang.org/genproto": "refer to #113366",
       "gopkg.in/square/go-jose.v2":"obsolete, use gopkg.in/go-jose/go-jose.v2",
       "gopkg.in/fsnotify.v1": "obsolete, use github.com/fsnotify/fsnotify",
@@ -106,7 +105,6 @@
         "github.com/go-task/slim-sprig/v3",
         "github.com/google/cadvisor",
         "github.com/json-iterator/go",
-        "github.com/prometheus/client_golang",
         "github.com/prometheus/common",
         "github.com/sirupsen/logrus",
         "github.com/stretchr/objx",
@@ -171,7 +169,6 @@
         "github.com/google/cadvisor",
         "github.com/grpc-ecosystem/go-grpc-middleware",
         "github.com/grpc-ecosystem/grpc-gateway",
-        "github.com/prometheus/client_golang",
         "go.etcd.io/etcd/api/v3",
         "go.etcd.io/etcd/client/v3",
         "go.etcd.io/etcd/pkg/v3",
@@ -258,9 +255,6 @@
         "github.com/google/cel-go",
         "github.com/opencontainers/runc",
         "k8s.io/mount-utils"
-      ],
-      "google.golang.org/appengine": [
-        "github.com/prometheus/client_golang"
       ],
       "google.golang.org/genproto": [
         "github.com/grpc-ecosystem/go-grpc-middleware",

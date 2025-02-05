@@ -47,6 +47,12 @@ type UnmarshalOptions struct {
 	// RecursionLimit limits how deeply messages may be nested.
 	// If zero, a default limit is applied.
 	RecursionLimit int
+
+	//
+	// NoLazyDecoding turns off lazy decoding, which otherwise is enabled by
+	// default. Lazy decoding only affects submessages (annotated with [lazy =
+	// true] in the .proto file) within messages that use the Opaque API.
+	NoLazyDecoding bool
 }
 
 // Unmarshal parses the wire-format message in b and places the result in m.
@@ -104,6 +110,16 @@ func (o UnmarshalOptions) unmarshal(b []byte, m protoreflect.Message) (out proto
 		if o.DiscardUnknown {
 			in.Flags |= protoiface.UnmarshalDiscardUnknown
 		}
+
+		if !allowPartial {
+			// This does not affect how current unmarshal functions work, it just allows them
+			// to record this for lazy the decoding case.
+			in.Flags |= protoiface.UnmarshalCheckRequired
+		}
+		if o.NoLazyDecoding {
+			in.Flags |= protoiface.UnmarshalNoLazyDecoding
+		}
+
 		out, err = methods.Unmarshal(in)
 	} else {
 		o.RecursionLimit--

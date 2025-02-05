@@ -284,12 +284,11 @@ import (
 // request should verify the included field paths, and return an
 // `INVALID_ARGUMENT` error if any path is unmappable.
 type FieldMask struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-
+	state protoimpl.MessageState `protogen:"open.v1"`
 	// The set of field mask paths.
-	Paths []string `protobuf:"bytes,1,rep,name=paths,proto3" json:"paths,omitempty"`
+	Paths         []string `protobuf:"bytes,1,rep,name=paths,proto3" json:"paths,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 // New constructs a field mask from a list of paths and verifies that

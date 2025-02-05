@@ -354,7 +354,7 @@ func writeNameAndLabelPairs(
 	if name != "" {
 		// If the name does not pass the legacy validity check, we must put the
 		// metric name inside the braces.
-		if !model.IsValidLegacyMetricName(model.LabelValue(name)) {
+		if !model.IsValidLegacyMetricName(name) {
 			metricInsideBraces = true
 			err := w.WriteByte(separator)
 			written++
@@ -498,7 +498,7 @@ func writeInt(w enhancedWriter, i int64) (int, error) {
 // writeName writes a string as-is if it complies with the legacy naming
 // scheme, or escapes it in double quotes if not.
 func writeName(w enhancedWriter, name string) (int, error) {
-	if model.IsValidLegacyMetricName(model.LabelValue(name)) {
+	if model.IsValidLegacyMetricName(name) {
 		return w.WriteString(name)
 	}
 	var written int

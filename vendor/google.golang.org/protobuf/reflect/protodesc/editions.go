@@ -43,6 +43,8 @@ func toEditionProto(ed filedesc.Edition) descriptorpb.Edition {
 		return descriptorpb.Edition_EDITION_PROTO3
 	case filedesc.Edition2023:
 		return descriptorpb.Edition_EDITION_2023
+	case filedesc.Edition2024:
+		return descriptorpb.Edition_EDITION_2024
 	default:
 		panic(fmt.Sprintf("unknown value for edition: %v", ed))
 	}
@@ -126,6 +128,12 @@ func mergeEditionFeatures(parentDesc protoreflect.Descriptor, child *descriptorp
 	if goFeatures, ok := proto.GetExtension(child, gofeaturespb.E_Go).(*gofeaturespb.GoFeatures); ok && goFeatures != nil {
 		if luje := goFeatures.LegacyUnmarshalJsonEnum; luje != nil {
 			parentFS.GenerateLegacyUnmarshalJSON = *luje
+		}
+		if sep := goFeatures.StripEnumPrefix; sep != nil {
+			parentFS.StripEnumPrefix = int(*sep)
+		}
+		if al := goFeatures.ApiLevel; al != nil {
+			parentFS.APILevel = int(*al)
 		}
 	}
 

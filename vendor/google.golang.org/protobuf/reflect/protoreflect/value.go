@@ -152,7 +152,7 @@ type Message interface {
 	// This method may return nil.
 	//
 	// The returned methods type is identical to
-	// google.golang.org/protobuf/runtime/protoiface.Methods.
+	// [google.golang.org/protobuf/runtime/protoiface.Methods].
 	// Consult the protoiface package documentation for details.
 	ProtoMethods() *methods
 }

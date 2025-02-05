@@ -63,7 +63,8 @@ type MarshalOptions struct {
 	// options (except for UseCachedSize itself).
 	//
 	// 2. The message and all its submessages have not changed in any
-	// way since the Size call.
+	// way since the Size call. For lazily decoded messages, accessing
+	// a message results in decoding the message, which is a change.
 	//
 	// If either of these invariants is violated,
 	// the results are undefined and may include panics or corrupted output.

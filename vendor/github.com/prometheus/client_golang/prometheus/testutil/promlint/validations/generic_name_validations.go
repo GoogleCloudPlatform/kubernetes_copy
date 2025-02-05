@@ -44,21 +44,21 @@ func LintMetricUnits(mf *dto.MetricFamily) []error {
 	return problems
 }
 
-// LintMetricTypeInName detects when metric types are included in the metric name.
+// LintMetricTypeInName detects when the metric type is included in the metric name.
 func LintMetricTypeInName(mf *dto.MetricFamily) []error {
-	var problems []error
-	n := strings.ToLower(mf.GetName())
-
-	for i, t := range dto.MetricType_name {
-		if i == int32(dto.MetricType_UNTYPED) {
-			continue
-		}
-
-		typename := strings.ToLower(t)
-		if strings.Contains(n, "_"+typename+"_") || strings.HasSuffix(n, "_"+typename) {
-			problems = append(problems, fmt.Errorf(`metric name should not include type '%s'`, typename))
-		}
+	if mf.GetType() == dto.MetricType_UNTYPED {
+		return nil
 	}
+
+	var problems []error
+
+	n := strings.ToLower(mf.GetName())
+	typename := strings.ToLower(mf.GetType().String())
+
+	if strings.Contains(n, "_"+typename+"_") || strings.HasSuffix(n, "_"+typename) {
+		problems = append(problems, fmt.Errorf(`metric name should not include type '%s'`, typename))
+	}
+
 	return problems
 }
 

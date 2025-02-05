@@ -22,17 +22,18 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 )
 
-func min(a, b int) int {
+func minInt(a, b int) int {
 	if a < b {
 		return a
 	}
 	return b
 }
 
-func max(a, b int) int {
+func maxInt(a, b int) int {
 	if a > b {
 		return a
 	}
@@ -427,12 +428,12 @@ func (m *SequenceMatcher) GetGroupedOpCodes(n int) [][]OpCode {
 	if codes[0].Tag == 'e' {
 		c := codes[0]
 		i1, i2, j1, j2 := c.I1, c.I2, c.J1, c.J2
-		codes[0] = OpCode{c.Tag, max(i1, i2-n), i2, max(j1, j2-n), j2}
+		codes[0] = OpCode{c.Tag, maxInt(i1, i2-n), i2, maxInt(j1, j2-n), j2}
 	}
 	if codes[len(codes)-1].Tag == 'e' {
 		c := codes[len(codes)-1]
 		i1, i2, j1, j2 := c.I1, c.I2, c.J1, c.J2
-		codes[len(codes)-1] = OpCode{c.Tag, i1, min(i2, i1+n), j1, min(j2, j1+n)}
+		codes[len(codes)-1] = OpCode{c.Tag, i1, minInt(i2, i1+n), j1, minInt(j2, j1+n)}
 	}
 	nn := n + n
 	groups := [][]OpCode{}
@@ -443,12 +444,12 @@ func (m *SequenceMatcher) GetGroupedOpCodes(n int) [][]OpCode {
 		// there is a large range with no changes.
 		if c.Tag == 'e' && i2-i1 > nn {
 			group = append(group, OpCode{
-				c.Tag, i1, min(i2, i1+n),
-				j1, min(j2, j1+n),
+				c.Tag, i1, minInt(i2, i1+n),
+				j1, minInt(j2, j1+n),
 			})
 			groups = append(groups, group)
 			group = []OpCode{}
-			i1, j1 = max(i1, i2-n), max(j1, j2-n)
+			i1, j1 = maxInt(i1, i2-n), maxInt(j1, j2-n)
 		}
 		group = append(group, OpCode{c.Tag, i1, i2, j1, j2})
 	}
@@ -515,7 +516,7 @@ func (m *SequenceMatcher) QuickRatio() float64 {
 // is faster to compute than either .Ratio() or .QuickRatio().
 func (m *SequenceMatcher) RealQuickRatio() float64 {
 	la, lb := len(m.a), len(m.b)
-	return calculateRatio(min(la, lb), la+lb)
+	return calculateRatio(minInt(la, lb), la+lb)
 }
 
 // Convert range to the "ed" format
@@ -524,7 +525,7 @@ func formatRangeUnified(start, stop int) string {
 	beginning := start + 1 // lines start numbering with one
 	length := stop - start
 	if length == 1 {
-		return fmt.Sprintf("%d", beginning)
+		return strconv.Itoa(beginning)
 	}
 	if length == 0 {
 		beginning-- // empty ranges begin at line just before the range

@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 
 	"google.golang.org/protobuf/internal/flags"
+	"google.golang.org/protobuf/internal/protolazy"
 	"google.golang.org/protobuf/proto"
 	piface "google.golang.org/protobuf/runtime/protoiface"
 )
@@ -71,11 +72,39 @@ func (mi *MessageInfo) sizePointerSlow(p pointer, opts marshalOptions) (size int
 		e := p.Apply(mi.extensionOffset).Extensions()
 		size += mi.sizeExtensions(e, opts)
 	}
+
+	var lazy **protolazy.XXX_lazyUnmarshalInfo
+	var presence presence
+	if mi.presenceOffset.IsValid() {
+		presence = p.Apply(mi.presenceOffset).PresenceInfo()
+		if mi.lazyOffset.IsValid() {
+			lazy = p.Apply(mi.lazyOffset).LazyInfoPtr()
+		}
+	}
+
 	for _, f := range mi.orderedCoderFields {
 		if f.funcs.size == nil {
 			continue
 		}
 		fptr := p.Apply(f.offset)
+
+		if f.presenceIndex != noPresence {
+			if !presence.Present(f.presenceIndex) {
+				continue
+			}
+
+			if f.isLazy && fptr.AtomicGetPointer().IsNil() {
+				if lazyFields(opts) {
+					size += (*lazy).SizeField(uint32(f.num))
+					continue
+				} else {
+					mi.lazyUnmarshal(p, f.num)
+				}
+			}
+			size += f.funcs.size(fptr, f, opts)
+			continue
+		}
+
 		if f.isPointer && fptr.Elem().IsNil() {
 			continue
 		}
@@ -134,11 +163,52 @@ func (mi *MessageInfo) marshalAppendPointer(b []byte, p pointer, opts marshalOpt
 			return b, err
 		}
 	}
+
+	var lazy **protolazy.XXX_lazyUnmarshalInfo
+	var presence presence
+	if mi.presenceOffset.IsValid() {
+		presence = p.Apply(mi.presenceOffset).PresenceInfo()
+		if mi.lazyOffset.IsValid() {
+			lazy = p.Apply(mi.lazyOffset).LazyInfoPtr()
+		}
+	}
+
 	for _, f := range mi.orderedCoderFields {
 		if f.funcs.marshal == nil {
 			continue
 		}
 		fptr := p.Apply(f.offset)
+
+		if f.presenceIndex != noPresence {
+			if !presence.Present(f.presenceIndex) {
+				continue
+			}
+			if f.isLazy {
+				// Be careful, this field needs to be read atomically, like for a get
+				if f.isPointer && fptr.AtomicGetPointer().IsNil() {
+					if lazyFields(opts) {
+						b, _ = (*lazy).AppendField(b, uint32(f.num))
+						continue
+					} else {
+						mi.lazyUnmarshal(p, f.num)
+					}
+				}
+
+				b, err = f.funcs.marshal(b, fptr, f, opts)
+				if err != nil {
+					return b, err
+				}
+				continue
+			} else if f.isPointer && fptr.Elem().IsNil() {
+				continue
+			}
+			b, err = f.funcs.marshal(b, fptr, f, opts)
+			if err != nil {
+				return b, err
+			}
+			continue
+		}
+
 		if f.isPointer && fptr.Elem().IsNil() {
 			continue
 		}
@@ -159,6 +229,14 @@ func (mi *MessageInfo) marshalAppendPointer(b []byte, p pointer, opts marshalOpt
 func fullyLazyExtensions(opts marshalOptions) bool {
 	// When deterministic marshaling is requested, force an unmarshal for lazy
 	// extensions to produce a deterministic result, instead of passing through
+	// bytes lazily that may or may not match what Go Protobuf would produce.
+	return opts.flags&piface.MarshalDeterministic == 0
+}
+
+// lazyFields returns true if we should attempt to keep fields lazy over size and marshal.
+func lazyFields(opts marshalOptions) bool {
+	// When deterministic marshaling is requested, force an unmarshal for lazy
+	// fields to produce a deterministic result, instead of passing through
 	// bytes lazily that may or may not match what Go Protobuf would produce.
 	return opts.flags&piface.MarshalDeterministic == 0
 }
