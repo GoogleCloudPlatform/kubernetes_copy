@@ -19,6 +19,7 @@ package drain
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -230,6 +231,7 @@ func NewCmdDrain(f cmdutil.Factory, ioStreams genericiooptions.IOStreams) *cobra
 	cmd.Flags().StringVarP(&o.drainer.PodSelector, "pod-selector", "", o.drainer.PodSelector, "Label selector to filter pods on the node")
 	cmd.Flags().BoolVar(&o.drainer.DisableEviction, "disable-eviction", o.drainer.DisableEviction, "Force drain to use delete, even if eviction is supported. This will bypass checking PodDisruptionBudgets, use with caution.")
 	cmd.Flags().IntVar(&o.drainer.SkipWaitForDeleteTimeoutSeconds, "skip-wait-for-delete-timeout", o.drainer.SkipWaitForDeleteTimeoutSeconds, "If pod DeletionTimestamp older than N seconds, skip waiting for the pod.  Seconds must be greater than 0 to skip.")
+	cmd.Flags().IntVar(&o.drainer.DelayBetweenNodeSeconds, "delay-between-nodes", o.drainer.DelayBetweenNodeSeconds, "When more than one node is targeted (e.g. via labels) this is the period of seconds to wait after each node completes draining. For workloads without PDBs this can be used as a grace period allowing replacements to become ready before all nodes they reside on are drained.")
 
 	cmdutil.AddChunkSizeFlag(cmd, &o.drainer.ChunkSize)
 	cmdutil.AddDryRunFlag(cmd)
@@ -330,7 +332,8 @@ func (o *DrainCmdOptions) RunDrain() error {
 	var fatal []error
 
 	remainingNodes := []string{}
-	for _, info := range o.nodeInfos {
+	nodeCount := len(o.nodeInfos)
+	for idx, info := range o.nodeInfos {
 		if err := o.deleteOrEvictPodsSimple(info); err == nil {
 			drainedNodes.Insert(info.Name)
 
@@ -349,6 +352,11 @@ func (o *DrainCmdOptions) RunDrain() error {
 			}
 
 			continue
+		}
+
+		if o.drainer.DelayBetweenNodeSeconds > 0 && idx+1 < nodeCount {
+			fmt.Fprintf(o.Out, "Waiting %d seconds before draining next node...\n", o.drainer.DelayBetweenNodeSeconds)
+			time.Sleep(time.Duration(o.drainer.DelayBetweenNodeSeconds) * time.Second)
 		}
 	}
 

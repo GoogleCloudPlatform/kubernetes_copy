@@ -938,6 +938,64 @@ func TestDrain(t *testing.T) {
 		}
 	}
 }
+func TestDrainWithDelay(t *testing.T) {
+	tests := []struct {
+		description              string
+		args                     []string
+		expectOutputNotToContain string
+		expectOutputToContain    string
+	}{
+		{
+			description:              "no delay",
+			args:                     []string{"-l", "name in (node1,node2)"},
+			expectOutputNotToContain: "Waiting",
+		},
+		{
+			description:           "with delay",
+			args:                  []string{"-l", "name in (node1,node2)", "--delay-between-nodes", "1"},
+			expectOutputToContain: "1 seconds",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.description, func(t *testing.T) {
+			tf := cmdtesting.NewTestFactory()
+			defer tf.Cleanup()
+			tf.ClientConfigVal = cmdtesting.DefaultClientConfig()
+			codec := scheme.Codecs.LegacyCodec(scheme.Scheme.PrioritizedVersionsAllGroups()...)
+			tf.Client = &fake.RESTClient{
+				GroupVersion:         schema.GroupVersion{Group: "", Version: "v1"},
+				NegotiatedSerializer: scheme.Codecs.WithoutConversion(),
+				Client: fake.CreateHTTPClient(func(req *http.Request) (*http.Response, error) {
+					m := &MyReq{req}
+					switch {
+					case m.isFor("GET", "/pods"):
+						return &http.Response{StatusCode: http.StatusOK, Header: cmdtesting.DefaultHeader(), Body: cmdtesting.ObjBody(codec, &corev1.PodList{Items: []corev1.Pod{}})}, nil
+					case m.isFor("GET", "/nodes"):
+						return &http.Response{StatusCode: http.StatusOK, Header: cmdtesting.DefaultHeader(), Body: cmdtesting.ObjBody(codec, &corev1.NodeList{Items: []corev1.Node{{}, {}}})}, nil
+					default:
+						t.Fatalf("%s: unexpected request: %v %#v\n%#v", test.description, req.Method, req.URL, req)
+						return nil, nil
+					}
+				}),
+			}
+			ioStreams, _, outBuf, _ := genericiooptions.NewTestIOStreams()
+			cmd := NewCmdDrain(tf, ioStreams)
+			cmd.SetArgs(test.args)
+			cmd.Execute()
+			out := outBuf.String()
+			if len(test.expectOutputToContain) > 0 {
+				if !strings.Contains(out, test.expectOutputToContain) {
+					t.Fatalf("%s: expected output to contain: %s\nGot:\n%s", test.description, test.expectOutputToContain, out)
+				}
+			}
+			if len(test.expectOutputNotToContain) > 0 {
+				if strings.Contains(out, test.expectOutputNotToContain) {
+					t.Fatalf("%s: expected output not to contain: %s\nGot:\n%s", test.description, test.expectOutputToContain, out)
+				}
+			}
+		})
+	}
+}
 
 type MyReq struct {
 	Request *http.Request

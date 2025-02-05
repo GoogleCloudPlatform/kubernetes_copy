@@ -74,6 +74,12 @@ type Helper struct {
 	// won't drain otherwise
 	SkipWaitForDeleteTimeoutSeconds int
 
+	// DelayBetweenNodeSeconds introduces a pause between node drains when
+	// a drain command is issued that targets multiple nodes. This provides
+	// an affordance for new workloads to start up during upgrades on clusters
+	// that do not have appropriately configured PDBs.
+	DelayBetweenNodeSeconds int
+
 	// AdditionalFilters are applied sequentially after base drain filters to
 	// exclude pods using custom logic.  Any filter that returns PodDeleteStatus
 	// with Delete == false will immediately stop execution of further filters.
