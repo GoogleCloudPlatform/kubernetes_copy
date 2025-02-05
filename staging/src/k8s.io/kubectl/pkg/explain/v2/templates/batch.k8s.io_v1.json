@@ -5096,7 +5096,7 @@
             ]
           },
           "resizePolicy": {
-            "description": "Resources resize policy for the container.",
+            "description": "Resources resize policy for containers. Ephemeral containers are not allowed.",
             "type": "array",
             "items": {
               "default": {},

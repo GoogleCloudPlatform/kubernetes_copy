@@ -2323,7 +2323,7 @@
             "description": "Probes are not allowed for ephemeral containers."
           },
           "resizePolicy": {
-            "description": "Resources resize policy for the container.",
+            "description": "Resources resize policy for containers. Ephemeral containers are not allowed.",
             "items": {
               "allOf": [
                 {

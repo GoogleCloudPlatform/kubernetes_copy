@@ -364,25 +364,6 @@
             }
           ],
           "version": "v1"
-        },
-        {
-          "freshness": "Current",
-          "resources": [
-            {
-              "resource": "selfsubjectreviews",
-              "responseKind": {
-                "group": "",
-                "kind": "SelfSubjectReview",
-                "version": ""
-              },
-              "scope": "Cluster",
-              "singularResource": "selfsubjectreview",
-              "verbs": [
-                "create"
-              ]
-            }
-          ],
-          "version": "v1beta1"
         }
       ]
     },

@@ -3163,45 +3163,6 @@
       },
       "type": "object"
     },
-    "io.k8s.api.authentication.v1beta1.SelfSubjectReview": {
-      "description": "SelfSubjectReview contains the user information that the kube-apiserver has about the user making this request. When using impersonation, users will receive the user info of the user being impersonated.  If impersonation or request header authentication is used, any extra keys will have their case ignored and returned as lowercase.",
-      "properties": {
-        "apiVersion": {
-          "description": "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
-          "type": "string"
-        },
-        "kind": {
-          "description": "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
-          "type": "string"
-        },
-        "metadata": {
-          "$ref": "#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta",
-          "description": "Standard object's metadata. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata"
-        },
-        "status": {
-          "$ref": "#/definitions/io.k8s.api.authentication.v1beta1.SelfSubjectReviewStatus",
-          "description": "Status is filled in by the server with the user attributes."
-        }
-      },
-      "type": "object",
-      "x-kubernetes-group-version-kind": [
-        {
-          "group": "authentication.k8s.io",
-          "kind": "SelfSubjectReview",
-          "version": "v1beta1"
-        }
-      ]
-    },
-    "io.k8s.api.authentication.v1beta1.SelfSubjectReviewStatus": {
-      "description": "SelfSubjectReviewStatus is filled by the kube-apiserver and sent back to a user.",
-      "properties": {
-        "userInfo": {
-          "$ref": "#/definitions/io.k8s.api.authentication.v1.UserInfo",
-          "description": "User attributes of the user making this request."
-        }
-      },
-      "type": "object"
-    },
     "io.k8s.api.authorization.v1.FieldSelectorAttributes": {
       "description": "FieldSelectorAttributes indicates a field limited access. Webhook authors are encouraged to * ensure rawSelector and requirements are not both set * consider the requirements field if set * not try to parse or consider the rawSelector field if set. This is to avoid another CVE-2022-2880 (i.e. getting different systems to agree on how exactly to parse a query is not something we want), see https://www.oxeye.io/resources/golang-parameter-smuggling-attack for more details. For the *SubjectAccessReview endpoints of the kube-apiserver: * If rawSelector is empty and requirements are empty, the request is not limited. * If rawSelector is present and requirements are empty, the rawSelector will be parsed and limited if the parsing succeeds. * If rawSelector is empty and requirements are present, the requirements should be honored * If rawSelector is present and requirements are present, the request is invalid.",
       "properties": {
@@ -6992,7 +6953,7 @@
           "description": "Probes are not allowed for ephemeral containers."
         },
         "resizePolicy": {
-          "description": "Resources resize policy for the container.",
+          "description": "Resources resize policy for containers. Ephemeral containers are not allowed.",
           "items": {
             "$ref": "#/definitions/io.k8s.api.core.v1.ContainerResizePolicy"
           },
@@ -49730,123 +49691,6 @@
           "group": "authentication.k8s.io",
           "kind": "TokenReview",
           "version": "v1"
-        }
-      }
-    },
-    "/apis/authentication.k8s.io/v1beta1/": {
-      "get": {
-        "consumes": [
-          "application/json",
-          "application/yaml",
-          "application/vnd.kubernetes.protobuf",
-          "application/cbor"
-        ],
-        "description": "get available resources",
-        "operationId": "getAuthenticationV1beta1APIResources",
-        "produces": [
-          "application/json",
-          "application/yaml",
-          "application/vnd.kubernetes.protobuf",
-          "application/cbor"
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "schema": {
-              "$ref": "#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.APIResourceList"
-            }
-          },
-          "401": {
-            "description": "Unauthorized"
-          }
-        },
-        "schemes": [
-          "https"
-        ],
-        "tags": [
-          "authentication_v1beta1"
-        ]
-      }
-    },
-    "/apis/authentication.k8s.io/v1beta1/selfsubjectreviews": {
-      "parameters": [
-        {
-          "description": "When present, indicates that modifications should not be persisted. An invalid or unrecognized dryRun directive will result in an error response and no further processing of the request. Valid values are: - All: all dry run stages will be processed",
-          "in": "query",
-          "name": "dryRun",
-          "type": "string",
-          "uniqueItems": true
-        },
-        {
-          "$ref": "#/parameters/fieldManager-Qy4HdaTW"
-        },
-        {
-          "description": "fieldValidation instructs the server on how to handle objects in the request (POST/PUT/PATCH) containing unknown or duplicate fields. Valid values are: - Ignore: This will ignore any unknown fields that are silently dropped from the object, and will ignore all but the last duplicate field that the decoder encounters. This is the default behavior prior to v1.23. - Warn: This will send a warning via the standard warning response header for each unknown field that is dropped from the object, and for each duplicate field that is encountered. The request will still succeed if there are no other errors, and will only persist the last of any duplicate fields. This is the default in v1.23+ - Strict: This will fail the request with a BadRequest error if any unknown fields would be dropped from the object, or if any duplicate fields are present. The error returned from the server will contain all unknown and duplicate fields encountered.",
-          "in": "query",
-          "name": "fieldValidation",
-          "type": "string",
-          "uniqueItems": true
-        },
-        {
-          "$ref": "#/parameters/pretty-tJGM1-ng"
-        }
-      ],
-      "post": {
-        "consumes": [
-          "*/*"
-        ],
-        "description": "create a SelfSubjectReview",
-        "operationId": "createAuthenticationV1beta1SelfSubjectReview",
-        "parameters": [
-          {
-            "in": "body",
-            "name": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/io.k8s.api.authentication.v1beta1.SelfSubjectReview"
-            }
-          }
-        ],
-        "produces": [
-          "application/json",
-          "application/yaml",
-          "application/vnd.kubernetes.protobuf",
-          "application/cbor"
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "schema": {
-              "$ref": "#/definitions/io.k8s.api.authentication.v1beta1.SelfSubjectReview"
-            }
-          },
-          "201": {
-            "description": "Created",
-            "schema": {
-              "$ref": "#/definitions/io.k8s.api.authentication.v1beta1.SelfSubjectReview"
-            }
-          },
-          "202": {
-            "description": "Accepted",
-            "schema": {
-              "$ref": "#/definitions/io.k8s.api.authentication.v1beta1.SelfSubjectReview"
-            }
-          },
-          "401": {
-            "description": "Unauthorized"
-          }
-        },
-        "schemes": [
-          "https"
-        ],
-        "tags": [
-          "authentication_v1beta1"
-        ],
-        "x-kubernetes-action": "post",
-        "x-kubernetes-group-version-kind": {
-          "group": "authentication.k8s.io",
-          "kind": "SelfSubjectReview",
-          "version": "v1beta1"
         }
       }
     },
