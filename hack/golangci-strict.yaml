@@ -218,6 +218,7 @@ linters-settings: # please keep this alphabetized
           contextual k8s.io/kubernetes/pkg/controller/.*
           contextual k8s.io/kubernetes/pkg/scheduler/.*
           contextual k8s.io/kubernetes/test/e2e/dra/.*
+          contextual k8s.io/kubernetes/pkg/kubectl/.*
           contextual k8s.io/kubernetes/pkg/kubelet/cm/dra/.*
           contextual k8s.io/kubernetes/pkg/kubelet/pleg/.*
           contextual k8s.io/kubernetes/pkg/kubelet/clustertrustbundle/.*

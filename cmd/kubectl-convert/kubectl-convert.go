@@ -24,11 +24,13 @@ import (
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/cli-runtime/pkg/genericiooptions"
 	"k8s.io/component-base/cli"
+	"k8s.io/klog/v2"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
 	"k8s.io/kubernetes/pkg/kubectl/cmd/convert"
 )
 
 func main() {
+	logger := klog.Background()
 	flags := pflag.NewFlagSet("kubectl-convert", pflag.ExitOnError)
 	pflag.CommandLine = flags
 
@@ -37,7 +39,7 @@ func main() {
 	matchVersionKubeConfigFlags := cmdutil.NewMatchVersionFlags(kubeConfigFlags)
 
 	f := cmdutil.NewFactory(matchVersionKubeConfigFlags)
-	cmd := convert.NewCmdConvert(f, genericiooptions.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr})
+	cmd := convert.NewCmdConvert(logger, f, genericiooptions.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr})
 	matchVersionKubeConfigFlags.AddFlags(cmd.PersistentFlags())
 	code := cli.Run(cmd)
 	os.Exit(code)

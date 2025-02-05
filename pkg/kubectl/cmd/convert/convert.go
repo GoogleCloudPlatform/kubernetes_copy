@@ -87,7 +87,7 @@ func NewConvertOptions(ioStreams genericiooptions.IOStreams) *ConvertOptions {
 
 // NewCmdConvert creates a command object for the generic "convert" action, which
 // translates the config file into a given version.
-func NewCmdConvert(f cmdutil.Factory, ioStreams genericiooptions.IOStreams) *cobra.Command {
+func NewCmdConvert(logger klog.Logger, f cmdutil.Factory, ioStreams genericiooptions.IOStreams) *cobra.Command {
 	o := NewConvertOptions(ioStreams)
 
 	cmd := &cobra.Command{
@@ -98,7 +98,7 @@ func NewCmdConvert(f cmdutil.Factory, ioStreams genericiooptions.IOStreams) *cob
 		Example:               convertExample,
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdutil.CheckErr(o.Complete(f, cmd))
-			cmdutil.CheckErr(o.RunConvert())
+			cmdutil.CheckErr(o.RunConvert(logger))
 		},
 	}
 
@@ -138,7 +138,7 @@ func (o *ConvertOptions) Complete(f cmdutil.Factory, cmd *cobra.Command) (err er
 }
 
 // RunConvert implements the generic Convert command
-func (o *ConvertOptions) RunConvert() error {
+func (o *ConvertOptions) RunConvert(logger klog.Logger) error {
 	b := o.builder().
 		WithScheme(scheme.Scheme).
 		LocalParam(o.local)
@@ -181,7 +181,7 @@ func (o *ConvertOptions) RunConvert() error {
 
 	internalEncoder := scheme.Codecs.LegacyCodec(scheme.Scheme.PrioritizedVersionsAllGroups()...)
 	internalVersionJSONEncoder := unstructured.NewJSONFallbackEncoder(internalEncoder)
-	objects, err := asVersionedObject(infos, !singleItemImplied, specifiedOutputVersion, internalVersionJSONEncoder, o.IOStreams)
+	objects, err := asVersionedObject(logger, infos, !singleItemImplied, specifiedOutputVersion, internalVersionJSONEncoder, o.IOStreams)
 	if err != nil {
 		return err
 	}
@@ -193,7 +193,7 @@ func (o *ConvertOptions) RunConvert() error {
 // the objects as children, or if only a single Object is present, as that object. The provided
 // version will be preferred as the conversion target, but the Object's mapping version will be
 // used if that version is not present.
-func asVersionedObject(infos []*resource.Info, forceList bool, specifiedOutputVersion schema.GroupVersion, encoder runtime.Encoder, iostream genericclioptions.IOStreams) (runtime.Object, error) {
+func asVersionedObject(logger klog.Logger, infos []*resource.Info, forceList bool, specifiedOutputVersion schema.GroupVersion, encoder runtime.Encoder, iostream genericclioptions.IOStreams) (runtime.Object, error) {
 	objects, err := asVersionedObjects(infos, specifiedOutputVersion, encoder, iostream)
 	if err != nil {
 		return nil, err
@@ -223,7 +223,7 @@ func asVersionedObject(infos []*resource.Info, forceList bool, specifiedOutputVe
 		if len(actualVersion.Version) > 0 {
 			defaultVersionInfo = fmt.Sprintf("Defaulting to %q", actualVersion.Version)
 		}
-		klog.V(1).Infof("info: the output version specified is invalid. %s\n", defaultVersionInfo)
+		logger.V(1).Info("The output version specified is invalid.", "defaultVersionInfo", defaultVersionInfo)
 	}
 	return object, nil
 }
