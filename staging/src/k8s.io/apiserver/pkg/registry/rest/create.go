@@ -50,7 +50,7 @@ type RESTCreateStrategy interface {
 	// sort order-insensitive list fields, etc.  This should not remove fields
 	// whose presence would be considered a validation error.
 	//
-	// Often implemented as a type check and an initailization or clearing of
+	// Often implemented as a type check and an initialization or clearing of
 	// status. Clear the status because status changes are internal. External
 	// callers of an api (users) should not be setting an initial status on
 	// newly created objects.

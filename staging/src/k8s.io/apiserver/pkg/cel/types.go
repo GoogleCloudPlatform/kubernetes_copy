@@ -218,7 +218,7 @@ func (t *DeclType) IsMap() bool {
 	return t.KeyType != nil && t.ElemType != nil && t.Fields == nil
 }
 
-// IsObject returns whether the declartion is an 'object' type which defined a set of typed fields.
+// IsObject returns whether the declaration is an 'object' type which defined a set of typed fields.
 func (t *DeclType) IsObject() bool {
 	return t.KeyType == nil && t.ElemType == nil && t.Fields != nil
 }
@@ -483,7 +483,7 @@ func (rt *DeclTypeProvider) FindStructFieldType(typeName, fieldName string) (*ty
 	return nil, false
 }
 
-// NativeToValue is an implementation of the ref.TypeAdapater interface which supports conversion
+// NativeToValue is an implementation of the ref.TypeAdapter interface which supports conversion
 // of rule values to CEL ref.Val instances.
 func (rt *DeclTypeProvider) NativeToValue(val interface{}) ref.Val {
 	return rt.typeAdapter.NativeToValue(val)

@@ -266,7 +266,7 @@ func RunTestWatchFromZero(ctx context.Context, t *testing.T, store storage.Inter
 	}
 	testCheckResult(t, w, watch.Event{Type: watch.Added, Object: newOut})
 
-	// Make sure we can't watch from older resource versions anymoer and get a "Gone" error.
+	// Make sure we can't watch from older resource versions anymore and get a "Gone" error.
 	tooOldWatcher, err := store.Watch(ctx, key, storage.ListOptions{ResourceVersion: out.ResourceVersion, Predicate: storage.Everything})
 	if err != nil {
 		t.Fatalf("Watch failed: %v", err)
@@ -487,7 +487,7 @@ func RunTestWatchContextCancel(ctx context.Context, t *testing.T, store storage.
 }
 
 func RunTestWatcherTimeout(ctx context.Context, t *testing.T, store storage.Interface) {
-	// initialRV is used to initate the watcher at the beginning of the world.
+	// initialRV is used to initiate the watcher at the beginning of the world.
 	podList := example.PodList{}
 	options := storage.ListOptions{
 		Predicate: storage.Everything,
@@ -634,7 +634,7 @@ func RunTestClusterScopedWatch(ctx context.Context, t *testing.T, store storage.
 		// For watch request, the name of object is specified with field selector
 		// "metadata.name=objectName". So in this watch tests, we should set the
 		// requestedName and field selector "metadata.name=requestedName" at the
-		// same time or set neighter of them.
+		// same time or set neither of them.
 		requestedName string
 		recursive     bool
 		fieldSelector fields.Selector
@@ -788,7 +788,7 @@ func RunTestNamespaceScopedWatch(ctx context.Context, t *testing.T, store storag
 		// For watch request, the name of object is specified with field selector
 		// "metadata.name=objectName". So in this watch tests, we should set the
 		// requestedName and field selector "metadata.name=requestedName" at the
-		// same time or set neighter of them.
+		// same time or set neither of them.
 		requestedName      string
 		requestedNamespace string
 		recursive          bool

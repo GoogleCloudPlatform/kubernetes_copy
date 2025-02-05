@@ -66,7 +66,7 @@ limitations under the License.
 // reqs(q, t) and if that is less than C then virtual time is not
 // advancing as fast as it would if all C seats were occupied; in this
 // case the numerator of the quotient in that derivative should be
-// adjusted proportionally.  Putting it all together for fair queing
+// adjusted proportionally.  Putting it all together for fair queuing
 // for server requests: at a particular time t, the partial derivative
 // of R(t) with respect to t is
 //

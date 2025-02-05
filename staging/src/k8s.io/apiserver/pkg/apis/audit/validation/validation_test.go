@@ -102,7 +102,7 @@ func TestValidatePolicy(t *testing.T) {
 				"/logs/*/*",
 				"/metrics",
 			},
-		}, { // invalid non-resrouce URLs with "*" not in the end
+		}, { // invalid non-resource URLs with "*" not in the end
 			Level: audit.LevelMetadata,
 			NonResourceURLs: []string{
 				"/logs/*.log",

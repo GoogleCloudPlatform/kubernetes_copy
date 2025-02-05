@@ -496,7 +496,7 @@ func TestCustomResourceValidatorsWithBlockingErrors(t *testing.T) {
 		t.Run("custom resource create and update MUST NOT allow data if there is blocking error of MaxLength", func(t *testing.T) {
 			name2 := names.SimpleNameGenerator.GenerateName("cr-2")
 
-			// a spec create that has maxLengh err MUST fail validation
+			// a spec create that has maxLength err MUST fail validation
 			cr := &unstructured.Unstructured{Object: map[string]interface{}{
 				"apiVersion": gvr.Group + "/" + gvr.Version,
 				"kind":       crd.Spec.Names.Kind,

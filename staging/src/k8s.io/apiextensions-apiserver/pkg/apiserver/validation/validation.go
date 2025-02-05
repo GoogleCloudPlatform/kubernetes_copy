@@ -232,7 +232,7 @@ func kubeOpenAPIResultToFieldErrors(fldPath *field.Path, result *validate.Result
 	return allErrs
 }
 
-// ConvertJSONSchemaProps converts the schema from apiextensions.JSONSchemaPropos to go-openapi/spec.Schema.
+// ConvertJSONSchemaProps converts the schema from apiextensions.JSONSchemaProps to go-openapi/spec.Schema.
 func ConvertJSONSchemaProps(in *apiextensions.JSONSchemaProps, out *spec.Schema) error {
 	return ConvertJSONSchemaPropsWithPostProcess(in, out, nil)
 }
@@ -240,7 +240,7 @@ func ConvertJSONSchemaProps(in *apiextensions.JSONSchemaProps, out *spec.Schema)
 // PostProcessFunc post-processes one node of a spec.Schema.
 type PostProcessFunc func(*spec.Schema) error
 
-// ConvertJSONSchemaPropsWithPostProcess converts the schema from apiextensions.JSONSchemaPropos to go-openapi/spec.Schema
+// ConvertJSONSchemaPropsWithPostProcess converts the schema from apiextensions.JSONSchemaProps to go-openapi/spec.Schema
 // and run a post process step on each JSONSchemaProps node. postProcess is never called for nil schemas.
 func ConvertJSONSchemaPropsWithPostProcess(in *apiextensions.JSONSchemaProps, out *spec.Schema, postProcess PostProcessFunc) error {
 	if in == nil {

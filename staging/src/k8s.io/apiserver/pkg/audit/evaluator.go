@@ -40,6 +40,6 @@ type RequestAuditConfig struct {
 type PolicyRuleEvaluator interface {
 	// EvaluatePolicyRule evaluates the audit policy of the apiserver against
 	// the given authorizer attributes and returns the audit configuration that
-	// is applicable to the given equest.
+	// is applicable to the given request.
 	EvaluatePolicyRule(authorizer.Attributes) RequestAuditConfig
 }

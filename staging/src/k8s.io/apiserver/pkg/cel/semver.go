@@ -30,7 +30,7 @@ var (
 	SemverType = cel.ObjectType("kubernetes.Semver")
 )
 
-// Semver provdes a CEL representation of a [semver.Version].
+// Semver provides a CEL representation of a [semver.Version].
 type Semver struct {
 	semver.Version
 }

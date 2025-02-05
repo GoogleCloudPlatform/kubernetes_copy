@@ -224,7 +224,7 @@ func (h *priorityAndFairnessHandler) Handle(w http.ResponseWriter, r *http.Reque
 		// Call Handle in a separate goroutine.
 		// The reason for it is that from APF point of view, the request processing
 		// finishes as soon as watch is initialized (which is generally orders of
-		// magnitude faster then the watch request itself). This means that Handle()
+		// magnitude faster than the watch request itself). This means that Handle()
 		// call finishes much faster and for performance reasons we want to reduce
 		// the number of running goroutines - so we run the shorter thing in a
 		// dedicated goroutine and the actual watch handler in the main one.
@@ -253,7 +253,7 @@ func (h *priorityAndFairnessHandler) Handle(w http.ResponseWriter, r *http.Reque
 			// when it context is actually cancelled) - we want to unblock the goroutine as
 			// soon as the request is processed from the APF point of view.
 			//
-			// Note that we explicitly do NOT call the actuall handler using that context
+			// Note that we explicitly do NOT call the actual handler using that context
 			// to avoid cancelling request too early.
 			handleCtx, handleCtxCancel := h.newReqWaitCtxFn(ctx)
 			defer handleCtxCancel()

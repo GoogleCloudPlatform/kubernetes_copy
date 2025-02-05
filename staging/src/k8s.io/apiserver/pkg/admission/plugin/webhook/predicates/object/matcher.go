@@ -47,7 +47,7 @@ func matchObject(obj runtime.Object, selector labels.Selector) bool {
 
 }
 
-// MatchObjectSelector decideds whether the request matches the ObjectSelector
+// MatchObjectSelector decides whether the request matches the ObjectSelector
 // of the webhook. Only when they match, the webhook is called.
 func (m *Matcher) MatchObjectSelector(p ObjectSelectorProvider, attr admission.Attributes) (bool, *apierrors.StatusError) {
 	selector, err := p.GetParsedObjectSelector()

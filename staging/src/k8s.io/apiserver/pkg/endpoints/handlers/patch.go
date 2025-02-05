@@ -754,7 +754,7 @@ func applyPatchToObject(
 		strictError, isStrictError := runtime.AsStrictDecodingError(err)
 		switch {
 		case !isStrictError:
-			// disregard any sttrictErrs, because it's an incomplete
+			// disregard any strictErrs, because it's an incomplete
 			// list of strict errors given that we don't know what fields were
 			// unknown because StrategicMergeMapPatch failed.
 			// Non-strict errors trump in this case.

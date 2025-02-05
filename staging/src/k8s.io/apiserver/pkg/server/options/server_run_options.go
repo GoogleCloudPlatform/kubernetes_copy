@@ -96,7 +96,7 @@ type ServerRunOptions struct {
 
 	// ComponentGlobalsRegistry is the registry where the effective versions and feature gates for all components are stored.
 	ComponentGlobalsRegistry featuregate.ComponentGlobalsRegistry
-	// ComponentName is name under which the server's global variabled are registered in the ComponentGlobalsRegistry.
+	// ComponentName is name under which the server's global variables are registered in the ComponentGlobalsRegistry.
 	ComponentName string
 }
 

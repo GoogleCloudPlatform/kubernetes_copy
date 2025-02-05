@@ -165,7 +165,7 @@ func (s *droppedRequestsStats) updateRetryAfterIfNeededLocked(unixTime int64) {
 	}
 
 	if droppedRequests < retryAfter && retryAfter > 1 {
-		// We try to mimc the TCP algorithm and thus are linearly
+		// We try to mimic the TCP algorithm and thus are linearly
 		// scaling down the retryAfter here.
 		retryAfter--
 		s.retryAfter.Store(retryAfter)

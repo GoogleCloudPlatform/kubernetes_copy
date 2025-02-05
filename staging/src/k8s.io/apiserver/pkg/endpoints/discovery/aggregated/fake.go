@@ -52,7 +52,7 @@ type fakeResourceManager struct {
 }
 
 // a resource manager which instead of managing a discovery document,
-// simply records the calls to its interface functoins for testing
+// simply records the calls to its interface functions for testing
 type recorderResourceManager struct {
 	lock    sync.RWMutex
 	Actions []recorderResourceManagerAction

@@ -520,7 +520,7 @@ func testAggregatedAPIServer(t *testing.T, setWardleFeatureGate, banFlunder bool
 		t.Fatal("names don't match")
 	}
 
-	// now we update the client-ca nd request-header-client-ca-file and the kas will consume it, update the configmap
+	// now we update the client-ca and request-header-client-ca-file and the kas will consume it, update the configmap
 	// and then the wardle server will detect and update too.
 	if err := os.WriteFile(path.Join(testKAS.TmpDir, "client-ca.crt"), differentClientCA, 0644); err != nil {
 		t.Fatal(err)

@@ -47,14 +47,14 @@ type FeatureSupportChecker interface {
 	// By default all calls to this function before calling CheckClient returns false.
 	// Returns true if all endpoints in etcd clients are supporting the feature.
 	// If client A supports and client B doesn't support the feature, the `Supports` will
-	// first return true at client A initializtion and then return false on client B
-	// initialzation, it can flip the support at runtime.
+	// first return true at client A initialization and then return false on client B
+	// initialization, it can flip the support at runtime.
 	Supports(feature storage.Feature) bool
-	// CheckClient works with etcd client to recalcualte feature support and cache it internally.
+	// CheckClient works with etcd client to recalculate feature support and cache it internally.
 	// All etcd clients should support feature to cause `Supports` return true.
 	// If client A supports and client B doesn't support the feature, the `Supports` will
-	// first return true at client A initializtion and then return false on client B
-	// initialzation, it can flip the support at runtime.
+	// first return true at client A initialization and then return false on client B
+	// initialization, it can flip the support at runtime.
 	CheckClient(ctx context.Context, c client, feature storage.Feature)
 }
 
@@ -70,7 +70,7 @@ func newDefaultFeatureSupportChecker() *defaultFeatureSupportChecker {
 	}
 }
 
-// Supports can check the featue from anywhere without storage if it was cached before.
+// Supports can check the feature from anywhere without storage if it was cached before.
 func (f *defaultFeatureSupportChecker) Supports(feature storage.Feature) bool {
 	switch feature {
 	case storage.RequestWatchProgress:

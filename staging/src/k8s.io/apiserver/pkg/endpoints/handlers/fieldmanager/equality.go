@@ -141,7 +141,7 @@ func IgnoreManagedFieldsTimestampsTransformer(
 	//	revert any changes to timestamps in managed fields
 	//		(to prevent spurious ResourceVersion bump)
 	//
-	// Procecure:
+	// Procedure:
 	// Do a quicker check to see if just managed fields modulo timestamps are
 	//	unchanged. If so, then do the full, slower check.
 	//

@@ -85,7 +85,7 @@ func podWatchTestTable() []struct {
 	t   watch.EventType
 	obj runtime.Object
 } {
-	// creaze lazily here in a func because podWatchTestTable can only be used after all types are registered.
+	// create lazily here in a func because podWatchTestTable can only be used after all types are registered.
 	return []struct {
 		t   watch.EventType
 		obj runtime.Object

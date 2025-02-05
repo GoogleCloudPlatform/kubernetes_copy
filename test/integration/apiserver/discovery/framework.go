@@ -479,8 +479,8 @@ func (w waitForResourcesV2) Do(ctx context.Context, client testClient) error {
 				return false
 			} else {
 				found := false
-				for _, resultResoure := range info.Resources {
-					if resultResoure.Resource == gvr.Resource {
+				for _, resultResource := range info.Resources {
+					if resultResource.Resource == gvr.Resource {
 						found = true
 						break
 					}
@@ -507,8 +507,8 @@ func (w waitForResourcesAbsentV2) Do(ctx context.Context, client testClient) err
 			if info := FindGroupVersionV2(result, metav1.GroupVersion{Group: gvr.Group, Version: gvr.Version}); info == nil {
 				return false
 			} else {
-				for _, resultResoure := range info.Resources {
-					if resultResoure.Resource == gvr.Resource {
+				for _, resultResource := range info.Resources {
+					if resultResource.Resource == gvr.Resource {
 						return false
 					}
 				}

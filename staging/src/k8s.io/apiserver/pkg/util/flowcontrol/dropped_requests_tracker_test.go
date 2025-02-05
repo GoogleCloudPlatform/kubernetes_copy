@@ -63,7 +63,7 @@ func TestDroppedRequestsTracker(t *testing.T) {
 		}
 		fakeClock.Step(time.Duration(secondsToAdvance) * time.Second)
 
-		// Record all droppeded requests and recompute retryAfter.
+		// Record all dropped requests and recompute retryAfter.
 		for r := 0; r < step.droppedRequests; r++ {
 			tracker.RecordDroppedRequest("pl")
 		}
@@ -92,7 +92,7 @@ func TestDroppedRequestsTrackerPLIndependent(t *testing.T) {
 		}
 	}
 
-	// Record few droped requests on a single PL.
+	// Record few dropped requests on a single PL.
 	// Validate that RetryAfter is bumped only for this PL.
 	for i := 0; i < 5; i++ {
 		tracker.RecordDroppedRequest("pl-0")

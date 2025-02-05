@@ -1511,7 +1511,7 @@ func TestParamRef(t *testing.T) {
 
 						t.Run(name, func(t *testing.T) {
 							t.Parallel()
-							// Test creating a policy with a cluster or namesapce-scoped param
+							// Test creating a policy with a cluster or namespace-scoped param
 							// and binding with the provided configuration. Test will ensure
 							// that the provided configuration is capable of matching
 							// params as expected, and not matching params when not expected.
@@ -1532,7 +1532,7 @@ func TestParamRef(t *testing.T) {
 // of varying names, namespaces, labels.
 //
 // Test then selects subset of params that should match provided configuration
-// and ensuers those params are the only ones used.
+// and ensures those params are the only ones used.
 //
 // Also ensures NotFound action is enforced correctly by deleting all found
 // params and ensuring the Action is used.
@@ -1761,7 +1761,7 @@ func testParamRefCase(t *testing.T, paramIsClusterScoped, nameIsSet, namespaceIs
 
 	err := testContext.Plugin.Dispatch(context.TODO(), attributeRecord(nil, clusterScopedRequestObject, admission.Create), &admission.RuntimeObjectInterfaces{})
 	if shouldErrorOnClusterScopedRequests {
-		// Cannot validate cliuster-scoped resources against a paramRef that sets namespace
+		// Cannot validate cluster-scoped resources against a paramRef that sets namespace
 		require.ErrorContains(t, err, "failed to configure binding: cannot use namespaced paramRef in policy binding that matches cluster-scoped resources")
 	} else {
 		require.NotEmpty(t, expectedParamsForClusterScopedRequest, "all test cases should match at least one param")
@@ -1782,7 +1782,7 @@ func testParamRefCase(t *testing.T, paramIsClusterScoped, nameIsSet, namespaceIs
 
 	require.NoError(t, testContext.DeleteAndWait(deleted...))
 
-	// Check that NotFound is working correctly for both namespaeed & non-namespaced
+	// Check that NotFound is working correctly for both namespaced & non-namespaced
 	// request object
 	err = testContext.Plugin.Dispatch(context.TODO(), attributeRecord(nil, namespacedRequestObject, admission.Create), &admission.RuntimeObjectInterfaces{})
 	if denyNotFound {

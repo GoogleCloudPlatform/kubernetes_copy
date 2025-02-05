@@ -824,7 +824,7 @@ func TestSubresourcePatch(t *testing.T) {
 			expectInt64(t, patchedNoxuInstance.UnstructuredContent(), 999, "status", "num") // .status.num should be 999
 			expectInt64(t, patchedNoxuInstance.UnstructuredContent(), 10, "spec", "num")    // .spec.num should remain 10
 
-			// server-side-apply increments resouceVersion if the resource is unchanged for 1 second after the previous write,
+			// server-side-apply increments resourceVersion if the resource is unchanged for 1 second after the previous write,
 			// and by waiting a second we ensure that resourceVersion will be updated if the no-op patch increments resourceVersion
 			time.Sleep(time.Second)
 			// no-op patch

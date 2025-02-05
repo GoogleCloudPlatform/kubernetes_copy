@@ -37,7 +37,7 @@ import (
 	flowcontrolclient "k8s.io/client-go/kubernetes/typed/flowcontrol/v1"
 )
 
-// ConfigConsumerAsFieldManager is how the config consuminng
+// ConfigConsumerAsFieldManager is how the config consuming
 // controller appears in an ObjectMeta ManagedFieldsEntry.Manager
 const ConfigConsumerAsFieldManager = "api-priority-and-fairness-config-consumer-v1"
 

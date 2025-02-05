@@ -2450,7 +2450,7 @@ func TestValidationExpressionsAtSchemaLevels(t *testing.T) {
 			},
 		},
 		{
-			// anyOf is not suppored due to the fact that to properly implement it
+			// anyOf is not supported due to the fact that to properly implement it
 			// the SchemaValidator would need to call out to CEL. This test
 			// shows that a rule that would otherwise be an error has those
 			// fields ignored (CRD validation shoulds will throw error in this case)
@@ -2501,7 +2501,7 @@ func TestValidationExpressionsAtSchemaLevels(t *testing.T) {
 			},
 		},
 		{
-			// OneOf is not suppored due to the fact that to properly implement it
+			// OneOf is not supported due to the fact that to properly implement it
 			// the SchemaValidator would need to call out to CEL. This test
 			// shows that a rule that would otherwise be an error has those
 			// fields ignored (CRD validation shoulds will throw error in this case)
@@ -2552,7 +2552,7 @@ func TestValidationExpressionsAtSchemaLevels(t *testing.T) {
 			},
 		},
 		{
-			// Not is not suppored due to the fact that to properly implement it
+			// Not is not supported due to the fact that to properly implement it
 			// the SchemaValidator would need to call out to CEL. This test
 			// shows that a rule that would otherwise be an error has those
 			// fields ignored (CRD validation shoulds will throw error in this case)

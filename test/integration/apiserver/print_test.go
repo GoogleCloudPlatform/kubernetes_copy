@@ -110,7 +110,7 @@ var kindAllowList = sets.NewString(
 )
 
 // TODO (soltysh): this list has to go down to 0!
-var missingHanlders = sets.NewString(
+var missingHandlers = sets.NewString(
 	"ClusterRole",
 	"LimitRange",
 	"ResourceQuota",
@@ -184,7 +184,7 @@ func TestServerSidePrint(t *testing.T) {
 		if gvk.Version == runtime.APIVersionInternal || strings.HasSuffix(apiType.Name(), "List") {
 			continue
 		}
-		if kindAllowList.Has(gvk.Kind) || missingHanlders.Has(gvk.Kind) {
+		if kindAllowList.Has(gvk.Kind) || missingHandlers.Has(gvk.Kind) {
 			continue
 		}
 

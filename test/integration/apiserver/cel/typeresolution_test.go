@@ -272,7 +272,7 @@ func TestTypeResolver(t *testing.T) {
 					t.Fatalf("cannot resolve type: %v", err)
 				}
 				if tc.expectResolutionErr {
-					t.Fatalf("expected resulution error but got none")
+					t.Fatalf("expected resolution error but got none")
 				}
 			}
 			program, err := simpleCompileCEL(s, tc.expression)

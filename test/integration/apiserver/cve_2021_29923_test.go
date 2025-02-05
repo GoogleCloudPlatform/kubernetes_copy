@@ -35,7 +35,7 @@ func gvr(g, v, r string) schema.GroupVersionResource {
 }
 
 // TestCanaryCVE_2021_29923 tests to make sure that objects that use the golang IP parsers allow IPv4 addresses with leading zeros.
-// Is it possible that exist more fields that can contain IPs, the test consider the most significative.
+// Is it possible that exist more fields that can contain IPs, the test consider the most significant.
 // xref: https://issues.k8s.io/100895
 func TestCanaryCVE_2021_29923(t *testing.T) {
 	// Disable ServiceAccount admission plugin as we don't have serviceaccount controller running.

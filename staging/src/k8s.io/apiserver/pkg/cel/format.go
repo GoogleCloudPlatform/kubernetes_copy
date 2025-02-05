@@ -31,7 +31,7 @@ var (
 	FormatType   = cel.ObjectType("kubernetes.NamedFormat")
 )
 
-// Format provdes a CEL representation of kubernetes format
+// Format provides a CEL representation of kubernetes format
 type Format struct {
 	Name         string
 	ValidateFunc func(string) []string

@@ -127,7 +127,7 @@ func TestAddRemoveGroupVersion(t *testing.T) {
 	// It takes a second for CRD specs to propagate to the aggregator
 	time.Sleep(4 * time.Second)
 
-	// Verify that the new group version is populated in the discovery for OpenaPI v3
+	// Verify that the new group version is populated in the discovery for OpenAPI v3
 	jsonData, err := clientset.RESTClient().Get().AbsPath("/openapi/v3").Do(context.TODO()).Raw()
 	if err != nil {
 		t.Fatal(err)

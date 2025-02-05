@@ -88,24 +88,24 @@ openssl x509 -req -in caCertInter.csr -CA caCert.pem -CAkey caKey.pem -CAcreates
 openssl req -new -nodes -key caKeyInter.pem -days 100000 -out caCertInterSHA1.csr -subj "/CN=${CN_BASE}_intermediate_ca"
 openssl x509 -sha1 -req -in caCertInterSHA1.csr -CA caCert.pem -CAkey caKey.pem -CAcreateserial -out caCertInterSHA1.pem -days 100000 -extensions v3_ca -extfile intermediate_ca.conf
 
-# Create a server certiticate
+# Create a server certificate
 openssl genrsa -out serverKey.pem 2048
 openssl req -new -key serverKey.pem -out server.csr -subj "/CN=${CN_BASE}_server" -config server.conf
 openssl x509 -req -in server.csr -CA caCert.pem -CAkey caKey.pem -CAcreateserial -out serverCert.pem -days 100000 -extensions v3_req -extfile server.conf
 
-# Create a server certiticate w/o SAN
+# Create a server certificate w/o SAN
 openssl req -new -key serverKey.pem -out serverNoSAN.csr -subj "/CN=localhost" -config server_no_san.conf
 openssl x509 -req -in serverNoSAN.csr -CA caCert.pem -CAkey caKey.pem -CAcreateserial -out serverCertNoSAN.pem -days 100000 -extensions v3_req -extfile server_no_san.conf
 
-# Create a server certiticate with SHA1 signature signed by OK intermediate CA
+# Create a server certificate with SHA1 signature signed by OK intermediate CA
 openssl req -new -key serverKey.pem -out serverSHA1.csr -subj "/CN=localhost" -config server.conf
 openssl x509 -sha1 -req -in serverSHA1.csr -CA caCertInter.pem -CAkey caKeyInter.pem -CAcreateserial -out sha1ServerCertInter.pem -days 100000 -extensions v3_req -extfile server.conf
 
-# Create a server certiticate signed by SHA1-signed intermediate CA
+# Create a server certificate signed by SHA1-signed intermediate CA
 openssl req -new -key serverKey.pem -out serverInterSHA1.csr -subj "/CN=localhost" -config server.conf
 openssl x509 -req -in serverInterSHA1.csr -CA caCertInterSHA1.pem -CAkey caKeyInter.pem -CAcreateserial -out serverCertInterSHA1.pem -days 100000 -extensions v3_req -extfile server.conf
 
-# Create a client certiticate
+# Create a client certificate
 openssl genrsa -out clientKey.pem 2048
 openssl req -new -key clientKey.pem -out client.csr -subj "/CN=${CN_BASE}_client" -config client.conf
 openssl x509 -req -in client.csr -CA caCert.pem -CAkey caKey.pem -CAcreateserial -out clientCert.pem -days 100000 -extensions v3_req -extfile client.conf

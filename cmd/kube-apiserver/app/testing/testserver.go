@@ -155,7 +155,7 @@ func NewDefaultTestServerOptions() *TestServerInstanceOptions {
 // files that because Golang testing's call to os.Exit will not give a stop channel go routine
 // enough time to remove temporary files.
 func StartTestServer(t ktesting.TB, instanceOptions *TestServerInstanceOptions, customFlags []string, storageConfig *storagebackend.Config) (result TestServer, err error) {
-	// Some callers may have initialize ktesting already.
+	// Some callers may have initialized ktesting already.
 	tCtx, ok := t.(ktesting.TContext)
 	if !ok {
 		tCtx = ktesting.Init(t)
@@ -569,7 +569,7 @@ func pkgPath(t Logger) (string, error) {
 	// If we find bazel env variables, then -trimpath was passed so we need to
 	// construct the path from the environment.
 	if testSrcdir, testWorkspace := os.Getenv("TEST_SRCDIR"), os.Getenv("TEST_WORKSPACE"); testSrcdir != "" && testWorkspace != "" {
-		t.Logf("Detected bazel env varaiables: TEST_SRCDIR=%q TEST_WORKSPACE=%q", testSrcdir, testWorkspace)
+		t.Logf("Detected bazel env variables: TEST_SRCDIR=%q TEST_WORKSPACE=%q", testSrcdir, testWorkspace)
 		pkgPath = filepath.Join(testSrcdir, testWorkspace, pkgPath)
 	}
 

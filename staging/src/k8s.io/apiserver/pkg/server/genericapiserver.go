@@ -216,11 +216,11 @@ type GenericAPIServer struct {
 
 	// NonLongRunningRequestWaitGroup allows you to wait for all chain
 	// handlers associated with non long-running requests
-	// to complete while the server is shuting down.
+	// to complete while the server is shutting down.
 	NonLongRunningRequestWaitGroup *utilwaitgroup.SafeWaitGroup
 	// WatchRequestWaitGroup allows us to wait for all chain
 	// handlers associated with active watch requests to
-	// complete while the server is shuting down.
+	// complete while the server is shutting down.
 	WatchRequestWaitGroup *utilwaitgroup.RateLimitedSafeWaitGroup
 
 	// ShutdownDelayDuration allows to block shutdown for some time, e.g. until endpoints pointing to this API server
@@ -243,7 +243,7 @@ type GenericAPIServer struct {
 	StorageVersionManager storageversion.Manager
 
 	// EffectiveVersion determines which apis and features are available
-	// based on when the api/feature lifecyle.
+	// based on when the api/feature lifecycle.
 	EffectiveVersion utilversion.EffectiveVersion
 	// FeatureGate is a way to plumb feature gate through if you have them.
 	FeatureGate featuregate.FeatureGate

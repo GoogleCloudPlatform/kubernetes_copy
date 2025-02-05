@@ -694,7 +694,7 @@ func expectConversionFailureMessage(id, message string) func(t *testing.T, ctc *
 				case "get":
 					_, err = clients["v1beta2"].Get(context.TODO(), obj.GetName(), metav1.GetOptions{})
 				case "list":
-					// With ResilientWatchcCacheInitialization feature, List requests are rejected with 429 if watchcache is not initialized.
+					// With ResilientWatchCacheInitialization feature, List requests are rejected with 429 if watchcache is not initialized.
 					// However, in some of these tests that install faulty converter webhook, watchcache will never initialize by definition (as list will never succeed due to faulty converter webook).
 					// In such case, the returned error will differ from the one returned from the etcd, so we need to force the request to go to etcd.
 					_, err = clients["v1beta2"].List(context.TODO(), metav1.ListOptions{ResourceVersion: lastRV, ResourceVersionMatch: metav1.ResourceVersionMatchExact})

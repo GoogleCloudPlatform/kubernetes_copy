@@ -87,7 +87,7 @@ func (e *watchEmbeddedEncoder) doEncode(obj runtime.Object, w io.Writer) error {
 		result = obj
 	}
 
-	// When we are tranforming to a table, use the original table options when
+	// When we are transforming to a table, use the original table options when
 	// we should print headers only on the first object - headers should be
 	// omitted on subsequent events.
 	if e.tableOptions != nil && !e.tableOptions.NoHeaders {

@@ -28,7 +28,7 @@ import (
 // This implementation is based on a condition variable.
 // This implementation tracks active goroutines:
 // the given counter is decremented for a goroutine waiting for this
-// varible to be set and incremented when such a goroutine is
+// variable to be set and incremented when such a goroutine is
 // unblocked.
 type countingPromise struct {
 	lock          sync.Locker

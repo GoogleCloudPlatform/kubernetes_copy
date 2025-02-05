@@ -1145,7 +1145,7 @@ func (e eventExpectation) matches(events []*tracev1.Span_Event) bool {
 // It is a map from attribute key, to a value-matching function.
 type attributeExpectation map[string]func(*commonv1.AnyValue) bool
 
-// matches returns true if all expected attributes exist in the intput list of attributes.
+// matches returns true if all expected attributes exist in the input list of attributes.
 func (a attributeExpectation) matches(attrs []*commonv1.KeyValue) bool {
 	attrsMap := map[string]*commonv1.AnyValue{}
 	for _, attr := range attrs {

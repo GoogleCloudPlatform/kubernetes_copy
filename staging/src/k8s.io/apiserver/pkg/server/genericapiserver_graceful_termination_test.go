@@ -264,7 +264,7 @@ func TestGracefulTerminationWithKeepListeningDuringGracefulTerminationDisabled(t
 
 	waitForeverUntilSignaled(t, signals.AfterShutdownDelayDuration)
 
-	// preshutdown hook has not completed yet, new incomng request should succeed
+	// preshutdown hook has not completed yet, new incoming request should succeed
 	resultGot = doer.Do(newClient(true), shouldUseNewConnection(t), "/echo?message=request-on-a-new-tcp-connection-should-succeed", time.Second)
 	if err := assertResponseStatusCode(resultGot, http.StatusOK); err != nil {
 		t.Errorf("%s", err.Error())
@@ -492,7 +492,7 @@ func TestGracefulTerminationWithKeepListeningDuringGracefulTerminationEnabled(t 
 
 	waitForeverUntilSignaled(t, signals.AfterShutdownDelayDuration)
 
-	// preshutdown hook has not completed yet, new incomng request should succeed
+	// preshutdown hook has not completed yet, new incoming request should succeed
 	resultGot = doer.Do(newClient(true), shouldUseNewConnection(t), "/echo?message=request-on-a-new-tcp-connection-should-succeed", time.Second)
 	if err := assertResponseStatusCode(resultGot, http.StatusOK); err != nil {
 		t.Errorf("%s", err.Error())

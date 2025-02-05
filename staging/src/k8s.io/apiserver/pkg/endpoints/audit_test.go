@@ -367,7 +367,7 @@ func TestAudit(t *testing.T) {
 	}
 }
 
-// testTimeout returns the minimimum of the "ForeverTestTimeout" and the testing deadline (with
+// testTimeout returns the minimum of the "ForeverTestTimeout" and the testing deadline (with
 // cleanup time).
 func testTimeout(t *testing.T) time.Duration {
 	defaultTimeout := wait.ForeverTestTimeout

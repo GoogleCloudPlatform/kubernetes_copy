@@ -56,7 +56,7 @@ func RunAuthzSelectorsLibraryTests(t *testing.T, featureEnabled bool) {
 	}
 	defer server.TearDownFn()
 
-	// Ensure the authz selectors library was initialzed and saw the right feature enablement
+	// Ensure the authz selectors library was initialized and saw the right feature enablement
 	if gotEnabled, initialized := environment.AuthzSelectorsLibraryEnabled(); !initialized {
 		t.Fatalf("authz selector library was not initialized during API server construction")
 	} else if gotEnabled != featureEnabled {

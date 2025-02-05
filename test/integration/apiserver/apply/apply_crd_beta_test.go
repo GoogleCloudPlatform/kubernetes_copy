@@ -166,7 +166,7 @@ spec:
 		t.Fatalf("failed to get managedFields from response: %v", err)
 	}
 	if !reflect.DeepEqual(existingManagedFields, newManagedFields) {
-		t.Fatalf("Expected managed fields to not have changed when trying manually setting them via subresoures.\n\nExpected: %#v\n\nGot: %#v", existingManagedFields, newManagedFields)
+		t.Fatalf("Expected managed fields to not have changed when trying manually setting them via subresources.\n\nExpected: %#v\n\nGot: %#v", existingManagedFields, newManagedFields)
 	}
 
 	// However, it is possible to modify managed fields using the main resource

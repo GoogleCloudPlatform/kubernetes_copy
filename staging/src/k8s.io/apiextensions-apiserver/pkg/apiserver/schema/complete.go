@@ -27,10 +27,10 @@ import (
 // with a known schema:
 // - validations for specific properties must have that property (or additionalProperties under an option) structurally defined
 // - additionalProperties validations must have additionalProperties defined in the structural portion of the schema corresponding to that node
-// - Items validations must have also have a corresponding items structurally
+// - Items validations must also have a corresponding items structurally
 //
 // The "structural" portion of the schema refers to all nodes in the
-// schema traversible without following any NestedValueValidations.
+// schema traversable without following any NestedValueValidations.
 func validateStructuralCompleteness(s *Structural, fldPath *field.Path, opts ValidationOptions) field.ErrorList {
 	if s == nil {
 		return nil

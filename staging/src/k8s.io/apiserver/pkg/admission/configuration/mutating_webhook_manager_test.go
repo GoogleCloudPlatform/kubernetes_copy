@@ -118,7 +118,7 @@ func TestGetMutatingWebhookConfigSmartReload(t *testing.T) {
 		name              string
 		args              args
 		numberOfCreations int
-		// number of refreshes are number of times we recrated a webhook accessor
+		// number of refreshes are number of times we recreated a webhook accessor
 		// instead of pulling from the cache.
 		numberOfRefreshes             int
 		finalNumberOfWebhookAccessors int

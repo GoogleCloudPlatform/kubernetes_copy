@@ -124,7 +124,7 @@ func (t *timeoutHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case <-timeoutCh:
 		defer func() {
 			// resultCh needs to have a reader, since the function doing
-			// the work needs to send to it. This is defer'd to ensure it runs
+			// the work needs to send to it. This is deferred to ensure it runs
 			// ever if the post timeout work itself panics.
 			go func() {
 				timedOutAt := time.Now()

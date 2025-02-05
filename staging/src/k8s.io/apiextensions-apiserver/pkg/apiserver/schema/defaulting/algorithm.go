@@ -21,7 +21,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
-// isNonNullalbeNull returns true if the item is nil AND it's nullable
+// isNonNullableNull returns true if the item is nil AND it's nullable
 func isNonNullableNull(x interface{}, s *structuralschema.Structural) bool {
 	return x == nil && s != nil && s.Generic.Nullable == false
 }

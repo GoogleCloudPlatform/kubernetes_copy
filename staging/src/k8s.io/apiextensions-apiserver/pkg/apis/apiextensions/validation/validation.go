@@ -1025,7 +1025,7 @@ func ValidateCustomResourceDefinitionOpenAPISchema(schema *apiextensions.JSONSch
 			}
 		}
 		// Note: we forbid additionalProperties at resource root, both embedded and top-level.
-		//       But further inside, additionalProperites is possible, e.g. for labels or annotations.
+		//       But further inside, additionalProperties is possible, e.g. for labels or annotations.
 		subSsv := ssv
 		if ssv.insideResourceMeta() {
 			// we have to forbid defaults inside additionalProperties because pruning without actual value is ambiguous

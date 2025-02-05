@@ -114,7 +114,7 @@ func isRequestExemptFromRetryAfter(r *http.Request) bool {
 
 // isKubeApiserverUserAgent returns true if the user-agent matches
 // the one set by the local loopback.
-// NOTE: we can't look up the authenticated user informaion from the
+// NOTE: we can't look up the authenticated user information from the
 // request context since the authentication filter has not executed yet.
 func isKubeApiserverUserAgent(req *http.Request) bool {
 	return strings.HasPrefix(req.UserAgent(), "kube-apiserver/")

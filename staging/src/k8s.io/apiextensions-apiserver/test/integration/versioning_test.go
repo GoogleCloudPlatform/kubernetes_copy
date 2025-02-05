@@ -222,7 +222,7 @@ func testStoragedVersionInCRDStatus(t *testing.T, ns string, noxuDefinition *api
 		t.Fatal(err)
 	}
 
-	// The storage version list should be initilized to storage version
+	// The storage version list should be initialized to storage version
 	crd, err := apiExtensionClient.ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), noxuDefinition.Name, metav1.GetOptions{})
 	if err != nil {
 		t.Fatal(err)

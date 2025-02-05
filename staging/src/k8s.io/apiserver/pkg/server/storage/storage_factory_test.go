@@ -418,7 +418,7 @@ func registerFakeLifecycle[T, V any](sch *runtime.Scheme, group, introduced, rem
 	)
 
 	// Also ensure internal version is registered
-	// If it is registertd multiple times, it will ignore subsequent registrations
+	// If it is registered multiple times, it will ignore subsequent registrations
 	internalInstance := &fakeLifecycler[T, struct{}]{}
 	sch.AddKnownTypeWithName(
 		schema.GroupVersionKind{

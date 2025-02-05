@@ -31,7 +31,7 @@ type removeFromFIFOFunc func() *request
 // oldest -> newest order.
 // ok: if walkFunc returns false then the iteration stops immediately.
 // walkFunc may remove the given request from the fifo,
-// but may not mutate the fifo in any othe way.
+// but may not mutate the fifo in any other way.
 type walkFunc func(*request) (ok bool)
 
 // Internal interface to abstract out the implementation details

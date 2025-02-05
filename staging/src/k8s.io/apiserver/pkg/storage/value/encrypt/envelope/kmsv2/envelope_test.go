@@ -962,7 +962,7 @@ func TestEnvelopeMetricsCache(t *testing.T) {
 				i := i
 				go func() {
 					defer wg.Done()
-					// mimick a restart, the server will make decrypt RPC calls to the KMS plugin
+					// mimic a restart, the server will make decrypt RPC calls to the KMS plugin
 					// check cache metrics for the decrypt / read flow, which should repopulate the cache
 					if _, _, err := transformer3.TransformFromStorage(ctx, transformedDatas[i], dataCtx); err != nil {
 						panic(err)

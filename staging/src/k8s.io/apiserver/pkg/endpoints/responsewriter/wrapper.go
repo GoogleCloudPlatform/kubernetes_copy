@@ -22,7 +22,7 @@ import (
 	"net/http"
 )
 
-// UserProvidedDecorator represensts a user (client that uses this package)
+// UserProvidedDecorator represents a user (client that uses this package)
 // provided decorator that wraps an inner http.ResponseWriter object.
 // The user-provided decorator object must return the inner (decorated)
 // http.ResponseWriter object via the Unwrap function.
@@ -41,7 +41,7 @@ type UserProvidedDecorator interface {
 // the inner http.ResponseWriter (otherwise), so that the returned http.ResponseWriter
 // object implements the same subset of those interfaces as the inner http.ResponseWriter.
 //
-// This function handles the following three casses.
+// This function handles the following three cases.
 //   - The inner ResponseWriter implements `http.CloseNotifier`, `http.Flusher`,
 //     and `http.Hijacker` (an HTTP/1.1 sever provides such a ResponseWriter).
 //   - The inner ResponseWriter implements `http.CloseNotifier` and `http.Flusher`
@@ -127,7 +127,7 @@ var _ http.ResponseWriter = outerWithCloseNotifyAndFlush{}
 var _ UserProvidedDecorator = outerWithCloseNotifyAndFlush{}
 
 // outerWithCloseNotifyAndFlush is the outer object that extends the
-// user provied decorator with http.CloseNotifier and http.Flusher only.
+// user provided decorator with http.CloseNotifier and http.Flusher only.
 type outerWithCloseNotifyAndFlush struct {
 	// UserProvidedDecorator is the user-provided object, it decorates
 	// an inner ResponseWriter object.

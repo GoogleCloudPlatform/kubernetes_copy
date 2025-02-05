@@ -2366,7 +2366,7 @@ func schema_pkg_apis_apiextensions_v1_SelectableField(ref common.ReferenceCallba
 				Properties: map[string]spec.Schema{
 					"jsonPath": {
 						SchemaProps: spec.SchemaProps{
-							Description: "jsonPath is a simple JSON path which is evaluated against each custom resource to produce a field selector value. Only JSON paths without the array notation are allowed. Must point to a field of type string, boolean or integer. Types with enum values and strings with formats are allowed. If jsonPath refers to absent field in a resource, the jsonPath evaluates to an empty string. Must not point to metdata fields. Required.",
+							Description: "jsonPath is a simple JSON path which is evaluated against each custom resource to produce a field selector value. Only JSON paths without the array notation are allowed. Must point to a field of type string, boolean or integer. Types with enum values and strings with formats are allowed. If jsonPath refers to absent field in a resource, the jsonPath evaluates to an empty string. Must not point to metadata fields. Required.",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -3921,7 +3921,7 @@ func schema_pkg_apis_apiextensions_v1beta1_SelectableField(ref common.ReferenceC
 				Properties: map[string]spec.Schema{
 					"jsonPath": {
 						SchemaProps: spec.SchemaProps{
-							Description: "jsonPath is a simple JSON path which is evaluated against each custom resource to produce a field selector value. Only JSON paths without the array notation are allowed. Must point to a field of type string, boolean or integer. Types with enum values and strings with formats are allowed. If jsonPath refers to absent field in a resource, the jsonPath evaluates to an empty string. Must not point to metdata fields. Required.",
+							Description: "jsonPath is a simple JSON path which is evaluated against each custom resource to produce a field selector value. Only JSON paths without the array notation are allowed. Must point to a field of type string, boolean or integer. Types with enum values and strings with formats are allowed. If jsonPath refers to absent field in a resource, the jsonPath evaluates to an empty string. Must not point to metadata fields. Required.",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",

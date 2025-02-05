@@ -165,7 +165,7 @@ func TestMaxInFlightNonMutating(t *testing.T) {
 	block.Done()
 
 	// Show that we recover from being blocked up.
-	// Too avoid flakyness we need to wait until at least one of the requests really finishes.
+	// Too avoid flakiness we need to wait until at least one of the requests really finishes.
 	responses.Wait()
 	if err := expectHTTPGet(server.URL, http.StatusOK); err != nil {
 		t.Error(err)
@@ -229,7 +229,7 @@ func TestMaxInFlightMutating(t *testing.T) {
 	block.Done()
 
 	// Show that we recover from being blocked up.
-	// Too avoid flakyness we need to wait until at least one of the requests really finishes.
+	// Too avoid flakiness we need to wait until at least one of the requests really finishes.
 	responses.Wait()
 	if err := expectHTTPPost(server.URL+"/foo/bar", http.StatusOK); err != nil {
 		t.Error(err)

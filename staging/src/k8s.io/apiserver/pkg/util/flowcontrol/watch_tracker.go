@@ -57,7 +57,7 @@ type ForgetWatchFunc func()
 // of watches in the system for the purpose of estimating the
 // cost of incoming mutating requests.
 type WatchTracker interface {
-	// RegisterWatch reqisters a watch based on the provided http.Request
+	// RegisterWatch registers a watch based on the provided http.Request
 	// in the tracker. It returns the function that should be called
 	// to forget the watcher once it is finished.
 	RegisterWatch(r *http.Request) ForgetWatchFunc

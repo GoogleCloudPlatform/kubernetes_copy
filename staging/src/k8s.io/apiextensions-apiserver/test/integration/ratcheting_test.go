@@ -1347,7 +1347,7 @@ func TestRatchetingFunctionality(t *testing.T) {
 						},
 						"otherField": "hello world",
 					}},
-				// (This test shows an array cannpt be correlated by index with its old value)
+				// (This test shows an array cannot be correlated by index with its old value)
 				expectError{applyPatchOperation{
 					"add new, valid fields to elements of the array, failing to ratchet unchanged old fields within the array elements by correlating by index due to atomic list",
 					myCRDV1Beta1, myCRDInstanceName, map[string]interface{}{
@@ -1665,7 +1665,7 @@ func TestRatchetingFunctionality(t *testing.T) {
 		},
 		{
 			// Changing a list to a set should allow you to keep the items the
-			// same, but if you modify any one item the set must be uniqued
+			// same, but if you modify any one item the set must be unique
 			//
 			// Possibly a future area of improvement. As it stands now,
 			// SSA implementation is incompatible with ratcheting this field:
@@ -1738,7 +1738,7 @@ func TestRatchetingFunctionality(t *testing.T) {
 						},
 					}},
 				// Can remove dups to make valid
-				//! Normally this woud be valid, but SSA is unable to interpret
+				//! Normally this would be valid, but SSA is unable to interpret
 				// the `liveObj` in the new schema, so fails. Changing
 				// x-kubernetes-list-type from anything to a set is unsupported by SSA.
 				applyPatchOperation{

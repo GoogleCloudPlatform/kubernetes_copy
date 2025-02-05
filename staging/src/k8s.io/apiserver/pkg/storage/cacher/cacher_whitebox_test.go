@@ -101,7 +101,7 @@ func newTestCacher(s storage.Interface) (*Cacher, storage.Versioner, error) {
 	if utilfeature.DefaultFeatureGate.Enabled(features.ResilientWatchCacheInitialization) {
 		// The tests assume that Get/GetList/Watch calls shouldn't fail.
 		// However, 429 error can now be returned if watchcache is under initialization.
-		// To avoid rewriting all tests, we wait for watcache to initialize.
+		// To avoid rewriting all tests, we wait for watchcache to initialize.
 		if err := cacher.Wait(context.Background()); err != nil {
 			return nil, storage.APIObjectVersioner{}, err
 		}
@@ -1378,7 +1378,7 @@ func TestCacherSendsMultipleWatchBookmarks(t *testing.T) {
 	}
 
 	// Create one more pod, to ensure that current RV is higher and thus
-	// bookmarks will be delievere (events are delivered for RV higher
+	// bookmarks will be delivered (events are delivered for RV higher
 	// than the max from init events).
 	if err := cacher.watchCache.Add(makePod(1)); err != nil {
 		t.Fatalf("failed to add a pod: %v", err)

@@ -802,7 +802,7 @@ func Test_PolicyExemption(t *testing.T) {
 // Test_ValidatingAdmissionPolicy_UpdateParamKind validates the behavior of ValidatingAdmissionPolicy when
 // only the ParamKind is updated. This test creates a policy where namespaces must have a prefix that matches
 // the ParamKind set in the policy. Switching the ParamKind should result in only namespaces with prefixes matching
-// the new ParamKind to be allowed. For example, when Paramkind is v1/ConfigMap, only namespaces prefixed with "configmap"
+// the new ParamKind to be allowed. For example, when ParamKind is v1/ConfigMap, only namespaces prefixed with "configmap"
 // is allowed and when ParamKind is updated to v1/Secret, only namespaces prefixed with "secret" is allowed, etc.
 func Test_ValidatingAdmissionPolicy_UpdateParamKind(t *testing.T) {
 	server, err := apiservertesting.StartTestServer(t, nil, []string{
@@ -903,7 +903,7 @@ func Test_ValidatingAdmissionPolicy_UpdateParamKind(t *testing.T) {
 
 	// validate that namespaces starting with "secret-" are allowed
 	// and namespaces starting with "configmap-" are disallowed
-	// wait loop is required here since ConfigMaps were previousy allowed and we need to wait for the new policy
+	// wait loop is required here since ConfigMaps were previously allowed and we need to wait for the new policy
 	// to be enforced
 	if waitErr := wait.PollImmediate(time.Millisecond*10, wait.ForeverTestTimeout, func() (bool, error) {
 		disallowedNamespace = &v1.Namespace{
@@ -1175,7 +1175,7 @@ func Test_ValidatingAdmissionPolicy_UpdateParamResource(t *testing.T) {
 		t.Error(err)
 	}
 
-	// Update the param resource to use "test-2" as the new allwoed prefix
+	// Update the param resource to use "test-2" as the new allowed prefix
 	paramConfigMapCopy := paramConfigMap.DeepCopy()
 	paramConfigMapCopy.Data = map[string]string{
 		"prefix": "test-2",
@@ -1688,7 +1688,7 @@ func Test_ValidatingAdmissionPolicy_MatchWithMatchPolicyExact(t *testing.T) {
 		t.Errorf("v1 panadas did not match against policy, err: %v", err)
 	}
 
-	// v2 panadas is allowed since policy specificed match policy Exact and only matched against v1
+	// v2 panadas is allowed since policy specified match policy Exact and only matched against v1
 	_, err = dynamicClient.Resource(schema.GroupVersionResource{Group: "awesome.bears.com", Version: "v2", Resource: "pandas"}).Create(context.TODO(), v2Resource, metav1.CreateOptions{})
 	if err != nil {
 		t.Error(err)

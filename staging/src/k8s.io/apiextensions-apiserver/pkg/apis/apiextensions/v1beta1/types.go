@@ -258,7 +258,7 @@ type SelectableField struct {
 	// Must point to a field of type string, boolean or integer. Types with enum values
 	// and strings with formats are allowed.
 	// If jsonPath refers to absent field in a resource, the jsonPath evaluates to an empty string.
-	// Must not point to metdata fields.
+	// Must not point to metadata fields.
 	// Required.
 	JSONPath string `json:"jsonPath" protobuf:"bytes,1,opt,name=jsonPath"`
 }
@@ -354,7 +354,7 @@ const (
 	// A schema is structural if it specifies types for all values, with the only exceptions of those with
 	// - x-kubernetes-int-or-string: true — for fields which can be integer or string
 	// - x-kubernetes-preserve-unknown-fields: true — for raw, unspecified JSON values
-	// and there is no type, additionalProperties, default, nullable or x-kubernetes-* vendor extenions
+	// and there is no type, additionalProperties, default, nullable or x-kubernetes-* vendor extensions
 	// specified under allOf, anyOf, oneOf or not.
 	//
 	// Non-structural schemas will not be allowed anymore in v1 API groups. Moreover, new features will not be

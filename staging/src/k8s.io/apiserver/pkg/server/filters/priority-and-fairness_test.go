@@ -449,7 +449,7 @@ func TestApfExecuteWatchRequestsWithInitializationSignal(t *testing.T) {
 	// We test if initialization after receiving initialization signal the
 	// new requests will be allowed to run by:
 	// - sending N requests that will occupy the whole capacity
-	// - sending initialiation signals for them
+	// - sending initialization signals for them
 	// - ensuring that number of inflight requests will get to zero
 	concurrentRequests := 5
 	firstRunning := sync.WaitGroup{}
@@ -794,7 +794,7 @@ func TestPriorityAndFairnessWithPanicRecoveryAndTimeoutFilter(t *testing.T) {
 		defer server.Close()
 
 		// send a request synchronously with a client timeout of 1m,  this minimizes the
-		// chance of a flake in ci, the cient waits long enough for the server to send a
+		// chance of a flake in ci, the client waits long enough for the server to send a
 		// timeout response to the client.
 		var (
 			response *http.Response
@@ -871,7 +871,7 @@ func TestPriorityAndFairnessWithPanicRecoveryAndTimeoutFilter(t *testing.T) {
 		defer server.Close()
 
 		// send a request synchronously with a client timeout of 1m, this minimizes the
-		// chance of a flake in ci, the cient waits long enough for the server to send a
+		// chance of a flake in ci, the client waits long enough for the server to send a
 		// timeout response to the client.
 		var (
 			response *http.Response
@@ -951,7 +951,7 @@ func TestPriorityAndFairnessWithPanicRecoveryAndTimeoutFilter(t *testing.T) {
 		defer server.Close()
 
 		// send a request synchronously with a client timeout of 1m, this minimizes the
-		// chance of a flake in ci, the cient waits long enough for the server to send a
+		// chance of a flake in ci, the client waits long enough for the server to send a
 		// timeout response to the client.
 		var err error
 		func() {

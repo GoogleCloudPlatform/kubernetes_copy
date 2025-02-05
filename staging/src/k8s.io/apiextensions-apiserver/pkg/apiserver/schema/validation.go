@@ -52,7 +52,7 @@ type ValidationOptions struct {
 	AllowNestedXValidations bool
 
 	// AllowValidationPropertiesWithAdditionalProperties allows
-	// value validations on specific properties that are structually
+	// value validations on specific properties that are structurally
 	// defined by additionalProperties. i.e. additionalProperties in main structural
 	// schema, but properties within an allOf.
 	AllowValidationPropertiesWithAdditionalProperties bool

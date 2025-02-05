@@ -48,7 +48,7 @@ import (
 //
 // isCIDR
 //
-// Returns true if a string is a valid CIDR notation respresentation of a subnet with mask.
+// Returns true if a string is a valid CIDR notation representation of a subnet with mask.
 // The CIDR must be an IPv4 or IPv6 subnet address with a mask.
 // Leading zeros in IPv4 address octets are not allowed.
 // IPv4-mapped IPv6 addresses (e.g. ::ffff:1.2.3.4/24) are not allowed.

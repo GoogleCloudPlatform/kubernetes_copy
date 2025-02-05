@@ -184,7 +184,7 @@ var (
 )
 
 // AuthzSelectorsLibraryEnabled returns whether the AuthzSelectors library was enabled when it was constructed.
-// If it has not been contructed yet, this returns `false, false`.
+// If it has not been constructed yet, this returns `false, false`.
 // This is solely for the benefit of the integration tests making sure feature gates get correctly parsed before AuthzSelector ever has to check for enablement.
 func AuthzSelectorsLibraryEnabled() (enabled, constructed bool) {
 	enabled, constructed = authzSelectorsLibraryEnabled.Load().(bool)

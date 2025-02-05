@@ -28,7 +28,7 @@ type RequestHeaderConfig struct {
 	UIDHeaders headerrequest.StringSliceProvider
 	// GroupHeaders are the headers to check (case-insensitively) for a group names.  All values will be used.
 	GroupHeaders headerrequest.StringSliceProvider
-	// ExtraHeaderPrefixes are the head prefixes to check (case-insentively) for filling in
+	// ExtraHeaderPrefixes are the head prefixes to check (case-insensitively) for filling in
 	// the user.Info.Extra.  All values of all matching headers will be added.
 	ExtraHeaderPrefixes headerrequest.StringSliceProvider
 	// CAContentProvider the options for verifying incoming connections using mTLS.  Generally this points to CA bundle file which is used verify the identity of the front proxy.

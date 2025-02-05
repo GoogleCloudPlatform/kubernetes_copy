@@ -75,7 +75,7 @@ func (a statusStrategy) PrepareForUpdate(ctx context.Context, obj, old runtime.O
 
 	// copy old object into new object
 	oldCustomResourceObject := old.(*unstructured.Unstructured)
-	// overridding the resourceVersion in metadata is safe here, we have already checked that
+	// overriding the resourceVersion in metadata is safe here, we have already checked that
 	// new object and old object have the same resourceVersion.
 	*newCustomResourceObject = *oldCustomResourceObject.DeepCopy()
 

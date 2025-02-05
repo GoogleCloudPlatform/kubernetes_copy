@@ -111,7 +111,7 @@ func setupTest(ctx context.Context, customReconciler func(string, string, runtim
 	tracker = clienttesting.NewObjectTracker(scheme, codecs.UniversalDecoder())
 	reconciledObjects := make(chan runtime.Object)
 
-	// Set up fake informers that return instances of mock Policy definitoins
+	// Set up fake informers that return instances of mock Policy definitions
 	// and mock policy bindings
 	informer = &testInformer{SharedIndexInformer: cache.NewSharedIndexInformer(&cache.ListWatch{
 		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {

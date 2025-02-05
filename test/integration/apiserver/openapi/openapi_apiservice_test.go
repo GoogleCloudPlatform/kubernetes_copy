@@ -159,7 +159,7 @@ func TestFetchingOpenAPIBeforeReady(t *testing.T) {
 
 }
 
-// These definitions were copied from k8s.io/kubernetes/test/integation/apiserver/discovery
+// These definitions were copied from k8s.io/kubernetes/test/integration/apiserver/discovery
 // and should be consolidated.
 type kubeClientSet = kubernetes.Interface
 

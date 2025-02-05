@@ -37,7 +37,7 @@ func NewETCDLatencyTracker(delegate clientv3.KV) clientv3.KV {
 // complete response back)
 //
 // If an API request involves N (N>=1) round trips to etcd, then we will sum
-// up the latenciy incurred in each roundtrip.
+// up the latency incurred in each roundtrip.
 
 // It uses the context associated with the request in flight, so there
 // are no states shared among the requests in flight, and so there is no

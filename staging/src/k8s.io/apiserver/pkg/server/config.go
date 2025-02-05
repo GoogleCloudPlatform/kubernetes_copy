@@ -152,7 +152,7 @@ type Config struct {
 	PostStartHooks map[string]PostStartHookConfigEntry
 
 	// EffectiveVersion determines which apis and features are available
-	// based on when the api/feature lifecyle.
+	// based on when the api/feature lifecycle.
 	EffectiveVersion utilversion.EffectiveVersion
 	// FeatureGate is a way to plumb feature gate through if you have them.
 	FeatureGate featuregate.FeatureGate
@@ -175,11 +175,11 @@ type Config struct {
 	BuildHandlerChainFunc func(apiHandler http.Handler, c *Config) (secure http.Handler)
 	// NonLongRunningRequestWaitGroup allows you to wait for all chain
 	// handlers associated with non long-running requests
-	// to complete while the server is shuting down.
+	// to complete while the server is shutting down.
 	NonLongRunningRequestWaitGroup *utilwaitgroup.SafeWaitGroup
 	// WatchRequestWaitGroup allows us to wait for all chain
 	// handlers associated with active watch requests to
-	// complete while the server is shuting down.
+	// complete while the server is shutting down.
 	WatchRequestWaitGroup *utilwaitgroup.RateLimitedSafeWaitGroup
 	// DiscoveryAddresses is used to build the IPs pass to discovery. If nil, the ExternalAddress is
 	// always reported
@@ -947,7 +947,7 @@ func (c completedConfig) New(name string, delegationTarget DelegationTarget) (*G
 		}
 	}
 
-	// Add PostStartHook for maintenaing the object count tracker.
+	// Add PostStartHook for maintaining the object count tracker.
 	if c.StorageObjectCountTracker != nil {
 		const storageObjectCountTrackerHookName = "storage-object-count-tracker-hook"
 		if !s.isPostStartHookRegistered(storageObjectCountTrackerHookName) {

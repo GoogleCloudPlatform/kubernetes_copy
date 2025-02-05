@@ -1132,7 +1132,7 @@ func TestContextCancel(t *testing.T) {
 				defer counter.Add(-1) // account completion of this goroutine
 				clk.Sleep(time.Second)
 				expectQNCounts(2, 0, 1)
-				// account for unblocking the goroutine that waits on cancelation
+				// account for unblocking the goroutine that waits on cancellation
 				counter.Add(1)
 				cancel2()
 			}()

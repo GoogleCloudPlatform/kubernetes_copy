@@ -302,7 +302,7 @@ func labelAPIServerHeartbeatFunc(identity string, peeraddress string) lease.Proc
 			lease.Annotations = map[string]string{}
 		}
 
-		// This label indiciates the identity of the lease object.
+		// This label indicates the identity of the lease object.
 		lease.Labels[IdentityLeaseComponentLabelKey] = identity
 
 		hostname, err := os.Hostname()

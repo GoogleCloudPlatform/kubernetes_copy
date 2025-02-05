@@ -133,7 +133,7 @@ func TestAuthzValidate(t *testing.T) {
 			}
 			if len(errs) > 0 && testcase.expectErr {
 				if !strings.Contains(utilerrors.NewAggregate(errs).Error(), testcase.expectErrorSubString) {
-					t.Errorf("exepected to found error: %s, but no error found", testcase.expectErrorSubString)
+					t.Errorf("expected to found error: %s, but no error found", testcase.expectErrorSubString)
 				}
 			}
 		})

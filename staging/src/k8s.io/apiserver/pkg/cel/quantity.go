@@ -33,7 +33,7 @@ var (
 	QuantityType      = cel.ObjectType("kubernetes.Quantity")
 )
 
-// Quantity provdes a CEL representation of a resource.Quantity
+// Quantity provides a CEL representation of a resource.Quantity
 type Quantity struct {
 	*resource.Quantity
 }

@@ -85,7 +85,7 @@ var noConflicts = map[string]struct{}{
 	// storageVersions are skipped because their spec is empty
 	// and thus they can never have a conflict.
 	"storageversions": {},
-	// servicecidrs are skipped because their spec is inmutable
+	// servicecidrs are skipped because their spec is immutable
 	// and thus they can never have a conflict.
 	"servicecidrs": {},
 	// namespaces only have a spec.finalizers field which is also skipped,

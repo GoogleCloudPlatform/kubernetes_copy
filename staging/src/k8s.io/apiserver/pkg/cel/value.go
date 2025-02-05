@@ -502,7 +502,7 @@ func (it *baseMapIterator) Next() ref.Val {
 	return key
 }
 
-// Type implements the CEL ref.Val interface metohd.
+// Type implements the CEL ref.Val interface method.
 func (it *baseMapIterator) Type() ref.Type {
 	return types.IteratorType
 }

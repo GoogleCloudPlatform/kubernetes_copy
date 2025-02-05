@@ -275,12 +275,12 @@ func (m *monitorCollector) getGetter() func() ([]Monitor, error) {
 	return m.monitorGetter
 }
 
-// DescribeWithStability implements compbasemetrics.StableColletor
+// DescribeWithStability implements compbasemetrics.StableCollector
 func (c *monitorCollector) DescribeWithStability(ch chan<- *compbasemetrics.Desc) {
 	ch <- storageSizeDescription
 }
 
-// CollectWithStability implements compbasemetrics.StableColletor
+// CollectWithStability implements compbasemetrics.StableCollector
 func (c *monitorCollector) CollectWithStability(ch chan<- compbasemetrics.Metric) {
 	monitors, err := c.getGetter()()
 	if err != nil {

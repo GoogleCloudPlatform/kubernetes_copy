@@ -1954,11 +1954,11 @@ func testFieldValidationPutCRD(t *testing.T, rest rest.Interface, gvk schema.Gro
 				VersionedParams(&tc.opts, metav1.ParameterCodec)
 			postResult, err := postReq.Body([]byte(jsonPostBody)).Do(context.TODO()).Raw()
 			if err != nil {
-				t.Fatalf("unexpeted error on CR creation: %v", err)
+				t.Fatalf("unexpected error on CR creation: %v", err)
 			}
 			postUnstructured := &unstructured.Unstructured{}
 			if err := postUnstructured.UnmarshalJSON(postResult); err != nil {
-				t.Fatalf("unexpeted error unmarshalling created CR: %v", err)
+				t.Fatalf("unexpected error unmarshalling created CR: %v", err)
 			}
 
 			// update the CR as specified by the test case
@@ -2111,11 +2111,11 @@ func testFieldValidationPutCRDSchemaless(t *testing.T, rest rest.Interface, gvk 
 				VersionedParams(&tc.opts, metav1.ParameterCodec)
 			postResult, err := postReq.Body([]byte(jsonPostBody)).Do(context.TODO()).Raw()
 			if err != nil {
-				t.Fatalf("unexpeted error on CR creation: %v", err)
+				t.Fatalf("unexpected error on CR creation: %v", err)
 			}
 			postUnstructured := &unstructured.Unstructured{}
 			if err := postUnstructured.UnmarshalJSON(postResult); err != nil {
-				t.Fatalf("unexpeted error unmarshalling created CR: %v", err)
+				t.Fatalf("unexpected error unmarshalling created CR: %v", err)
 			}
 
 			// update the CR as specified by the test case
@@ -3795,11 +3795,11 @@ func benchFieldValidationPutCRD(b *testing.B, rest rest.Interface, gvk schema.Gr
 					VersionedParams(&tc.opts, metav1.ParameterCodec)
 				postResult, err := postReq.Body([]byte(jsonPostBody)).Do(context.TODO()).Raw()
 				if err != nil {
-					b.Fatalf("unexpeted error on CR creation: %v", err)
+					b.Fatalf("unexpected error on CR creation: %v", err)
 				}
 				postUnstructured := &unstructured.Unstructured{}
 				if err := postUnstructured.UnmarshalJSON(postResult); err != nil {
-					b.Fatalf("unexpeted error unmarshalling created CR: %v", err)
+					b.Fatalf("unexpected error unmarshalling created CR: %v", err)
 				}
 				resourceVersions[n] = postUnstructured.GetResourceVersion()
 			}

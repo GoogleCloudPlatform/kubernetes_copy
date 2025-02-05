@@ -178,7 +178,7 @@ type Policy struct {
 
 	// OmitManagedFields indicates whether to omit the managed fields of the request
 	// and response bodies from being written to the API audit log.
-	// This is used as a global default - a value of 'true' will omit the managed fileds,
+	// This is used as a global default - a value of 'true' will omit the managed fields,
 	// otherwise the managed fields will be included in the API audit log.
 	// Note that this can also be specified per rule in which case the value specified
 	// in a rule will override the global default.
@@ -255,7 +255,7 @@ type PolicyRule struct {
 	// OmitManagedFields indicates whether to omit the managed fields of the request
 	// and response bodies from being written to the API audit log.
 	// - a value of 'true' will drop the managed fields from the API audit log
-	// - a value of 'false' indicates that the managed fileds should be included
+	// - a value of 'false' indicates that the managed fields should be included
 	//   in the API audit log
 	// Note that the value, if specified, in this rule will override the global default
 	// If a value is not specified then the global default specified in

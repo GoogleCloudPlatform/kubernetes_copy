@@ -76,7 +76,7 @@ func (c *counterRaiser) IncreaseMetricsCounter(req *http.Request) {
 //
 // It increases the `missingSAN` counter whenever:
 //  1. we get a x509.HostnameError with string `x509: certificate relies on legacy Common Name field`
-//     which indicates an error caused by the deprecation of Common Name field when veryfing remote
+//     which indicates an error caused by the deprecation of Common Name field when verifying remote
 //     hostname
 //  2. the server certificate in response contains no SAN. This indicates that this binary run
 //     with the GODEBUG=x509ignoreCN=0 in env

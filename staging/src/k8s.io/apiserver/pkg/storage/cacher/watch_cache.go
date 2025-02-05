@@ -405,7 +405,7 @@ func (w *watchCache) waitUntilFreshAndBlock(ctx context.Context, resourceVersion
 	// satisfied (w.resourceVersion is never negative), this call will
 	// never hit the w.cond.Wait().
 	// As a result - we can optimize the code by not firing the wakeup
-	// function (and avoid starting a gorotuine), especially given that
+	// function (and avoid starting a goroutine), especially given that
 	// resourceVersion=0 is the most common case.
 	if resourceVersion > 0 {
 		go func() {
@@ -641,7 +641,7 @@ const (
 	// We keep that set to 10 for "backward compatibility" until we
 	// convince ourselves based on some metrics that decreasing is safe.
 	minWatchChanSize = 10
-	// maxWatchChanSizeWithIndexAndTriger is the max size of the channel
+	// maxWatchChanSizeWithIndexAndTrigger is the max size of the channel
 	// used by the watch using the index and trigger selector.
 	maxWatchChanSizeWithIndexAndTrigger = 10
 	// maxWatchChanSizeWithIndexWithoutTrigger is the max size of the channel

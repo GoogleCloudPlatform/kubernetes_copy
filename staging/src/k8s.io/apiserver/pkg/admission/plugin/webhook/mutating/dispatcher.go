@@ -57,7 +57,7 @@ const (
 	// Since mutating webhook patches the request body, audit level must be greater or equal to Request
 	// for the annotation to be logged
 	PatchAuditAnnotationPrefix = "patch.webhook.admission.k8s.io/"
-	// MutationAuditAnnotationPrefix is a prefix for presisting webhook mutation existence in audit annotation.
+	// MutationAuditAnnotationPrefix is a prefix for persisting webhook mutation existence in audit annotation.
 	MutationAuditAnnotationPrefix = "mutation.webhook.admission.k8s.io/"
 	// MutationAnnotationFailedOpenKeyPrefix in an annotation indicates
 	// the mutating webhook failed open when the webhook backend connection

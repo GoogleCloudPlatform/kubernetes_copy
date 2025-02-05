@@ -133,7 +133,7 @@ func NewQuotaEvaluator(quotaAccessor QuotaAccessor, ignoredResources map[schema.
 	}
 
 	// The queue underneath is starting a goroutine for metrics
-	// exportint that is only stopped on calling ShutDown.
+	// exporting that is only stopped on calling ShutDown.
 	// Given that QuotaEvaluator is created for each layer of apiserver
 	// and often not started for some of those (e.g. aggregated apiserver)
 	// we explicitly shut it down on stopCh signal even if it wasn't

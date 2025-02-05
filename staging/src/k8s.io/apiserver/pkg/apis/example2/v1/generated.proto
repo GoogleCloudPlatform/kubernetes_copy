@@ -62,7 +62,7 @@ message ReplicaSetSpec {
 
 // ReplicaSetStatus represents the current status of a ReplicaSet.
 message ReplicaSetStatus {
-  // Replicas is the most recently oberved number of replicas.
+  // Replicas is the most recently observed number of replicas.
   // More info: https://kubernetes.io/docs/concepts/workloads/controllers/replicationcontroller/#what-is-a-replicationcontroller
   optional int32 replicas = 1;
 }

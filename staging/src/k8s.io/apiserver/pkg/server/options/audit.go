@@ -474,7 +474,7 @@ func (o *AuditLogOptions) Validate() []error {
 		allErrors = append(allErrors, fmt.Errorf("invalid audit log format %s, allowed formats are %q", o.Format, strings.Join(pluginlog.AllowedFormats, ",")))
 	}
 
-	// Check validities of MaxAge, MaxBackups and MaxSize of log options, if file log backend is enabled.
+	// Check validity of MaxAge, MaxBackups and MaxSize of log options, if file log backend is enabled.
 	if o.MaxAge < 0 {
 		allErrors = append(allErrors, fmt.Errorf("--audit-log-maxage %v can't be a negative number", o.MaxAge))
 	}
@@ -572,7 +572,7 @@ func (o *AuditWebhookOptions) enabled() bool {
 }
 
 // newUntruncatedBackend returns a webhook backend without the truncate options applied
-// this is done so that the same trucate backend can wrap both the webhook and dynamic backends
+// this is done so that the same truncate backend can wrap both the webhook and dynamic backends
 func (o *AuditWebhookOptions) newUntruncatedBackend(customDial utilnet.DialFunc) (audit.Backend, error) {
 	groupVersion, _ := schema.ParseGroupVersion(o.GroupVersionString)
 	webhook, err := pluginwebhook.NewBackend(o.ConfigFile, groupVersion, webhook.DefaultRetryBackoffWithInitialDelay(o.InitialBackoff), customDial)

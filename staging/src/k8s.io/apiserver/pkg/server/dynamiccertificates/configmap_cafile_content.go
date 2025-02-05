@@ -37,7 +37,7 @@ import (
 	"k8s.io/klog/v2"
 )
 
-// ConfigMapCAController provies a CAContentProvider that can dynamically react to configmap changes
+// ConfigMapCAController provides a CAContentProvider that can dynamically react to configmap changes
 // It also fulfills the authenticator interface to provide verifyoptions
 type ConfigMapCAController struct {
 	name string

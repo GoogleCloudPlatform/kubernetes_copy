@@ -28,7 +28,7 @@ type serverShutdownSignalKeyType int
 const serverShutdownSignalKey serverShutdownSignalKeyType = iota
 
 // ServerShutdownSignal is associated with the request context so
-// the request handler logic has access to signals rlated to
+// the request handler logic has access to signals related to
 // the server shutdown events
 type ServerShutdownSignal interface {
 	// Signaled when the apiserver is not receiving any new request
@@ -37,7 +37,7 @@ type ServerShutdownSignal interface {
 
 // ServerShutdownSignalFrom returns the ServerShutdownSignal instance
 // associated with the request context.
-// If there is no ServerShutdownSignal asscoaied with the context,
+// If there is no ServerShutdownSignal associated with the context,
 // nil is returned.
 func ServerShutdownSignalFrom(ctx context.Context) ServerShutdownSignal {
 	ev, _ := ctx.Value(serverShutdownSignalKey).(ServerShutdownSignal)

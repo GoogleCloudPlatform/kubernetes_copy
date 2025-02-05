@@ -184,7 +184,7 @@ func (r *ratchetingValueValidator) SubPropertyValidator(field string, schema *sp
 	})
 }
 
-// SubIndexValidator overrides the standard validator constructor for sub-indicies by
+// SubIndexValidator overrides the standard validator constructor for sub-indices by
 // returning our special ratcheting variant.
 //
 // If we can correlate an old value, we return a ratcheting validator to

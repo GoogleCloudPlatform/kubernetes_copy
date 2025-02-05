@@ -183,7 +183,7 @@ func TestTrackCompletedContextDoesNotHaveFilterRecord(t *testing.T) {
 
 func TestStartedAndCompletedOpenTelemetryTracing(t *testing.T) {
 	filterName := "my-filter"
-	// Seup OTel for testing
+	// Setup OTel for testing
 	fakeRecorder := tracetest.NewSpanRecorder()
 	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(fakeRecorder))
 

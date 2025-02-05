@@ -103,7 +103,7 @@ func (m *matcher) Match(ctx context.Context, versionedAttr *admission.VersionedA
 	for _, evalResult := range evalResults {
 		matchCondition, ok := evalResult.ExpressionAccessor.(*MatchCondition)
 		if !ok {
-			// This shouldnt happen, but if it does treat same as eval error
+			// This shouldn't happen, but if it does treat same as eval error
 			klog.Error("Invalid type conversion to MatchCondition")
 			errorList = append(errorList, errors.New(fmt.Sprintf("internal error converting ExpressionAccessor to MatchCondition")))
 			continue

@@ -503,7 +503,7 @@ func TestSourcePrecedence(t *testing.T) {
 	require.Equal(t, masked.Items, maskedDocument.Items)
 
 	// Wipe out default group. The other versions from the other group should now
-	// appear since the group is not being overridden by defaults ource
+	// appear since the group is not being overridden by default source
 	defaultManager.RemoveGroup(apis.Items[0].Name)
 
 	_, _, resetDocument := fetchPath(defaultManager, "application/json", discoveryPath, "")

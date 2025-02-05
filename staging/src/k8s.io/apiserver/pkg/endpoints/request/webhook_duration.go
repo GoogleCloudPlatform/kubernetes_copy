@@ -104,7 +104,7 @@ func newMaxLatencyTracker(c clock.Clock) DurationTracker {
 	}
 }
 
-// LatencyTrackers stores trackers used to measure latecny incurred in
+// LatencyTrackers stores trackers used to measure latency incurred in
 // components within the apiserver.
 type LatencyTrackers struct {
 	// MutatingWebhookTracker tracks the latency incurred in mutating webhook(s).
@@ -124,7 +124,7 @@ type LatencyTrackers struct {
 	// it accounts for the time it takes to send data to the underlying
 	// storage layer (etcd) and get the complete response back.
 	// If a request involves N (N>=1) round trips to the underlying
-	// stogare layer, the latency will account for the total duration
+	// storage layer, the latency will account for the total duration
 	// from these N round trips.
 	// It does not include the time incurred in admission, or validation.
 	StorageTracker DurationTracker

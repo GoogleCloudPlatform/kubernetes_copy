@@ -42,7 +42,7 @@ T0: ShutdownInitiated: KILL signal received
 T0+70s: AfterShutdownDelayDuration: shutdown delay duration has passed
 	- the default value of 'ShutdownDelayDuration' is '70s'
 	- it's time to initiate shutdown of the HTTP Server, server.Shutdown is invoked
-	- as a consequene, the Close function has is called for all listeners
+	- as a consequence, the Close function has is called for all listeners
  	- the HTTP Server stops listening immediately
 	- any new request arriving on a new TCP socket is denied with
       a network error similar to 'connection refused'

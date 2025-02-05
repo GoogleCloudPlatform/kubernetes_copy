@@ -244,7 +244,7 @@ func (c *cacheWatcher) nextBookmarkTime(now time.Time, bookmarkFrequency time.Du
 	heartbeatTime := now.Add(bookmarkFrequency)
 	if c.deadline.IsZero() {
 		// Timeout is set by our client libraries (e.g. reflector) as well as defaulted by
-		// apiserver if properly configured. So this shoudln't happen in practice.
+		// apiserver if properly configured. So this shouldn't happen in practice.
 		return heartbeatTime, true
 	}
 	if pretimeoutTime := c.deadline.Add(-2 * time.Second); pretimeoutTime.Before(heartbeatTime) {
@@ -520,7 +520,7 @@ func (c *cacheWatcher) processInterval(ctx context.Context, cacheInterval *watch
 func (c *cacheWatcher) process(ctx context.Context, resourceVersion uint64) {
 	// At this point we already start processing incoming watch events.
 	// However, the init event can still be processed because their serialization
-	// and sending to the client happens asynchrnously.
+	// and sending to the client happens asynchronously.
 	// TODO: As describe in the KEP, we would like to estimate that by delaying
 	//   the initialization signal proportionally to the number of events to
 	//   process, but we're leaving this to the tuning phase.

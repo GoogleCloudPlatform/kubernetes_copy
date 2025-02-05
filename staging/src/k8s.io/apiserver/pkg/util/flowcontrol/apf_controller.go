@@ -412,8 +412,8 @@ func (cfgCtlr *configController) updateBorrowingLocked(setCompleters bool, plSta
 			cclOfExempt[plName] = minCurrentCL
 			remainingServerCL -= minCurrentCL
 		} else {
-			// Lower bound on this priority level's adjusted concurreny limit is the lesser of:
-			// - its seat demamd high watermark over the last adjustment period, and
+			// Lower bound on this priority level's adjusted concurrency limit is the lesser of:
+			// - its seat demand high watermark over the last adjustment period, and
 			// - its configured concurrency limit.
 			// BUT: we do not want this to be lower than the lower bound from configuration.
 			// See KEP-1040 for a more detailed explanation.
@@ -552,7 +552,7 @@ func (cfgCtlr *configController) syncOne() (specificDelay time.Duration, err err
 // cope with the various dependencies between objects.  The process of
 // digestion is done in four passes over config objects --- three
 // passes over PriorityLevelConfigurations and one pass over the
-// FlowSchemas --- with the work dvided among the passes according to
+// FlowSchemas --- with the work divided among the passes according to
 // those dependencies.
 type cfgMeal struct {
 	cfgCtlr *configController

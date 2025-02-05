@@ -363,7 +363,7 @@ func ordinaryPromiseFactoryFactory(qs *queueSet) promiseFactory {
 }
 
 // MaxSeats returns the maximum number of seats this request requires, it is
-// the maxumum of the two - WorkEstimate.InitialSeats, WorkEstimate.FinalSeats.
+// the maximum of the two - WorkEstimate.InitialSeats, WorkEstimate.FinalSeats.
 func (req *request) MaxSeats() int {
 	return req.workEstimate.MaxSeats()
 }
@@ -487,7 +487,7 @@ const rDecrement = fqrequest.MaxSeatSeconds / 2
 const highR = rDecrement + rDecrement/2
 
 // advanceEpoch subtracts rDecrement from the global progress meter R
-// and all the readings that have been taked from that meter.
+// and all the readings that have been taken from that meter.
 // The now and incrR parameters are only used to add info to the log messages.
 func (qs *queueSet) advanceEpoch(ctx context.Context, now time.Time, incrR fqrequest.SeatSeconds) {
 	oldR := qs.currentR
@@ -546,7 +546,7 @@ func (qs *queueSet) getVirtualTimeRatioLocked() float64 {
 // 2) Reject current request if there is not enough concurrency shares and
 // we are at max queue length
 // 3) If not rejected, create a request and enqueue
-// returns the enqueud request on a successful enqueue
+// returns the enqueued request on a successful enqueue
 // returns nil in the case that there is no available concurrency or
 // the queuelengthlimit has been reached
 func (qs *queueSet) shuffleShardAndRejectOrEnqueueLocked(ctx context.Context, workEstimate *fqrequest.WorkEstimate, hashValue uint64, flowDistinguisher, fsName string, descr1, descr2 interface{}, queueNoteFn fq.QueueNoteFn) *request {
@@ -755,7 +755,7 @@ func (qs *queueSet) canAccommodateSeatsLocked(seats int) bool {
 		// the number of seats this request asks for exceeds the concurrency limit.
 		// TODO: this is a quick fix for now, once we have borrowing in place we will not need it
 		if qs.totRequestsExecuting == 0 {
-			// TODO: apply additional lateny associated with this request, as described in the KEP
+			// TODO: apply additional latency associated with this request, as described in the KEP
 			return true
 		}
 		// wait for all "currently" executing requests in this queueSet
@@ -945,7 +945,7 @@ func (qs *queueSet) finishRequestLocked(r *request) {
 // boundNextDispatchLocked applies the anti-windup hack.
 // We need a hack because all non-empty queues are allocated the same
 // number of seats.  A queue that can not use all those seats and does
-// not go empty accumulates a progresively earlier `virtualStart` compared
+// not go empty accumulates a progressively earlier `virtualStart` compared
 // to queues that are using more than they are allocated.
 // The following hack addresses the first side of that inequity,
 // by insisting that dispatch in the virtual world not precede arrival.

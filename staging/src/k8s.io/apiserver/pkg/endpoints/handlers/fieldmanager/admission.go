@@ -81,7 +81,7 @@ func (admit *managedFieldsValidatingAdmissionController) Admit(ctx context.Conte
 	return nil
 }
 
-// Validate calls the wrapped admission.Interface if aplicable
+// Validate calls the wrapped admission.Interface if applicable
 func (admit *managedFieldsValidatingAdmissionController) Validate(ctx context.Context, a admission.Attributes, o admission.ObjectInterfaces) (err error) {
 	if validationInterface, isValidationInterface := admit.wrap.(admission.ValidationInterface); isValidationInterface {
 		return validationInterface.Validate(ctx, a, o)

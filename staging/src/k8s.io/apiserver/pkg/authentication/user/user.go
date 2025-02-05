@@ -33,7 +33,7 @@ type Info interface {
 	// Keys in this map should be namespaced to the authenticator or
 	// authenticator/authorizer pair making use of them.
 	// For instance: "example.org/foo" instead of "foo"
-	// This is a map[string][]string because it needs to be serializeable into
+	// This is a map[string][]string because it needs to be serializable into
 	// a SubjectAccessReviewSpec.authorization.k8s.io for proper authorization
 	// delegation flows
 	// In order to faithfully round-trip through an impersonation flow, these keys

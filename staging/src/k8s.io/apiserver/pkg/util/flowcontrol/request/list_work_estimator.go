@@ -136,10 +136,10 @@ func (e *listWorkEstimator) estimate(r *http.Request, flowSchemaName, priorityLe
 		estimatedObjectsToBeProcessed = 2 * limit
 	}
 
-	// for now, our rough estimate is to allocate one seat to each 100 obejcts that
+	// for now, our rough estimate is to allocate one seat to each 100 objects that
 	// will be processed by the list request.
 	// we will come up with a different formula for the transformation function and/or
-	// fine tune this number in future iteratons.
+	// fine tune this number in future iterations.
 	seats := uint64(math.Ceil(float64(estimatedObjectsToBeProcessed) / e.config.ObjectsPerSeat))
 
 	// make sure we never return a seat of zero

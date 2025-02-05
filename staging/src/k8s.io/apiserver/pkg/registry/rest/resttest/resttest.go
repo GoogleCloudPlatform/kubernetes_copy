@@ -41,7 +41,7 @@ import (
 	"k8s.io/apiserver/pkg/registry/rest"
 )
 
-// TODO(apelisse): Tests in this file should be more hermertic by always
+// TODO(apelisse): Tests in this file should be more hermetic by always
 // removing objects that they create. That would avoid name-collisions.
 
 type Tester struct {
@@ -1075,7 +1075,7 @@ func (t *Tester) testDeleteGracefulImmediate(obj runtime.Object, createFn Create
 		t.Errorf("unexpected error, object should be deleted immediately: %v", err)
 	}
 	objectMeta = t.getObjectMetaOrFail(out)
-	// the second delete shouldn't update the object, so the objectMeta.GetDeletionGracePeriodSeconds() should eqaul to the value set in the first delete.
+	// the second delete shouldn't update the object, so the objectMeta.GetDeletionGracePeriodSeconds() should equal to the value set in the first delete.
 	if objectMeta.GetDeletionTimestamp() == nil || objectMeta.GetDeletionGracePeriodSeconds() == nil || *objectMeta.GetDeletionGracePeriodSeconds() != 0 {
 		t.Errorf("unexpected deleted meta: %#v", objectMeta)
 	}

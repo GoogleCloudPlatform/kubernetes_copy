@@ -78,7 +78,7 @@ type proxyHandlingInfo struct {
 	// transportBuildingError is an error produced while building the transport.  If this
 	// is non-nil, it will be reported to clients.
 	transportBuildingError error
-	// proxyRoundTripper is the re-useable portion of the transport.  It does not vary with any request.
+	// proxyRoundTripper is the re-usable portion of the transport.  It does not vary with any request.
 	proxyRoundTripper http.RoundTripper
 	// serviceName is the name of the service this handler proxies to
 	serviceName string

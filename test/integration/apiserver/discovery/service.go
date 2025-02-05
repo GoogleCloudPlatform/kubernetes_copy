@@ -108,7 +108,7 @@ func (f *fakeService) Run(ctx context.Context) error {
 	f.activePort = nil
 	f.lock.Unlock()
 
-	// Uninstall service from the cluser
+	// Uninstall service from the cluster
 	err = f.client.CoreV1().Services("default").Delete(ctx, service.Name, metav1.DeleteOptions{})
 	if errors.Is(err, context.Canceled) {
 		err = nil

@@ -315,14 +315,14 @@ func TestProxyHandler(t *testing.T) {
 			},
 			expectedStatusCode: http.StatusServiceUnavailable,
 		},
-		"service unresolveable": {
+		"service unresolvable": {
 			user: &user.DefaultInfo{
 				Name:   "username",
 				UID:    "6b60d791-1af9-4513-92e5-e4252a1e0a78",
 				Groups: []string{"one", "two"},
 			},
 			path:            "/request/path",
-			serviceResolver: &mockedRouter{err: fmt.Errorf("unresolveable")},
+			serviceResolver: &mockedRouter{err: fmt.Errorf("unresolvable")},
 			apiService: &apiregistration.APIService{
 				ObjectMeta: metav1.ObjectMeta{Name: "v1.foo"},
 				Spec: apiregistration.APIServiceSpec{

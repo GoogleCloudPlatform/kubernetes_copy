@@ -1061,7 +1061,7 @@ func (e *Store) updateForGracefulDeletionAndFinalizers(ctx context.Context, name
 			}
 
 			// Add/remove the orphan finalizer as the options dictates.
-			// Note that this occurs after checking pendingGraceufl, so
+			// Note that this occurs after checking pendingGraceful, so
 			// finalizers cannot be updated via DeleteOptions if deletion has
 			// started.
 			existingAccessor, err := meta.Accessor(existing)

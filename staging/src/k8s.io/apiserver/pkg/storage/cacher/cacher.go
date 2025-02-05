@@ -1010,7 +1010,7 @@ func (c *Cacher) dispatchEvent(event *watchCacheEvent) {
 		// from it justifies increased memory usage, so for now we drop the cached
 		// serializations after dispatching this event.
 		//
-		// Given that CachingObject is just wrapping the object and not perfoming
+		// Given that CachingObject is just wrapping the object and not performing
 		// deep-copying (until some field is explicitly being modified), we create
 		// it unconditionally to ensure safety and reduce deep-copying.
 		//
@@ -1274,8 +1274,8 @@ func isListWatchRequest(opts storage.ListOptions) bool {
 //
 // note that the above semantic is enforced by the API validation (defined elsewhere):
 //
-//	if SendInitiaEvents != nil => ResourceVersionMatch = NotOlderThan
-//	if ResourceVersionmatch != nil => ResourceVersionMatch = NotOlderThan & SendInitialEvents != nil
+//	if SendInitialEvents != nil => ResourceVersionMatch = NotOlderThan
+//	if ResourceVersionMatch != nil => ResourceVersionMatch = NotOlderThan & SendInitialEvents != nil
 func (c *Cacher) getWatchCacheResourceVersion(ctx context.Context, parsedWatchResourceVersion uint64, opts storage.ListOptions) (uint64, error) {
 	if len(opts.ResourceVersion) != 0 {
 		return parsedWatchResourceVersion, nil

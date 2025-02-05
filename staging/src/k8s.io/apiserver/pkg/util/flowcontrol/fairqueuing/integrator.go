@@ -173,7 +173,7 @@ func (igr Moments) Sub(ogr Moments) Moments {
 	}
 }
 
-// AvgAndStdDev returns the average and standard devation
+// AvgAndStdDev returns the average and standard deviation
 func (igr Moments) AvgAndStdDev() (float64, float64) {
 	if igr.ElapsedSeconds <= 0 {
 		return math.NaN(), math.NaN()
