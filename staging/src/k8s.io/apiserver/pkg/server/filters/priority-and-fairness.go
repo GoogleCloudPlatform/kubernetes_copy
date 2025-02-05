@@ -31,6 +31,7 @@ import (
 	epmetrics "k8s.io/apiserver/pkg/endpoints/metrics"
 	apirequest "k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/apiserver/pkg/server/httplog"
+	"k8s.io/apiserver/pkg/util/controlflow"
 	utilflowcontrol "k8s.io/apiserver/pkg/util/flowcontrol"
 	fcmetrics "k8s.io/apiserver/pkg/util/flowcontrol/metrics"
 	flowcontrolrequest "k8s.io/apiserver/pkg/util/flowcontrol/request"
@@ -181,23 +182,6 @@ func (h *priorityAndFairnessHandler) Handle(w http.ResponseWriter, r *http.Reque
 		// If the request is rejected by APF it is left nil.
 		var forgetWatch utilflowcontrol.ForgetWatchFunc
 
-		defer func() {
-			// Protect from the situation when request will not reach storage layer
-			// and the initialization signal will not be send.
-			if watchInitializationSignal != nil {
-				watchInitializationSignal.Signal()
-			}
-			// Forget the watcher if it was registered.
-			//
-			// This is race-free because by this point, one of the following occurred:
-			// case <-shouldStartWatchCh: execute() completed the assignment to forgetWatch
-			// case <-resultCh: Handle() completed, and Handle() does not return
-			//   while execute() is running
-			if forgetWatch != nil {
-				forgetWatch()
-			}
-		}()
-
 		execute := func() {
 			startedAt := time.Now()
 			defer func() {
@@ -218,7 +202,10 @@ func (h *priorityAndFairnessHandler) Handle(w http.ResponseWriter, r *http.Reque
 			watchInitializationSignal.Wait()
 		}
 
-		// Ensure that an item can be put to resultCh asynchronously.
+		// Used to relay a panic from the forked goroutine below back to this goroutine
+		// to be propagated further up the stack to the normal catcher.
+		// The intended use case is relaying a timeout.
+		// Capacity is 1 so that an item can be put to resultCh asynchronously.
 		resultCh := make(chan interface{}, 1)
 
 		// Call Handle in a separate goroutine.
@@ -264,30 +251,46 @@ func (h *priorityAndFairnessHandler) Handle(w http.ResponseWriter, r *http.Reque
 			h.fcIfc.Handle(handleCtx, digest, noteFn, estimateWork, queueNote, execute)
 		}()
 
-		select {
-		case <-shouldStartWatchCh:
-			func() {
-				// TODO: if both goroutines panic, propagate the stack traces from both
-				// goroutines so they are logged properly:
-				defer func() {
+		controlflow.TryFinally(func() {
+			select {
+			case <-shouldStartWatchCh:
+				controlflow.TryFinally(func() {
+					watchCtx := utilflowcontrol.WithInitializationSignal(ctx, watchInitializationSignal)
+					watchReq = r.WithContext(watchCtx)
+					h.handler.ServeHTTP(w, watchReq)
+				}, func() {
 					// Protect from the situation when request will not reach storage layer
 					// and the initialization signal will not be send.
 					// It has to happen before waiting on the resultCh below.
 					watchInitializationSignal.Signal()
 					// TODO: Consider finishing the request as soon as Handle call panics.
 					if err := <-resultCh; err != nil {
+						// Keep propagating the panic from the h.handler up the proper stack.
 						panic(err)
 					}
-				}()
-				watchCtx := utilflowcontrol.WithInitializationSignal(ctx, watchInitializationSignal)
-				watchReq = r.WithContext(watchCtx)
-				h.handler.ServeHTTP(w, watchReq)
-			}()
-		case err := <-resultCh:
-			if err != nil {
-				panic(err)
+				})
+			case err := <-resultCh:
+				if err != nil {
+					// Keep propagating the panic from the h.handler up the proper stack.
+					panic(err)
+				}
 			}
-		}
+		}, func() {
+			// Protect from the situation when request will not reach storage layer
+			// and the initialization signal will not be send.
+			if watchInitializationSignal != nil {
+				watchInitializationSignal.Signal()
+			}
+			// Forget the watcher if it was registered.
+			//
+			// This is race-free because by this point, one of the following occurred:
+			// case <-shouldStartWatchCh: execute() completed the assignment to forgetWatch
+			// case <-resultCh: Handle() completed, and Handle() does not return
+			//   while execute() is running
+			if forgetWatch != nil {
+				forgetWatch()
+			}
+		})
 	} else {
 		execute := func() {
 			noteExecutingDelta(1)

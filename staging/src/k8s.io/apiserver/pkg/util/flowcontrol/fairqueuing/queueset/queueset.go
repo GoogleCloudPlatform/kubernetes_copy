@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/apiserver/pkg/util/controlflow"
 	"k8s.io/apiserver/pkg/util/flowcontrol/debug"
 	fq "k8s.io/apiserver/pkg/util/flowcontrol/fairqueuing"
 	"k8s.io/apiserver/pkg/util/flowcontrol/fairqueuing/eventclock"
@@ -383,13 +384,9 @@ func (req *request) Finish(execFn func()) bool {
 	if !exec {
 		return idle
 	}
-	func() {
-		defer func() {
-			idle = req.qs.finishRequestAndDispatchAsMuchAsPossible(req)
-		}()
-
-		execFn()
-	}()
+	controlflow.TryFinally(execFn, func() {
+		idle = req.qs.finishRequestAndDispatchAsMuchAsPossible(req)
+	})
 
 	return idle
 }
@@ -883,7 +880,19 @@ func (qs *queueSet) finishRequestLocked(r *request) {
 		}
 	}
 
-	defer func() {
+	controlflow.TryFinally(func() {
+		if r.queue != nil {
+			// request has finished, remove from requests executing
+			r.queue.requestsExecuting = r.queue.requestsExecuting.Delete(r)
+
+			// When a request finishes being served, and the actual service time was S,
+			// the queue’s start R is decremented by (G - S)*width.
+			r.queue.nextDispatchR -= fqrequest.SeatsTimesDuration(float64(r.InitialSeats()), qs.estimatedServiceDuration-actualServiceDuration)
+			qs.boundNextDispatchLocked(r.queue)
+		} else {
+			qs.requestsExecutingSet = qs.requestsExecutingSet.Delete(r)
+		}
+	}, func() {
 		klogV := klog.V(6)
 		if r.workEstimate.AdditionalLatency <= 0 {
 			// release the seats allocated to this request immediately
@@ -927,19 +936,7 @@ func (qs *queueSet) finishRequestLocked(r *request) {
 			}
 			qs.dispatchAsMuchAsPossibleLocked()
 		}, additionalLatency)
-	}()
-
-	if r.queue != nil {
-		// request has finished, remove from requests executing
-		r.queue.requestsExecuting = r.queue.requestsExecuting.Delete(r)
-
-		// When a request finishes being served, and the actual service time was S,
-		// the queue’s start R is decremented by (G - S)*width.
-		r.queue.nextDispatchR -= fqrequest.SeatsTimesDuration(float64(r.InitialSeats()), qs.estimatedServiceDuration-actualServiceDuration)
-		qs.boundNextDispatchLocked(r.queue)
-	} else {
-		qs.requestsExecutingSet = qs.requestsExecutingSet.Delete(r)
-	}
+	})
 }
 
 // boundNextDispatchLocked applies the anti-windup hack.

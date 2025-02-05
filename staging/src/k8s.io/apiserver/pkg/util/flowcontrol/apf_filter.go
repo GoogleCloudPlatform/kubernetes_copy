@@ -24,6 +24,7 @@ import (
 	endpointsrequest "k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/apiserver/pkg/server/httplog"
 	"k8s.io/apiserver/pkg/server/mux"
+	"k8s.io/apiserver/pkg/util/controlflow"
 	fq "k8s.io/apiserver/pkg/util/flowcontrol/fairqueuing"
 	"k8s.io/apiserver/pkg/util/flowcontrol/fairqueuing/eventclock"
 	fqs "k8s.io/apiserver/pkg/util/flowcontrol/fairqueuing/queueset"
@@ -169,32 +170,34 @@ func (cfgCtlr *configController) Handle(ctx context.Context, requestDigest Reque
 	klog.V(7).Infof("Handle(%#+v) => fsName=%q, distMethod=%#+v, plName=%q, isExempt=%v, queued=%v", requestDigest, fs.Name, fs.Spec.DistinguisherMethod, pl.Name, isExempt, queued)
 	var executed bool
 	idle, panicking := true, true
-	defer func() {
+	controlflow.TryFinally(func() {
+		idle = req.Finish(func() {
+			if queued {
+				observeQueueWaitTime(ctx, pl.Name, fs.Name, strconv.FormatBool(req != nil), cfgCtlr.clock.Since(startWaitingTime))
+			}
+			metrics.AddDispatch(ctx, pl.Name, fs.Name)
+			fqs.OnRequestDispatched(req)
+			executed = true
+			startExecutionTime := cfgCtlr.clock.Now()
+			controlflow.TryFinally(execFn,
+				func() {
+					executionTime := cfgCtlr.clock.Since(startExecutionTime)
+					httplog.AddKeyValue(ctx, "apf_execution_time", executionTime)
+					metrics.ObserveExecutionDuration(ctx, pl.Name, fs.Name, executionTime)
+
+				})
+		})
+		if queued && !executed {
+			observeQueueWaitTime(ctx, pl.Name, fs.Name, strconv.FormatBool(req != nil), cfgCtlr.clock.Since(startWaitingTime))
+		}
+		panicking = false
+	}, func() {
 		klog.V(7).Infof("Handle(%#+v) => fsName=%q, distMethod=%#+v, plName=%q, isExempt=%v, queued=%v, Finish() => panicking=%v idle=%v",
 			requestDigest, fs.Name, fs.Spec.DistinguisherMethod, pl.Name, isExempt, queued, panicking, idle)
 		if idle {
 			cfgCtlr.maybeReap(pl.Name)
 		}
-	}()
-	idle = req.Finish(func() {
-		if queued {
-			observeQueueWaitTime(ctx, pl.Name, fs.Name, strconv.FormatBool(req != nil), cfgCtlr.clock.Since(startWaitingTime))
-		}
-		metrics.AddDispatch(ctx, pl.Name, fs.Name)
-		fqs.OnRequestDispatched(req)
-		executed = true
-		startExecutionTime := cfgCtlr.clock.Now()
-		defer func() {
-			executionTime := cfgCtlr.clock.Since(startExecutionTime)
-			httplog.AddKeyValue(ctx, "apf_execution_time", executionTime)
-			metrics.ObserveExecutionDuration(ctx, pl.Name, fs.Name, executionTime)
-		}()
-		execFn()
 	})
-	if queued && !executed {
-		observeQueueWaitTime(ctx, pl.Name, fs.Name, strconv.FormatBool(req != nil), cfgCtlr.clock.Since(startWaitingTime))
-	}
-	panicking = false
 }
 
 func observeQueueWaitTime(ctx context.Context, priorityLevelName, flowSchemaName, execute string, waitTime time.Duration) {
