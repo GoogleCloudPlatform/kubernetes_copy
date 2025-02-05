@@ -508,11 +508,6 @@ func (p *staticPolicy) calculateHints(machineState state.NUMANodeMap, pod *v1.Po
 			minAffinitySize = mask.Count()
 		}
 
-		// the node already in group with another node, it can not be used for the single NUMA node allocation
-		if singleNUMAHint && len(machineState[maskBits[0]].Cells) > 1 {
-			return
-		}
-
 		for _, nodeID := range maskBits {
 			// the node already used for the memory allocation
 			if !singleNUMAHint && machineState[nodeID].NumberOfAssignments > 0 {
