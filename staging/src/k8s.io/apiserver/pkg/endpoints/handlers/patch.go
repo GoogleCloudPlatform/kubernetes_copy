@@ -454,7 +454,7 @@ func (p *smpPatcher) applyPatchToCurrentObject(requestContext context.Context, c
 	if err != nil {
 		return nil, err
 	}
-	if err := strategicPatchObject(requestContext, p.defaulter, currentVersionedObject, p.patchBytes, versionedObjToUpdate, p.schemaReferenceObj, p.validationDirective); err != nil {
+	if err := StrategicPatchObject(requestContext, p.defaulter, currentVersionedObject, p.patchBytes, versionedObjToUpdate, p.schemaReferenceObj, p.validationDirective); err != nil {
 		return nil, err
 	}
 	// Convert the object back to the hub version
@@ -537,12 +537,12 @@ func (p *applyPatcher) createNewObject(requestContext context.Context) (runtime.
 	return p.applyPatchToCurrentObject(requestContext, obj)
 }
 
-// strategicPatchObject applies a strategic merge patch of `patchBytes` to
+// StrategicPatchObject applies a strategic merge patch of `patchBytes` to
 // `originalObject` and stores the result in `objToUpdate`.
 // It additionally returns the map[string]interface{} representation of the
 // `originalObject` and `patchBytes`.
 // NOTE: Both `originalObject` and `objToUpdate` are supposed to be versioned.
-func strategicPatchObject(
+func StrategicPatchObject(
 	requestContext context.Context,
 	defaulter runtime.ObjectDefaulter,
 	originalObject runtime.Object,
