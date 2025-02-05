@@ -351,7 +351,7 @@ func ValidateIngressStatusUpdate(ingress, oldIngress *networking.Ingress) field.
 	return allErrs
 }
 
-// ValidateLIngressoadBalancerStatus validates required fields on an IngressLoadBalancerStatus
+// ValidateIngressLoadBalancerStatus validates required fields on an IngressLoadBalancerStatus
 func ValidateIngressLoadBalancerStatus(status *networking.IngressLoadBalancerStatus, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 	for i, ingress := range status.Ingress {

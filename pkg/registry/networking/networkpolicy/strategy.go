@@ -21,6 +21,7 @@ import (
 	"reflect"
 
 	"k8s.io/apimachinery/pkg/runtime"
+	utilvalidation "k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/apiserver/pkg/storage/names"
 	"k8s.io/kubernetes/pkg/api/legacyscheme"
@@ -70,7 +71,7 @@ func (networkPolicyStrategy) Validate(ctx context.Context, obj runtime.Object) f
 
 // WarningsOnCreate returns warnings for the creation of the given object.
 func (networkPolicyStrategy) WarningsOnCreate(ctx context.Context, obj runtime.Object) []string {
-	return nil
+	return networkPolicyWarnings(obj.(*networking.NetworkPolicy))
 }
 
 // Canonicalize normalizes the object after validation.
@@ -91,10 +92,41 @@ func (networkPolicyStrategy) ValidateUpdate(ctx context.Context, obj, old runtim
 
 // WarningsOnUpdate returns warnings for the given update.
 func (networkPolicyStrategy) WarningsOnUpdate(ctx context.Context, obj, old runtime.Object) []string {
-	return nil
+	return networkPolicyWarnings(obj.(*networking.NetworkPolicy))
 }
 
 // AllowUnconditionalUpdate is the default update policy for NetworkPolicy objects.
 func (networkPolicyStrategy) AllowUnconditionalUpdate() bool {
 	return true
+}
+
+func networkPolicyWarnings(networkPolicy *networking.NetworkPolicy) []string {
+	var warnings []string
+	for i := range networkPolicy.Spec.Ingress {
+		for j := range networkPolicy.Spec.Ingress[i].From {
+			ipBlock := networkPolicy.Spec.Ingress[i].From[j].IPBlock
+			if ipBlock == nil {
+				continue
+			}
+			fldPath := field.NewPath("spec").Child("ingress").Index(i).Child("from").Index(j).Child("ipBlock")
+			warnings = append(warnings, utilvalidation.GetWarningsForCIDR(fldPath.Child("cidr"), ipBlock.CIDR)...)
+			for k, except := range ipBlock.Except {
+				warnings = append(warnings, utilvalidation.GetWarningsForCIDR(fldPath.Child("except").Index(k), except)...)
+			}
+		}
+	}
+	for i := range networkPolicy.Spec.Egress {
+		for j := range networkPolicy.Spec.Egress[i].To {
+			ipBlock := networkPolicy.Spec.Egress[i].To[j].IPBlock
+			if ipBlock == nil {
+				continue
+			}
+			fldPath := field.NewPath("spec").Child("egress").Index(i).Child("to").Index(j).Child("ipBlock")
+			warnings = append(warnings, utilvalidation.GetWarningsForCIDR(fldPath.Child("cidr"), ipBlock.CIDR)...)
+			for k, except := range ipBlock.Except {
+				warnings = append(warnings, utilvalidation.GetWarningsForCIDR(fldPath.Child("except").Index(k), except)...)
+			}
+		}
+	}
+	return warnings
 }

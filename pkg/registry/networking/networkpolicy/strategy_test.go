@@ -18,6 +18,7 @@ package networkpolicy
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -110,4 +111,43 @@ func TestNetworkPolicyStrategy(t *testing.T) {
 		t.Errorf("Unexpected error from validation for updated Network Policy: %v", errs)
 	}
 
+	warnings := Strategy.WarningsOnUpdate(context.Background(), updatedNetPol, netPol)
+	if len(warnings) != 0 {
+		t.Errorf("Unexpected warnings for Network Policy with no IPBlock: %v", warnings)
+	}
+
+	updatedNetPol.Spec.Egress = append(updatedNetPol.Spec.Egress,
+		networking.NetworkPolicyEgressRule{
+			To: []networking.NetworkPolicyPeer{
+				{
+					IPBlock: &networking.IPBlock{
+						CIDR: "10.0.0.0/8",
+					},
+				},
+			},
+		},
+	)
+	warnings = Strategy.WarningsOnUpdate(context.Background(), updatedNetPol, netPol)
+	if len(warnings) != 0 {
+		t.Errorf("Unexpected warnings for Network Policy with valid IPBlock: %v", warnings)
+	}
+
+	updatedNetPol.Spec.Egress = append(updatedNetPol.Spec.Egress,
+		networking.NetworkPolicyEgressRule{
+			To: []networking.NetworkPolicyPeer{
+				{
+					IPBlock: &networking.IPBlock{
+						CIDR: "::ffff:10.0.0.0/104",
+						Except: []string{
+							"10.0.0.1/16",
+						},
+					},
+				},
+			},
+		},
+	)
+	warnings = Strategy.WarningsOnUpdate(context.Background(), updatedNetPol, netPol)
+	if len(warnings) != 2 || !strings.HasPrefix(warnings[0], "spec.egress[2].to[0].ipBlock.cidr:") || !strings.HasPrefix(warnings[1], "spec.egress[2].to[0].ipBlock.except[0]:") {
+		t.Errorf("Incorrect warnings for Network Policy with invalid IPBlock: %v", warnings)
+	}
 }

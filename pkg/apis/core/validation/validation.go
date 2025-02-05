@@ -4109,9 +4109,7 @@ func validatePodIPs(pod *core.Pod) field.ErrorList {
 		allErrs = append(allErrs, validation.IsValidIP(podIPsField.Index(i), podIP.IP)...)
 	}
 
-	// if we have more than one Pod.PodIP then
-	// - validate for dual stack
-	// - validate for duplication
+	// if we have more than one Pod.PodIP then we must have a dual-stack pair
 	if len(pod.Status.PodIPs) > 1 {
 		podIPs := make([]string, 0, len(pod.Status.PodIPs))
 		for _, podIP := range pod.Status.PodIPs {
@@ -4126,15 +4124,6 @@ func validatePodIPs(pod *core.Pod) field.ErrorList {
 		// We only support one from each IP family (i.e. max two IPs in this list).
 		if !dualStack || len(podIPs) > 2 {
 			allErrs = append(allErrs, field.Invalid(podIPsField, pod.Status.PodIPs, "may specify no more than one IP for each IP family"))
-		}
-
-		// There should be no duplicates in list of Pod.PodIPs
-		seen := sets.Set[string]{} // := make(map[string]int)
-		for i, podIP := range pod.Status.PodIPs {
-			if seen.Has(podIP.IP) {
-				allErrs = append(allErrs, field.Duplicate(podIPsField.Index(i), podIP))
-			}
-			seen.Insert(podIP.IP)
 		}
 	}
 
@@ -4156,25 +4145,16 @@ func validateHostIPs(pod *core.Pod) field.ErrorList {
 		allErrs = append(allErrs, field.Invalid(hostIPsField.Index(0).Child("ip"), pod.Status.HostIPs[0].IP, "must be equal to `hostIP`"))
 	}
 
-	// all HostPs must be valid IPs
+	// all HostIPs must be valid IPs
 	for i, hostIP := range pod.Status.HostIPs {
 		allErrs = append(allErrs, validation.IsValidIP(hostIPsField.Index(i), hostIP.IP)...)
 	}
 
-	// if we have more than one Pod.HostIP then
-	// - validate for dual stack
-	// - validate for duplication
+	// if we have more than one Pod.HostIP then we must have a dual-stack pair
 	if len(pod.Status.HostIPs) > 1 {
-		seen := sets.Set[string]{}
 		hostIPs := make([]string, 0, len(pod.Status.HostIPs))
-
-		// There should be no duplicates in list of Pod.HostIPs
-		for i, hostIP := range pod.Status.HostIPs {
+		for _, hostIP := range pod.Status.HostIPs {
 			hostIPs = append(hostIPs, hostIP.IP)
-			if seen.Has(hostIP.IP) {
-				allErrs = append(allErrs, field.Duplicate(hostIPsField.Index(i), hostIP))
-			}
-			seen.Insert(hostIP.IP)
 		}
 
 		dualStack, err := netutils.IsDualStackIPStrings(hostIPs)
@@ -6298,9 +6278,7 @@ func ValidateNode(node *core.Node) field.ErrorList {
 			allErrs = append(allErrs, validation.IsValidCIDR(podCIDRsField.Index(idx), value)...)
 		}
 
-		// if more than PodCIDR then
-		// - validate for dual stack
-		// - validate for duplication
+		// if more than PodCIDR then it must be a dual-stack pair
 		if len(node.Spec.PodCIDRs) > 1 {
 			dualStack, err := netutils.IsDualStackCIDRStrings(node.Spec.PodCIDRs)
 			if err != nil {
@@ -6308,15 +6286,6 @@ func ValidateNode(node *core.Node) field.ErrorList {
 			}
 			if !dualStack || len(node.Spec.PodCIDRs) > 2 {
 				allErrs = append(allErrs, field.Invalid(podCIDRsField, node.Spec.PodCIDRs, "may specify no more than one CIDR for each IP family"))
-			}
-
-			// PodCIDRs must not contain duplicates
-			seen := sets.Set[string]{}
-			for i, value := range node.Spec.PodCIDRs {
-				if seen.Has(value) {
-					allErrs = append(allErrs, field.Duplicate(podCIDRsField.Index(i), value))
-				}
-				seen.Insert(value)
 			}
 		}
 	}

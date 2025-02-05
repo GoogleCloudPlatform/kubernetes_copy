@@ -2912,3 +2912,68 @@ func TestPodResizePrepareForUpdate(t *testing.T) {
 		})
 	}
 }
+
+func TestWarningsOnUpdate(t *testing.T) {
+	tests := []struct {
+		name     string
+		pod      *api.Pod
+		warnings []string
+	}{
+		{
+			name:     "no podIPs/hostIPs",
+			pod:      &api.Pod{Status: api.PodStatus{}},
+			warnings: nil,
+		},
+		{
+			name: "valid podIPs/hostIPs",
+			pod: &api.Pod{
+				Status: api.PodStatus{
+					PodIPs: []api.PodIP{
+						{IP: "1.2.3.4"},
+					},
+					HostIPs: []api.HostIP{
+						{IP: "5.6.7.8"},
+						{IP: "fd00::5678"},
+					},
+				},
+			},
+			warnings: nil,
+		},
+		{
+			name: "bad podIPs/hostIPs",
+			pod: &api.Pod{
+				Status: api.PodStatus{
+					PodIPs: []api.PodIP{
+						{IP: "01.02.03.04"},
+					},
+					HostIPs: []api.HostIP{
+						{IP: "5.6.7.8"},
+						{IP: "::ffff:9.10.11.12"},
+					},
+				},
+			},
+			warnings: []string{
+				"status.podIPs[0].ip",
+				"status.hostIPs[1].ip",
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			warnings := StatusStrategy.WarningsOnUpdate(context.Background(), test.pod, test.pod)
+			ok := len(warnings) == len(test.warnings)
+			if ok {
+				for i := range warnings {
+					if !strings.HasPrefix(warnings[i], test.warnings[i]) {
+						ok = false
+						break
+					}
+				}
+			}
+			if !ok {
+				t.Errorf("Expected warnings for %v, got %v", test.warnings, warnings)
+			}
+		})
+	}
+}

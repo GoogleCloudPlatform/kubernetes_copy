@@ -311,7 +311,7 @@ func TestValidateNetworkPolicy(t *testing.T) {
 		"except IP is outside of CIDR range": makeNetworkPolicyCustom(setIngressFromEmptyFirstElement, func(networkPolicy *networking.NetworkPolicy) {
 			networkPolicy.Spec.Ingress[0].From[0].IPBlock = &networking.IPBlock{
 				CIDR:   "192.168.8.0/24",
-				Except: []string{"192.168.9.1/24"},
+				Except: []string{"192.168.9.1/32"},
 			}
 		}),
 		"except IP is not strictly within CIDR range": makeNetworkPolicyCustom(setIngressFromEmptyFirstElement, func(networkPolicy *networking.NetworkPolicy) {

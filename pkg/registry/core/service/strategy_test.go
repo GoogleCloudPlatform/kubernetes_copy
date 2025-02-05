@@ -138,6 +138,18 @@ func TestServiceStatusStrategy(t *testing.T) {
 	if len(errs) != 0 {
 		t.Errorf("Unexpected error %v", errs)
 	}
+
+	warnings := StatusStrategy.WarningsOnUpdate(ctx, newService, oldService)
+	if len(warnings) != 0 {
+		t.Errorf("Unexpected warnings %v", errs)
+	}
+
+	// Bad IP warning (leading zeros)
+	newService.Status.LoadBalancer.Ingress[0].IP = "127.000.000.002"
+	warnings = StatusStrategy.WarningsOnUpdate(ctx, newService, oldService)
+	if len(warnings) != 1 {
+		t.Errorf("Did not get warning for bad IP")
+	}
 }
 
 func makeServiceWithConditions(conditions []metav1.Condition) *api.Service {
