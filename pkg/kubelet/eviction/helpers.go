@@ -364,6 +364,16 @@ func parseThresholdStatements(statements map[string]string) ([]evictionapi.Thres
 			results = append(results, *result)
 		}
 	}
+	if utilfeature.DefaultFeatureGate.Enabled(features.InheritDefaultEvictionValues){
+	for signal, val := range DefaultEvictionHard{
+		key := signal
+		_, exists := statements[key]
+		if !exists {
+			result, _ := parseThresholdStatement(evictionapi.Signal(key), val)
+			results = append(results, *result)
+		}
+	}
+	}
 	return results, nil
 }
 

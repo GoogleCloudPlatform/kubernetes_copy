@@ -301,6 +301,44 @@ const (
 	// Applies only in nodes with InPlacePodVerticalScaling and CPU Manager features enabled, and
 	// CPU Manager Static Policy option set.
 	InPlacePodVerticalScalingExclusiveCPUs featuregate.Feature = "InPlacePodVerticalScalingExclusiveCPUs"
+	
+	// owner: @vaibhav2107
+	//
+	//
+	// Add support for the eviction hard parameters to inherit their default values in
+    // case any of the paramter is changed. Earlier if any paramter is changed, the other
+	// paramters are set to 0. Disable it to use this behaviour
+	InheritDefaultEvictionValues featuregate.Feature = "InheritDefaultEvictionValues"
+
+	// owner: @leakingtapan
+	// alpha: v1.21
+	//
+	// Disables the AWS EBS in-tree driver.
+	InTreePluginAWSUnregister featuregate.Feature = "InTreePluginAWSUnregister"
+
+	// owner: @andyzhangx
+	// alpha: v1.21
+	//
+	// Disables the Azure Disk in-tree driver.
+	InTreePluginAzureDiskUnregister featuregate.Feature = "InTreePluginAzureDiskUnregister"
+
+	// owner: @andyzhangx
+	// alpha: v1.21
+	//
+	// Disables the Azure File in-tree driver.
+	InTreePluginAzureFileUnregister featuregate.Feature = "InTreePluginAzureFileUnregister"
+
+	// owner: @Jiawei0227
+	// alpha: v1.21
+	//
+	// Disables the GCE PD in-tree driver.
+	InTreePluginGCEUnregister featuregate.Feature = "InTreePluginGCEUnregister"
+
+	// owner: @adisky
+	// alpha: v1.21
+	//
+	// Disables the OpenStack Cinder in-tree driver.
+	InTreePluginOpenStackUnregister featuregate.Feature = "InTreePluginOpenStackUnregister"
 
 	// owner: @trierra
 	//
@@ -885,3 +923,338 @@ func init() {
 // Entries are separated from each other with blank lines to avoid sweeping gofmt changes
 // when adding or removing one entry.
 var defaultKubernetesFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{}
+var defaultKubernetesFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
+	CrossNamespaceVolumeDataSource: {Default: false, PreRelease: featuregate.Alpha},
+
+	AllowServiceLBStatusOnNonLB: {Default: false, PreRelease: featuregate.Deprecated}, // remove after 1.29
+
+	AnyVolumeDataSource: {Default: true, PreRelease: featuregate.Beta}, // on by default in 1.24
+
+	AppArmor: {Default: true, PreRelease: featuregate.Beta},
+
+	AppArmorFields: {Default: true, PreRelease: featuregate.Beta},
+
+	CloudDualStackNodeIPs: {Default: true, PreRelease: featuregate.GA, LockToDefault: true}, // remove in 1.32
+
+	ClusterTrustBundle: {Default: false, PreRelease: featuregate.Alpha},
+
+	ClusterTrustBundleProjection: {Default: false, PreRelease: featuregate.Alpha},
+
+	CPUCFSQuotaPeriod: {Default: false, PreRelease: featuregate.Alpha},
+
+	CPUManager: {Default: true, PreRelease: featuregate.GA, LockToDefault: true}, // GA in 1.26
+
+	CPUManagerPolicyAlphaOptions: {Default: false, PreRelease: featuregate.Alpha},
+
+	CPUManagerPolicyBetaOptions: {Default: true, PreRelease: featuregate.Beta},
+
+	CPUManagerPolicyOptions: {Default: true, PreRelease: featuregate.Beta},
+
+	CSIMigrationPortworx: {Default: false, PreRelease: featuregate.Beta}, // Off by default (requires Portworx CSI driver)
+
+	CSIMigrationRBD: {Default: false, PreRelease: featuregate.Deprecated}, //  deprecated in 1.28, remove in 1.31
+
+	CSINodeExpandSecret: {Default: true, PreRelease: featuregate.GA, LockToDefault: true}, // remove in 1.31
+
+	CSIVolumeHealth: {Default: false, PreRelease: featuregate.Alpha},
+
+	CloudControllerManagerWebhook: {Default: false, PreRelease: featuregate.Alpha},
+
+	ContainerCheckpoint: {Default: true, PreRelease: featuregate.Beta},
+
+	CronJobsScheduledAnnotation: {Default: true, PreRelease: featuregate.Beta},
+
+	DisableCloudProviders: {Default: true, PreRelease: featuregate.Beta},
+
+	DisableKubeletCloudCredentialProviders: {Default: true, PreRelease: featuregate.Beta},
+
+	DisableNodeKubeProxyVersion: {Default: false, PreRelease: featuregate.Alpha},
+
+	DevicePluginCDIDevices: {Default: true, PreRelease: featuregate.Beta},
+
+	DynamicResourceAllocation: {Default: false, PreRelease: featuregate.Alpha},
+
+	EventedPLEG: {Default: false, PreRelease: featuregate.Alpha},
+
+	ExecProbeTimeout: {Default: true, PreRelease: featuregate.GA}, // lock to default and remove after v1.22 based on KEP #1972 update
+
+	RetryGenerateName: {Default: false, PreRelease: featuregate.Alpha},
+
+	GracefulNodeShutdown: {Default: true, PreRelease: featuregate.Beta},
+
+	GracefulNodeShutdownBasedOnPodPriority: {Default: true, PreRelease: featuregate.Beta},
+
+	HPAContainerMetrics: {Default: true, PreRelease: featuregate.GA, LockToDefault: true}, // remove in 1.32
+
+	HonorPVReclaimPolicy: {Default: false, PreRelease: featuregate.Alpha},
+
+	ImageMaximumGCAge: {Default: true, PreRelease: featuregate.Beta},
+
+	InheritDefaultEvictionValues: {Default: true, PreRelease: featuregate.Alpha},
+
+	InTreePluginAWSUnregister: {Default: false, PreRelease: featuregate.Alpha},
+
+	InTreePluginAzureDiskUnregister: {Default: false, PreRelease: featuregate.Alpha},
+
+	InTreePluginAzureFileUnregister: {Default: false, PreRelease: featuregate.Alpha},
+
+	InTreePluginGCEUnregister: {Default: false, PreRelease: featuregate.Alpha},
+
+	InTreePluginOpenStackUnregister: {Default: false, PreRelease: featuregate.Alpha},
+
+	InTreePluginPortworxUnregister: {Default: false, PreRelease: featuregate.Alpha},
+
+	InTreePluginRBDUnregister: {Default: false, PreRelease: featuregate.Deprecated}, // deprecated in 1.28, remove in 1.31
+
+	InTreePluginvSphereUnregister: {Default: false, PreRelease: featuregate.Alpha},
+
+	JobBackoffLimitPerIndex: {Default: true, PreRelease: featuregate.Beta},
+
+	JobManagedBy: {Default: false, PreRelease: featuregate.Alpha},
+
+	JobPodFailurePolicy: {Default: true, PreRelease: featuregate.Beta},
+
+	JobPodReplacementPolicy: {Default: true, PreRelease: featuregate.Beta},
+
+	JobSuccessPolicy: {Default: false, PreRelease: featuregate.Alpha},
+
+	JobReadyPods: {Default: true, PreRelease: featuregate.GA, LockToDefault: true}, // remove in 1.31
+
+	KubeletCgroupDriverFromCRI: {Default: false, PreRelease: featuregate.Alpha},
+
+	KubeletInUserNamespace: {Default: false, PreRelease: featuregate.Alpha},
+
+	KubeletPodResourcesDynamicResources: {Default: false, PreRelease: featuregate.Alpha},
+
+	KubeletPodResourcesGet: {Default: false, PreRelease: featuregate.Alpha},
+
+	KubeletSeparateDiskGC: {Default: false, PreRelease: featuregate.Alpha},
+
+	KubeletTracing: {Default: true, PreRelease: featuregate.Beta},
+
+	KubeProxyDrainingTerminatingNodes: {Default: true, PreRelease: featuregate.Beta},
+
+	LegacyServiceAccountTokenCleanUp: {Default: true, PreRelease: featuregate.GA, LockToDefault: true}, // GA in 1.30; remove in 1.32
+
+	LocalStorageCapacityIsolationFSQuotaMonitoring: {Default: false, PreRelease: featuregate.Alpha},
+
+	LogarithmicScaleDown: {Default: true, PreRelease: featuregate.Beta},
+
+	MatchLabelKeysInPodAffinity: {Default: false, PreRelease: featuregate.Alpha},
+
+	MatchLabelKeysInPodTopologySpread: {Default: true, PreRelease: featuregate.Beta},
+
+	MaxUnavailableStatefulSet: {Default: false, PreRelease: featuregate.Alpha},
+
+	MemoryManager: {Default: true, PreRelease: featuregate.Beta},
+
+	MemoryQoS: {Default: false, PreRelease: featuregate.Alpha},
+
+	MinDomainsInPodTopologySpread: {Default: true, PreRelease: featuregate.GA, LockToDefault: true}, // remove in 1.32
+
+	MultiCIDRServiceAllocator: {Default: false, PreRelease: featuregate.Alpha},
+
+	NewVolumeManagerReconstruction: {Default: true, PreRelease: featuregate.GA, LockToDefault: true}, // remove in 1.32
+
+	NFTablesProxyMode: {Default: true, PreRelease: featuregate.Beta},
+
+	NodeLogQuery: {Default: false, PreRelease: featuregate.Beta},
+
+	NodeOutOfServiceVolumeDetach: {Default: true, PreRelease: featuregate.GA, LockToDefault: true}, // remove in 1.31
+
+	NodeSwap: {Default: true, PreRelease: featuregate.Beta},
+
+	PDBUnhealthyPodEvictionPolicy: {Default: true, PreRelease: featuregate.Beta},
+
+	PersistentVolumeLastPhaseTransitionTime: {Default: true, PreRelease: featuregate.Beta},
+
+	PodAndContainerStatsFromCRI: {Default: false, PreRelease: featuregate.Alpha},
+
+	PodDeletionCost: {Default: true, PreRelease: featuregate.Beta},
+
+	PodDisruptionConditions: {Default: true, PreRelease: featuregate.Beta},
+
+	PodReadyToStartContainersCondition: {Default: true, PreRelease: featuregate.Beta},
+
+	PodHostIPs: {Default: true, PreRelease: featuregate.GA, LockToDefault: true}, // remove in 1.32
+
+	PodLifecycleSleepAction: {Default: true, PreRelease: featuregate.Beta},
+
+	PodSchedulingReadiness: {Default: true, PreRelease: featuregate.GA, LockToDefault: true}, // GA in 1.30; remove in 1.32
+
+	PortForwardWebsockets: {Default: false, PreRelease: featuregate.Alpha},
+
+	ProcMountType: {Default: false, PreRelease: featuregate.Alpha},
+
+	QOSReserved: {Default: false, PreRelease: featuregate.Alpha},
+
+	ReadWriteOncePod: {Default: true, PreRelease: featuregate.GA, LockToDefault: true}, // remove in 1.31
+
+	RecoverVolumeExpansionFailure: {Default: false, PreRelease: featuregate.Alpha},
+
+	RelaxedEnvironmentVariableValidation: {Default: false, PreRelease: featuregate.Alpha},
+
+	RotateKubeletServerCertificate: {Default: true, PreRelease: featuregate.Beta},
+
+	RuntimeClassInImageCriAPI: {Default: false, PreRelease: featuregate.Alpha},
+
+	ElasticIndexedJob: {Default: true, PreRelease: featuregate.Beta},
+
+	SchedulerQueueingHints: {Default: false, PreRelease: featuregate.Beta},
+
+	SeparateTaintEvictionController: {Default: true, PreRelease: featuregate.Beta},
+
+	ServiceAccountTokenJTI: {Default: true, PreRelease: featuregate.Beta},
+
+	ServiceAccountTokenPodNodeInfo: {Default: true, PreRelease: featuregate.Beta},
+
+	ServiceAccountTokenNodeBinding: {Default: false, PreRelease: featuregate.Alpha},
+
+	ServiceAccountTokenNodeBindingValidation: {Default: true, PreRelease: featuregate.Beta},
+
+	ServiceNodePortStaticSubrange: {Default: true, PreRelease: featuregate.GA, LockToDefault: true}, // GA in 1.29; remove in 1.31
+
+	ServiceTrafficDistribution: {Default: false, PreRelease: featuregate.Alpha},
+
+	SidecarContainers: {Default: true, PreRelease: featuregate.Beta},
+
+	SizeMemoryBackedVolumes: {Default: true, PreRelease: featuregate.Beta},
+
+	StableLoadBalancerNodeSet: {Default: true, PreRelease: featuregate.GA, LockToDefault: true}, // GA in 1.30, remove in 1.31
+
+	StatefulSetAutoDeletePVC: {Default: true, PreRelease: featuregate.Beta},
+
+	StatefulSetStartOrdinal: {Default: true, PreRelease: featuregate.Beta},
+
+	StorageVersionMigrator: {Default: false, PreRelease: featuregate.Alpha},
+
+	TopologyAwareHints: {Default: true, PreRelease: featuregate.Beta},
+
+	TopologyManagerPolicyAlphaOptions: {Default: false, PreRelease: featuregate.Alpha},
+
+	TopologyManagerPolicyBetaOptions: {Default: true, PreRelease: featuregate.Beta},
+
+	TopologyManagerPolicyOptions: {Default: true, PreRelease: featuregate.Beta},
+
+	TranslateStreamCloseWebsocketRequests: {Default: true, PreRelease: featuregate.Beta},
+
+	UnknownVersionInteroperabilityProxy: {Default: false, PreRelease: featuregate.Alpha},
+
+	VolumeAttributesClass: {Default: false, PreRelease: featuregate.Alpha},
+
+	VolumeCapacityPriority: {Default: false, PreRelease: featuregate.Alpha},
+
+	UserNamespacesSupport: {Default: false, PreRelease: featuregate.Beta},
+
+	WinDSR: {Default: false, PreRelease: featuregate.Alpha},
+
+	WinOverlay: {Default: true, PreRelease: featuregate.Beta},
+
+	WindowsHostNetwork: {Default: true, PreRelease: featuregate.Alpha},
+
+	NodeInclusionPolicyInPodTopologySpread: {Default: true, PreRelease: featuregate.Beta},
+
+	SELinuxMountReadWriteOncePod: {Default: true, PreRelease: featuregate.Beta},
+
+	InPlacePodVerticalScaling: {Default: false, PreRelease: featuregate.Alpha},
+
+	PodIndexLabel: {Default: true, PreRelease: featuregate.Beta},
+
+	LoadBalancerIPMode: {Default: true, PreRelease: featuregate.Beta},
+
+	UserNamespacesPodSecurityStandards: {Default: false, PreRelease: featuregate.Alpha},
+
+	SELinuxMount: {Default: false, PreRelease: featuregate.Alpha},
+
+	// inherited features from generic apiserver, relisted here to get a conflict if it is changed
+	// unintentionally on either side:
+
+	genericfeatures.AdmissionWebhookMatchConditions: {Default: true, PreRelease: featuregate.GA, LockToDefault: true}, // remove in 1.33
+
+	genericfeatures.AggregatedDiscoveryEndpoint: {Default: true, PreRelease: featuregate.GA, LockToDefault: true}, // remove in 1.33
+
+	genericfeatures.APIListChunking: {Default: true, PreRelease: featuregate.GA, LockToDefault: true}, // remove in 1.32
+
+	genericfeatures.APIResponseCompression: {Default: true, PreRelease: featuregate.Beta},
+
+	genericfeatures.APIServerIdentity: {Default: true, PreRelease: featuregate.Beta},
+
+	genericfeatures.APIServerTracing: {Default: true, PreRelease: featuregate.Beta},
+
+	genericfeatures.APIServingWithRoutine: {Default: false, PreRelease: featuregate.Alpha},
+
+	genericfeatures.AuthorizeWithSelectors: {Default: false, PreRelease: featuregate.Alpha},
+
+	genericfeatures.ConcurrentWatchObjectDecode: {Default: false, PreRelease: featuregate.Beta},
+
+	genericfeatures.ConsistentListFromCache: {Default: true, PreRelease: featuregate.Beta},
+
+	genericfeatures.CoordinatedLeaderElection: {Default: false, PreRelease: featuregate.Alpha},
+
+	genericfeatures.EfficientWatchResumption: {Default: true, PreRelease: featuregate.GA, LockToDefault: true},
+
+	genericfeatures.KMSv1: {Default: false, PreRelease: featuregate.Deprecated},
+
+	genericfeatures.MutatingAdmissionPolicy: {Default: false, PreRelease: featuregate.Alpha},
+
+	genericfeatures.OpenAPIEnums: {Default: true, PreRelease: featuregate.Beta},
+
+	genericfeatures.RemainingItemCount: {Default: true, PreRelease: featuregate.GA, LockToDefault: true},
+
+	genericfeatures.ResilientWatchCacheInitialization: {Default: true, PreRelease: featuregate.Beta},
+
+	genericfeatures.RetryGenerateName: {Default: true, PreRelease: featuregate.Beta},
+
+	genericfeatures.SeparateCacheWatchRPC: {Default: true, PreRelease: featuregate.Beta},
+
+	genericfeatures.StorageVersionAPI: {Default: false, PreRelease: featuregate.Alpha},
+
+	genericfeatures.StorageVersionHash: {Default: true, PreRelease: featuregate.Beta},
+
+	genericfeatures.StrictCostEnforcementForVAP: {Default: false, PreRelease: featuregate.Beta},
+
+	genericfeatures.StrictCostEnforcementForWebhooks: {Default: false, PreRelease: featuregate.Beta},
+
+	genericfeatures.StructuredAuthenticationConfiguration: {Default: true, PreRelease: featuregate.Beta},
+
+	genericfeatures.StructuredAuthorizationConfiguration: {Default: true, PreRelease: featuregate.Beta},
+
+	genericfeatures.UnauthenticatedHTTP2DOSMitigation: {Default: true, PreRelease: featuregate.Beta},
+
+	genericfeatures.WatchBookmark: {Default: true, PreRelease: featuregate.GA, LockToDefault: true},
+
+	genericfeatures.WatchCacheInitializationPostStartHook: {Default: false, PreRelease: featuregate.Beta},
+
+	genericfeatures.WatchFromStorageWithoutResourceVersion: {Default: false, PreRelease: featuregate.Beta},
+
+	genericfeatures.WatchList: {Default: false, PreRelease: featuregate.Alpha},
+
+	genericfeatures.ZeroLimitedNominalConcurrencyShares: {Default: true, PreRelease: featuregate.GA, LockToDefault: true}, // remove in 1.32
+
+	// inherited features from apiextensions-apiserver, relisted here to get a conflict if it is changed
+	// unintentionally on either side:
+
+	apiextensionsfeatures.CRDValidationRatcheting: {Default: true, PreRelease: featuregate.Beta},
+
+	apiextensionsfeatures.CustomResourceFieldSelectors: {Default: true, PreRelease: featuregate.Beta},
+
+	// features with duplicate definition in apiserver/controller-manager
+
+	CloudControllerManagerWebhook: {Default: false, PreRelease: featuregate.Alpha},
+
+	InPlacePodVerticalScaling: {Default: false, PreRelease: featuregate.Alpha},
+
+	// features that enable backwards compatibility but are scheduled to be removed
+	// ...
+	HPAScaleToZero: {Default: false, PreRelease: featuregate.Alpha},
+
+	AllowDNSOnlyNodeCSR: {Default: false, PreRelease: featuregate.Deprecated}, // remove after 1.33
+
+	AllowInsecureKubeletCertificateSigningRequests: {Default: false, PreRelease: featuregate.Deprecated}, // remove in 1.33
+
+	DisableNodeKubeProxyVersion: {Default: false, PreRelease: featuregate.Deprecated}, // default on in 1.33
+
+	StorageNamespaceIndex: {Default: true, PreRelease: featuregate.Beta},
+
+	RecursiveReadOnlyMounts: {Default: true, PreRelease: featuregate.Beta},
+}
