@@ -48,19 +48,19 @@ var _ = SIGDescribe(feature.CriProxy, framework.WithSerial(), func() {
 
 	ginkgo.Context("Inject a pull image error exception into the CriProxy", func() {
 		ginkgo.BeforeEach(func() {
-			if err := resetCRIProxyInjector(e2eCriProxy); err != nil {
+			if err := resetCRIProxyInjector(); err != nil {
 				ginkgo.Skip("Skip the test since the CRI Proxy is undefined.")
 			}
 		})
 
 		ginkgo.AfterEach(func() {
-			err := resetCRIProxyInjector(e2eCriProxy)
+			err := resetCRIProxyInjector()
 			framework.ExpectNoError(err)
 		})
 
 		ginkgo.It("Pod failed to start due to an image pull error.", func(ctx context.Context) {
 			expectedErr := fmt.Errorf("PullImage failed")
-			err := addCRIProxyInjector(e2eCriProxy, func(apiName string) error {
+			err := addCRIProxyInjector(func(apiName string) error {
 				if apiName == criproxy.PullImage {
 					return expectedErr
 				}
@@ -100,19 +100,19 @@ var _ = SIGDescribe(feature.CriProxy, framework.WithSerial(), func() {
 
 	ginkgo.Context("Inject a pull image timeout exception into the CriProxy", func() {
 		ginkgo.BeforeEach(func() {
-			if err := resetCRIProxyInjector(e2eCriProxy); err != nil {
+			if err := resetCRIProxyInjector(); err != nil {
 				ginkgo.Skip("Skip the test since the CRI Proxy is undefined.")
 			}
 		})
 
 		ginkgo.AfterEach(func() {
-			err := resetCRIProxyInjector(e2eCriProxy)
+			err := resetCRIProxyInjector()
 			framework.ExpectNoError(err)
 		})
 
 		ginkgo.It("Image pull time exceeded 10 seconds", func(ctx context.Context) {
 			const delayTime = 10 * time.Second
-			err := addCRIProxyInjector(e2eCriProxy, func(apiName string) error {
+			err := addCRIProxyInjector(func(apiName string) error {
 				if apiName == criproxy.PullImage {
 					time.Sleep(10 * time.Second)
 				}
