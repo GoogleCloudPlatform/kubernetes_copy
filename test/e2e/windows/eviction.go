@@ -178,7 +178,10 @@ var _ = sigDescribe(feature.Windows, "Eviction", framework.WithSerial(), framewo
 		framework.Logf("Waiting for pod2 to get evicted")
 		gomega.Eventually(ctx, func() bool {
 			eventList, err := f.ClientSet.CoreV1().Events(f.Namespace.Name).List(ctx, metav1.ListOptions{})
-			framework.ExpectNoError(err)
+			if err != nil {
+				framework.Logf("Error getting events: %v", err)
+				return false
+			}
 			for _, e := range eventList.Items {
 				// Look for an event that shows FailedScheduling
 				if e.Type == "Warning" && e.Reason == "Evicted" && strings.Contains(e.Message, "pod2") {

@@ -164,7 +164,10 @@ func overrideAllocatableMemoryTest(ctx context.Context, f *framework.Framework, 
 	framework.ExpectNoError(err)
 	gomega.Eventually(ctx, func() bool {
 		eventList, err := f.ClientSet.CoreV1().Events(f.Namespace.Name).List(ctx, metav1.ListOptions{})
-		framework.ExpectNoError(err)
+		if err != nil {
+			framework.Logf("Error getting events: %v", err)
+			return false
+		}
 		for _, e := range eventList.Items {
 			// Look for an event that shows FailedScheduling
 			if e.Type == "Warning" && e.Reason == "FailedScheduling" && e.InvolvedObject.Name == failurePod.ObjectMeta.Name {

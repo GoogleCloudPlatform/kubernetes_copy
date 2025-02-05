@@ -44,10 +44,7 @@ var _ = common.SIGDescribe("Metrics", func() {
 		ec = f.KubemarkExternalClusterClientSet
 		gomega.Eventually(ctx, func() error {
 			grabber, err = e2emetrics.NewMetricsGrabber(ctx, c, ec, f.ClientConfig(), true, true, true, true, true, true)
-			if err != nil {
-				framework.ExpectNoError(err, "failed to create metrics grabber")
-			}
-			return nil
+			return err
 		}, 5*time.Minute, 10*time.Second).Should(gomega.BeNil())
 	})
 

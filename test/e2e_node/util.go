@@ -239,7 +239,10 @@ func waitForKubeletToStart(ctx context.Context, f *framework.Framework) {
 	// Wait for the Kubelet to be ready.
 	gomega.Eventually(ctx, func(ctx context.Context) bool {
 		nodes, err := e2enode.TotalReady(ctx, f.ClientSet)
-		framework.ExpectNoError(err)
+		if err != nil {
+			framework.Logf("Error getting ready nodes: %v", err)
+			return false
+		}
 		return nodes == 1
 	}, time.Minute, time.Second).Should(gomega.BeTrueBecause("expected kubelet to be in ready state"))
 }

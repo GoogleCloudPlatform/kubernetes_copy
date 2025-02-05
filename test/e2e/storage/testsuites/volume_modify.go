@@ -234,14 +234,14 @@ func SetPVCVACName(ctx context.Context, origPVC *v1.PersistentVolumeClaim, name 
 	pvcName := origPVC.Name
 	var patchedPVC *v1.PersistentVolumeClaim
 
-	gomega.Eventually(ctx, func(g gomega.Gomega) {
+	gomega.Eventually(ctx, func() error {
 		var err error
 		patch := []map[string]interface{}{{"op": "replace", "path": "/spec/volumeAttributesClassName", "value": name}}
 		patchBytes, _ := json.Marshal(patch)
 
 		patchedPVC, err = c.CoreV1().PersistentVolumeClaims(origPVC.Namespace).Patch(ctx, pvcName, types.JSONPatchType, patchBytes, metav1.PatchOptions{})
-		framework.ExpectNoError(err, "While patching PVC to add VAC name")
-	}, timeout, modifyPollInterval).Should(gomega.Succeed())
+		return err
+	}, timeout, modifyPollInterval).Should(gomega.BeNil())
 
 	return patchedPVC
 }

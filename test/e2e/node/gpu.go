@@ -295,7 +295,10 @@ func SetupEnvironmentAndSkipIfNeeded(ctx context.Context, f *framework.Framework
 func areGPUsAvailableOnAllSchedulableNodes(ctx context.Context, clientSet clientset.Interface) bool {
 	framework.Logf("Getting list of Nodes from API server")
 	nodeList, err := clientSet.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
-	framework.ExpectNoError(err, "getting node list")
+	if err != nil {
+		framework.Logf("Unexpected error getting node list: %v", err)
+		return false
+	}
 	for _, node := range nodeList.Items {
 		if node.Spec.Unschedulable {
 			continue
