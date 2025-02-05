@@ -1798,6 +1798,11 @@ func allocatedResourcesMatchStatus(allocatedPod *v1.Pod, podStatus *kubecontaine
 					// If both allocated & status CPU requests are at or below MinShares then they are considered equal.
 					return false
 				}
+			} else {
+				if cs.Resources.CPURequest != nil && cs.Resources.CPURequest.MilliValue() > cm.MinShares {
+					// CPU request is being removed.
+					return false
+				}
 			}
 			if hasCPULim {
 				if cs.Resources.CPULimit == nil {
@@ -1809,6 +1814,11 @@ func allocatedResourcesMatchStatus(allocatedPod *v1.Pod, podStatus *kubecontaine
 					// If both allocated & status CPU limits are at or below the minimum limit, then they are considered equal.
 					return false
 				}
+			} else {
+				if cs.Resources.CPULimit != nil && cs.Resources.CPULimit.MilliValue() > cm.MinMilliCPULimit {
+					// CPU limit is being removed.
+					return false
+				}
 			}
 			if hasMemLim {
 				if cs.Resources.MemoryLimit == nil {
@@ -1816,6 +1826,11 @@ func allocatedResourcesMatchStatus(allocatedPod *v1.Pod, podStatus *kubecontaine
 						return false
 					}
 				} else if !memLim.Equal(*cs.Resources.MemoryLimit) {
+					return false
+				}
+			} else {
+				// memory limit is being removed.
+				if cs.Resources.MemoryLimit != nil && !cs.Resources.MemoryLimit.IsZero() {
 					return false
 				}
 			}
@@ -2150,34 +2165,48 @@ func (kl *Kubelet) convertToAPIContainerStatuses(pod *v1.Pod, podStatus *kubecon
 		// For non-running containers this will be the reported values.
 		// For non-resizable resources, these values will also be used.
 		resources := alloc
-		if resources.Limits != nil {
-			if cStatus.Resources != nil && cStatus.Resources.CPULimit != nil {
-				// If both the allocated & actual resources are at or below the minimum effective limit, preserve the
-				// allocated value in the API to avoid confusion and simplify comparisons.
-				if cStatus.Resources.CPULimit.MilliValue() > cm.MinMilliCPULimit ||
-					resources.Limits.Cpu().MilliValue() > cm.MinMilliCPULimit {
-					resources.Limits[v1.ResourceCPU] = cStatus.Resources.CPULimit.DeepCopy()
+		if cStatus.Resources != nil && cStatus.Resources.CPULimit != nil {
+			// If both the allocated & actual resources are at or below the minimum effective limit, preserve the
+			// allocated value in the API to avoid confusion and simplify comparisons.
+			if cStatus.Resources.CPULimit.MilliValue() > cm.MinMilliCPULimit ||
+				resources.Limits.Cpu().MilliValue() > cm.MinMilliCPULimit {
+				if resources.Limits == nil {
+					// If limits are being removed, cStatus has limits while allocated resource does not.
+					resources.Limits = v1.ResourceList{}
 				}
-			} else {
-				preserveOldResourcesValue(v1.ResourceCPU, oldStatus.Resources.Limits, resources.Limits)
+				resources.Limits[v1.ResourceCPU] = cStatus.Resources.CPULimit.DeepCopy()
 			}
-			if cStatus.Resources != nil && cStatus.Resources.MemoryLimit != nil {
-				resources.Limits[v1.ResourceMemory] = cStatus.Resources.MemoryLimit.DeepCopy()
-			} else {
-				preserveOldResourcesValue(v1.ResourceMemory, oldStatus.Resources.Limits, resources.Limits)
-			}
+		} else if resources.Limits != nil && !resources.Limits.Cpu().IsZero() {
+			// Only if limits is in the allocation, restore limits to container sutatus from old status.
+			// Otherwise, assume limits are removed.
+			preserveOldResourcesValue(v1.ResourceCPU, oldStatus.Resources.Limits, resources.Limits)
 		}
-		if resources.Requests != nil {
-			if cStatus.Resources != nil && cStatus.Resources.CPURequest != nil {
-				// If both the allocated & actual resources are at or below MinShares, preserve the
-				// allocated value in the API to avoid confusion and simplify comparisons.
-				if cStatus.Resources.CPURequest.MilliValue() > cm.MinShares ||
-					resources.Requests.Cpu().MilliValue() > cm.MinShares {
-					resources.Requests[v1.ResourceCPU] = cStatus.Resources.CPURequest.DeepCopy()
-				}
-			} else {
-				preserveOldResourcesValue(v1.ResourceCPU, oldStatus.Resources.Requests, resources.Requests)
+		if cStatus.Resources != nil && cStatus.Resources.MemoryLimit != nil {
+			if resources.Limits == nil {
+				// If limits are being removed, cStatus has limits while allocated resource does not.
+				resources.Limits = v1.ResourceList{}
 			}
+			resources.Limits[v1.ResourceMemory] = cStatus.Resources.MemoryLimit.DeepCopy()
+		} else if resources.Limits != nil && !resources.Limits.Memory().IsZero() {
+			// Only if limits is in the allocation, restore limits to container sutatus from old status.
+			// Otherwise, assume limits are removed.
+			preserveOldResourcesValue(v1.ResourceMemory, oldStatus.Resources.Limits, resources.Limits)
+		}
+		if cStatus.Resources != nil && cStatus.Resources.CPURequest != nil {
+			// If both the allocated & actual resources are at or below MinShares, preserve the
+			// allocated value in the API to avoid confusion and simplify comparisons.
+			if cStatus.Resources.CPURequest.MilliValue() > cm.MinShares ||
+				resources.Requests.Cpu().MilliValue() > cm.MinShares {
+				if resources.Requests == nil {
+					// If requests are being removed, cStatus has requests while allocated resource does not.
+					resources.Requests = v1.ResourceList{}
+				}
+				resources.Requests[v1.ResourceCPU] = cStatus.Resources.CPURequest.DeepCopy()
+			}
+		} else if resources.Requests != nil && !resources.Requests.Cpu().IsZero() {
+			// Only if requests is in the allocation, restore limits to container sutatus from old status.
+			// Otherwise, assume requests are removed.
+			preserveOldResourcesValue(v1.ResourceCPU, oldStatus.Resources.Requests, resources.Requests)
 		}
 
 		return &resources

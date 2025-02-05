@@ -25627,23 +25627,6 @@ func TestValidatePodResize(t *testing.T) {
 		)...)
 	}
 
-	mkPodWithInitContainers := func(req, lim core.ResourceList, restartPolicy core.ContainerRestartPolicy, tweaks ...podtest.Tweak) *core.Pod {
-		return podtest.MakePod("pod", append(tweaks,
-			podtest.SetInitContainers(
-				podtest.MakeContainer(
-					"container",
-					podtest.SetContainerResources(
-						core.ResourceRequirements{
-							Requests: req,
-							Limits:   lim,
-						},
-					),
-					podtest.SetContainerRestartPolicy(restartPolicy),
-				),
-			),
-		)...)
-	}
-
 	tests := []struct {
 		test string
 		old  *core.Pod
@@ -25838,9 +25821,19 @@ func TestValidatePodResize(t *testing.T) {
 			new:  mkPod(getResources("100m", "100Mi", "", ""), getResources("200m", "200Mi", "", "")),
 			err:  "",
 		}, {
+			test: "Pod QoS unchanged, burstable -> burstable, remove limits",
+			old:  mkPod(getResources("100m", "100Mi", "", ""), getResources("200m", "200Mi", "", "")),
+			new:  mkPod(getResources("100m", "100Mi", "", ""), core.ResourceList{}),
+			err:  "",
+		}, {
 			test: "Pod QoS unchanged, burstable -> burstable, add requests",
 			old:  mkPod(core.ResourceList{}, getResources("200m", "500Mi", "1Gi", "")),
-			new:  mkPod(getResources("300m", "", "", ""), getResources("400m", "500Mi", "1Gi", "")),
+			new:  mkPod(getResources("300m", "", "", ""), getResources("400m", "", "1Gi", "")),
+			err:  "",
+		}, {
+			test: "Pod QoS unchanged, burstable -> burstable, remove requests",
+			old:  mkPod(getResources("100m", "200Mi", "", ""), getResources("200m", "300Mi", "2Gi", "")),
+			new:  mkPod(core.ResourceList{}, getResources("400m", "500Mi", "2Gi", "")),
 			err:  "",
 		}, {
 			test: "Pod QoS change, guaranteed -> burstable",
@@ -25872,71 +25865,6 @@ func TestValidatePodResize(t *testing.T) {
 			old:  mkPod(core.ResourceList{}, getResources("100m", "0", "1Gi", ""), podtest.SetOS(core.Windows)),
 			new:  mkPod(core.ResourceList{}, getResources("200m", "0", "1Gi", ""), podtest.SetOS(core.Windows)),
 			err:  "Forbidden: windows pods cannot be resized",
-		}, {
-			test: "Pod QoS unchanged, burstable -> burstable, remove cpu limit",
-			old:  mkPod(core.ResourceList{}, getResources("100m", "100Mi", "", "")),
-			new:  mkPod(core.ResourceList{}, getResources("", "100Mi", "", "")),
-			err:  "spec.containers[0].resources.limits: Forbidden: resource limits cannot be removed",
-		}, {
-			test: "Pod QoS unchanged, burstable -> burstable, remove memory limit",
-			old:  mkPod(core.ResourceList{}, getResources("100m", "100Mi", "", "")),
-			new:  mkPod(core.ResourceList{}, getResources("100m", "", "", "")),
-			err:  "spec.containers[0].resources.limits: Forbidden: resource limits cannot be removed",
-		}, {
-			test: "Pod QoS unchanged, burstable -> burstable, remove cpu request",
-			old:  mkPod(getResources("100m", "100Mi", "", ""), core.ResourceList{}),
-			new:  mkPod(getResources("", "100Mi", "", ""), core.ResourceList{}),
-			err:  "spec.containers[0].resources.requests: Forbidden: resource requests cannot be removed",
-		}, {
-			test: "Pod QoS unchanged, burstable -> burstable, remove memory request",
-			old:  mkPod(getResources("100m", "100Mi", "", ""), core.ResourceList{}),
-			new:  mkPod(getResources("100m", "", "", ""), core.ResourceList{}),
-			err:  "spec.containers[0].resources.requests: Forbidden: resource requests cannot be removed",
-		}, {
-			test: "Pod QoS unchanged, burstable -> burstable, remove cpu and memory limits",
-			old:  mkPod(getResources("100m", "", "", ""), getResources("100m", "100Mi", "", "")),
-			new:  mkPod(getResources("100m", "", "", ""), core.ResourceList{}),
-			err:  "spec.containers[0].resources.limits: Forbidden: resource limits cannot be removed",
-		}, {
-			test: "Pod QoS unchanged, burstable -> burstable, remove cpu and memory requests",
-			old:  mkPod(getResources("100m", "100Mi", "", ""), getResources("100m", "", "", "")),
-			new:  mkPod(core.ResourceList{}, getResources("100m", "", "", "")),
-			err:  "spec.containers[0].resources.requests: Forbidden: resource requests cannot be removed",
-		}, {
-			test: "Pod QoS unchanged, burstable -> burstable, remove cpu limit",
-			old:  mkPodWithInitContainers(core.ResourceList{}, getResources("100m", "100Mi", "", ""), core.ContainerRestartPolicyAlways),
-			new:  mkPodWithInitContainers(core.ResourceList{}, getResources("", "100Mi", "", ""), core.ContainerRestartPolicyAlways),
-			err:  "spec.initContainers[0].resources.limits: Forbidden: resource limits cannot be removed",
-		}, {
-			test: "Pod QoS unchanged, burstable -> burstable, remove memory limit",
-			old:  mkPodWithInitContainers(core.ResourceList{}, getResources("100m", "100Mi", "", ""), core.ContainerRestartPolicyAlways),
-			new:  mkPodWithInitContainers(core.ResourceList{}, getResources("100m", "", "", ""), core.ContainerRestartPolicyAlways),
-			err:  "spec.initContainers[0].resources.limits: Forbidden: resource limits cannot be removed",
-		}, {
-			test: "Pod QoS unchanged, burstable -> burstable, remove cpu request",
-			old:  mkPodWithInitContainers(getResources("100m", "100Mi", "", ""), core.ResourceList{}, core.ContainerRestartPolicyAlways),
-			new:  mkPodWithInitContainers(getResources("", "100Mi", "", ""), core.ResourceList{}, core.ContainerRestartPolicyAlways),
-			err:  "spec.initContainers[0].resources.requests: Forbidden: resource requests cannot be removed",
-		}, {
-			test: "Pod QoS unchanged, burstable -> burstable, remove memory request",
-			old:  mkPodWithInitContainers(getResources("100m", "100Mi", "", ""), core.ResourceList{}, core.ContainerRestartPolicyAlways),
-			new:  mkPodWithInitContainers(getResources("100m", "", "", ""), core.ResourceList{}, core.ContainerRestartPolicyAlways),
-			err:  "spec.initContainers[0].resources.requests: Forbidden: resource requests cannot be removed",
-		}, {
-			test: "Pod QoS unchanged, burstable -> burstable, remove cpu and memory limits",
-			old:  mkPodWithInitContainers(getResources("100m", "", "", ""), getResources("100m", "100Mi", "", ""), core.ContainerRestartPolicyAlways),
-			new:  mkPodWithInitContainers(getResources("100m", "", "", ""), core.ResourceList{}, core.ContainerRestartPolicyAlways),
-			err:  "spec.initContainers[0].resources.limits: Forbidden: resource limits cannot be removed",
-		}, {
-			test: "Pod QoS unchanged, burstable -> burstable, remove cpu and memory requests",
-			old:  mkPodWithInitContainers(getResources("100m", "100Mi", "", ""), getResources("100m", "", "", ""), core.ContainerRestartPolicyAlways),
-			new:  mkPodWithInitContainers(core.ResourceList{}, getResources("100m", "", "", ""), core.ContainerRestartPolicyAlways),
-			err:  "spec.initContainers[0].resources.requests: Forbidden: resource requests cannot be removed",
-		}, {
-			test: "Pod QoS unchanged, burstable -> burstable, remove cpu and memory requests",
-			old:  mkPodWithInitContainers(getResources("100m", "100Mi", "", ""), getResources("100m", "", "", ""), ""),
-			new:  mkPodWithInitContainers(core.ResourceList{}, getResources("100m", "", "", ""), ""),
-			err:  "spec: Forbidden: only cpu and memory resources are mutable",
 		},
 		{
 			test: "Pod with nil Resource field in Status",

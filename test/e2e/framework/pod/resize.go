@@ -109,14 +109,14 @@ type containerPatch struct {
 	Name      string `json:"name"`
 	Resources struct {
 		Requests struct {
-			CPU     string `json:"cpu,omitempty"`
-			Memory  string `json:"memory,omitempty"`
-			EphStor string `json:"ephemeral-storage,omitempty"`
+			CPU     *string `json:"cpu"`
+			Memory  *string `json:"memory"`
+			EphStor *string `json:"ephemeral-storage"`
 		} `json:"requests"`
 		Limits struct {
-			CPU     string `json:"cpu,omitempty"`
-			Memory  string `json:"memory,omitempty"`
-			EphStor string `json:"ephemeral-storage,omitempty"`
+			CPU     *string `json:"cpu"`
+			Memory  *string `json:"memory"`
+			EphStor *string `json:"ephemeral-storage"`
 		} `json:"limits"`
 	} `json:"resources"`
 }
@@ -362,13 +362,19 @@ func ExpectPodResized(ctx context.Context, f *framework.Framework, resizedPod *v
 func ResizeContainerPatch(containers []ResizableContainerInfo) (string, error) {
 	var patch patchSpec
 
+	nilIfEmpty := func(v *string) *string {
+		if len(*v) == 0 {
+			return nil
+		}
+		return v
+	}
 	for _, container := range containers {
 		var cPatch containerPatch
 		cPatch.Name = container.Name
-		cPatch.Resources.Requests.CPU = container.Resources.CPUReq
-		cPatch.Resources.Requests.Memory = container.Resources.MemReq
-		cPatch.Resources.Limits.CPU = container.Resources.CPULim
-		cPatch.Resources.Limits.Memory = container.Resources.MemLim
+		cPatch.Resources.Requests.CPU = nilIfEmpty(&container.Resources.CPUReq)
+		cPatch.Resources.Requests.Memory = nilIfEmpty(&container.Resources.MemReq)
+		cPatch.Resources.Limits.CPU = nilIfEmpty(&container.Resources.CPULim)
+		cPatch.Resources.Limits.Memory = nilIfEmpty(&container.Resources.MemLim)
 
 		patch.Spec.Containers = append(patch.Spec.Containers, cPatch)
 	}

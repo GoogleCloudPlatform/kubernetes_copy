@@ -5615,29 +5615,6 @@ func ValidatePodResize(newPod, oldPod *core.Pod, opts PodValidationOptions) fiel
 		allErrs = append(allErrs, field.Forbidden(specPath, "Pod running on node without support for resize"))
 	}
 
-	// Do not allow removing resource requests/limits on resize.
-	if utilfeature.DefaultFeatureGate.Enabled(features.SidecarContainers) {
-		for ix, ctr := range oldPod.Spec.InitContainers {
-			if ctr.RestartPolicy != nil && *ctr.RestartPolicy != core.ContainerRestartPolicyAlways {
-				continue
-			}
-			if resourcesRemoved(newPod.Spec.InitContainers[ix].Resources.Requests, ctr.Resources.Requests) {
-				allErrs = append(allErrs, field.Forbidden(specPath.Child("initContainers").Index(ix).Child("resources").Child("requests"), "resource requests cannot be removed"))
-			}
-			if resourcesRemoved(newPod.Spec.InitContainers[ix].Resources.Limits, ctr.Resources.Limits) {
-				allErrs = append(allErrs, field.Forbidden(specPath.Child("initContainers").Index(ix).Child("resources").Child("limits"), "resource limits cannot be removed"))
-			}
-		}
-	}
-	for ix, ctr := range oldPod.Spec.Containers {
-		if resourcesRemoved(newPod.Spec.Containers[ix].Resources.Requests, ctr.Resources.Requests) {
-			allErrs = append(allErrs, field.Forbidden(specPath.Child("containers").Index(ix).Child("resources").Child("requests"), "resource requests cannot be removed"))
-		}
-		if resourcesRemoved(newPod.Spec.Containers[ix].Resources.Limits, ctr.Resources.Limits) {
-			allErrs = append(allErrs, field.Forbidden(specPath.Child("containers").Index(ix).Child("resources").Child("limits"), "resource limits cannot be removed"))
-		}
-	}
-
 	// Ensure that only CPU and memory resources are mutable.
 	originalCPUMemPodSpec := *newPod.Spec.DeepCopy()
 	var newContainers []core.Container
@@ -5693,19 +5670,6 @@ func isPodResizeRequestSupported(pod core.Pod) bool {
 	}
 	// No running containers. We cannot tell whether the node supports resize at this point, so we assume it does.
 	return true
-}
-
-func resourcesRemoved(resourceList, oldResourceList core.ResourceList) bool {
-	if len(oldResourceList) > len(resourceList) {
-		return true
-	}
-	for name := range oldResourceList {
-		if _, ok := resourceList[name]; !ok {
-			return true
-		}
-	}
-
-	return false
 }
 
 // ValidatePodBinding tests if required fields in the pod binding are legal.

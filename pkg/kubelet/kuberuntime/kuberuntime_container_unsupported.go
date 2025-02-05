@@ -20,7 +20,7 @@ limitations under the License.
 package kuberuntime
 
 import (
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1"
 	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
 )
@@ -33,6 +33,12 @@ func (m *kubeGenericRuntimeManager) applyPlatformSpecificContainerConfig(config 
 // generateContainerResources generates platform specific container resources config for runtime
 func (m *kubeGenericRuntimeManager) generateContainerResources(pod *v1.Pod, container *v1.Container) *runtimeapi.ContainerResources {
 	return nil
+}
+
+// generateContainerResourcesForUpdate generates platform specific container resources config for runtime
+// with setting special values to parameters that will be updated to max.
+func (m *kubeGenericRuntimeManager) generateContainerResourcesForUpdate(pod *v1.Pod, container *v1.Container) *runtimeapi.ContainerResources {
+	return m.generateContainerResources(pod, container)
 }
 
 func toKubeContainerResources(statusResources *runtimeapi.ContainerResources) *kubecontainer.ContainerResources {
