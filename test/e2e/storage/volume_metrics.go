@@ -432,7 +432,7 @@ var _ = utils.SIGDescribe(framework.WithSerial(), "Volume metrics", func() {
 		}
 
 		// Wait and validate
-		totalVolumesKey := "attachdetach_controller_total_volumes"
+		totalVolumesKey := "attach_detach_controller_total_volumes"
 		states := []string{"actual_state_of_world", "desired_state_of_world"}
 		dimensions := []string{"state", "plugin_name"}
 		waitForADControllerStatesMetrics(ctx, metricsGrabber, totalVolumesKey, dimensions, states)

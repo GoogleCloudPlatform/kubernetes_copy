@@ -70,6 +70,9 @@ func Register(pvLister PVLister, pvcLister PVCLister, pluginMgr *volume.VolumePl
 		legacyregistry.MustRegister(volumeOperationErrorsMetric)
 		legacyregistry.MustRegister(retroactiveStorageClassMetric)
 		legacyregistry.MustRegister(retroactiveStorageClassErrorMetric)
+		legacyregistry.MustRegister(volumeOperationErrorsMetricDeprecated)
+		legacyregistry.MustRegister(retroactiveStorageClassMetricDeprecated)
+		legacyregistry.MustRegister(retroactiveStorageClassErrorMetricDeprecated)
 	})
 }
 
@@ -133,8 +136,40 @@ var (
 		[]string{namespaceLabel, storageClassLabel, volumeAttributesClassLabel}, nil,
 		metrics.ALPHA, "")
 
+	// Deprecated: volumeOperationErrorsMetricDeprecated is deprecated,
+	// and will be removed at v1.34. Please use volumeOperationErrorsMetric instead.
+	volumeOperationErrorsMetricDeprecated = metrics.NewCounterVec(
+		&metrics.CounterOpts{
+			Name:              "volume_operation_total_errors",
+			Help:              "Total volume operation errors",
+			StabilityLevel:    metrics.ALPHA,
+			DeprecatedVersion: "1.33.0",
+		},
+		[]string{"plugin_name", "operation_name"})
+
+	// Deprecated: retroactiveStorageClassMetricDeprecated is deprecated,
+	// and will be removed at v1.34. Please use retroactiveStorageClassMetric instead.
+	retroactiveStorageClassMetricDeprecated = metrics.NewCounter(
+		&metrics.CounterOpts{
+			Name:              "retroactive_storageclass_total",
+			Help:              "Total number of retroactive StorageClass assignments to persistent volume claim",
+			StabilityLevel:    metrics.ALPHA,
+			DeprecatedVersion: "1.33.0",
+		})
+
+	// Deprecated: retroactiveStorageClassErrorMetricDeprecated is deprecated,
+	// and will be removed at v1.34. Please use retroactiveStorageClassErrorMetric instead.
+	retroactiveStorageClassErrorMetricDeprecated = metrics.NewCounter(
+		&metrics.CounterOpts{
+			Name:              "retroactive_storageclass_errors_total",
+			Help:              "Total number of failed retroactive StorageClass assignments to persistent volume claim",
+			StabilityLevel:    metrics.ALPHA,
+			DeprecatedVersion: "1.33.0",
+		})
+
 	volumeOperationErrorsMetric = metrics.NewCounterVec(
 		&metrics.CounterOpts{
+			Subsystem:      pvControllerSubsystem,
 			Name:           "volume_operation_total_errors",
 			Help:           "Total volume operation errors",
 			StabilityLevel: metrics.ALPHA,
@@ -143,6 +178,7 @@ var (
 
 	retroactiveStorageClassMetric = metrics.NewCounter(
 		&metrics.CounterOpts{
+			Subsystem:      pvControllerSubsystem,
 			Name:           "retroactive_storageclass_total",
 			Help:           "Total number of retroactive StorageClass assignments to persistent volume claim",
 			StabilityLevel: metrics.ALPHA,
@@ -150,6 +186,7 @@ var (
 
 	retroactiveStorageClassErrorMetric = metrics.NewCounter(
 		&metrics.CounterOpts{
+			Subsystem:      pvControllerSubsystem,
 			Name:           "retroactive_storageclass_errors_total",
 			Help:           "Total number of failed retroactive StorageClass assignments to persistent volume claim",
 			StabilityLevel: metrics.ALPHA,
@@ -270,8 +307,16 @@ func RecordRetroactiveStorageClassMetric(success bool) {
 	if !success {
 		retroactiveStorageClassMetric.Inc()
 		retroactiveStorageClassErrorMetric.Inc()
+		// we intentionally keep them with the deprecation and will remove at v1.34.
+		//nolint:staticcheck
+		retroactiveStorageClassMetricDeprecated.Inc()
+		//nolint:staticcheck
+		retroactiveStorageClassErrorMetricDeprecated.Inc()
 	} else {
 		retroactiveStorageClassMetric.Inc()
+		//nolint:staticcheck
+		retroactiveStorageClassMetricDeprecated.Inc()
+
 	}
 }
 
@@ -282,6 +327,9 @@ func RecordVolumeOperationErrorMetric(pluginName, opName string) {
 		pluginName = "N/A"
 	}
 	volumeOperationErrorsMetric.WithLabelValues(pluginName, opName).Inc()
+	// we intentionally keep them with the deprecation and will remove at v1.34.
+	//nolint:staticcheck
+	volumeOperationErrorsMetricDeprecated.WithLabelValues(pluginName, opName).Inc()
 }
 
 // operationTimestamp stores the start time of an operation by a plugin
