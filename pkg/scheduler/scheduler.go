@@ -325,11 +325,16 @@ func New(ctx context.Context,
 		return nil, errors.New("at least one profile is required")
 	}
 
-	preEnqueuePluginMap := make(map[string][]framework.PreEnqueuePlugin)
+	preEnqueuePluginMap := make(map[string]map[string]framework.PreEnqueuePlugin)
 	queueingHintsPerProfile := make(internalqueue.QueueingHintMapPerProfile)
 	var returnErr error
 	for profileName, profile := range profiles {
-		preEnqueuePluginMap[profileName] = profile.PreEnqueuePlugins()
+		plugins := profile.PreEnqueuePlugins()
+		preEnqueuePluginMap[profileName] = make(map[string]framework.PreEnqueuePlugin, len(plugins))
+		for _, plugin := range plugins {
+			preEnqueuePluginMap[profileName][plugin.Name()] = plugin
+		}
+
 		queueingHintsPerProfile[profileName], err = buildQueueingHintMap(ctx, profile.EnqueueExtensions())
 		if err != nil {
 			returnErr = errors.Join(returnErr, err)

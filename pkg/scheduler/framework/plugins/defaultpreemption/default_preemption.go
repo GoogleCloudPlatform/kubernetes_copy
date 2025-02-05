@@ -116,9 +116,27 @@ func (pl *DefaultPreemption) PreEnqueue(ctx context.Context, p *v1.Pod) *framewo
 // EventsToRegister returns the possible events that may make a Pod
 // failed by this plugin schedulable.
 func (pl *DefaultPreemption) EventsToRegister(_ context.Context) ([]framework.ClusterEventWithHint, error) {
-	// The plugin moves the preemptor Pod to acviteQ/backoffQ once the preemption API calls are all done,
-	// and we don't need to move the Pod with any events.
+	if pl.fts.EnableAsyncPreemption {
+		return []framework.ClusterEventWithHint{
+			// We need to register the event to tell the scheduling queue that the pod could be un-gated after some Pods' deletion.
+			{Event: framework.ClusterEvent{Resource: framework.Pod, ActionType: framework.Delete}, QueueingHintFn: pl.isPodSchedulableAfterPodDeletion},
+		}, nil
+	}
+
+	// When the async preemption is disabled, PreEnqueue always returns nil, and hence pods never get rejected by this plugin.
 	return nil, nil
+}
+
+// isPodSchedulableAfterPodDeletion returns the queueing hint for the pod after the pod deletion event,
+// which always return Skip.
+// The default preemption plugin is a bit tricky;
+// the pods rejected by it are the ones that have run/are running the preemption asynchronously.
+// And, those pods should always have the other plugins in pInfo.UnschedulablePlugins
+// which failure will be resolved by the preemption.
+// The reason why we return Skip here is that the preemption plugin should not make the decision of when to requeueing Pods,
+// and rather, those plugins should be responsible for that.
+func (pl *DefaultPreemption) isPodSchedulableAfterPodDeletion(logger klog.Logger, pod *v1.Pod, oldObj, newObj interface{}) (framework.QueueingHint, error) {
+	return framework.QueueSkip, nil
 }
 
 // calculateNumCandidates returns the number of candidates the FindCandidates
