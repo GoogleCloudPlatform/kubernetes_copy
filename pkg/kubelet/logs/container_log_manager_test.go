@@ -21,6 +21,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"sync"
@@ -110,25 +111,34 @@ func TestRotateLogs(t *testing.T) {
 		"test-log-1",
 		"test-log-2",
 		"test-log-3",
+		"test-log-4.00000000-000001",
+		"test-log-4.00000000-000000.gz",
 		"test-log-4",
-		"test-log-3.00000000-000001",
-		"test-log-3.00000000-000000.gz",
 	}
 	testContent := []string{
 		"short",
 		"longer than 10 bytes",
 		"longer than 10 bytes",
-		"longer than 10 bytes",
 		"the length doesn't matter",
 		"the length doesn't matter",
 	}
-	for i := range testLogs {
+	for i := range testContent {
 		f, err := os.Create(filepath.Join(dir, testLogs[i]))
 		require.NoError(t, err)
 		_, err = f.Write([]byte(testContent[i]))
 		require.NoError(t, err)
 		f.Close()
 	}
+
+	file, err := os.Create(filepath.Join(dir, testLogs[5]))
+	require.NoError(t, err)
+	defer file.Close()
+	buffer := make([]byte, 5*1024)
+	_, err = rand.Read(buffer)
+	require.NoError(t, err)
+	_, err = file.Write(buffer)
+	require.NoError(t, err)
+
 	testContainers := []*critest.FakeContainer{
 		{
 			ContainerStatus: runtimeapi.ContainerStatus{
@@ -139,23 +149,23 @@ func TestRotateLogs(t *testing.T) {
 		},
 		{
 			ContainerStatus: runtimeapi.ContainerStatus{
-				Id:      "container-need-rotate",
+				Id:      "container-need-rotate-1",
 				State:   runtimeapi.ContainerState_CONTAINER_RUNNING,
 				LogPath: filepath.Join(dir, testLogs[1]),
 			},
 		},
 		{
 			ContainerStatus: runtimeapi.ContainerStatus{
-				Id:      "container-has-excess-log",
+				Id:      "container-need-rotate-2",
 				State:   runtimeapi.ContainerState_CONTAINER_RUNNING,
 				LogPath: filepath.Join(dir, testLogs[2]),
 			},
 		},
 		{
 			ContainerStatus: runtimeapi.ContainerStatus{
-				Id:      "container-is-not-running",
-				State:   runtimeapi.ContainerState_CONTAINER_EXITED,
-				LogPath: filepath.Join(dir, testLogs[3]),
+				Id:      "container-need-rotate-3",
+				State:   runtimeapi.ContainerState_CONTAINER_RUNNING,
+				LogPath: filepath.Join(dir, testLogs[5]),
 			},
 		},
 	}
@@ -184,9 +194,9 @@ func TestRotateLogs(t *testing.T) {
 	assert.Len(t, logs, 5)
 	assert.Equal(t, testLogs[0], logs[0].Name())
 	assert.Equal(t, testLogs[1]+"."+timestamp, logs[1].Name())
-	assert.Equal(t, testLogs[4]+compressSuffix, logs[2].Name())
-	assert.Equal(t, testLogs[2]+"."+timestamp, logs[3].Name())
-	assert.Equal(t, testLogs[3], logs[4].Name())
+	assert.Equal(t, testLogs[2]+"."+timestamp, logs[2].Name())
+	assert.Equal(t, testLogs[5]+"."+timestamp, logs[3].Name())
+	assert.Equal(t, testLogs[5]+".part3"+"."+timestamp+compressSuffix, logs[4].Name())
 }
 
 func TestClean(t *testing.T) {
