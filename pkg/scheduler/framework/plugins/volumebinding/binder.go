@@ -103,13 +103,20 @@ func (b *BindingInfo) StorageResource() *StorageResource {
 	}
 }
 
+// DynamicProvision represents a dynamically provisioned volume.
+type DynamicProvision struct {
+	PVC *v1.PersistentVolumeClaim
+	// Capacity represents the node capacity, not the PVC capacity.
+	Capacity *storagev1.CSIStorageCapacity
+}
+
 // PodVolumes holds pod's volumes information used in volume scheduling.
 type PodVolumes struct {
 	// StaticBindings are binding decisions for PVCs which can be bound to
 	// pre-provisioned static PVs.
 	StaticBindings []*BindingInfo
 	// DynamicProvisions are PVCs that require dynamic provisioning
-	DynamicProvisions []*v1.PersistentVolumeClaim
+	DynamicProvisions []*DynamicProvision
 }
 
 // InTreeToCSITranslator contains methods required to check migratable status
@@ -306,7 +313,7 @@ func (b *volumeBinder) FindPodVolumes(logger klog.Logger, pod *v1.Pod, podVolume
 
 	var (
 		staticBindings    []*BindingInfo
-		dynamicProvisions []*v1.PersistentVolumeClaim
+		dynamicProvisions []*DynamicProvision
 	)
 	defer func() {
 		// Although we do not distinguish nil from empty in this function, for
@@ -373,6 +380,16 @@ func (b *volumeBinder) FindPodVolumes(logger klog.Logger, pod *v1.Pod, podVolume
 	return
 }
 
+// ConvertDynamicProvisionsToPVCs converts a slice of *DynamicProvision to a
+// slice of PersistentVolumeClaim
+func convertDynamicProvisionsToPVCs(dynamicProvisions []*DynamicProvision) []*v1.PersistentVolumeClaim {
+	pvcs := []*v1.PersistentVolumeClaim{}
+	for _, dynamicProvision := range dynamicProvisions {
+		pvcs = append(pvcs, dynamicProvision.PVC)
+	}
+	return pvcs
+}
+
 // AssumePodVolumes will take the matching PVs and PVCs to provision in pod's
 // volume information for the chosen node, and:
 // 1. Update the pvCache with the new prebound PV.
@@ -419,20 +436,21 @@ func (b *volumeBinder) AssumePodVolumes(logger klog.Logger, assumedPod *v1.Pod, 
 	}
 
 	// Assume PVCs
-	newProvisionedPVCs := []*v1.PersistentVolumeClaim{}
-	for _, claim := range podVolumes.DynamicProvisions {
+	newProvisionedPVCs := []*DynamicProvision{}
+	for _, dynamicProvision := range podVolumes.DynamicProvisions {
 		// The claims from method args can be pointing to watcher cache. We must not
 		// modify these, therefore create a copy.
-		claimClone := claim.DeepCopy()
+		claimClone := dynamicProvision.PVC.DeepCopy()
 		metav1.SetMetaDataAnnotation(&claimClone.ObjectMeta, volume.AnnSelectedNode, nodeName)
 		err = b.pvcCache.Assume(claimClone)
 		if err != nil {
+			pvcs := convertDynamicProvisionsToPVCs(newProvisionedPVCs)
 			b.revertAssumedPVs(newBindings)
-			b.revertAssumedPVCs(newProvisionedPVCs)
+			b.revertAssumedPVCs(pvcs)
 			return
 		}
 
-		newProvisionedPVCs = append(newProvisionedPVCs, claimClone)
+		newProvisionedPVCs = append(newProvisionedPVCs, &DynamicProvision{PVC: claimClone})
 	}
 
 	podVolumes.StaticBindings = newBindings
@@ -442,8 +460,9 @@ func (b *volumeBinder) AssumePodVolumes(logger klog.Logger, assumedPod *v1.Pod, 
 
 // RevertAssumedPodVolumes will revert assumed PV and PVC cache.
 func (b *volumeBinder) RevertAssumedPodVolumes(podVolumes *PodVolumes) {
+	pvcs := convertDynamicProvisionsToPVCs(podVolumes.DynamicProvisions)
 	b.revertAssumedPVs(podVolumes.StaticBindings)
-	b.revertAssumedPVCs(podVolumes.DynamicProvisions)
+	b.revertAssumedPVCs(pvcs)
 }
 
 // BindPodVolumes gets the cached bindings and PVCs to provision in pod's volumes information,
@@ -460,7 +479,7 @@ func (b *volumeBinder) BindPodVolumes(ctx context.Context, assumedPod *v1.Pod, p
 	}()
 
 	bindings := podVolumes.StaticBindings
-	claimsToProvision := podVolumes.DynamicProvisions
+	claimsToProvision := convertDynamicProvisionsToPVCs(podVolumes.DynamicProvisions)
 
 	// Start API operations
 	err = b.bindAPIUpdate(ctx, assumedPod, bindings, claimsToProvision)
@@ -882,8 +901,8 @@ func (b *volumeBinder) findMatchingVolumes(logger klog.Logger, pod *v1.Pod, clai
 // checkVolumeProvisions checks given unbound claims (the claims have gone through func
 // findMatchingVolumes, and do not have matching volumes for binding), and return true
 // if all of the claims are eligible for dynamic provision.
-func (b *volumeBinder) checkVolumeProvisions(logger klog.Logger, pod *v1.Pod, claimsToProvision []*v1.PersistentVolumeClaim, node *v1.Node) (provisionSatisfied, sufficientStorage bool, dynamicProvisions []*v1.PersistentVolumeClaim, err error) {
-	dynamicProvisions = []*v1.PersistentVolumeClaim{}
+func (b *volumeBinder) checkVolumeProvisions(logger klog.Logger, pod *v1.Pod, claimsToProvision []*v1.PersistentVolumeClaim, node *v1.Node) (provisionSatisfied, sufficientStorage bool, dynamicProvisions []*DynamicProvision, err error) {
+	dynamicProvisions = []*DynamicProvision{}
 
 	// We return early with provisionedClaims == nil if a check
 	// fails or we encounter an error.
@@ -911,7 +930,7 @@ func (b *volumeBinder) checkVolumeProvisions(logger klog.Logger, pod *v1.Pod, cl
 		}
 
 		// Check storage capacity.
-		sufficient, err := b.hasEnoughCapacity(logger, provisioner, claim, class, node)
+		sufficient, capacity, err := b.hasEnoughCapacity(logger, provisioner, claim, class, node)
 		if err != nil {
 			return false, false, nil, err
 		}
@@ -920,8 +939,10 @@ func (b *volumeBinder) checkVolumeProvisions(logger klog.Logger, pod *v1.Pod, cl
 			return true, false, nil, nil
 		}
 
-		dynamicProvisions = append(dynamicProvisions, claim)
-
+		dynamicProvisions = append(dynamicProvisions, &DynamicProvision{
+			PVC:      claim,
+			Capacity: capacity,
+		})
 	}
 	logger.V(4).Info("Provisioning for claims of pod that has no matching volumes...", "claimCount", len(claimsToProvision), "pod", klog.KObj(pod), "node", klog.KObj(node))
 
@@ -941,12 +962,12 @@ func (b *volumeBinder) revertAssumedPVCs(claims []*v1.PersistentVolumeClaim) {
 }
 
 // hasEnoughCapacity checks whether the provisioner has enough capacity left for a new volume of the given size
-// that is available from the node.
-func (b *volumeBinder) hasEnoughCapacity(logger klog.Logger, provisioner string, claim *v1.PersistentVolumeClaim, storageClass *storagev1.StorageClass, node *v1.Node) (bool, error) {
+// that is available from the node. This function returns the node capacity based on the PVC's storage class.
+func (b *volumeBinder) hasEnoughCapacity(logger klog.Logger, provisioner string, claim *v1.PersistentVolumeClaim, storageClass *storagev1.StorageClass, node *v1.Node) (bool, *storagev1.CSIStorageCapacity, error) {
 	quantity, ok := claim.Spec.Resources.Requests[v1.ResourceStorage]
 	if !ok {
 		// No capacity to check for.
-		return true, nil
+		return true, nil, nil
 	}
 
 	// Only enabled for CSI drivers which opt into it.
@@ -956,19 +977,19 @@ func (b *volumeBinder) hasEnoughCapacity(logger klog.Logger, provisioner string,
 			// Either the provisioner is not a CSI driver or the driver does not
 			// opt into storage capacity scheduling. Either way, skip
 			// capacity checking.
-			return true, nil
+			return true, nil, nil
 		}
-		return false, err
+		return false, nil, err
 	}
 	if driver.Spec.StorageCapacity == nil || !*driver.Spec.StorageCapacity {
-		return true, nil
+		return true, nil, nil
 	}
 
 	// Look for a matching CSIStorageCapacity object(s).
 	// TODO (for beta): benchmark this and potentially introduce some kind of lookup structure (https://github.com/kubernetes/enhancements/issues/1698#issuecomment-654356718).
 	capacities, err := b.csiStorageCapacityLister.List(labels.Everything())
 	if err != nil {
-		return false, err
+		return false, nil, err
 	}
 
 	sizeInBytes := quantity.Value()
@@ -977,7 +998,7 @@ func (b *volumeBinder) hasEnoughCapacity(logger klog.Logger, provisioner string,
 			capacitySufficient(capacity, sizeInBytes) &&
 			b.nodeHasAccess(logger, node, capacity) {
 			// Enough capacity found.
-			return true, nil
+			return true, capacity, nil
 		}
 	}
 
@@ -985,7 +1006,7 @@ func (b *volumeBinder) hasEnoughCapacity(logger klog.Logger, provisioner string,
 	// they had to be rejected. Log that above? But that might be a lot of log output...
 	logger.V(4).Info("Node has no accessible CSIStorageCapacity with enough capacity for PVC",
 		"node", klog.KObj(node), "PVC", klog.KObj(claim), "size", sizeInBytes, "storageClass", klog.KObj(storageClass))
-	return false, nil
+	return false, nil, nil
 }
 
 func capacitySufficient(capacity *storagev1.CSIStorageCapacity, sizeInBytes int64) bool {

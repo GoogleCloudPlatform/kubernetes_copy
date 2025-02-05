@@ -56,6 +56,7 @@ func NewInTreeRegistry() runtime.Registry {
 		EnableSchedulingQueueHint:                    feature.DefaultFeatureGate.Enabled(features.SchedulerQueueingHints),
 		EnableAsyncPreemption:                        feature.DefaultFeatureGate.Enabled(features.SchedulerAsyncPreemption),
 		EnablePodLevelResources:                      feature.DefaultFeatureGate.Enabled(features.PodLevelResources),
+		EnableStorageCapacityScoring:                 feature.DefaultFeatureGate.Enabled(features.StorageCapacityScoring),
 	}
 
 	registry := runtime.Registry{
