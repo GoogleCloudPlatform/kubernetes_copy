@@ -42,7 +42,6 @@ const (
 	memResource             = v1.ResourceMemory
 )
 
-// These tests don't seem to be running properly in parallel: issue: #20338.
 var _ = SIGDescribe(feature.HPA, "Horizontal pod autoscaling (scale resource: CPU)", func() {
 	f := framework.NewDefaultFramework("horizontal-pod-autoscaling")
 	f.NamespacePodSecurityLevel = api.LevelBaseline
