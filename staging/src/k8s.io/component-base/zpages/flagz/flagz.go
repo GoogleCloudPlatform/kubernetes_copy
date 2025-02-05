@@ -30,6 +30,8 @@ import (
 )
 
 const (
+	DefaultFlagzPath = "/flagz"
+
 	flagzHeaderFmt = `
 %s flags
 Warning: This endpoint is not meant to be machine parseable, has no formatting compatibility guarantees and is for debugging purposes only.
@@ -56,7 +58,7 @@ func Install(m mux, componentName string, flagReader Reader) {
 }
 
 func (reg *registry) installHandler(m mux, componentName string, flagReader Reader) {
-	m.Handle("/flagz", reg.handleFlags(componentName, flagReader))
+	m.Handle(DefaultFlagzPath, reg.handleFlags(componentName, flagReader))
 }
 
 func (reg *registry) handleFlags(componentName string, flagReader Reader) http.HandlerFunc {

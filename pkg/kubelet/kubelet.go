@@ -67,6 +67,7 @@ import (
 	"k8s.io/client-go/util/certificate"
 	"k8s.io/client-go/util/flowcontrol"
 	cloudprovider "k8s.io/cloud-provider"
+	"k8s.io/component-base/zpages/flagz"
 	"k8s.io/component-helpers/apimachinery/lease"
 	internalapi "k8s.io/cri-api/pkg/apis"
 	runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1"
@@ -290,6 +291,7 @@ type Dependencies struct {
 	Options []Option
 
 	// Injected Dependencies
+	Flagz                     flagz.Reader
 	Auth                      server.AuthInterface
 	CAdvisorInterface         cadvisor.Interface
 	Cloud                     cloudprovider.Interface
@@ -614,6 +616,7 @@ func NewMainKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 		nodeStatusMaxImages:            nodeStatusMaxImages,
 		tracer:                         tracer,
 		nodeStartupLatencyTracker:      kubeDeps.NodeStartupLatencyTracker,
+		flagz:                          kubeDeps.Flagz,
 	}
 
 	if klet.cloud != nil {
@@ -1426,6 +1429,9 @@ type Kubelet struct {
 
 	// Health check kubelet
 	healthChecker watchdog.HealthChecker
+
+	// flagz is the Reader interface to get flags for flagz page.
+	flagz flagz.Reader
 }
 
 // ListPodStats is delegated to StatsProvider, which implements stats.Provider interface
@@ -3041,12 +3047,12 @@ func (kl *Kubelet) BirthCry() {
 // ListenAndServe runs the kubelet HTTP server.
 func (kl *Kubelet) ListenAndServe(kubeCfg *kubeletconfiginternal.KubeletConfiguration, tlsOptions *server.TLSOptions,
 	auth server.AuthInterface, tp trace.TracerProvider) {
-	server.ListenAndServeKubeletServer(kl, kl.resourceAnalyzer, kl.containerManager.GetHealthCheckers(), kubeCfg, tlsOptions, auth, tp)
+	server.ListenAndServeKubeletServer(kl, kl.resourceAnalyzer, kl.containerManager.GetHealthCheckers(), kl.flagz, kubeCfg, tlsOptions, auth, tp)
 }
 
 // ListenAndServeReadOnly runs the kubelet HTTP server in read-only mode.
 func (kl *Kubelet) ListenAndServeReadOnly(address net.IP, port uint, tp trace.TracerProvider) {
-	server.ListenAndServeKubeletReadOnlyServer(kl, kl.resourceAnalyzer, kl.containerManager.GetHealthCheckers(), address, port, tp)
+	server.ListenAndServeKubeletReadOnlyServer(kl, kl.resourceAnalyzer, kl.containerManager.GetHealthCheckers(), kl.flagz, address, port, tp)
 }
 
 // ListenAndServePodResources runs the kubelet podresources grpc service

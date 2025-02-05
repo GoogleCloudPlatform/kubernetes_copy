@@ -68,6 +68,7 @@ import (
 	"k8s.io/component-base/metrics/legacyregistry"
 	"k8s.io/component-base/metrics/prometheus/slis"
 	zpagesfeatures "k8s.io/component-base/zpages/features"
+	"k8s.io/component-base/zpages/flagz"
 	"k8s.io/component-base/zpages/statusz"
 	runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1"
 	"k8s.io/cri-client/pkg/util"
@@ -116,6 +117,7 @@ const (
 
 // Server is a http.Handler which exposes kubelet functionality over HTTP.
 type Server struct {
+	flagz                flagz.Reader
 	auth                 AuthInterface
 	host                 HostInterface
 	restfulCont          containerInterface
@@ -166,6 +168,7 @@ func ListenAndServeKubeletServer(
 	host HostInterface,
 	resourceAnalyzer stats.ResourceAnalyzer,
 	checkers []healthz.HealthChecker,
+	flagz flagz.Reader,
 	kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 	tlsOptions *TLSOptions,
 	auth AuthInterface,
@@ -174,7 +177,7 @@ func ListenAndServeKubeletServer(
 	address := netutils.ParseIPSloppy(kubeCfg.Address)
 	port := uint(kubeCfg.Port)
 	klog.InfoS("Starting to listen", "address", address, "port", port)
-	handler := NewServer(host, resourceAnalyzer, checkers, auth, kubeCfg)
+	handler := NewServer(host, resourceAnalyzer, checkers, flagz, auth, kubeCfg)
 
 	if utilfeature.DefaultFeatureGate.Enabled(features.KubeletTracing) {
 		handler.InstallTracingFilter(tp)
@@ -209,11 +212,12 @@ func ListenAndServeKubeletReadOnlyServer(
 	host HostInterface,
 	resourceAnalyzer stats.ResourceAnalyzer,
 	checkers []healthz.HealthChecker,
+	flagz flagz.Reader,
 	address net.IP,
 	port uint,
 	tp oteltrace.TracerProvider) {
 	klog.InfoS("Starting to listen read-only", "address", address, "port", port)
-	s := NewServer(host, resourceAnalyzer, checkers, nil, nil)
+	s := NewServer(host, resourceAnalyzer, checkers, flagz, nil, nil)
 
 	if utilfeature.DefaultFeatureGate.Enabled(features.KubeletTracing) {
 		s.InstallTracingFilter(tp, otelrestful.WithPublicEndpoint())
@@ -290,10 +294,12 @@ func NewServer(
 	host HostInterface,
 	resourceAnalyzer stats.ResourceAnalyzer,
 	checkers []healthz.HealthChecker,
+	flagz flagz.Reader,
 	auth AuthInterface,
 	kubeCfg *kubeletconfiginternal.KubeletConfiguration) Server {
 
 	server := Server{
+		flagz:                flagz,
 		host:                 host,
 		resourceAnalyzer:     resourceAnalyzer,
 		auth:                 auth,
@@ -412,6 +418,13 @@ func (s *Server) InstallDefaultHandlers() {
 	}
 	checkers = append(checkers, s.extendedCheckers...)
 	healthz.InstallHandler(s.restfulCont, checkers...)
+
+	if utilfeature.DefaultFeatureGate.Enabled(zpagesfeatures.ComponentFlagz) {
+		if s.flagz != nil {
+			s.addMetricsBucketMatcher("flagz")
+			flagz.Install(s.restfulCont, ComponentKubelet, s.flagz)
+		}
+	}
 
 	slis.SLIMetricsWithReset{}.Install(s.restfulCont)
 

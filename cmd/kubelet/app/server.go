@@ -86,6 +86,8 @@ import (
 	"k8s.io/component-base/tracing"
 	"k8s.io/component-base/version"
 	"k8s.io/component-base/version/verflag"
+	zpagesfeatures "k8s.io/component-base/zpages/features"
+	"k8s.io/component-base/zpages/flagz"
 	nodeutil "k8s.io/component-helpers/node/util"
 	runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1"
 	kubeletconfigv1beta1 "k8s.io/kubelet/config/v1beta1"
@@ -265,6 +267,13 @@ is checked every 20 seconds (also configurable with a flag).`,
 			kubeletDeps, err := UnsecuredDependencies(kubeletServer, utilfeature.DefaultFeatureGate)
 			if err != nil {
 				return fmt.Errorf("failed to construct kubelet dependencies: %w", err)
+			}
+
+			if utilfeature.DefaultFeatureGate.Enabled(zpagesfeatures.ComponentFlagz) {
+				if cleanFlagSet != nil {
+					namedFlagSet := map[string]*pflag.FlagSet{server.ComponentKubelet: cleanFlagSet}
+					kubeletDeps.Flagz = flagz.NamedFlagSetsReader{FlagSets: cliflag.NamedFlagSets{FlagSets: namedFlagSet}}
+				}
 			}
 
 			if err := checkPermissions(); err != nil {

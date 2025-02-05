@@ -85,7 +85,7 @@ func TestFlagz(t *testing.T) {
 			mux := http.NewServeMux()
 			Install(mux, componentName, test.flagzReader)
 
-			req, err := http.NewRequest(http.MethodGet, "http://example.com/flagz", nil)
+			req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("http://example.com%s", DefaultFlagzPath), nil)
 			if err != nil {
 				t.Fatalf("case[%d] Unexpected error: %v", i, err)
 			}

@@ -58,6 +58,7 @@ import (
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	featuregatetesting "k8s.io/component-base/featuregate/testing"
 	zpagesfeatures "k8s.io/component-base/zpages/features"
+	"k8s.io/component-base/zpages/flagz"
 	"k8s.io/kubelet/pkg/cri/streaming"
 	"k8s.io/kubelet/pkg/cri/streaming/portforward"
 	remotecommandserver "k8s.io/kubelet/pkg/cri/streaming/remotecommand"
@@ -372,6 +373,7 @@ func newServerTestWithDebuggingHandlers(kubeCfg *kubeletconfiginternal.KubeletCo
 		fw.fakeKubelet,
 		stats.NewResourceAnalyzer(fw.fakeKubelet, time.Minute, &record.FakeRecorder{}),
 		[]healthz.HealthChecker{},
+		flagz.NamedFlagSetsReader{},
 		fw.fakeAuth,
 		kubeCfg,
 	)
@@ -579,6 +581,7 @@ func TestAuthFilters(t *testing.T) {
 	// Enable features.ContainerCheckpoint during test
 	featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.ContainerCheckpoint, true)
 	featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, zpagesfeatures.ComponentStatusz, true)
+	featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, zpagesfeatures.ComponentFlagz, true)
 
 	fw := newServerTest()
 	defer fw.testHTTPServer.Close()
@@ -1662,9 +1665,11 @@ func TestMetricBuckets(t *testing.T) {
 		"stats":                           {url: "/stats/", bucket: "stats"},
 		"stats summary sub":               {url: "/stats/summary", bucket: "stats"},
 		"statusz":                         {url: "/statusz", bucket: "statusz"},
+		"/flagz":                          {url: "/flagz", bucket: "flagz"},
 		"invalid path":                    {url: "/junk", bucket: "other"},
 		"invalid path starting with good": {url: "/healthzjunk", bucket: "other"},
 	}
+	featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, zpagesfeatures.ComponentFlagz, true)
 	fw := newServerTest()
 	defer fw.testHTTPServer.Close()
 
@@ -1893,8 +1898,8 @@ func TestNewServerRegistersMetricsSLIsEndpointTwice(t *testing.T) {
 	}
 	resourceAnalyzer := stats.NewResourceAnalyzer(nil, time.Minute, &record.FakeRecorder{})
 
-	server1 := NewServer(host, resourceAnalyzer, []healthz.HealthChecker{}, nil, nil)
-	server2 := NewServer(host, resourceAnalyzer, []healthz.HealthChecker{}, nil, nil)
+	server1 := NewServer(host, resourceAnalyzer, []healthz.HealthChecker{}, flagz.NamedFlagSetsReader{}, nil, nil)
+	server2 := NewServer(host, resourceAnalyzer, []healthz.HealthChecker{}, flagz.NamedFlagSetsReader{}, nil, nil)
 
 	// Check if both servers registered the /metrics/slis endpoint
 	assert.Contains(t, server1.restfulCont.RegisteredHandlePaths(), "/metrics/slis", "First server should register /metrics/slis")
