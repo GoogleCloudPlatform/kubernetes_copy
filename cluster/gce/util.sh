@@ -794,7 +794,6 @@ function construct-linux-kubelet-flags {
       #flags+=" --kubeconfig=/var/lib/kubelet/kubeconfig"
       flags+=" --register-with-taints=node-role.kubernetes.io/control-plane=:NoSchedule"
       flags+=" --kubeconfig=/var/lib/kubelet/bootstrap-kubeconfig"
-      flags+=" --register-schedulable=false"
     fi
     if [[ "${MASTER_OS_DISTRIBUTION}" == "ubuntu" ]]; then
       # Configure the file path for host dns configuration

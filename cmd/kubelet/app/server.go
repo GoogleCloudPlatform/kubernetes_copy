@@ -1330,7 +1330,6 @@ func createAndInitKubelet(kubeServer *options.KubeletServer,
 		kubeServer.MinimumGCAge,
 		kubeServer.MaxPerPodContainerCount,
 		kubeServer.MaxContainerCount,
-		kubeServer.RegisterSchedulable,
 		kubeServer.NodeLabels,
 		kubeServer.NodeStatusMaxImages,
 		kubeServer.KubeletFlags.SeccompDefault || kubeServer.KubeletConfiguration.SeccompDefault)

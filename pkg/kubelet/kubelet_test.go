@@ -3297,7 +3297,6 @@ func TestNewMainKubeletStandAlone(t *testing.T) {
 		metav1.Duration{Duration: time.Minute},
 		1024,
 		110,
-		true,
 		map[string]string{},
 		1024,
 		false,
