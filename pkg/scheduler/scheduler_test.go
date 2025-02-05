@@ -288,7 +288,7 @@ func TestFailureHandler(t *testing.T) {
 			podInformer.Informer().GetStore().Add(testPod)
 
 			recorder := metrics.NewMetricsAsyncRecorder(3, 20*time.Microsecond, ctx.Done())
-			queue := internalqueue.NewPriorityQueue(nil, informerFactory, internalqueue.WithClock(testingclock.NewFakeClock(time.Now())), internalqueue.WithMetricsRecorder(*recorder))
+			queue := internalqueue.NewPriorityQueue(nil, informerFactory, internalqueue.WithClock(testingclock.NewFakeClock(time.Now())), internalqueue.WithMetricsRecorder(*recorder), internalqueue.WithPodMaxBackoffDuration(0), internalqueue.WithPodInitialBackoffDuration(0))
 			schedulerCache := internalcache.New(ctx, 30*time.Second)
 
 			queue.Add(logger, testPod)
