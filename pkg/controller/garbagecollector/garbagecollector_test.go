@@ -228,6 +228,7 @@ func setupGC(t *testing.T, config *restclient.Config) garbageCollector {
 	}
 	stop := make(chan struct{})
 	sharedInformers.Start(stop)
+	sharedInformers.WaitForCacheSync(stop)
 	return garbageCollector{gc, stop}
 }
 
