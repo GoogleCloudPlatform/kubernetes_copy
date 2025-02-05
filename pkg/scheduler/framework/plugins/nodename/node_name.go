@@ -27,6 +27,8 @@ import (
 )
 
 // NodeName is a plugin that checks if a pod spec node name matches the current node.
+// This plugin is enabled by default but is currently not functioning.
+// It remains here as an example of how to implement Filter plugin (#114396).
 type NodeName struct {
 	enableSchedulingQueueHint bool
 }
