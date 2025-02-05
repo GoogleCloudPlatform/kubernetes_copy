@@ -106,6 +106,7 @@
         "github.com/go-task/slim-sprig/v3",
         "github.com/google/cadvisor",
         "github.com/json-iterator/go",
+        "github.com/opencontainers/image-spec",
         "github.com/prometheus/client_golang",
         "github.com/prometheus/common",
         "github.com/sirupsen/logrus",
@@ -198,6 +199,9 @@
       "github.com/google/shlex": [
         "sigs.k8s.io/kustomize/api",
         "sigs.k8s.io/kustomize/kustomize/v5"
+      ],
+      "github.com/xeipuuv/gojsonschema": [
+        "github.com/opencontainers/image-spec"
       ],
       "github.com/gregjones/httpcache": [
         "k8s.io/client-go"

@@ -18,13 +18,16 @@ syntax = "proto3";
 
 package containerd.types;
 
+import "github.com/containerd/containerd/api/types/fieldpath.proto";
+import "google/protobuf/any.proto";
+import "google/protobuf/timestamp.proto";
+
 option go_package = "github.com/containerd/containerd/api/types;types";
 
-// Platform follows the structure of the OCI platform specification, from
-// descriptors.
-message Platform {
-	string os = 1;
-	string architecture = 2;
-	string variant = 3;
-	string os_version = 4;
+message Envelope {
+	option (containerd.types.fieldpath) = true;
+	google.protobuf.Timestamp timestamp = 1;
+	string namespace = 2;
+	string topic = 3;
+	google.protobuf.Any event = 4;
 }
