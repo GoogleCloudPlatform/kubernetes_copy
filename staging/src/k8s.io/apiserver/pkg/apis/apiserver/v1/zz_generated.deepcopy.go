@@ -337,7 +337,17 @@ func (in *SecretboxConfiguration) DeepCopy() *SecretboxConfiguration {
 func (in *WebhookConfiguration) DeepCopyInto(out *WebhookConfiguration) {
 	*out = *in
 	out.AuthorizedTTL = in.AuthorizedTTL
+	if in.CacheAuthorizedRequests != nil {
+		in, out := &in.CacheAuthorizedRequests, &out.CacheAuthorizedRequests
+		*out = new(bool)
+		**out = **in
+	}
 	out.UnauthorizedTTL = in.UnauthorizedTTL
+	if in.CacheUnauthorizedRequests != nil {
+		in, out := &in.CacheUnauthorizedRequests, &out.CacheUnauthorizedRequests
+		*out = new(bool)
+		**out = **in
+	}
 	out.Timeout = in.Timeout
 	in.ConnectionInfo.DeepCopyInto(&out.ConnectionInfo)
 	if in.MatchConditions != nil {

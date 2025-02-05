@@ -334,11 +334,21 @@ type WebhookConfiguration struct {
 	// Same as setting `--authorization-webhook-cache-authorized-ttl` flag
 	// Default: 5m0s
 	AuthorizedTTL metav1.Duration
+	// CacheAuthorizedRequests specifies whether authorized requests should be cached.
+	// If set to true, the TTL for cached decisions can be configured via the
+	// AuthorizedTTL field.
+	// Default: true
+	CacheAuthorizedRequests bool
 	// The duration to cache 'unauthorized' responses from the webhook
 	// authorizer.
 	// Same as setting `--authorization-webhook-cache-unauthorized-ttl` flag
 	// Default: 30s
 	UnauthorizedTTL metav1.Duration
+	// CacheUnauthorizedRequests specifies whether unauthorized requests should be cached.
+	// If set to true, the TTL for cached decisions can be configured via the
+	// UnauthorizedTTL field.
+	// Default: true
+	CacheUnauthorizedRequests bool
 	// Timeout for the webhook request
 	// Maximum allowed value is 30s.
 	// Required, no default value.

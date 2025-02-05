@@ -33,7 +33,6 @@ import (
 	authzconfig "k8s.io/apiserver/pkg/apis/apiserver"
 	genericoptions "k8s.io/apiserver/pkg/server/options"
 	versionedinformers "k8s.io/client-go/informers"
-
 	"k8s.io/kubernetes/pkg/kubeapiserver/authorizer"
 	authzmodes "k8s.io/kubernetes/pkg/kubeapiserver/authorizer/modes"
 )
@@ -273,8 +272,10 @@ func (o *BuiltInAuthorizationOptions) buildAuthorizationConfiguration() (*authzc
 				Type: authzconfig.TypeWebhook,
 				Name: defaultWebhookName,
 				Webhook: &authzconfig.WebhookConfiguration{
-					AuthorizedTTL:   metav1.Duration{Duration: o.WebhookCacheAuthorizedTTL},
-					UnauthorizedTTL: metav1.Duration{Duration: o.WebhookCacheUnauthorizedTTL},
+					AuthorizedTTL:             metav1.Duration{Duration: o.WebhookCacheAuthorizedTTL},
+					CacheAuthorizedRequests:   o.WebhookCacheAuthorizedTTL != 0,
+					UnauthorizedTTL:           metav1.Duration{Duration: o.WebhookCacheUnauthorizedTTL},
+					CacheUnauthorizedRequests: o.WebhookCacheUnauthorizedTTL != 0,
 					// Timeout and FailurePolicy are required for the new configuration.
 					// Setting these two implicitly to preserve backward compatibility.
 					Timeout:                    metav1.Duration{Duration: 30 * time.Second},

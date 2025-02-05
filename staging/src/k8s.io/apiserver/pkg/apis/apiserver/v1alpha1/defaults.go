@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/utils/ptr"
 )
 
 func addDefaultingFuncs(scheme *runtime.Scheme) error {
@@ -30,7 +31,13 @@ func SetDefaults_WebhookConfiguration(obj *WebhookConfiguration) {
 	if obj.AuthorizedTTL.Duration == 0 {
 		obj.AuthorizedTTL.Duration = 5 * time.Minute
 	}
+	if obj.CacheAuthorizedRequests == nil {
+		obj.CacheAuthorizedRequests = ptr.To(true)
+	}
 	if obj.UnauthorizedTTL.Duration == 0 {
 		obj.UnauthorizedTTL.Duration = 30 * time.Second
+	}
+	if obj.CacheUnauthorizedRequests == nil {
+		obj.CacheUnauthorizedRequests = ptr.To(true)
 	}
 }

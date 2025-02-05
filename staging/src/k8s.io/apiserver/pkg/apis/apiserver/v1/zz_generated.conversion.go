@@ -255,7 +255,17 @@ func Convert_apiserver_AdmissionPluginConfiguration_To_v1_AdmissionPluginConfigu
 }
 
 func autoConvert_v1_AuthorizationConfiguration_To_apiserver_AuthorizationConfiguration(in *AuthorizationConfiguration, out *apiserver.AuthorizationConfiguration, s conversion.Scope) error {
-	out.Authorizers = *(*[]apiserver.AuthorizerConfiguration)(unsafe.Pointer(&in.Authorizers))
+	if in.Authorizers != nil {
+		in, out := &in.Authorizers, &out.Authorizers
+		*out = make([]apiserver.AuthorizerConfiguration, len(*in))
+		for i := range *in {
+			if err := Convert_v1_AuthorizerConfiguration_To_apiserver_AuthorizerConfiguration(&(*in)[i], &(*out)[i], s); err != nil {
+				return err
+			}
+		}
+	} else {
+		out.Authorizers = nil
+	}
 	return nil
 }
 
@@ -265,7 +275,17 @@ func Convert_v1_AuthorizationConfiguration_To_apiserver_AuthorizationConfigurati
 }
 
 func autoConvert_apiserver_AuthorizationConfiguration_To_v1_AuthorizationConfiguration(in *apiserver.AuthorizationConfiguration, out *AuthorizationConfiguration, s conversion.Scope) error {
-	out.Authorizers = *(*[]AuthorizerConfiguration)(unsafe.Pointer(&in.Authorizers))
+	if in.Authorizers != nil {
+		in, out := &in.Authorizers, &out.Authorizers
+		*out = make([]AuthorizerConfiguration, len(*in))
+		for i := range *in {
+			if err := Convert_apiserver_AuthorizerConfiguration_To_v1_AuthorizerConfiguration(&(*in)[i], &(*out)[i], s); err != nil {
+				return err
+			}
+		}
+	} else {
+		out.Authorizers = nil
+	}
 	return nil
 }
 
@@ -277,7 +297,15 @@ func Convert_apiserver_AuthorizationConfiguration_To_v1_AuthorizationConfigurati
 func autoConvert_v1_AuthorizerConfiguration_To_apiserver_AuthorizerConfiguration(in *AuthorizerConfiguration, out *apiserver.AuthorizerConfiguration, s conversion.Scope) error {
 	out.Type = apiserver.AuthorizerType(in.Type)
 	out.Name = in.Name
-	out.Webhook = (*apiserver.WebhookConfiguration)(unsafe.Pointer(in.Webhook))
+	if in.Webhook != nil {
+		in, out := &in.Webhook, &out.Webhook
+		*out = new(apiserver.WebhookConfiguration)
+		if err := Convert_v1_WebhookConfiguration_To_apiserver_WebhookConfiguration(*in, *out, s); err != nil {
+			return err
+		}
+	} else {
+		out.Webhook = nil
+	}
 	return nil
 }
 
@@ -289,7 +317,15 @@ func Convert_v1_AuthorizerConfiguration_To_apiserver_AuthorizerConfiguration(in 
 func autoConvert_apiserver_AuthorizerConfiguration_To_v1_AuthorizerConfiguration(in *apiserver.AuthorizerConfiguration, out *AuthorizerConfiguration, s conversion.Scope) error {
 	out.Type = string(in.Type)
 	out.Name = in.Name
-	out.Webhook = (*WebhookConfiguration)(unsafe.Pointer(in.Webhook))
+	if in.Webhook != nil {
+		in, out := &in.Webhook, &out.Webhook
+		*out = new(WebhookConfiguration)
+		if err := Convert_apiserver_WebhookConfiguration_To_v1_WebhookConfiguration(*in, *out, s); err != nil {
+			return err
+		}
+	} else {
+		out.Webhook = nil
+	}
 	return nil
 }
 
@@ -458,7 +494,13 @@ func Convert_apiserver_SecretboxConfiguration_To_v1_SecretboxConfiguration(in *a
 
 func autoConvert_v1_WebhookConfiguration_To_apiserver_WebhookConfiguration(in *WebhookConfiguration, out *apiserver.WebhookConfiguration, s conversion.Scope) error {
 	out.AuthorizedTTL = in.AuthorizedTTL
+	if err := metav1.Convert_Pointer_bool_To_bool(&in.CacheAuthorizedRequests, &out.CacheAuthorizedRequests, s); err != nil {
+		return err
+	}
 	out.UnauthorizedTTL = in.UnauthorizedTTL
+	if err := metav1.Convert_Pointer_bool_To_bool(&in.CacheUnauthorizedRequests, &out.CacheUnauthorizedRequests, s); err != nil {
+		return err
+	}
 	out.Timeout = in.Timeout
 	out.SubjectAccessReviewVersion = in.SubjectAccessReviewVersion
 	out.MatchConditionSubjectAccessReviewVersion = in.MatchConditionSubjectAccessReviewVersion
@@ -477,7 +519,13 @@ func Convert_v1_WebhookConfiguration_To_apiserver_WebhookConfiguration(in *Webho
 
 func autoConvert_apiserver_WebhookConfiguration_To_v1_WebhookConfiguration(in *apiserver.WebhookConfiguration, out *WebhookConfiguration, s conversion.Scope) error {
 	out.AuthorizedTTL = in.AuthorizedTTL
+	if err := metav1.Convert_bool_To_Pointer_bool(&in.CacheAuthorizedRequests, &out.CacheAuthorizedRequests, s); err != nil {
+		return err
+	}
 	out.UnauthorizedTTL = in.UnauthorizedTTL
+	if err := metav1.Convert_bool_To_Pointer_bool(&in.CacheUnauthorizedRequests, &out.CacheUnauthorizedRequests, s); err != nil {
+		return err
+	}
 	out.Timeout = in.Timeout
 	out.SubjectAccessReviewVersion = in.SubjectAccessReviewVersion
 	out.MatchConditionSubjectAccessReviewVersion = in.MatchConditionSubjectAccessReviewVersion

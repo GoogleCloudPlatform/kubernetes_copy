@@ -141,10 +141,18 @@ func (r *reloadableAuthorizerResolver) newForConfig(authzConfig *authzconfig.Aut
 			default:
 				return nil, nil, fmt.Errorf("unknown failurePolicy %q", configuredAuthorizer.Webhook.FailurePolicy)
 			}
+
+			authorizedTTL, unauthorizedTTL := configuredAuthorizer.Webhook.AuthorizedTTL.Duration, configuredAuthorizer.Webhook.UnauthorizedTTL.Duration
+			if !configuredAuthorizer.Webhook.CacheAuthorizedRequests {
+				authorizedTTL = 0
+			}
+			if !configuredAuthorizer.Webhook.CacheUnauthorizedRequests {
+				unauthorizedTTL = 0
+			}
 			webhookAuthorizer, err := webhook.New(clientConfig,
 				configuredAuthorizer.Webhook.SubjectAccessReviewVersion,
-				configuredAuthorizer.Webhook.AuthorizedTTL.Duration,
-				configuredAuthorizer.Webhook.UnauthorizedTTL.Duration,
+				authorizedTTL,
+				unauthorizedTTL,
 				*r.initialConfig.WebhookRetryBackoff,
 				decisionOnError,
 				configuredAuthorizer.Webhook.MatchConditions,
