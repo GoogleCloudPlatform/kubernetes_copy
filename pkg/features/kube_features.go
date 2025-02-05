@@ -321,13 +321,6 @@ const (
 	// Allows to delegate reconciliation of a Job object to an external controller.
 	JobManagedBy featuregate.Feature = "JobManagedBy"
 
-	// owner: @mimowo
-	// kep: https://kep.k8s.io/3329
-	//
-	// Allow users to specify handling of pod failures based on container exit codes
-	// and pod conditions.
-	JobPodFailurePolicy featuregate.Feature = "JobPodFailurePolicy"
-
 	// owner: @kannon92
 	// kep : https://kep.k8s.io/3939
 	//
