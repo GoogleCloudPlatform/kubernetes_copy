@@ -219,7 +219,7 @@ func (s *SpdyRoundTripper) dialWithHttpProxy(req *http.Request, proxyURL *url.UR
 	if err != nil && err != httputil.ErrPersistEOF {
 		return nil, err
 	}
-	if response != nil && response.StatusCode >= 300 || response.StatusCode < 200 {
+	if response != nil && (response.StatusCode >= 300 || response.StatusCode < 200) {
 		return nil, fmt.Errorf("CONNECT request to %s returned response: %s", proxyURL.Redacted(), response.Status)
 	}
 
