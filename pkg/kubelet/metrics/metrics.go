@@ -59,6 +59,8 @@ const (
 	PreemptionsKey                     = "preemptions"
 	VolumeStatsCapacityBytesKey        = "volume_stats_capacity_bytes"
 	VolumeStatsAvailableBytesKey       = "volume_stats_available_bytes"
+	EmptyDirUsedBytesKey               = "pod_emptydir_volume_used_bytes"
+	EmptyDirSizeLimitBytesKey          = "pod_emptydir_volume_size_limit_bytes"
 	VolumeStatsUsedBytesKey            = "volume_stats_used_bytes"
 	VolumeStatsInodesKey               = "volume_stats_inodes"
 	VolumeStatsInodesFreeKey           = "volume_stats_inodes_free"

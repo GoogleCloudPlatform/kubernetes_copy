@@ -1580,6 +1580,7 @@ func (kl *Kubelet) initializeModules(ctx context.Context) error {
 	metrics.Register(
 		collectors.NewVolumeStatsCollector(kl),
 		collectors.NewLogMetricsCollector(kl.StatsProvider.ListPodStats),
+		collectors.NewEmptyDirMetricsCollector(kl),
 	)
 	metrics.SetNodeName(kl.nodeName)
 	servermetrics.Register()
