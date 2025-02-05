@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -49,15 +50,33 @@ func (gc *GarbageCollector) apiResource(apiVersion, kind string) (schema.GroupVe
 	return mapping.Resource, mapping.Scope == meta.RESTScopeNamespace, nil
 }
 
-func (gc *GarbageCollector) deleteObject(item objectReference, policy *metav1.DeletionPropagation) error {
+func (gc *GarbageCollector) deleteObject(item objectReference, resourceVersion string, ownersAtResourceVersion []metav1.OwnerReference, policy *metav1.DeletionPropagation) error {
 	resource, namespaced, err := gc.apiResource(item.APIVersion, item.Kind)
 	if err != nil {
 		return err
 	}
 	uid := item.UID
 	preconditions := metav1.Preconditions{UID: &uid}
+	if len(resourceVersion) > 0 {
+		preconditions.ResourceVersion = &resourceVersion
+	}
 	deleteOptions := metav1.DeleteOptions{Preconditions: &preconditions, PropagationPolicy: policy}
-	return gc.metadataClient.Resource(resource).Namespace(resourceDefaultNamespace(namespaced, item.Namespace)).Delete(context.TODO(), item.Name, deleteOptions)
+	resourceClient := gc.metadataClient.Resource(resource).Namespace(resourceDefaultNamespace(namespaced, item.Namespace))
+	err = resourceClient.Delete(context.TODO(), item.Name, deleteOptions)
+	if errors.IsConflict(err) && len(resourceVersion) > 0 {
+		// check if the ownerReferences changed
+		liveObject, liveErr := resourceClient.Get(context.TODO(), item.Name, metav1.GetOptions{})
+		if errors.IsNotFound(liveErr) {
+			// object we wanted to delete is gone, success!
+			return nil
+		}
+		if liveErr == nil && liveObject.UID == item.UID && liveObject.ResourceVersion != resourceVersion && reflect.DeepEqual(liveObject.OwnerReferences, ownersAtResourceVersion) {
+			// object changed, causing a conflict error, but ownerReferences did not change.
+			// retry delete without resourceVersion precondition so rapid updates unrelated to ownerReferences don't starve GC
+			return gc.deleteObject(item, "", nil, policy)
+		}
+	}
+	return err
 }
 
 func (gc *GarbageCollector) getObject(item objectReference) (*metav1.PartialObjectMetadata, error) {
