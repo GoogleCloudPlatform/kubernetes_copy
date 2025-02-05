@@ -130,7 +130,7 @@ func NewStatefulSetController(
 	ssc.podLister = podInformer.Lister()
 	ssc.podListerSynced = podInformer.Informer().HasSynced
 
-	setInformer.Informer().AddEventHandler(
+	_, _ = setInformer.Informer().AddEventHandlerWithResyncPeriod(
 		cache.ResourceEventHandlerFuncs{
 			AddFunc: ssc.enqueueStatefulSet,
 			UpdateFunc: func(old, cur interface{}) {
@@ -143,6 +143,7 @@ func NewStatefulSetController(
 			},
 			DeleteFunc: ssc.enqueueStatefulSet,
 		},
+		0,
 	)
 	ssc.setLister = setInformer.Lister()
 	ssc.setListerSynced = setInformer.Informer().HasSynced
