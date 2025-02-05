@@ -325,7 +325,7 @@ func GetKubeletHeapStats(ctx context.Context, c clientset.Interface, nodeName st
 	}
 	raw, errRaw := client.Raw()
 	if errRaw != nil {
-		return "", err
+		return "", errRaw
 	}
 	kubeletstatsv1alpha1 := string(raw)
 	// Only dumping the runtime.MemStats numbers to avoid polluting the log.
