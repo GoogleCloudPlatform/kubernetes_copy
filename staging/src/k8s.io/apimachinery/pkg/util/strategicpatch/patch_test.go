@@ -1266,6 +1266,61 @@ testCases:
 
 var strategicMergePatchRawTestCases = []StrategicMergePatchRawTestCase{
 	{
+		Description: "different level of values with same key in array",
+		StrategicMergePatchRawTestCaseData: StrategicMergePatchRawTestCaseData{
+			Original: []byte(`
+mergingList:
+- name: hello1
+- name: hello2
+`),
+			Current: []byte(`
+mergingList:
+- name: hello1
+- name: hello2
+`),
+			Modified: []byte(`
+mergingList:
+- name: hello1
+- name: 
+    first: hello2
+`),
+			TwoWay: []byte(`
+$setElementOrder/mergingList:
+- name: hello1
+- name:
+    first: hello2
+mergingList:
+- name:
+    first: hello2
+- $patch: delete
+  name: hello2
+`),
+			ThreeWay: []byte(`
+$setElementOrder/mergingList:
+- name: hello1
+- name:
+    first: hello2
+mergingList:
+- name:
+    first: hello2
+- $patch: delete
+  name: hello2
+`),
+			TwoWayResult: []byte(`
+mergingList:
+- name: hello1
+- name:
+    first: hello2
+`),
+			Result: []byte(`
+mergingList:
+- name: hello1
+- name:
+    first: hello2
+`),
+		},
+	},
+	{
 		Description: "nested patch merge with empty list",
 		StrategicMergePatchRawTestCaseData: StrategicMergePatchRawTestCaseData{
 			Original: []byte(`

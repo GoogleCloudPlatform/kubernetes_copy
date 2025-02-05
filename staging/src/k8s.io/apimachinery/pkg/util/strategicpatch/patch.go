@@ -490,7 +490,7 @@ func index(l []interface{}, valToLookUp interface{}, mergeKey string, kind refle
 	}
 
 	for i, v := range l {
-		if getValFn(valToLookUp) == getValFn(v) {
+		if reflect.DeepEqual(getValFn(valToLookUp), getValFn(v)) {
 			return i
 		}
 	}
@@ -952,7 +952,7 @@ func mergeKeyValueEqual(left, right interface{}, mergeKey string) (bool, error) 
 	if !ok {
 		return false, mergepatch.ErrNoMergeKey(typedRight, mergeKey)
 	}
-	return mergeKeyLeft == mergeKeyRight, nil
+	return reflect.DeepEqual(mergeKeyLeft, mergeKeyRight), nil
 }
 
 // extractKey trims the prefix and return the original key
@@ -1659,7 +1659,7 @@ func findMapInSliceBasedOnKeyValue(m []interface{}, key string, value interface{
 		}
 
 		valueToMatch, ok := typedV[key]
-		if ok && valueToMatch == value {
+		if ok && reflect.DeepEqual(valueToMatch, value) {
 			return typedV, k, true, nil
 		}
 	}
