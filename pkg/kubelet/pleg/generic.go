@@ -26,10 +26,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
-	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1"
 	"k8s.io/klog/v2"
-	"k8s.io/kubernetes/pkg/features"
 	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
 	"k8s.io/kubernetes/pkg/kubelet/metrics"
 	"k8s.io/utils/clock"
@@ -305,7 +303,7 @@ func (g *GenericPLEG) Relist() {
 			needsReinspection[pid] = pod
 
 			continue
-		} else if utilfeature.DefaultFeatureGate.Enabled(features.EventedPLEG) {
+		} else if IsEventedPLEGInUse() {
 			if !updated {
 				continue
 			}
@@ -481,7 +479,7 @@ func (g *GenericPLEG) updateCache(ctx context.Context, pod *kubecontainer.Pod, p
 	// Evented PLEG after the event has been received by the Kubelet.
 	// For more details refer to:
 	// https://github.com/kubernetes/enhancements/tree/master/keps/sig-node/3386-kubelet-evented-pleg#timestamp-of-the-pod-status
-	if utilfeature.DefaultFeatureGate.Enabled(features.EventedPLEG) && isEventedPLEGInUse() && status != nil {
+	if IsEventedPLEGInUse() && status != nil {
 		timestamp = status.TimeStamp
 	}
 

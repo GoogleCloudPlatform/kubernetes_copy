@@ -21,8 +21,6 @@ import (
 	"time"
 
 	"k8s.io/apimachinery/pkg/types"
-	utilfeature "k8s.io/apiserver/pkg/util/feature"
-	"k8s.io/kubernetes/pkg/features"
 )
 
 // Cache stores the PodStatus for the pods. It represents *all* the visible
@@ -102,14 +100,6 @@ func (c *cache) GetNewerThan(id types.UID, minTime time.Time) (*PodStatus, error
 func (c *cache) Set(id types.UID, status *PodStatus, err error, timestamp time.Time) (updated bool) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
-
-	if utilfeature.DefaultFeatureGate.Enabled(features.EventedPLEG) {
-		// Set the value in the cache only if it's not present already
-		// or the timestamp in the cache is older than the current update timestamp
-		if cachedVal, ok := c.pods[id]; ok && cachedVal.modified.After(timestamp) {
-			return false
-		}
-	}
 
 	c.pods[id] = &data{status: status, err: err, modified: timestamp}
 	c.notify(id, timestamp)

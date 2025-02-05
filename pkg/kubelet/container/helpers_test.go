@@ -460,7 +460,7 @@ func TestShouldContainerBeRestarted(t *testing.T) {
 		for i, policy := range policies {
 			pod.Spec.RestartPolicy = policy
 			e := expected[c.Name][i]
-			r := ShouldContainerBeRestarted(&c, pod, podStatus)
+			r := ShouldContainerBeRestarted(&c, pod, podStatus, true)
 			if r != e {
 				t.Errorf("Restart for container %q with restart policy %q expected %t, got %t",
 					c.Name, policy, e, r)
@@ -481,7 +481,7 @@ func TestShouldContainerBeRestarted(t *testing.T) {
 		for i, policy := range policies {
 			pod.Spec.RestartPolicy = policy
 			e := expected[c.Name][i]
-			r := ShouldContainerBeRestarted(&c, pod, podStatus)
+			r := ShouldContainerBeRestarted(&c, pod, podStatus, true)
 			if r != e {
 				t.Errorf("Restart for container %q with restart policy %q expected %t, got %t",
 					c.Name, policy, e, r)

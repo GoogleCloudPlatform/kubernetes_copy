@@ -35,18 +35,20 @@ import (
 // The frequency with which global timestamp of the cache is to
 // is to be updated periodically. If pod workers get stuck at cache.GetNewerThan
 // call, after this period it will be unblocked.
-const globalCacheUpdatePeriod = 5 * time.Second
+// This is the same values as the relist period of Generic PLEG
+// in order to unblock pod workers as frequent as Generic PLEG.
+const globalCacheUpdatePeriod = 1 * time.Second
 
 var (
 	eventedPLEGUsage   = false
 	eventedPLEGUsageMu = sync.RWMutex{}
 )
 
-// isEventedPLEGInUse indicates whether Evented PLEG is in use. Even after enabling
+// IsEventedPLEGInUse indicates whether Evented PLEG is in use. Even after enabling
 // the Evented PLEG feature gate, there could be several reasons it may not be in use.
 // e.g. Streaming data issues from the runtime or the runtime does not implement the
 // container events stream.
-func isEventedPLEGInUse() bool {
+func IsEventedPLEGInUse() bool {
 	eventedPLEGUsageMu.RLock()
 	defer eventedPLEGUsageMu.RUnlock()
 	return eventedPLEGUsage
@@ -122,7 +124,7 @@ func (e *EventedPLEG) Relist() {
 func (e *EventedPLEG) Start() {
 	e.runningMu.Lock()
 	defer e.runningMu.Unlock()
-	if isEventedPLEGInUse() {
+	if IsEventedPLEGInUse() {
 		return
 	}
 	setEventedPLEGUsage(true)
@@ -136,7 +138,7 @@ func (e *EventedPLEG) Start() {
 func (e *EventedPLEG) Stop() {
 	e.runningMu.Lock()
 	defer e.runningMu.Unlock()
-	if !isEventedPLEGInUse() {
+	if !IsEventedPLEGInUse() {
 		return
 	}
 	setEventedPLEGUsage(false)
@@ -150,6 +152,13 @@ func (e *EventedPLEG) Stop() {
 // called periodically to update the global timestamp of the cache so that those
 // pods stuck at GetNewerThan in pod workers will get unstuck.
 func (e *EventedPLEG) updateGlobalCache() {
+	// Confirm that there is no communication problem with the runtime.
+	if _, err := e.runtimeService.Version(context.TODO(), ""); err != nil {
+		e.logger.Error(err, "Evented PLEG: failed to communicate with the runtime before updating the global cache")
+		return
+	}
+	// Without any communication problem, events should be delivered to pods whose statuses have been changed.
+	// The global cache can be updated for pods to which no events are delivered.
 	e.cache.UpdateTime(time.Now())
 }
 
@@ -185,7 +194,7 @@ func (e *EventedPLEG) watchEventsChannel() {
 		numAttempts := 0
 		for {
 			if numAttempts >= e.eventedPlegMaxStreamRetries {
-				if isEventedPLEGInUse() {
+				if IsEventedPLEGInUse() {
 					// Fall back to Generic PLEG relisting since Evented PLEG is not working.
 					e.logger.V(4).Info("Fall back to Generic PLEG relisting since Evented PLEG is not working")
 					e.Stop()
@@ -208,7 +217,7 @@ func (e *EventedPLEG) watchEventsChannel() {
 		}
 	}()
 
-	if isEventedPLEGInUse() {
+	if IsEventedPLEGInUse() {
 		e.processCRIEvents(containerEventsResponseCh)
 	}
 }

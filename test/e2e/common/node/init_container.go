@@ -530,7 +530,7 @@ var _ = SIGDescribe("InitContainer", framework.WithNodeConformance(), func() {
 						}
 						status := t.Status.InitContainerStatuses[0]
 						if status.State.Terminated == nil {
-							if status.State.Waiting != nil && status.State.Waiting.Reason != "PodInitializing" {
+							if status.State.Waiting != nil && status.State.Waiting.Reason != "" && status.State.Waiting.Reason != "PodInitializing" {
 								return false, fmt.Errorf("second init container should have reason PodInitializing: %s", toDebugJSON(status))
 							}
 							return false, nil

@@ -2380,7 +2380,7 @@ func (kl *Kubelet) convertToAPIContainerStatuses(pod *v1.Pod, podStatus *kubecon
 			}
 		}
 		// If a container should be restarted in next syncpod, it is *Waiting*.
-		if !kubecontainer.ShouldContainerBeRestarted(&container, pod, podStatus) {
+		if !kubecontainer.ShouldContainerBeRestarted(&container, pod, podStatus, true) {
 			continue
 		}
 		status := statuses[container.Name]
