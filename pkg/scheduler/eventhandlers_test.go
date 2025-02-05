@@ -400,6 +400,7 @@ func TestAdmissionCheck(t *testing.T) {
 		existingPods         []*v1.Pod
 		pod                  *v1.Pod
 		wantAdmissionResults [][]AdmissionResult
+		skipCheckMatches     bool
 	}{
 		{
 			name: "check nodeAffinity and nodeports, nodeAffinity need fail quickly if includeAllFailures is false",
@@ -408,7 +409,18 @@ func TestAdmissionCheck(t *testing.T) {
 			existingPods: []*v1.Pod{
 				st.MakePod().Name("pod1").HostPort(80).Obj(),
 			},
+			skipCheckMatches:     false,
 			wantAdmissionResults: [][]AdmissionResult{{nodeaffinityError, nodeportsError}, {nodeaffinityError}},
+		},
+		{
+			name: "check nodeports, skip check nodeAffinity",
+			node: st.MakeNode().Name("fake-node").Label("foo", "bar").Obj(),
+			pod:  st.MakePod().Name("pod2").HostPort(80).NodeSelector(map[string]string{"foo": "bar1"}).Obj(),
+			existingPods: []*v1.Pod{
+				st.MakePod().Name("pod1").HostPort(80).Obj(),
+			},
+			skipCheckMatches:     true,
+			wantAdmissionResults: [][]AdmissionResult{{nodeportsError}, {nodeportsError}},
 		},
 		{
 			name: "check PodOverhead and nodeAffinity, PodOverhead need fail quickly if includeAllFailures is false",
@@ -417,6 +429,7 @@ func TestAdmissionCheck(t *testing.T) {
 			existingPods: []*v1.Pod{
 				st.MakePod().Name("pod1").Req(map[v1.ResourceName]string{v1.ResourceCPU: "7"}).Node("fake-node").Obj(),
 			},
+			skipCheckMatches:     false,
 			wantAdmissionResults: [][]AdmissionResult{{podOverheadError, nodeaffinityError}, {podOverheadError}},
 		},
 		{
@@ -426,6 +439,7 @@ func TestAdmissionCheck(t *testing.T) {
 			existingPods: []*v1.Pod{
 				st.MakePod().Name("pod1").HostPort(80).Node("fake-node").Obj(),
 			},
+			skipCheckMatches:     false,
 			wantAdmissionResults: [][]AdmissionResult{{nodenameError, nodeportsError}, {nodenameError}},
 		},
 	}
@@ -436,7 +450,7 @@ func TestAdmissionCheck(t *testing.T) {
 
 			flags := []bool{true, false}
 			for i := range flags {
-				admissionResults := AdmissionCheck(tt.pod, nodeInfo, flags[i])
+				admissionResults := AdmissionCheck(tt.pod, nodeInfo, flags[i], tt.skipCheckMatches)
 
 				if diff := cmp.Diff(tt.wantAdmissionResults[i], admissionResults); diff != "" {
 					t.Errorf("Unexpected admissionResults (-want, +got):\n%s", diff)

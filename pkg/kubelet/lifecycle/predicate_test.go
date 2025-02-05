@@ -27,6 +27,7 @@ import (
 	v1helper "k8s.io/kubernetes/pkg/apis/core/v1/helper"
 	"k8s.io/kubernetes/pkg/kubelet/types"
 	schedulerframework "k8s.io/kubernetes/pkg/scheduler/framework"
+	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/nodeaffinity"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/nodename"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/nodeports"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/tainttoleration"
@@ -333,6 +334,79 @@ func TestGeneralPredicates(t *testing.T) {
 				Status: v1.NodeStatus{Capacity: makeResources(10, 20, 32, 0, 0, 0), Allocatable: makeAllocatableResources(10, 20, 32, 0, 0, 0)},
 			},
 			name: "static pods ignore taints",
+		},
+		{
+			pod:      &v1.Pod{Spec: v1.PodSpec{NodeSelector: map[string]string{"bar1": ""}}, Status: v1.PodStatus{Phase: v1.PodRunning}},
+			nodeInfo: schedulerframework.NewNodeInfo(),
+			node: &v1.Node{
+				ObjectMeta: metav1.ObjectMeta{Name: "machine1"},
+				Spec:       v1.NodeSpec{},
+				Status:     v1.NodeStatus{Capacity: makeResources(10, 20, 32, 0, 0, 0), Allocatable: makeAllocatableResources(10, 20, 32, 0, 0, 0)},
+			},
+			name: "nodeSelector not match when pod is running",
+		},
+		{
+			pod:      &v1.Pod{Spec: v1.PodSpec{NodeSelector: map[string]string{"bar1": ""}}, Status: v1.PodStatus{Phase: v1.PodPending}},
+			nodeInfo: schedulerframework.NewNodeInfo(),
+			node: &v1.Node{
+				ObjectMeta: metav1.ObjectMeta{Name: "machine1"},
+				Spec:       v1.NodeSpec{},
+				Status:     v1.NodeStatus{Capacity: makeResources(10, 20, 32, 0, 0, 0), Allocatable: makeAllocatableResources(10, 20, 32, 0, 0, 0)},
+			},
+			reasons: []PredicateFailureReason{&PredicateFailureError{nodeaffinity.Name, nodeaffinity.ErrReasonPod}},
+			name:    "nodeSelector not match when pod is pending",
+		},
+		{
+			pod: &v1.Pod{
+				Spec: v1.PodSpec{Affinity: &v1.Affinity{
+					NodeAffinity: &v1.NodeAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
+							NodeSelectorTerms: []v1.NodeSelectorTerm{
+								{
+									MatchExpressions: []v1.NodeSelectorRequirement{
+										{
+											Key:      "bar1",
+											Operator: v1.NodeSelectorOpExists,
+										},
+									},
+								},
+							},
+						},
+					}}},
+				Status: v1.PodStatus{Phase: v1.PodRunning}},
+			nodeInfo: schedulerframework.NewNodeInfo(),
+			node: &v1.Node{
+				ObjectMeta: metav1.ObjectMeta{Name: "machine1"},
+				Spec:       v1.NodeSpec{},
+				Status:     v1.NodeStatus{Capacity: makeResources(10, 20, 32, 0, 0, 0), Allocatable: makeAllocatableResources(10, 20, 32, 0, 0, 0)},
+			},
+			name: "nodeSelector not match when pod is running",
+		},
+		{
+			pod: &v1.Pod{Spec: v1.PodSpec{Affinity: &v1.Affinity{
+				NodeAffinity: &v1.NodeAffinity{
+					RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
+						NodeSelectorTerms: []v1.NodeSelectorTerm{
+							{
+								MatchExpressions: []v1.NodeSelectorRequirement{
+									{
+										Key:      "bar1",
+										Operator: v1.NodeSelectorOpExists,
+									},
+								},
+							},
+						},
+					},
+				}}},
+				Status: v1.PodStatus{Phase: v1.PodPending}},
+			nodeInfo: schedulerframework.NewNodeInfo(),
+			node: &v1.Node{
+				ObjectMeta: metav1.ObjectMeta{Name: "machine1"},
+				Spec:       v1.NodeSpec{},
+				Status:     v1.NodeStatus{Capacity: makeResources(10, 20, 32, 0, 0, 0), Allocatable: makeAllocatableResources(10, 20, 32, 0, 0, 0)},
+			},
+			reasons: []PredicateFailureReason{&PredicateFailureError{nodeaffinity.Name, nodeaffinity.ErrReasonPod}},
+			name:    "nodeSelector not match when pod is pending",
 		},
 	}
 	for _, test := range resourceTests {

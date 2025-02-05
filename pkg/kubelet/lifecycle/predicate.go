@@ -324,7 +324,7 @@ func (e *PredicateFailureError) GetReason() string {
 
 // generalFilter checks a group of filterings that the kubelet cares about.
 func generalFilter(pod *v1.Pod, nodeInfo *schedulerframework.NodeInfo) []PredicateFailureReason {
-	admissionResults := scheduler.AdmissionCheck(pod, nodeInfo, true)
+	admissionResults := scheduler.AdmissionCheck(pod, nodeInfo, true, pod.Status.Phase == v1.PodRunning)
 	var reasons []PredicateFailureReason
 	for _, r := range admissionResults {
 		if r.InsufficientResource != nil {
