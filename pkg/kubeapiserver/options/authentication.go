@@ -725,6 +725,7 @@ func (o *BuiltInAuthenticationOptions) ApplyTo(
 		authenticatorConfig.CustomDial = egressDialer
 	}
 
+	authenticatorConfig.APIServerID = apiServerID
 	// var openAPIV3SecuritySchemes spec3.SecuritySchemes
 	authenticator, updateAuthenticationConfig, openAPIV2SecurityDefinitions, openAPIV3SecuritySchemes, err := authenticatorConfig.New(ctx)
 	if err != nil {

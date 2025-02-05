@@ -22,10 +22,13 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"hash/fnv"
 	"net"
 	"net/http"
 	"net/url"
@@ -51,6 +54,7 @@ import (
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	authenticationconfigmetrics "k8s.io/apiserver/pkg/server/options/authenticationconfig/metrics"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	"k8s.io/apiserver/plugin/pkg/authenticator/token/oidc"
 	"k8s.io/client-go/kubernetes"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/oidc"
 	"k8s.io/client-go/rest"
@@ -60,6 +64,7 @@ import (
 	kubeapiserverapptesting "k8s.io/kubernetes/cmd/kube-apiserver/app/testing"
 	"k8s.io/kubernetes/pkg/apis/rbac"
 	"k8s.io/kubernetes/pkg/kubeapiserver/options"
+	"k8s.io/kubernetes/pkg/util/slice"
 	"k8s.io/kubernetes/test/integration/framework"
 	utilsoidc "k8s.io/kubernetes/test/utils/oidc"
 	"k8s.io/kubernetes/test/utils/oidc/handlers"
@@ -136,6 +141,8 @@ func TestStructuredAuthenticationConfig(t *testing.T) {
 }
 
 func runTests(t *testing.T, useAuthenticationConfig bool) {
+	genericapiserver.SetHostnameFuncForTests("testAPIServerID")
+
 	var tests = []singleTest[*rsa.PrivateKey, *rsa.PublicKey]{
 		{
 			name: "ID token is ok",
@@ -209,6 +216,7 @@ jwt:
 			assertErrFn: func(t *testing.T, errorToCheck error) {
 				assert.True(t, apierrors.IsUnauthorized(errorToCheck), errorToCheck)
 			},
+			skipJWKSMetricsCheck: true,
 		},
 		{
 			name:                    "wrong client ID",
@@ -218,7 +226,8 @@ jwt:
 			},
 			configureClient: configureClientWithEmptyIDToken,
 			assertErrFn: func(t *testing.T, errorToCheck error) {
-				urlError, ok := errorToCheck.(*url.Error)
+				var urlError *url.Error
+				ok := errors.As(errorToCheck, &urlError)
 				require.True(t, ok)
 				assert.Equal(
 					t,
@@ -226,6 +235,7 @@ jwt:
 					urlError.Err.Error(),
 				)
 			},
+			skipJWKSMetricsCheck: true,
 		},
 		{
 			name:                         "client has wrong CA",
@@ -244,6 +254,7 @@ jwt:
 				expectedErr := new(x509.UnknownAuthorityError)
 				assert.ErrorAs(t, errorToCheck, expectedErr)
 			},
+			skipJWKSMetricsCheck: true,
 		},
 		{
 			name:                    "refresh flow does not return ID Token",
@@ -267,6 +278,7 @@ jwt:
 					errorToCheck.Error(),
 				)
 			},
+			skipJWKSMetricsCheck: true,
 		},
 		{
 			name: "ID token signature can not be verified due to wrong JWKs",
@@ -457,7 +469,8 @@ type singleTest[K utilsoidc.JosePrivateKey, L utilsoidc.JosePublicKey] struct {
 		oidcServerURL,
 		oidcServerTokenURL string,
 	) kubernetes.Interface
-	assertErrFn func(t *testing.T, errorToCheck error)
+	assertErrFn          func(t *testing.T, errorToCheck error)
+	skipJWKSMetricsCheck bool
 }
 
 func singleTestRunner[K utilsoidc.JosePrivateKey, L utilsoidc.JosePublicKey](
@@ -488,6 +501,8 @@ jwt:
 `, issuerURL, defaultOIDCClientID, indentCertificateAuthority(caCert), defaultOIDCUsernamePrefix)
 			}
 		}
+
+		oidc.ResetMetrics()
 		oidcServer, apiServer, signingPrivateKey, caCert, certPath := tt.configureInfrastructure(t, fn, keyFunc)
 
 		tt.configureOIDCServerBehaviour(t, oidcServer, signingPrivateKey)
@@ -501,6 +516,38 @@ jwt:
 		_, err = client.CoreV1().Pods(defaultNamespace).List(ctx, metav1.ListOptions{})
 
 		tt.assertErrFn(t, err)
+
+		if !tt.skipJWKSMetricsCheck && useAuthenticationConfig {
+			jwtIssuerHash := fmt.Sprintf("sha256:%x", sha256.Sum256([]byte(oidcServer.URL())))
+			keySet := oidcServer.JwksHandler().KeySet()
+			keySetBytes, err := json.Marshal(keySet)
+			require.NoError(t, err)
+
+			hf := fnv.New64()
+			hf.Write(keySetBytes)
+
+			wantMetricStrings := []string{
+				fmt.Sprintf(`apiserver_authentication_jwt_authenticator_jwks_fetch_last_key_set_hash{apiserver_id_hash="sha256:3c607df3b2bf22c9d9f01d5314b4bbf411c48ef43ff44ff29b1d55b41367c795",jwt_issuer_hash="%s"} %g`, jwtIssuerHash, float64(hf.Sum64())),
+				fmt.Sprintf(`apiserver_authentication_jwt_authenticator_jwks_fetch_last_timestamp_seconds{apiserver_id_hash="sha256:3c607df3b2bf22c9d9f01d5314b4bbf411c48ef43ff44ff29b1d55b41367c795",jwt_issuer_hash="%s",result="success"} FP`, jwtIssuerHash),
+			}
+			adminClient := kubernetes.NewForConfigOrDie(apiServer.ClientConfig)
+			body, err := adminClient.RESTClient().Get().AbsPath("/metrics").DoRaw(ctx)
+			require.NoError(t, err)
+			var gotMetricStrings []string
+			trimFP := regexp.MustCompile(`(.*)(} \d+\.\d+.*)`)
+			for _, line := range strings.Split(string(body), "\n") {
+				if strings.HasPrefix(line, "apiserver_authentication_jwt_authenticator_jwks_") {
+					if strings.Contains(line, "_seconds") {
+						line = trimFP.ReplaceAllString(line, `$1`) + "} FP" // ignore floating point metric values
+					}
+
+					gotMetricStrings = append(gotMetricStrings, line)
+				}
+			}
+			if diff := cmp.Diff(wantMetricStrings, gotMetricStrings); diff != "" {
+				t.Errorf("unexpected metrics diff (-want +got): %s", diff)
+			}
+		}
 	}
 }
 
@@ -1602,6 +1649,8 @@ jwt:
 
 func TestMultipleJWTAuthenticators(t *testing.T) {
 	featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.StructuredAuthenticationConfiguration, true)
+	genericapiserver.SetHostnameFuncForTests("testAPIServerID")
+	oidc.ResetMetrics()
 
 	caCertContent1, _, caFilePath1, caKeyFilePath1 := generateCert(t)
 	signingPrivateKey1, publicKey1 := rsaGenerateKey(t)
@@ -1705,6 +1754,51 @@ jwt:
 		Groups:   []string{"system:role1", "system:role2", "system:role3", "system:role4", "system:authenticated"},
 		UID:      "1234",
 	}, res.Status.UserInfo)
+
+	jwtIssuerHash1 := fmt.Sprintf("sha256:%x", sha256.Sum256([]byte(oidcServer1.URL())))
+	jwtIssuerHash2 := fmt.Sprintf("sha256:%x", sha256.Sum256([]byte("https://example.com")))
+
+	keySet1 := oidcServer1.JwksHandler().KeySet()
+	keySet1Bytes, err := json.Marshal(keySet1)
+	require.NoError(t, err)
+
+	keySet2 := oidcServer2.JwksHandler().KeySet()
+	keySet2Bytes, err := json.Marshal(keySet2)
+	require.NoError(t, err)
+
+	hf1 := fnv.New64()
+	hf1.Write(keySet1Bytes)
+
+	hf2 := fnv.New64()
+	hf2.Write(keySet2Bytes)
+
+	wantMetricStrings := []string{
+		fmt.Sprintf(`apiserver_authentication_jwt_authenticator_jwks_fetch_last_key_set_hash{apiserver_id_hash="sha256:3c607df3b2bf22c9d9f01d5314b4bbf411c48ef43ff44ff29b1d55b41367c795",jwt_issuer_hash="%s"} %g`, jwtIssuerHash1, float64(hf1.Sum64())),
+		fmt.Sprintf(`apiserver_authentication_jwt_authenticator_jwks_fetch_last_key_set_hash{apiserver_id_hash="sha256:3c607df3b2bf22c9d9f01d5314b4bbf411c48ef43ff44ff29b1d55b41367c795",jwt_issuer_hash="%s"} %g`, jwtIssuerHash2, float64(hf2.Sum64())),
+		fmt.Sprintf(`apiserver_authentication_jwt_authenticator_jwks_fetch_last_timestamp_seconds{apiserver_id_hash="sha256:3c607df3b2bf22c9d9f01d5314b4bbf411c48ef43ff44ff29b1d55b41367c795",jwt_issuer_hash="%s",result="success"} FP`, jwtIssuerHash1),
+		fmt.Sprintf(`apiserver_authentication_jwt_authenticator_jwks_fetch_last_timestamp_seconds{apiserver_id_hash="sha256:3c607df3b2bf22c9d9f01d5314b4bbf411c48ef43ff44ff29b1d55b41367c795",jwt_issuer_hash="%s",result="success"} FP`, jwtIssuerHash2),
+	}
+	adminClient := kubernetes.NewForConfigOrDie(apiServer.ClientConfig)
+	body, err := adminClient.RESTClient().Get().AbsPath("/metrics").DoRaw(ctx)
+	require.NoError(t, err)
+	var gotMetricStrings []string
+	trimFP := regexp.MustCompile(`(.*)(} \d+\.\d+.*)`)
+	for _, line := range strings.Split(string(body), "\n") {
+		if strings.HasPrefix(line, "apiserver_authentication_jwt_authenticator_jwks_") {
+			if strings.Contains(line, "_seconds") {
+				line = trimFP.ReplaceAllString(line, `$1`) + "} FP" // ignore floating point metric values
+			}
+
+			gotMetricStrings = append(gotMetricStrings, line)
+		}
+	}
+
+	wantMetricStrings = slice.SortStrings(wantMetricStrings)
+	gotMetricStrings = slice.SortStrings(gotMetricStrings)
+
+	if diff := cmp.Diff(wantMetricStrings, gotMetricStrings); diff != "" {
+		t.Errorf("unexpected metrics diff (-want +got): %s", diff)
+	}
 }
 
 func rsaGenerateKey(t *testing.T) (*rsa.PrivateKey, *rsa.PublicKey) {

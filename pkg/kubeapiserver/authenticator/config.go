@@ -93,6 +93,9 @@ type Config struct {
 
 	// Optional field, custom dial function used to connect to webhook
 	CustomDial utilnet.DialFunc
+
+	// APIServerID is the ID of the API server
+	APIServerID string
 }
 
 // New returns an authenticator.Request or an error that supports the standard
@@ -158,7 +161,7 @@ func (config Config) New(serverLifecycle context.Context) (authenticator.Request
 	// update the keys, causing performance hits.
 	var updateAuthenticationConfig func(context.Context, *apiserver.AuthenticationConfiguration) error
 	if config.AuthenticationConfig != nil {
-		initialJWTAuthenticator, err := newJWTAuthenticator(serverLifecycle, config.AuthenticationConfig, config.OIDCSigningAlgs, config.APIAudiences, config.ServiceAccountIssuers)
+		initialJWTAuthenticator, err := newJWTAuthenticator(serverLifecycle, config.AuthenticationConfig, config.OIDCSigningAlgs, config.APIAudiences, config.ServiceAccountIssuers, config.APIServerID)
 		if err != nil {
 			return nil, nil, nil, nil, err
 		}
@@ -170,6 +173,7 @@ func (config Config) New(serverLifecycle context.Context) (authenticator.Request
 			serverLifecycle:     serverLifecycle,
 			config:              config,
 			jwtAuthenticatorPtr: jwtAuthenticatorPtr,
+			apiServerID:         config.APIServerID,
 		}).updateAuthenticationConfig
 
 		tokenAuthenticators = append(tokenAuthenticators,
@@ -241,7 +245,7 @@ type jwtAuthenticatorWithCancel struct {
 	cancel           func()
 }
 
-func newJWTAuthenticator(serverLifecycle context.Context, config *apiserver.AuthenticationConfiguration, oidcSigningAlgs []string, apiAudiences authenticator.Audiences, disallowedIssuers []string) (_ *jwtAuthenticatorWithCancel, buildErr error) {
+func newJWTAuthenticator(serverLifecycle context.Context, config *apiserver.AuthenticationConfiguration, oidcSigningAlgs []string, apiAudiences authenticator.Audiences, disallowedIssuers []string, apiServerID string) (_ *jwtAuthenticatorWithCancel, buildErr error) {
 	ctx, cancel := context.WithCancel(serverLifecycle)
 
 	defer func() {
@@ -266,6 +270,7 @@ func newJWTAuthenticator(serverLifecycle context.Context, config *apiserver.Auth
 			CAContentProvider:    oidcCAContent,
 			SupportedSigningAlgs: oidcSigningAlgs,
 			DisallowedIssuers:    disallowedIssuers,
+			APIServerID:          apiServerID,
 		})
 		if err != nil {
 			return nil, err
@@ -292,11 +297,12 @@ type authenticationConfigUpdater struct {
 	serverLifecycle     context.Context
 	config              Config
 	jwtAuthenticatorPtr *atomic.Pointer[jwtAuthenticatorWithCancel]
+	apiServerID         string
 }
 
 // the input ctx controls the timeout for updateAuthenticationConfig to return, not the lifetime of the constructed authenticators.
 func (c *authenticationConfigUpdater) updateAuthenticationConfig(ctx context.Context, authConfig *apiserver.AuthenticationConfiguration) error {
-	updatedJWTAuthenticator, err := newJWTAuthenticator(c.serverLifecycle, authConfig, c.config.OIDCSigningAlgs, c.config.APIAudiences, c.config.ServiceAccountIssuers)
+	updatedJWTAuthenticator, err := newJWTAuthenticator(c.serverLifecycle, authConfig, c.config.OIDCSigningAlgs, c.config.APIAudiences, c.config.ServiceAccountIssuers, c.apiServerID)
 	if err != nil {
 		return err
 	}
@@ -309,6 +315,23 @@ func (c *authenticationConfigUpdater) updateAuthenticationConfig(ctx context.Con
 		updatedJWTAuthenticator.cancel()
 		return utilerrors.NewAggregate([]error{lastErr, waitErr}) // filters out nil errors
 	}
+
+	// Reset the metrics for the jwt authenticators, since we have a new set of them
+	// and don't want the metrics to be stale or grow unbounded.
+	// This will reset the following metrics:
+	// - jwtAuthenticatorLatencyMetric
+	// - jwksFetchLastTimestampSeconds
+	// - jwksFetchLastKeySetHash
+	// as they are split by the jwt issuer hash.
+	//
+	// We swap the new authenticator in the next step, and cancel the old ones after a minute.
+	// This can lead to a brief period when the old authenticators are still in use and might
+	// record metrics. These stale metrics would get reset in the next reload cycle and the
+	// metrics will not grow unbounded.
+	//
+	// TODO(aramase): Investigate if we want to optimize this behavior in the v1.32 release
+	// to prevent the brief period of stale metrics.
+	oidc.ResetMetrics()
 
 	oldJWTAuthenticator := c.jwtAuthenticatorPtr.Swap(updatedJWTAuthenticator)
 	go func() {

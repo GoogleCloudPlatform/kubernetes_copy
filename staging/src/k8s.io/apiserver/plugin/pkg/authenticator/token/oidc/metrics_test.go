@@ -29,7 +29,10 @@ import (
 )
 
 const (
-	testIssuer = "testIssuer"
+	testIssuer          = "testIssuer"
+	testAPIServerID     = "testAPIServerID"
+	testAPIServerIDHash = "sha256:14f9d63e669337ac6bfda2e2162915ee6a6067743eddd4e5c374b572f951ff37"
+	testJWTIssuerHash   = "sha256:29b34beedc55b972f2428f21bc588f9d38e5e8f7a7af825486e7bb4fd9caa2ad"
 )
 
 func TestRecordAuthenticationLatency(t *testing.T) {
@@ -104,6 +107,56 @@ func TestRecordAuthenticationLatency(t *testing.T) {
 				t.Fatal(err)
 			}
 		})
+	}
+}
+
+func TestRecordJWKSFetchKeySetHash(t *testing.T) {
+	RegisterMetrics()
+	jwksFetchLastKeySetHash.Reset()
+
+	testKeySet := `{"keys":[{"use":"sig","kty":"RSA","kid":"d96cf58fcd9c6a2dba65f71df8b8a65cd9e3be8127695184fe6269b89fcc43d0","alg":"RS256","n":"0pXWMYjWRjBEds_fKj_u9r2E6SIDx0J-TAg-eyVeR20Ky9jZmIXW5zSxE_EKpNQpiBWm1e6G9kmhMuqjr7g455S7E-3rD3OVkdTT6SU5AKBNSFoRXUd-G_YJEtRzrpEYNtEJHkxUxWuyfCHblHSt-wsrE6t0DccCqC87lKQiGb_QfC8uP6ZS99SCjKBEFp1fZvyNkYwStFc2OH5fBGPXXb6SNsquvDeKX9NeWjXkmxDkbOg2kSkel4s_zw5KwcW3JzERfEcLStrDQ8fRbJ1C3uC088sUk4q4APQmKI_8FTvJe431Vne9sOSptphiqCjlR-Knja58rc_vt4TkSPZf2w","e":"AQAB"}]}`
+	recordJWKSFetchKeySetHash(testIssuer, testAPIServerID, testKeySet)
+
+	expectedMetricValue := `
+       # HELP apiserver_authentication_jwt_authenticator_jwks_fetch_last_key_set_hash [ALPHA] Hash of the last JWKS fetched by the JWT authenticator split by api server identity and jwt issuer.
+	   # TYPE apiserver_authentication_jwt_authenticator_jwks_fetch_last_key_set_hash gauge
+	   apiserver_authentication_jwt_authenticator_jwks_fetch_last_key_set_hash{apiserver_id_hash="sha256:14f9d63e669337ac6bfda2e2162915ee6a6067743eddd4e5c374b572f951ff37",jwt_issuer_hash="sha256:29b34beedc55b972f2428f21bc588f9d38e5e8f7a7af825486e7bb4fd9caa2ad"} 5.482153416488015e+18
+	`
+
+	if err := testutil.GatherAndCompare(legacyregistry.DefaultGatherer, strings.NewReader(expectedMetricValue), "apiserver_authentication_jwt_authenticator_jwks_fetch_last_key_set_hash"); err != nil {
+		t.Fatalf("unexpected metrics:\n%s", err)
+	}
+}
+
+func TestRecordJWKSFetchTimestamp(t *testing.T) {
+	RegisterMetrics()
+	jwksFetchLastTimestampSeconds.Reset()
+
+	recordJWKSFetchTimestamp("success", testIssuer, testAPIServerID)
+
+	metricFamilies, err := legacyregistry.DefaultGatherer.Gather()
+	if err != nil {
+		t.Fatalf("failed to gather metrics: %v", err)
+	}
+	var ts float64
+	for _, family := range metricFamilies {
+		if family.GetName() != "apiserver_authentication_jwt_authenticator_jwks_fetch_last_timestamp_seconds" {
+			continue
+		}
+
+		labelFilter := map[string]string{
+			"apiserver_id_hash": testAPIServerIDHash,
+			"jwt_issuer_hash":   testJWTIssuerHash,
+			"result":            "success",
+		}
+		if !testutil.LabelsMatch(family.Metric[0], labelFilter) {
+			t.Fatalf("unexpected metric: %v", family.Metric[0])
+		}
+
+		ts = *family.Metric[0].Gauge.Value
+	}
+	if ts == 0 {
+		t.Fatalf("failed to get the timestamp")
 	}
 }
 
