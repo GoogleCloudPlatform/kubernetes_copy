@@ -36,9 +36,6 @@ type KubeletClientConfig struct {
 	// Port specifies the default port - used if no information about Kubelet port can be found in Node.NodeStatus.DaemonEndpoints.
 	Port uint
 
-	// ReadOnlyPort specifies the Port for ReadOnly communications.
-	ReadOnlyPort uint
-
 	// PreferredAddressTypes - used to select an address from Node.NodeStatus.Addresses
 	PreferredAddressTypes []string
 

@@ -315,8 +315,7 @@ func TestAddFlags(t *testing.T) {
 			EndpointReconcilerType: string(reconcilers.LeaseEndpointReconcilerType),
 			AllowPrivileged:        false,
 			KubeletConfig: kubeletclient.KubeletClientConfig{
-				Port:         10250,
-				ReadOnlyPort: 10255,
+				Port: 10250,
 				PreferredAddressTypes: []string{
 					string(kapi.NodeHostName),
 					string(kapi.NodeInternalDNS),

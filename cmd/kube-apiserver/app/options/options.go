@@ -72,8 +72,7 @@ func NewServerRunOptions() *ServerRunOptions {
 		Extra: Extra{
 			EndpointReconcilerType: string(reconcilers.LeaseEndpointReconcilerType),
 			KubeletConfig: kubeletclient.KubeletClientConfig{
-				Port:         ports.KubeletPort,
-				ReadOnlyPort: ports.KubeletReadOnlyPort,
+				Port: ports.KubeletPort,
 				PreferredAddressTypes: []string{
 					// --override-hostname
 					string(api.NodeHostName),
@@ -136,9 +135,9 @@ func (s *ServerRunOptions) Flags() (fss cliflag.NamedFlagSets) {
 		"DEPRECATED: kubelet port.")
 	fs.MarkDeprecated("kubelet-port", "kubelet-port is deprecated and will be removed.")
 
-	fs.UintVar(&s.KubeletConfig.ReadOnlyPort, "kubelet-read-only-port", s.KubeletConfig.ReadOnlyPort,
-		"DEPRECATED: kubelet read only port.")
-	fs.MarkDeprecated("kubelet-read-only-port", "kubelet-read-only-port is deprecated and will be removed.")
+	fs.UintVar(new(uint), "kubelet-read-only-port", 0,
+		"DEPRECATED: kubelet read only port. Value ignored even if set.")
+	fs.MarkDeprecated("kubelet-read-only-port", "kubelet-read-only-port is deprecated, ignored and will be removed.") //nolint:errcheck
 
 	fs.DurationVar(&s.KubeletConfig.HTTPTimeout, "kubelet-timeout", s.KubeletConfig.HTTPTimeout,
 		"Timeout for kubelet operations.")
