@@ -22,8 +22,10 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apiserver/pkg/admission"
 	quota "k8s.io/apiserver/pkg/quota/v1"
 	"k8s.io/apiserver/pkg/quota/v1/generic"
@@ -31,7 +33,9 @@ import (
 	storagehelpers "k8s.io/component-helpers/storage/volume"
 	api "k8s.io/kubernetes/pkg/apis/core"
 	k8s_api_v1 "k8s.io/kubernetes/pkg/apis/core/v1"
+	"k8s.io/kubernetes/pkg/apis/core/v1/helper"
 	k8sfeatures "k8s.io/kubernetes/pkg/features"
+	"k8s.io/utils/ptr"
 )
 
 // the name used for object count quota
@@ -99,17 +103,50 @@ func (p *pvcEvaluator) Handles(a admission.Attributes) bool {
 
 // Matches returns true if the evaluator matches the specified quota with the provided input item
 func (p *pvcEvaluator) Matches(resourceQuota *corev1.ResourceQuota, item runtime.Object) (bool, error) {
+	if utilfeature.DefaultFeatureGate.Enabled(k8sfeatures.VolumeAttributesClass) {
+		return generic.Matches(resourceQuota, item, p.MatchingResources, pvcMatchesScopeFunc)
+	}
 	return generic.Matches(resourceQuota, item, p.MatchingResources, generic.MatchesNoScopeFunc)
 }
 
 // MatchingScopes takes the input specified list of scopes and input object. Returns the set of scopes resource matches.
-func (p *pvcEvaluator) MatchingScopes(item runtime.Object, scopes []corev1.ScopedResourceSelectorRequirement) ([]corev1.ScopedResourceSelectorRequirement, error) {
+func (p *pvcEvaluator) MatchingScopes(item runtime.Object, scopeSelectors []corev1.ScopedResourceSelectorRequirement) ([]corev1.ScopedResourceSelectorRequirement, error) {
+	if utilfeature.DefaultFeatureGate.Enabled(k8sfeatures.VolumeAttributesClass) {
+		matchedScopes := []corev1.ScopedResourceSelectorRequirement{}
+		for _, selector := range scopeSelectors {
+			match, err := pvcMatchesScopeFunc(selector, item)
+			if err != nil {
+				return []corev1.ScopedResourceSelectorRequirement{}, fmt.Errorf("error on matching scope %v: %v", selector, err)
+			}
+			if match {
+				matchedScopes = append(matchedScopes, selector)
+			}
+		}
+		return matchedScopes, nil
+	}
 	return []corev1.ScopedResourceSelectorRequirement{}, nil
 }
 
 // UncoveredQuotaScopes takes the input matched scopes which are limited by configuration and the matched quota scopes.
 // It returns the scopes which are in limited scopes but don't have a corresponding covering quota scope
 func (p *pvcEvaluator) UncoveredQuotaScopes(limitedScopes []corev1.ScopedResourceSelectorRequirement, matchedQuotaScopes []corev1.ScopedResourceSelectorRequirement) ([]corev1.ScopedResourceSelectorRequirement, error) {
+	if utilfeature.DefaultFeatureGate.Enabled(k8sfeatures.VolumeAttributesClass) {
+		uncoveredScopes := []corev1.ScopedResourceSelectorRequirement{}
+		for _, selector := range limitedScopes {
+			isCovered := false
+			for _, matchedScopeSelector := range matchedQuotaScopes {
+				if matchedScopeSelector.ScopeName == selector.ScopeName {
+					isCovered = true
+					break
+				}
+			}
+
+			if !isCovered {
+				uncoveredScopes = append(uncoveredScopes, selector)
+			}
+		}
+		return uncoveredScopes, nil
+	}
 	return []corev1.ScopedResourceSelectorRequirement{}, nil
 }
 
@@ -231,4 +268,60 @@ func RequiresQuotaReplenish(pvc, oldPVC *corev1.PersistentVolumeClaim) bool {
 		}
 	}
 	return false
+}
+
+// pvcMatchesScopeFunc is a function that knows how to evaluate if a pvc matches a scope
+func pvcMatchesScopeFunc(selector corev1.ScopedResourceSelectorRequirement, object runtime.Object) (bool, error) {
+	pvc, err := toExternalPersistentVolumeClaimOrError(object)
+	if err != nil {
+		return false, err
+	}
+
+	switch selector.ScopeName {
+	case corev1.ResourceQuotaScopeVolumeAttributesClass:
+		if selector.Operator == corev1.ScopeSelectorOpExists {
+			// This is just checking for existence of a volumeAttributesClass on the pvc,
+			// no need to take the overhead of selector parsing/evaluation.
+			if ptr.Deref(pvc.Spec.VolumeAttributesClassName, "") != "" {
+				return true, nil
+			}
+			if ptr.Deref(pvc.Status.CurrentVolumeAttributesClassName, "") != "" {
+				return true, nil
+			}
+			modifyStatus := pvc.Status.ModifyVolumeStatus
+			if modifyStatus != nil && modifyStatus.TargetVolumeAttributesClassName != "" {
+				return true, nil
+			}
+			return false, nil
+		}
+		return pvcMatchesSelector(pvc, selector)
+	}
+	return false, nil
+}
+
+func pvcMatchesSelector(pvc *corev1.PersistentVolumeClaim, selector corev1.ScopedResourceSelectorRequirement) (bool, error) {
+	labelSelector, err := helper.ScopedResourceSelectorRequirementsAsSelector(selector)
+	if err != nil {
+		return false, fmt.Errorf("failed to parse and convert selector: %v", err)
+	}
+
+	vacNames := sets.New[string]()
+	if ptr.Deref(pvc.Spec.VolumeAttributesClassName, "") != "" {
+		vacNames.Insert(*pvc.Spec.VolumeAttributesClassName)
+	}
+	if ptr.Deref(pvc.Status.CurrentVolumeAttributesClassName, "") != "" {
+		vacNames.Insert(*pvc.Status.CurrentVolumeAttributesClassName)
+	}
+	modifyStatus := pvc.Status.ModifyVolumeStatus
+	if modifyStatus != nil && modifyStatus.TargetVolumeAttributesClassName != "" {
+		vacNames.Insert(modifyStatus.TargetVolumeAttributesClassName)
+	}
+
+	for vacName := range vacNames {
+		m := labels.Set{string(corev1.ResourceQuotaScopeVolumeAttributesClass): vacName}
+		if labelSelector.Matches(m) {
+			return true, nil
+		}
+	}
+	return false, nil
 }

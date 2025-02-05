@@ -20,6 +20,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -31,12 +32,90 @@ import (
 	featuregatetesting "k8s.io/component-base/featuregate/testing"
 	"k8s.io/kubernetes/pkg/apis/core"
 	"k8s.io/kubernetes/pkg/features"
+	"k8s.io/utils/ptr"
 )
 
 func testVolumeClaim(name string, namespace string, spec core.PersistentVolumeClaimSpec) *core.PersistentVolumeClaim {
 	return &core.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace},
 		Spec:       spec,
+	}
+}
+
+func TestPersistentVolumeClaimEvaluatorMatchingScopes(t *testing.T) {
+	evaluator := NewPersistentVolumeClaimEvaluator(nil)
+	testCases := map[string]struct {
+		claim         *core.PersistentVolumeClaim
+		selectors     []corev1.ScopedResourceSelectorRequirement
+		wantSelectors []corev1.ScopedResourceSelectorRequirement
+	}{
+		"VolumeAttributesClass": {
+			claim: &core.PersistentVolumeClaim{
+				Spec: core.PersistentVolumeClaimSpec{
+					VolumeAttributesClassName: ptr.To("class1"),
+				},
+			},
+			selectors: []corev1.ScopedResourceSelectorRequirement{
+				{ScopeName: corev1.ResourceQuotaScopeVolumeAttributesClass, Operator: corev1.ScopeSelectorOpIn, Values: []string{"class1"}},
+			},
+			wantSelectors: []corev1.ScopedResourceSelectorRequirement{
+				{ScopeName: corev1.ResourceQuotaScopeVolumeAttributesClass, Operator: corev1.ScopeSelectorOpIn, Values: []string{"class1"}},
+			},
+		},
+		"VolumeAttributesClassWithTarget": {
+			claim: &core.PersistentVolumeClaim{
+				Spec: core.PersistentVolumeClaimSpec{
+					VolumeAttributesClassName: ptr.To("class1"),
+				},
+				Status: core.PersistentVolumeClaimStatus{
+					CurrentVolumeAttributesClassName: ptr.To("class2"),
+				},
+			},
+			selectors: []corev1.ScopedResourceSelectorRequirement{
+				{ScopeName: corev1.ResourceQuotaScopeVolumeAttributesClass, Operator: corev1.ScopeSelectorOpIn, Values: []string{"class1"}},
+				{ScopeName: corev1.ResourceQuotaScopeVolumeAttributesClass, Operator: corev1.ScopeSelectorOpIn, Values: []string{"class2"}},
+			},
+			wantSelectors: []corev1.ScopedResourceSelectorRequirement{
+				{ScopeName: corev1.ResourceQuotaScopeVolumeAttributesClass, Operator: corev1.ScopeSelectorOpIn, Values: []string{"class1"}},
+				{ScopeName: corev1.ResourceQuotaScopeVolumeAttributesClass, Operator: corev1.ScopeSelectorOpIn, Values: []string{"class2"}},
+			},
+		},
+		"VolumeAttributesClassWithModityStatus": {
+			claim: &core.PersistentVolumeClaim{
+				Spec: core.PersistentVolumeClaimSpec{
+					VolumeAttributesClassName: ptr.To("class1"),
+				},
+				Status: core.PersistentVolumeClaimStatus{
+					CurrentVolumeAttributesClassName: ptr.To("class2"),
+					ModifyVolumeStatus: &core.ModifyVolumeStatus{
+						TargetVolumeAttributesClassName: "class3",
+					},
+				},
+			},
+			selectors: []corev1.ScopedResourceSelectorRequirement{
+				{ScopeName: corev1.ResourceQuotaScopeVolumeAttributesClass, Operator: corev1.ScopeSelectorOpIn, Values: []string{"class1"}},
+				{ScopeName: corev1.ResourceQuotaScopeVolumeAttributesClass, Operator: corev1.ScopeSelectorOpIn, Values: []string{"class2"}},
+				{ScopeName: corev1.ResourceQuotaScopeVolumeAttributesClass, Operator: corev1.ScopeSelectorOpIn, Values: []string{"class3"}},
+			},
+			wantSelectors: []corev1.ScopedResourceSelectorRequirement{
+				{ScopeName: corev1.ResourceQuotaScopeVolumeAttributesClass, Operator: corev1.ScopeSelectorOpIn, Values: []string{"class1"}},
+				{ScopeName: corev1.ResourceQuotaScopeVolumeAttributesClass, Operator: corev1.ScopeSelectorOpIn, Values: []string{"class2"}},
+				{ScopeName: corev1.ResourceQuotaScopeVolumeAttributesClass, Operator: corev1.ScopeSelectorOpIn, Values: []string{"class3"}},
+			},
+		},
+	}
+
+	for testName, testCase := range testCases {
+		defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.VolumeAttributesClass, true)()
+		t.Run(testName, func(t *testing.T) {
+			gotSelectors, err := evaluator.MatchingScopes(testCase.claim, testCase.selectors)
+			if err != nil {
+				t.Error(err)
+			}
+			if diff := cmp.Diff(testCase.wantSelectors, gotSelectors); diff != "" {
+				t.Errorf("%v: unexpected diff (-want, +got):\n%s", testName, diff)
+			}
+		})
 	}
 }
 
