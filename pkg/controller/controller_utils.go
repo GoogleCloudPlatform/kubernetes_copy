@@ -83,6 +83,8 @@ const (
 	// The number of batches is given by:
 	//      1+floor(log_2(ceil(N/SlowStartInitialBatchSize)))
 	SlowStartInitialBatchSize = 1
+	// When scaling down the pods of a ReplicaSet, prioritize removing the specified pod.
+	SpecifiedToDeleteAnnotation string = "k8s.io/specified-to-delete"
 )
 
 var UpdateTaintBackoff = wait.Backoff{
@@ -824,22 +826,27 @@ func (s ActivePodsWithRanks) Swap(i, j int) {
 // Less compares two pods with corresponding ranks and returns true if the first
 // one should be preferred for deletion.
 func (s ActivePodsWithRanks) Less(i, j int) bool {
-	// 1. Unassigned < assigned
+	// 1. Delete a Specific Pod 
+	if s.Pods[i].Annotations[SpecifiedToDeleteAnnotation] != s.Pods[j].Annotations[SpecifiedToDeleteAnnotation] ||
+		(s.Pods[i].Annotations[SpecifiedToDeleteAnnotation] == s.Pods[j].Annotations[SpecifiedToDeleteAnnotation] && s.Pods[j].Annotations[SpecifiedToDeleteAnnotation] == "true") {
+		return s.Pods[i].Annotations[SpecifiedToDeleteAnnotation] == "true"
+	}
+	// 2. Unassigned < assigned
 	// If only one of the pods is unassigned, the unassigned one is smaller
 	if s.Pods[i].Spec.NodeName != s.Pods[j].Spec.NodeName && (len(s.Pods[i].Spec.NodeName) == 0 || len(s.Pods[j].Spec.NodeName) == 0) {
 		return len(s.Pods[i].Spec.NodeName) == 0
 	}
-	// 2. PodPending < PodUnknown < PodRunning
+	// 3. PodPending < PodUnknown < PodRunning
 	if podPhaseToOrdinal[s.Pods[i].Status.Phase] != podPhaseToOrdinal[s.Pods[j].Status.Phase] {
 		return podPhaseToOrdinal[s.Pods[i].Status.Phase] < podPhaseToOrdinal[s.Pods[j].Status.Phase]
 	}
-	// 3. Not ready < ready
+	// 4. Not ready < ready
 	// If only one of the pods is not ready, the not ready one is smaller
 	if podutil.IsPodReady(s.Pods[i]) != podutil.IsPodReady(s.Pods[j]) {
 		return !podutil.IsPodReady(s.Pods[i])
 	}
 
-	// 4. lower pod-deletion-cost < higher pod-deletion cost
+	// 5. lower pod-deletion-cost < higher pod-deletion cost
 	if utilfeature.DefaultFeatureGate.Enabled(features.PodDeletionCost) {
 		pi, _ := helper.GetDeletionCostFromPodAnnotations(s.Pods[i].Annotations)
 		pj, _ := helper.GetDeletionCostFromPodAnnotations(s.Pods[j].Annotations)
@@ -848,7 +855,7 @@ func (s ActivePodsWithRanks) Less(i, j int) bool {
 		}
 	}
 
-	// 5. Doubled up < not doubled up
+	// 6. Doubled up < not doubled up
 	// If one of the two pods is on the same node as one or more additional
 	// ready pods that belong to the same replicaset, whichever pod has more
 	// colocated ready pods is less
@@ -857,7 +864,7 @@ func (s ActivePodsWithRanks) Less(i, j int) bool {
 	}
 	// TODO: take availability into account when we push minReadySeconds information from deployment into pods,
 	//       see https://github.com/kubernetes/kubernetes/issues/22065
-	// 6. Been ready for empty time < less time < more time
+	// 7. Been ready for empty time < less time < more time
 	// If both pods are ready, the latest ready one is smaller
 	if podutil.IsPodReady(s.Pods[i]) && podutil.IsPodReady(s.Pods[j]) {
 		readyTime1 := podReadyTime(s.Pods[i])
@@ -877,11 +884,11 @@ func (s ActivePodsWithRanks) Less(i, j int) bool {
 			}
 		}
 	}
-	// 7. Pods with containers with higher restart counts < lower restart counts
+	// 8. Pods with containers with higher restart counts < lower restart counts
 	if res := compareMaxContainerRestarts(s.Pods[i], s.Pods[j]); res != nil {
 		return *res
 	}
-	// 8. Empty creation time pods < newer pods < older pods
+	// 9. Empty creation time pods < newer pods < older pods
 	if !s.Pods[i].CreationTimestamp.Equal(&s.Pods[j].CreationTimestamp) {
 		if !utilfeature.DefaultFeatureGate.Enabled(features.LogarithmicScaleDown) {
 			return afterOrZero(&s.Pods[i].CreationTimestamp, &s.Pods[j].CreationTimestamp)
