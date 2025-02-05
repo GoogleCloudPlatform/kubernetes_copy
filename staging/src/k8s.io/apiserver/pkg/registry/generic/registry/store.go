@@ -1413,20 +1413,21 @@ func (e *Store) finalizeDelete(ctx context.Context, obj runtime.Object, runHooks
 // automatically.
 func (e *Store) Watch(ctx context.Context, options *metainternalversion.ListOptions) (watch.Interface, error) {
 	label := labels.Everything()
-	if options != nil && options.LabelSelector != nil {
+	if options == nil {
+		return nil, fmt.Errorf("options cannot be nil; please provide valid ListOptions")
+	}
+	if options.LabelSelector != nil {
 		label = options.LabelSelector
 	}
 	field := fields.Everything()
-	if options != nil && options.FieldSelector != nil {
+	if options.FieldSelector != nil {
 		field = options.FieldSelector
 	}
 	predicate := e.PredicateFunc(label, field)
 
-	resourceVersion := ""
-	if options != nil {
-		resourceVersion = options.ResourceVersion
-		predicate.AllowWatchBookmarks = options.AllowWatchBookmarks
-	}
+	resourceVersion := options.ResourceVersion
+	predicate.AllowWatchBookmarks = options.AllowWatchBookmarks
+
 	return e.WatchPredicate(ctx, predicate, resourceVersion, options.SendInitialEvents)
 }
 
