@@ -132,6 +132,7 @@ const (
 
 	// Metric for tracking aligment of compute resources
 	ContainerAlignedComputeResourcesNameKey          = "container_aligned_compute_resources_count"
+	ContainerAlignedComputeResourcesFailureNameKey   = "container_aligned_compute_resources_failure_count"
 	ContainerAlignedComputeResourcesScopeLabelKey    = "scope"
 	ContainerAlignedComputeResourcesBoundaryLabelKey = "boundary"
 
@@ -818,7 +819,18 @@ var (
 		},
 		[]string{ContainerAlignedComputeResourcesScopeLabelKey, ContainerAlignedComputeResourcesBoundaryLabelKey},
 	)
-	// MemoryManagerPinningRequestTotal tracks the number of times the pod spec required the memory manager to pin memory pages
+
+	// ContainerAlignedComputeResourcesFailure reports the count of resources allocation attempts which failed to align resources, per alignment boundary
+	ContainerAlignedComputeResourcesFailure = metrics.NewCounterVec(
+		&metrics.CounterOpts{
+			Subsystem:      KubeletSubsystem,
+			Name:           ContainerAlignedComputeResourcesFailureNameKey,
+			Help:           "Cumulative number of failures to allocate aligned compute resources to containers by alignment type.",
+			StabilityLevel: metrics.ALPHA,
+		},
+		[]string{ContainerAlignedComputeResourcesScopeLabelKey, ContainerAlignedComputeResourcesBoundaryLabelKey},
+	)
+
 	MemoryManagerPinningRequestTotal = metrics.NewCounter(
 		&metrics.CounterOpts{
 			Subsystem:      KubeletSubsystem,
@@ -1079,6 +1091,7 @@ func Register(collectors ...metrics.StableCollector) {
 		legacyregistry.MustRegister(CPUManagerSharedPoolSizeMilliCores)
 		legacyregistry.MustRegister(CPUManagerExclusiveCPUsAllocationCount)
 		legacyregistry.MustRegister(ContainerAlignedComputeResources)
+		legacyregistry.MustRegister(ContainerAlignedComputeResourcesFailure)
 		legacyregistry.MustRegister(MemoryManagerPinningRequestTotal)
 		legacyregistry.MustRegister(MemoryManagerPinningErrorsTotal)
 		legacyregistry.MustRegister(TopologyManagerAdmissionRequestsTotal)

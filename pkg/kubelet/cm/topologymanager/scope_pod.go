@@ -48,6 +48,10 @@ func (s *podScope) Admit(pod *v1.Pod) lifecycle.PodAdmitResult {
 	bestHint, admit := s.calculateAffinity(pod)
 	klog.InfoS("Best TopologyHint", "bestHint", bestHint, "pod", klog.KObj(pod))
 	if !admit {
+		if IsAlignmentGuaranteed(s.policy) {
+			// increment only if we know we allocate aligned resources.
+			metrics.ContainerAlignedComputeResourcesFailure.WithLabelValues(metrics.AlignScopePod, metrics.AlignedNUMANode).Inc()
+		}
 		metrics.TopologyManagerAdmissionErrorsTotal.Inc()
 		return admission.GetPodAdmitResult(&TopologyAffinityError{})
 	}
