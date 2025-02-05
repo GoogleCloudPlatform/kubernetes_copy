@@ -279,7 +279,8 @@ func (t *etcd3ProberMonitor) Monitor(ctx context.Context) (metrics.StorageMetric
 		return metrics.StorageMetrics{}, err
 	}
 	return metrics.StorageMetrics{
-		Size: status.DbSize,
+		Size:      status.DbSize,
+		SizeInUse: status.DbSizeInUse,
 	}, nil
 }
 

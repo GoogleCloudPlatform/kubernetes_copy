@@ -185,6 +185,11 @@ func TestStorageSizeCollector(t *testing.T) {
 	registry := metrics.NewKubeRegistry()
 	registry.CustomMustRegister(storageMonitor)
 
+	testedMetrics := []string{
+		"apiserver_storage_size_bytes",
+		"apiserver_storage_size_in_use_bytes",
+	}
+
 	testCases := []struct {
 		desc           string
 		getterOverride func() ([]Monitor, error)
@@ -194,12 +199,15 @@ func TestStorageSizeCollector(t *testing.T) {
 		{
 			desc: "fake etcd getter",
 			getterOverride: func() ([]Monitor, error) {
-				return []Monitor{fakeEtcdMonitor{storageSize: 1e9}}, nil
+				return []Monitor{fakeEtcdMonitor{storageSize: 1e9, storageSizeInUse: 1e9}}, nil
 			},
 			err: nil,
 			want: `# HELP apiserver_storage_size_bytes [STABLE] Size of the storage database file physically allocated in bytes.
 			# TYPE apiserver_storage_size_bytes gauge
 			apiserver_storage_size_bytes{storage_cluster_id="etcd-0"} 1e+09
+			# HELP apiserver_storage_size_in_use_bytes [ALPHA] Size of the storage database file logically used in bytes.
+			# TYPE apiserver_storage_size_in_use_bytes gauge
+			apiserver_storage_size_in_use_bytes{storage_cluster_id="etcd-0"} 1e+09
 			`,
 		},
 		{
@@ -218,12 +226,11 @@ func TestStorageSizeCollector(t *testing.T) {
 				defer SetStorageMonitorGetter(oldGetter)
 				SetStorageMonitorGetter(test.getterOverride)
 			}
-			if err := testutil.GatherAndCompare(registry, strings.NewReader(test.want), "apiserver_storage_size_bytes"); err != nil {
+			if err := testutil.GatherAndCompare(registry, strings.NewReader(test.want), testedMetrics...); err != nil {
 				t.Fatal(err)
 			}
 		})
 	}
-
 }
 
 func TestUpdateObjectCount(t *testing.T) {
@@ -269,11 +276,12 @@ apiserver_storage_objects{resource="bar"} -1
 }
 
 type fakeEtcdMonitor struct {
-	storageSize int64
+	storageSize      int64
+	storageSizeInUse int64
 }
 
 func (m fakeEtcdMonitor) Monitor(_ context.Context) (StorageMetrics, error) {
-	return StorageMetrics{Size: m.storageSize}, nil
+	return StorageMetrics{Size: m.storageSize, SizeInUse: m.storageSizeInUse}, nil
 }
 
 func (m fakeEtcdMonitor) Close() error {

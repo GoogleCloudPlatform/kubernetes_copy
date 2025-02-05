@@ -84,9 +84,10 @@ var (
 		},
 		[]string{"endpoint"},
 	)
-	storageSizeDescription   = compbasemetrics.NewDesc("apiserver_storage_size_bytes", "Size of the storage database file physically allocated in bytes.", []string{"storage_cluster_id"}, nil, compbasemetrics.STABLE, "")
-	storageMonitor           = &monitorCollector{monitorGetter: func() ([]Monitor, error) { return nil, nil }}
-	etcdEventsReceivedCounts = compbasemetrics.NewCounterVec(
+	storageSizeDescription      = compbasemetrics.NewDesc("apiserver_storage_size_bytes", "Size of the storage database file physically allocated in bytes.", []string{"storage_cluster_id"}, nil, compbasemetrics.STABLE, "")
+	storageSizeInUseDescription = compbasemetrics.NewDesc("apiserver_storage_size_in_use_bytes", "Size of the storage database file logically used in bytes.", []string{"storage_cluster_id"}, nil, compbasemetrics.ALPHA, "")
+	storageMonitor              = &monitorCollector{monitorGetter: func() ([]Monitor, error) { return nil, nil }}
+	etcdEventsReceivedCounts    = compbasemetrics.NewCounterVec(
 		&compbasemetrics.CounterOpts{
 			Subsystem:      "apiserver",
 			Name:           "storage_events_received_total",
@@ -253,7 +254,8 @@ type Monitor interface {
 }
 
 type StorageMetrics struct {
-	Size int64
+	Size      int64
+	SizeInUse int64
 }
 
 type monitorCollector struct {
@@ -278,6 +280,7 @@ func (m *monitorCollector) getGetter() func() ([]Monitor, error) {
 // DescribeWithStability implements compbasemetrics.StableColletor
 func (c *monitorCollector) DescribeWithStability(ch chan<- *compbasemetrics.Desc) {
 	ch <- storageSizeDescription
+	ch <- storageSizeInUseDescription
 }
 
 // CollectWithStability implements compbasemetrics.StableColletor
@@ -300,10 +303,16 @@ func (c *monitorCollector) CollectWithStability(ch chan<- compbasemetrics.Metric
 			continue
 		}
 
-		metric, err := compbasemetrics.NewConstMetric(storageSizeDescription, compbasemetrics.GaugeValue, float64(metrics.Size), storageClusterID)
+		storageSizeMetric, err := compbasemetrics.NewConstMetric(storageSizeDescription, compbasemetrics.GaugeValue, float64(metrics.Size), storageClusterID)
 		if err != nil {
-			klog.ErrorS(err, "Failed to create metric", "storage_cluster_id", storageClusterID)
+			klog.ErrorS(err, "Failed to create storageSize metric", "storage_cluster_id", storageClusterID)
 		}
-		ch <- metric
+		ch <- storageSizeMetric
+
+		storageSizeInUseMetric, err := compbasemetrics.NewConstMetric(storageSizeInUseDescription, compbasemetrics.GaugeValue, float64(metrics.SizeInUse), storageClusterID)
+		if err != nil {
+			klog.ErrorS(err, "Failed to create storageSizeInUse metric", "storage_cluster_id", storageClusterID)
+		}
+		ch <- storageSizeInUseMetric
 	}
 }
