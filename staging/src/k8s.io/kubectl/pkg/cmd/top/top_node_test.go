@@ -18,6 +18,7 @@ package top
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -34,6 +35,7 @@ import (
 	"k8s.io/kubectl/pkg/scheme"
 	metricsv1beta1api "k8s.io/metrics/pkg/apis/metrics/v1beta1"
 	metricsfake "k8s.io/metrics/pkg/client/clientset/versioned/fake"
+	pointer "k8s.io/utils/ptr"
 )
 
 const (
@@ -423,4 +425,103 @@ func TestTopNodeWithSortByMemoryMetricsFrom(t *testing.T) {
 		t.Errorf("kinds not matching:\n\texpectedKinds: %v\n\tgotKinds: %v\n", expectedNodesNames, resultNodes)
 	}
 
+}
+
+func TestTopNodeWithSwap(t *testing.T) {
+	cmdtesting.InitTestErrorHandler(t)
+	expectedMetrics, nodes := testNodeV1beta1MetricsData()
+	expectedNodePath := fmt.Sprintf("/%s/%s/nodes", apiPrefix, apiVersion)
+
+	tf := cmdtesting.NewTestFactory().WithNamespace("test")
+	defer tf.Cleanup()
+
+	codec := scheme.Codecs.LegacyCodec(scheme.Scheme.PrioritizedVersionsAllGroups()...)
+	ns := scheme.Codecs.WithoutConversion()
+
+	getStubSummary := func(gigsOfSwapCapacity int64) []byte {
+		stubSummary := Summary{
+			Node: NodeStats{
+				Swap: &SwapStats{
+					SwapAvailableBytes: pointer.To(uint64(gigsOfSwapCapacity * (1024 * 1024))),
+					SwapUsageBytes:     pointer.To(uint64(0)),
+				},
+			},
+		}
+
+		summaryBytes, err := json.Marshal(stubSummary)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		return summaryBytes
+	}
+
+	tf.Client = &fake.RESTClient{
+		NegotiatedSerializer: ns,
+		Client: fake.CreateHTTPClient(func(req *http.Request) (*http.Response, error) {
+			switch p, m := req.URL.Path, req.Method; {
+			case p == "/api":
+				return &http.Response{StatusCode: http.StatusOK, Header: cmdtesting.DefaultHeader(), Body: io.NopCloser(bytes.NewReader([]byte(apibody)))}, nil
+			case p == "/apis":
+				return &http.Response{StatusCode: http.StatusOK, Header: cmdtesting.DefaultHeader(), Body: io.NopCloser(bytes.NewReader([]byte(apisbodyWithMetrics)))}, nil
+			case p == expectedNodePath && m == "GET":
+				return &http.Response{StatusCode: http.StatusOK, Header: cmdtesting.DefaultHeader(), Body: cmdtesting.ObjBody(codec, nodes)}, nil
+			case strings.Contains(p, "proxy/stats/summary") && m == "GET":
+				summaryBytes := getStubSummary(5)
+				if strings.Contains(p, "node3") {
+					summaryBytes = getStubSummary(0)
+				}
+				return &http.Response{StatusCode: http.StatusOK, Header: cmdtesting.DefaultHeader(), Body: cmdtesting.BytesBody(summaryBytes)}, nil
+			default:
+				t.Fatalf("unexpected request: %#v\nGot URL: %#v\n", req, req.URL)
+				return nil, nil
+			}
+		}),
+	}
+	fakemetricsClientset := &metricsfake.Clientset{}
+	fakemetricsClientset.AddReactor("list", "nodes", func(action core.Action) (handled bool, ret runtime.Object, err error) {
+		return true, expectedMetrics, nil
+	})
+	tf.ClientConfigVal = cmdtesting.DefaultClientConfig()
+	streams, _, buf, _ := genericiooptions.NewTestIOStreams()
+
+	cmd := NewCmdTopNode(tf, nil, streams)
+
+	// TODO in the long run, we want to test most of our commands like this. Wire the options struct with specific mocks
+	// TODO then check the particular Run functionality and harvest results from fake clients
+	cmdOptions := &TopNodeOptions{
+		IOStreams: streams,
+		ShowSwap:  true,
+	}
+	if err := cmdOptions.Complete(tf, cmd, []string{}); err != nil {
+		t.Fatal(err)
+	}
+	cmdOptions.MetricsClient = fakemetricsClientset
+	if err := cmdOptions.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	if err := cmdOptions.RunTopNode(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Check the presence of node names in the output.
+	result := buf.String()
+	if !strings.Contains(result, "SWAP(bytes)") {
+		t.Errorf("missing SWAP(bytes) header: \n%s", result)
+	}
+	if !strings.Contains(result, "SWAP(%)") {
+		t.Errorf("missing SWAP(%%) header: \n%s", result)
+	}
+	if !strings.Contains(result, "SWAP CAPACITY(bytes)") {
+		t.Errorf("missing SWAP(%%) header: \n%s", result)
+	}
+
+	for _, m := range expectedMetrics.Items {
+		if !strings.Contains(result, m.Name) {
+			t.Errorf("missing metrics for %s: \n%s", m.Name, result)
+		}
+		if _, foundSwapMetric := m.Usage["swap"]; !foundSwapMetric {
+			t.Errorf("missing swap metric for %s: \n%s", m.Name, result)
+		}
+	}
 }
