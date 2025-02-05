@@ -36,6 +36,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes/fake"
 	ktest "k8s.io/client-go/testing"
 )
@@ -49,7 +50,7 @@ func TestDeletePods(t *testing.T) {
 		ctxTimeoutEarly   bool
 		expectPendingPods bool
 		expectError       bool
-		expectedError     *error
+		expectedError     error
 		getPodFn          func(namespace, name string) (*corev1.Pod, error)
 	}{
 		{
@@ -100,7 +101,7 @@ func TestDeletePods(t *testing.T) {
 			timeout:           3 * time.Second,
 			expectPendingPods: true,
 			expectError:       true,
-			expectedError:     &context.DeadlineExceeded,
+			expectedError:     wait.ErrorInterrupted(context.DeadlineExceeded),
 			getPodFn: func(namespace, name string) (*corev1.Pod, error) {
 				oldPodMap, _ := createPods(false)
 				if oldPod, found := oldPodMap[name]; found {
@@ -116,7 +117,7 @@ func TestDeletePods(t *testing.T) {
 			ctxTimeoutEarly:   true,
 			expectPendingPods: true,
 			expectError:       true,
-			expectedError:     &context.Canceled,
+			expectedError:     context.Canceled,
 			getPodFn: func(namespace, name string) (*corev1.Pod, error) {
 				oldPodMap, _ := createPods(false)
 				if oldPod, found := oldPodMap[name]; found {
@@ -148,7 +149,7 @@ func TestDeletePods(t *testing.T) {
 			timeout:           5 * time.Second,
 			expectPendingPods: true,
 			expectError:       true,
-			expectedError:     nil,
+			expectedError:     wait.ErrorInterrupted(errors.New("This is a random error for testing")),
 			getPodFn: func(namespace, name string) (*corev1.Pod, error) {
 				return &corev1.Pod{}, errors.New("This is a random error for testing")
 			},
@@ -177,20 +178,13 @@ func TestDeletePods(t *testing.T) {
 				out:                             os.Stdout,
 				skipWaitForDeleteTimeoutSeconds: 10,
 			}
-			start := time.Now()
 			pendingPods, err := waitForDelete(params)
-			elapsed := time.Since(start)
 
 			if test.expectError {
 				if err == nil {
-					t.Fatalf("%s: unexpected non-error", test.description)
-				} else if test.expectedError != nil {
-					if test.ctxTimeoutEarly {
-						if elapsed >= test.timeout {
-							t.Fatalf("%s: the supplied context did not effectively cancel the waitForDelete", test.description)
-						}
-					} else if *test.expectedError != err {
-						t.Fatalf("%s: the error does not match expected error", test.description)
+					if !errors.Is(err, wait.ErrorInterrupted(test.expectedError)) {
+						t.Fatalf("%s: expected error %v, got %v", test.description, test.expectedError, err)
+
 					}
 				}
 			}

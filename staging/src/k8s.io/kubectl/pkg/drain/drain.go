@@ -433,7 +433,7 @@ func waitForDelete(params waitForDeleteParams) ([]corev1.Pod, error) {
 				if params.onFinishFn != nil {
 					params.onFinishFn(&pod, params.usingEviction, err)
 				}
-				return false, err
+				return false, wait.ErrorInterrupted(err)
 			} else {
 				if shouldSkipPod(*p, params.skipWaitForDeleteTimeoutSeconds) {
 					fmt.Fprintf(params.out, podSkipMsgTemplate, pod.Name, params.skipWaitForDeleteTimeoutSeconds)
@@ -445,6 +445,11 @@ func waitForDelete(params waitForDeleteParams) ([]corev1.Pod, error) {
 		pods = pendingPods
 		return len(pods) == 0, nil
 	})
+
+	if err != nil {
+		return pods, wait.ErrorInterrupted(err)
+	}
+
 	return pods, err
 }
 
