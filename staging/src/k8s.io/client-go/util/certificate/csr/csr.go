@@ -47,7 +47,18 @@ import (
 // PEM encoded CSR and send it to API server.  An optional requestedDuration may be passed
 // to set the spec.expirationSeconds field on the CSR to control the lifetime of the issued
 // certificate.  This is not guaranteed as the signer may choose to ignore the request.
+//
+// Deprecated: use RequestCertificateWithContext instead.
 func RequestCertificate(client clientset.Interface, csrData []byte, name, signerName string, requestedDuration *time.Duration, usages []certificatesv1.KeyUsage, privateKey interface{}) (reqName string, reqUID types.UID, err error) {
+	return RequestCertificateWithContext(context.Background(), client, csrData, name, signerName, requestedDuration, usages, privateKey)
+}
+
+// RequestCertificateWithContext will either use an existing (if this process has run
+// before but not to completion) or create a certificate signing request using the
+// PEM encoded CSR and send it to API server.  An optional requestedDuration may be passed
+// to set the spec.expirationSeconds field on the CSR to control the lifetime of the issued
+// certificate.  This is not guaranteed as the signer may choose to ignore the request.
+func RequestCertificateWithContext(ctx context.Context, client clientset.Interface, csrData []byte, name, signerName string, requestedDuration *time.Duration, usages []certificatesv1.KeyUsage, privateKey interface{}) (reqName string, reqUID types.UID, err error) {
 	csr := &certificatesv1.CertificateSigningRequest{
 		// Username, UID, Groups will be injected by API server.
 		TypeMeta: metav1.TypeMeta{Kind: "CertificateSigningRequest"},
@@ -67,21 +78,22 @@ func RequestCertificate(client clientset.Interface, csrData []byte, name, signer
 		csr.Spec.ExpirationSeconds = DurationToExpirationSeconds(*requestedDuration)
 	}
 
-	reqName, reqUID, err = create(client, csr)
+	reqName, reqUID, err = create(ctx, client, csr)
 	switch {
 	case err == nil:
 		return reqName, reqUID, err
 
 	case apierrors.IsAlreadyExists(err) && len(name) > 0:
-		klog.Infof("csr for this node already exists, reusing")
-		req, err := get(client, name)
+		logger := klog.FromContext(ctx)
+		logger.Info("csr for this node already exists, reusing")
+		req, err := get(ctx, client, name)
 		if err != nil {
 			return "", "", formatError("cannot retrieve certificate signing request: %v", err)
 		}
 		if err := ensureCompatible(req, csr, privateKey); err != nil {
 			return "", "", fmt.Errorf("retrieved csr is not compatible: %v", err)
 		}
-		klog.Infof("csr for this node is still valid")
+		logger.Info("csr for this node is still valid")
 		return req.Name, req.UID, nil
 
 	default:
@@ -97,13 +109,13 @@ func ExpirationSecondsToDuration(expirationSeconds int32) time.Duration {
 	return time.Duration(expirationSeconds) * time.Second
 }
 
-func get(client clientset.Interface, name string) (*certificatesv1.CertificateSigningRequest, error) {
-	v1req, v1err := client.CertificatesV1().CertificateSigningRequests().Get(context.TODO(), name, metav1.GetOptions{})
+func get(ctx context.Context, client clientset.Interface, name string) (*certificatesv1.CertificateSigningRequest, error) {
+	v1req, v1err := client.CertificatesV1().CertificateSigningRequests().Get(ctx, name, metav1.GetOptions{})
 	if v1err == nil || !apierrors.IsNotFound(v1err) {
 		return v1req, v1err
 	}
 
-	v1beta1req, v1beta1err := client.CertificatesV1beta1().CertificateSigningRequests().Get(context.TODO(), name, metav1.GetOptions{})
+	v1beta1req, v1beta1err := client.CertificatesV1beta1().CertificateSigningRequests().Get(ctx, name, metav1.GetOptions{})
 	if v1beta1err != nil {
 		return nil, v1beta1err
 	}
@@ -123,10 +135,10 @@ func get(client clientset.Interface, name string) (*certificatesv1.CertificateSi
 	return v1req, nil
 }
 
-func create(client clientset.Interface, csr *certificatesv1.CertificateSigningRequest) (reqName string, reqUID types.UID, err error) {
+func create(ctx context.Context, client clientset.Interface, csr *certificatesv1.CertificateSigningRequest) (reqName string, reqUID types.UID, err error) {
 	// only attempt a create via v1 if we specified signerName and usages and are not using the legacy unknown signerName
 	if len(csr.Spec.Usages) > 0 && len(csr.Spec.SignerName) > 0 && csr.Spec.SignerName != "kubernetes.io/legacy-unknown" {
-		v1req, v1err := client.CertificatesV1().CertificateSigningRequests().Create(context.TODO(), csr, metav1.CreateOptions{})
+		v1req, v1err := client.CertificatesV1().CertificateSigningRequests().Create(ctx, csr, metav1.CreateOptions{})
 		switch {
 		case v1err != nil && apierrors.IsNotFound(v1err):
 			// v1 CSR API was not found, continue to try v1beta1
@@ -154,7 +166,7 @@ func create(client clientset.Interface, csr *certificatesv1.CertificateSigningRe
 	}
 
 	// create v1beta1
-	v1beta1req, v1beta1err := client.CertificatesV1beta1().CertificateSigningRequests().Create(context.TODO(), v1beta1csr, metav1.CreateOptions{})
+	v1beta1req, v1beta1err := client.CertificatesV1beta1().CertificateSigningRequests().Create(ctx, v1beta1csr, metav1.CreateOptions{})
 	if v1beta1err != nil {
 		return "", "", v1beta1err
 	}
@@ -164,6 +176,7 @@ func create(client clientset.Interface, csr *certificatesv1.CertificateSigningRe
 // WaitForCertificate waits for a certificate to be issued until timeout, or returns an error.
 func WaitForCertificate(ctx context.Context, client clientset.Interface, reqName string, reqUID types.UID) (certData []byte, err error) {
 	fieldSelector := fields.OneTermEqualSelector("metadata.name", reqName).String()
+	logger := klog.FromContext(ctx)
 
 	var lw *cache.ListWatch
 	var obj runtime.Object
@@ -184,7 +197,7 @@ func WaitForCertificate(ctx context.Context, client clientset.Interface, reqName
 			}
 			break
 		} else {
-			klog.V(2).Infof("error fetching v1 certificate signing request: %v", err)
+			logger.V(2).Info("Error fetching v1 certificate signing request", "err", err)
 		}
 
 		// return if we've timed out
@@ -208,7 +221,7 @@ func WaitForCertificate(ctx context.Context, client clientset.Interface, reqName
 			}
 			break
 		} else {
-			klog.V(2).Infof("error fetching v1beta1 certificate signing request: %v", err)
+			logger.V(2).Info("Error fetching v1beta1 certificate signing request", "err", err)
 		}
 
 		// return if we've timed out
@@ -254,11 +267,11 @@ func WaitForCertificate(ctx context.Context, client clientset.Interface, reqName
 				}
 				if approved {
 					if len(csr.Status.Certificate) > 0 {
-						klog.V(2).Infof("certificate signing request %s is issued", csr.Name)
+						logger.V(2).Info("Certificate signing request is issued", "csr", klog.KObj(csr))
 						issuedCertificate = csr.Status.Certificate
 						return true, nil
 					}
-					klog.V(2).Infof("certificate signing request %s is approved, waiting to be issued", csr.Name)
+					logger.V(2).Info("Certificate signing request is approved, waiting to be issued", "csr", klog.KObj(csr))
 				}
 
 			case *certificatesv1beta1.CertificateSigningRequest:
@@ -279,11 +292,11 @@ func WaitForCertificate(ctx context.Context, client clientset.Interface, reqName
 				}
 				if approved {
 					if len(csr.Status.Certificate) > 0 {
-						klog.V(2).Infof("certificate signing request %s is issued", csr.Name)
+						logger.V(2).Info("Certificate signing request is issued", "csr", klog.KObj(csr))
 						issuedCertificate = csr.Status.Certificate
 						return true, nil
 					}
-					klog.V(2).Infof("certificate signing request %s is approved, waiting to be issued", csr.Name)
+					logger.V(2).Info("Certificate signing request is approved, waiting to be issued", "csr", klog.KObj(csr))
 				}
 
 			default:

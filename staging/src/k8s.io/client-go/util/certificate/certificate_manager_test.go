@@ -38,6 +38,7 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 	certificatesclient "k8s.io/client-go/kubernetes/typed/certificates/v1beta1"
 	clienttesting "k8s.io/client-go/testing"
+	"k8s.io/klog/v2/ktesting"
 	netutils "k8s.io/utils/net"
 )
 
@@ -268,6 +269,7 @@ func TestSetRotationDeadline(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			_, ctx := ktesting.NewTestContext(t)
 			m := manager{
 				cert: &tls.Certificate{
 					Leaf: &x509.Certificate{
@@ -277,12 +279,12 @@ func TestSetRotationDeadline(t *testing.T) {
 				},
 				getTemplate: func() *x509.CertificateRequest { return &x509.CertificateRequest{} },
 				now:         func() time.Time { return now },
-				logf:        t.Logf,
+				ctx:         ctx,
 			}
 			jitteryDuration = func(float64) time.Duration { return time.Duration(float64(tc.notAfter.Sub(tc.notBefore)) * 0.7) }
 			lowerBound := tc.notBefore.Add(time.Duration(float64(tc.notAfter.Sub(tc.notBefore)) * 0.7))
 
-			deadline := m.nextRotationDeadline()
+			deadline := m.nextRotationDeadline(ctx)
 
 			if !deadline.Equal(lowerBound) {
 				t.Errorf("For notBefore %v, notAfter %v, the rotationDeadline %v should be %v.",
@@ -438,6 +440,7 @@ func TestCertSatisfiesTemplate(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			_, ctx := ktesting.NewTestContext(t)
 			var tlsCert *tls.Certificate
 
 			if tc.cert != nil {
@@ -450,10 +453,10 @@ func TestCertSatisfiesTemplate(t *testing.T) {
 				cert:        tlsCert,
 				getTemplate: func() *x509.CertificateRequest { return tc.template },
 				now:         time.Now,
-				logf:        t.Logf,
+				ctx:         ctx,
 			}
 
-			result := m.certSatisfiesTemplate()
+			result := m.certSatisfiesTemplate(ctx)
 			if result != tc.shouldSatisfy {
 				t.Errorf("cert: %+v, template: %+v, certSatisfiesTemplate returned %v, want %v", m.cert, tc.template, result, tc.shouldSatisfy)
 			}
@@ -462,6 +465,7 @@ func TestCertSatisfiesTemplate(t *testing.T) {
 }
 
 func TestRotateCertCreateCSRError(t *testing.T) {
+	_, ctx := ktesting.NewTestContext(t)
 	now := time.Now()
 	m := manager{
 		cert: &tls.Certificate{
@@ -474,11 +478,11 @@ func TestRotateCertCreateCSRError(t *testing.T) {
 		clientsetFn: func(_ *tls.Certificate) (clientset.Interface, error) {
 			return newClientset(fakeClient{failureType: createError}), nil
 		},
-		now:  func() time.Time { return now },
-		logf: t.Logf,
+		now: func() time.Time { return now },
+		ctx: ctx,
 	}
 
-	if success, err := m.rotateCerts(); success {
+	if success, err := m.rotateCerts(ctx); success {
 		t.Errorf("Got success from 'rotateCerts', wanted failure")
 	} else if err != nil {
 		t.Errorf("Got error %v from 'rotateCerts', wanted no error.", err)
@@ -486,6 +490,7 @@ func TestRotateCertCreateCSRError(t *testing.T) {
 }
 
 func TestRotateCertWaitingForResultError(t *testing.T) {
+	_, ctx := ktesting.NewTestContext(t)
 	now := time.Now()
 	m := manager{
 		cert: &tls.Certificate{
@@ -498,13 +503,13 @@ func TestRotateCertWaitingForResultError(t *testing.T) {
 		clientsetFn: func(_ *tls.Certificate) (clientset.Interface, error) {
 			return newClientset(fakeClient{failureType: watchError}), nil
 		},
-		now:  func() time.Time { return now },
-		logf: t.Logf,
+		now: func() time.Time { return now },
+		ctx: ctx,
 	}
 
 	defer func(t time.Duration) { certificateWaitTimeout = t }(certificateWaitTimeout)
 	certificateWaitTimeout = 1 * time.Millisecond
-	if success, err := m.rotateCerts(); success {
+	if success, err := m.rotateCerts(ctx); success {
 		t.Errorf("Got success from 'rotateCerts', wanted failure.")
 	} else if err != nil {
 		t.Errorf("Got error %v from 'rotateCerts', wanted no error.", err)
@@ -610,11 +615,13 @@ func TestGetCurrentCertificateOrBootstrap(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.description, func(t *testing.T) {
+			logger, _ := ktesting.NewTestContext(t)
 			store := &fakeStore{
 				cert: tc.storeCert,
 			}
 
 			certResult, shouldRotate, err := getCurrentCertificateOrBootstrap(
+				logger,
 				store,
 				tc.bootstrapCertData,
 				tc.bootstrapKeyData)
@@ -717,6 +724,7 @@ func TestInitializeCertificateSigningRequestClient(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.description, func(t *testing.T) {
+			_, ctx := ktesting.NewTestContext(t)
 			certificateStore := &fakeStore{
 				cert: tc.storeCert.certificate,
 			}
@@ -744,6 +752,7 @@ func TestInitializeCertificateSigningRequestClient(t *testing.T) {
 						certificatePEM: tc.apiCert.certificatePEM,
 					}), nil
 				},
+				Ctx: &ctx,
 			})
 			if err != nil {
 				t.Errorf("Got %v, wanted no error.", err)
@@ -764,7 +773,7 @@ func TestInitializeCertificateSigningRequestClient(t *testing.T) {
 				t.Errorf("Expected a '*manager' from 'NewManager'")
 			} else {
 				if m.forceRotation {
-					if success, err := m.rotateCerts(); !success {
+					if success, err := m.rotateCerts(ctx); !success {
 						t.Errorf("Got failure from 'rotateCerts', wanted success.")
 					} else if err != nil {
 						t.Errorf("Got error %v, expected none.", err)
@@ -832,6 +841,7 @@ func TestInitializeOtherRESTClients(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.description, func(t *testing.T) {
+			_, ctx := ktesting.NewTestContext(t)
 			certificateStore := &fakeStore{
 				cert: tc.storeCert.certificate,
 			}
@@ -870,7 +880,7 @@ func TestInitializeOtherRESTClients(t *testing.T) {
 				t.Errorf("Expected a '*manager' from 'NewManager'")
 			} else {
 				if m.forceRotation {
-					success, err := certificateManager.(*manager).rotateCerts()
+					success, err := certificateManager.(*manager).rotateCerts(ctx)
 					if err != nil {
 						t.Errorf("Got error %v, expected none.", err)
 						return
@@ -977,6 +987,7 @@ func TestServerHealth(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.description, func(t *testing.T) {
+			_, ctx := ktesting.NewTestContext(t)
 			certificateStore := &fakeStore{
 				cert: tc.storeCert.certificate,
 			}
@@ -1016,7 +1027,7 @@ func TestServerHealth(t *testing.T) {
 			if _, ok := certificateManager.(*manager); !ok {
 				t.Errorf("Expected a '*manager' from 'NewManager'")
 			} else {
-				success, err := certificateManager.(*manager).rotateCerts()
+				success, err := certificateManager.(*manager).rotateCerts(ctx)
 				if err != nil {
 					t.Errorf("Got error %v, expected none.", err)
 					return
@@ -1039,6 +1050,7 @@ func TestServerHealth(t *testing.T) {
 }
 
 func TestRotationLogsDuration(t *testing.T) {
+	_, ctx := ktesting.NewTestContext(t)
 	h := metricMock{}
 	now := time.Now()
 	certIss := now.Add(-2 * time.Hour)
@@ -1058,9 +1070,9 @@ func TestRotationLogsDuration(t *testing.T) {
 		},
 		certificateRotation: &h,
 		now:                 func() time.Time { return now },
-		logf:                t.Logf,
+		ctx:                 ctx,
 	}
-	ok, err := m.rotateCerts()
+	ok, err := m.rotateCerts(ctx)
 	if err != nil || !ok {
 		t.Errorf("failed to rotate certs: %v", err)
 	}
