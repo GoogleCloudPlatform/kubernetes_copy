@@ -33,6 +33,7 @@ type cadvisorClient struct {
 }
 
 var _ Interface = new(cadvisorClient)
+var MaxHouseKeepingInterval int = 0
 
 // New creates a cAdvisor and exports its API on the specified port if port > 0.
 func New(imageFsInfoProvider ImageFsInfoProvider, rootPath string, cgroupRoots []string, usingLegacyStats, localStorageCapacityIsolation bool) (Interface, error) {
