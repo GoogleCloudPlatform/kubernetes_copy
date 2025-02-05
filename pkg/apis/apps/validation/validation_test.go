@@ -2329,6 +2329,61 @@ func TestValidateDeployment(t *testing.T) {
 	}
 }
 
+func TestValidateDeploymentPodReplacementPolicy(t *testing.T) {
+	testCases := []struct {
+		name             string
+		deployment       *apps.Deployment
+		expectedErrorMsg string
+	}{
+		{
+			name:       "valid nil PodReplacementPolicy",
+			deployment: validDeployment(),
+		},
+		{
+			name: "valid PodReplacementPolicy",
+			deployment: func() *apps.Deployment {
+				d := validDeployment()
+				d.Spec.PodReplacementPolicy = ptr.To(apps.TerminationComplete)
+				return d
+			}(),
+		},
+		{
+			name: "empty PodReplacementPolicy",
+			deployment: func() *apps.Deployment {
+				d := validDeployment()
+				d.Spec.PodReplacementPolicy = new(apps.DeploymentPodReplacementPolicy)
+				return d
+			}(),
+			expectedErrorMsg: "Unsupported value: \"\"",
+		},
+		{
+			name: "invalid PodReplacementPolicy",
+			deployment: func() *apps.Deployment {
+				d := validDeployment()
+				d.Spec.PodReplacementPolicy = ptr.To(apps.DeploymentPodReplacementPolicy("Invalid"))
+				return d
+			}(),
+			expectedErrorMsg: "Unsupported value: \"Invalid\"",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			errs := ValidateDeployment(tc.deployment, corevalidation.PodValidationOptions{})
+			if len(tc.expectedErrorMsg) > 0 {
+				if len(errs) == 0 {
+					t.Errorf("unexpected success")
+				}
+				if !strings.Contains(errs[0].Error(), tc.expectedErrorMsg) {
+					t.Errorf("unexpected error: %q, expected: %q", errs[0].Error(), tc.expectedErrorMsg)
+				}
+			} else if len(errs) != 0 {
+				t.Errorf("unexpected error: %v", errs)
+			}
+		})
+	}
+}
+
 func TestValidateDeploymentStatus(t *testing.T) {
 	collisionCount := int32(-3)
 	tests := []struct {

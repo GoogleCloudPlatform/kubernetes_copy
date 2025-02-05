@@ -51,6 +51,8 @@ import (
 	"k8s.io/client-go/util/retry"
 	appsinternal "k8s.io/kubernetes/pkg/apis/apps"
 	deploymentutil "k8s.io/kubernetes/pkg/controller/deployment/util"
+	"k8s.io/kubernetes/pkg/features"
+	e2efeatures "k8s.io/kubernetes/test/e2e/feature"
 	"k8s.io/kubernetes/test/e2e/framework"
 	e2edeployment "k8s.io/kubernetes/test/e2e/framework/deployment"
 	e2enode "k8s.io/kubernetes/test/e2e/framework/node"
@@ -113,6 +115,10 @@ var _ = SIGDescribe("Deployment", func() {
 	framework.ConformanceIt("RecreateDeployment should delete old pods and create new ones", func(ctx context.Context) {
 		testRecreateDeployment(ctx, f)
 	})
+
+	framework.It("RecreateDeployment with TerminationStarted PodReplacementPolicy should delete old pods and create new ones before the old ones terminate", e2efeatures.DeploymentPodReplacementPolicy, f.WithFeatureGate(features.DeploymentPodReplacementPolicy), func(ctx context.Context) {
+		testRecreateDeploymentWithTerminationStartedPodReplacementPolicy(ctx, f)
+	})
 	/*
 	  Release: v1.12
 	  Testname: Deployment RevisionHistoryLimit
@@ -158,8 +164,13 @@ var _ = SIGDescribe("Deployment", func() {
 	    when a Deployment is scaled.
 	*/
 	framework.ConformanceIt("deployment should support proportional scaling", func(ctx context.Context) {
-		testProportionalScalingDeployment(ctx, f)
+		testProportionalScalingDeployment(ctx, f, false)
 	})
+
+	framework.It("deployment should take terminating pods into account during a rollout with TerminationComplete PodReplacementPolicy and should support proportional scaling", e2efeatures.DeploymentPodReplacementPolicy, f.WithFeatureGate(features.DeploymentPodReplacementPolicy), func(ctx context.Context) {
+		testProportionalScalingDeployment(ctx, f, true)
+	})
+
 	ginkgo.It("should not disrupt a cloud load-balancer's connectivity during rollout", func(ctx context.Context) {
 		e2eskipper.SkipUnlessProviderIs("aws", "azure", "gce")
 		e2eskipper.SkipIfIPv6("aws")
@@ -815,6 +826,57 @@ func testRecreateDeployment(ctx context.Context, f *framework.Framework) {
 	framework.ExpectNoError(err)
 }
 
+func testRecreateDeploymentWithTerminationStartedPodReplacementPolicy(ctx context.Context, f *framework.Framework) {
+	ns := f.Namespace.Name
+	c := f.ClientSet
+
+	// Create a deployment that brings up agnhost pods.
+	deploymentName := "test-recreate-deployment-with-termination-complete-policy"
+	framework.Logf("Creating deployment %q", deploymentName)
+	replicas := int32(2)
+	d := e2edeployment.NewDeployment(deploymentName, replicas, map[string]string{"name": "sample-pod-3"}, AgnhostImageName, AgnhostImage, appsv1.RecreateDeploymentStrategyType)
+	d.Spec.Template.Spec.Containers[0].Lifecycle = &v1.Lifecycle{
+		PreStop: &v1.LifecycleHandler{
+			Sleep: &v1.SleepAction{
+				Seconds: int64(framework.PodStartTimeout / time.Second),
+			},
+		},
+	}
+	d.Spec.Template.Spec.TerminationGracePeriodSeconds = ptr.To(int64(framework.PodStartTimeout/time.Second) + 30)
+	d.Spec.PodReplacementPolicy = ptr.To(appsv1.TerminationStarted)
+
+	deployment, err := c.AppsV1().Deployments(ns).Create(ctx, d, metav1.CreateOptions{})
+	framework.ExpectNoError(err)
+
+	// Wait for it to be updated to revision 1
+	framework.Logf("Waiting deployment %q to be updated to revision 1", deploymentName)
+	err = e2edeployment.WaitForDeploymentRevisionAndImage(c, ns, deploymentName, "1", AgnhostImage)
+	framework.ExpectNoError(err)
+
+	framework.Logf("Waiting deployment %q to complete", deploymentName)
+	err = e2edeployment.WaitForDeploymentComplete(c, deployment)
+	framework.ExpectNoError(err)
+
+	// Update deployment to delete agnhost pods and bring up webserver pods.
+	framework.Logf("Triggering a new rollout for deployment %q", deploymentName)
+	deployment, err = e2edeployment.UpdateDeploymentWithRetries(c, ns, deploymentName, func(update *appsv1.Deployment) {
+		update.Spec.Template.Spec.Containers[0].Name = WebserverImageName
+		update.Spec.Template.Spec.Containers[0].Image = WebserverImage
+	})
+	framework.ExpectNoError(err)
+
+	framework.Logf("Waiting deployment %q to complete", deploymentName)
+	err = e2edeployment.WaitForDeploymentComplete(c, deployment)
+	framework.ExpectNoError(err)
+
+	framework.Logf("Verifying that deployment %q can still have old terminating pods once the deployment has completed", deploymentName)
+	deployment, err = c.AppsV1().Deployments(ns).Get(ctx, deploymentName, metav1.GetOptions{})
+	framework.ExpectNoError(err)
+
+	expectedTerminatingReplicas := replicas
+	gomega.Expect(deployment.Status.TerminatingReplicas).To(gomega.Equal(&expectedTerminatingReplicas))
+}
+
 // testDeploymentCleanUpPolicy tests that deployment supports cleanup policy
 func testDeploymentCleanUpPolicy(ctx context.Context, f *framework.Framework) {
 	ns := f.Namespace.Name
@@ -1178,7 +1240,7 @@ func testDeploymentsControllerRef(ctx context.Context, f *framework.Framework) {
 // testProportionalScalingDeployment tests that when a RollingUpdate Deployment is scaled in the middle
 // of a rollout (either in progress or paused), then the Deployment will balance additional replicas
 // in existing active ReplicaSets (ReplicaSets with more than 0 replica) in order to mitigate risk.
-func testProportionalScalingDeployment(ctx context.Context, f *framework.Framework) {
+func testProportionalScalingDeployment(ctx context.Context, f *framework.Framework, testTerminationCompletePodReplacementPolicy bool) {
 	ns := f.Namespace.Name
 	c := f.ClientSet
 
@@ -1191,6 +1253,17 @@ func testProportionalScalingDeployment(ctx context.Context, f *framework.Framewo
 	d.Spec.Strategy.RollingUpdate = new(appsv1.RollingUpdateDeployment)
 	d.Spec.Strategy.RollingUpdate.MaxSurge = ptr.To(intstr.FromInt32(3))
 	d.Spec.Strategy.RollingUpdate.MaxUnavailable = ptr.To(intstr.FromInt32(2))
+	if testTerminationCompletePodReplacementPolicy {
+		d.Spec.Template.Spec.Containers[0].Lifecycle = &v1.Lifecycle{
+			PreStop: &v1.LifecycleHandler{
+				Sleep: &v1.SleepAction{
+					Seconds: int64(framework.PodStartTimeout / time.Second),
+				},
+			},
+		}
+		d.Spec.Template.Spec.TerminationGracePeriodSeconds = ptr.To(int64(framework.PodStartTimeout/time.Second) + 30)
+		d.Spec.PodReplacementPolicy = ptr.To(appsv1.TerminationComplete)
+	}
 
 	framework.Logf("Creating deployment %q", deploymentName)
 	deployment, err := c.AppsV1().Deployments(ns).Create(ctx, d, metav1.CreateOptions{})
@@ -1259,6 +1332,10 @@ func testProportionalScalingDeployment(ctx context.Context, f *framework.Framewo
 
 	// Second rollout's replicaset should have Deployment's (replicas + maxSurge - first RS's replicas) = 10 + 3 - 8 = 5 for .spec.replicas.
 	newReplicas := replicas + int32(maxSurge) - minAvailableReplicas
+	if testTerminationCompletePodReplacementPolicy {
+		// maxUnavailable causes pods to become terminating, so the second rollout will have 2 replicas less
+		newReplicas -= int32(maxUnavailable)
+	}
 	framework.Logf("Waiting for the second rollout's replicaset to have .spec.replicas = %d", newReplicas)
 	err = waitForReplicaSetTargetSpecReplicas(ctx, c, secondRS, newReplicas)
 	framework.ExpectNoError(err)
@@ -1277,6 +1354,15 @@ func testProportionalScalingDeployment(ctx context.Context, f *framework.Framewo
 		framework.ExpectNoError(err)
 	}
 
+	// Check the deployment is correctly tracking terminating replicas
+	if testTerminationCompletePodReplacementPolicy {
+		framework.Logf("Verifying that deployment %q has .status.terminatingReplicas = 0", deploymentName)
+		deployment, err = c.AppsV1().Deployments(ns).Get(ctx, deploymentName, metav1.GetOptions{})
+		framework.ExpectNoError(err)
+		expectedTerminatingReplicas := int32(maxUnavailable)
+		gomega.Expect(deployment.Status.TerminatingReplicas).To(gomega.Equal(&expectedTerminatingReplicas))
+	}
+
 	// Scale the deployment to 30 replicas.
 	newReplicas = int32(30)
 	framework.Logf("Scaling up the deployment %q from %d to %d", deploymentName, replicas, newReplicas)
@@ -1293,15 +1379,77 @@ func testProportionalScalingDeployment(ctx context.Context, f *framework.Framewo
 
 	// First rollout's replicaset should have .spec.replicas = 8 + (30-10)*(8/13) = 8 + 12 = 20 replicas.
 	// Note that 12 comes from rounding (30-10)*(8/13) to nearest integer.
-	framework.Logf("Verifying that first rollout's replicaset has .spec.replicas = 20")
-	err = waitForReplicaSetTargetSpecReplicas(ctx, c, firstRS, 20)
+	expectedFirstRolloutReplicas := int32(20)
+	if testTerminationCompletePodReplacementPolicy {
+		// There are 2 terminating replicas. Second rs is scaled as 3 * 33/13 ~= 3 * 2.54 ~= 8
+		// Total number of replicas should be 33 - 2 = 31. So First rs should be 31 - 8 = 23
+		expectedFirstRolloutReplicas = 23
+	}
+	framework.Logf("Verifying that first rollout's replicaset has .spec.replicas = %d", expectedFirstRolloutReplicas)
+	err = waitForReplicaSetTargetSpecReplicas(ctx, c, firstRS, expectedFirstRolloutReplicas)
 	framework.ExpectNoError(err)
+	if testTerminationCompletePodReplacementPolicy {
+		framework.Logf("Verifying that first rollout's replicaset has correct annotations and .status.terminatingReplicas = %d", maxUnavailable)
+		firstRS, err = c.AppsV1().ReplicaSets(ns).Get(ctx, firstRS.Name, metav1.GetOptions{})
+		framework.ExpectNoError(err)
+		expectedTerminatingReplicas := int32(maxUnavailable)
+		gomega.Expect(firstRS.Status.TerminatingReplicas).To(gomega.Equal(&expectedTerminatingReplicas))
+		// not fully scaled
+		gomega.Expect(firstRS.Annotations).To(gomega.Equal(map[string]string{
+			deploymentutil.RevisionAnnotation:                      "1",
+			deploymentutil.DesiredReplicasAnnotation:               "10",
+			deploymentutil.MaxReplicasAnnotation:                   "13",
+			deploymentutil.ReplicaSetReplicasBeforeScaleAnnotation: "8",
+		}))
+	}
 
 	// Second rollout's replicaset should have .spec.replicas = 5 + (30-10)*(5/13) = 5 + 8 = 13 replicas.
 	// Note that 8 comes from rounding (30-10)*(5/13) to nearest integer.
-	framework.Logf("Verifying that second rollout's replicaset has .spec.replicas = 13")
-	err = waitForReplicaSetTargetSpecReplicas(ctx, c, secondRS, 13)
+	expectedSecondRolloutReplicas := int32(13)
+	if testTerminationCompletePodReplacementPolicy {
+		// There are 2 terminating replicas. Second rs is scaled as 3 * 33/13 ~= 3 * 2.54 ~= 8
+		expectedSecondRolloutReplicas = 8
+	}
+	framework.Logf("Verifying that second rollout's replicaset has .spec.replicas = %d", expectedSecondRolloutReplicas)
+	err = waitForReplicaSetTargetSpecReplicas(ctx, c, secondRS, expectedSecondRolloutReplicas)
 	framework.ExpectNoError(err)
+	if testTerminationCompletePodReplacementPolicy {
+		framework.Logf("Verifying that second rollout's replicaset has correct annotations and .status.terminatingReplicas = 0")
+		secondRS, err = c.AppsV1().ReplicaSets(ns).Get(ctx, secondRS.Name, metav1.GetOptions{})
+		framework.ExpectNoError(err)
+		expectedTerminatingReplicas := int32(0)
+		gomega.Expect(secondRS.Status.TerminatingReplicas).To(gomega.Equal(&expectedTerminatingReplicas))
+		// fully scaled
+		gomega.Expect(secondRS.Annotations).To(gomega.Equal(map[string]string{
+			deploymentutil.RevisionAnnotation:        "2",
+			deploymentutil.DesiredReplicasAnnotation: "30",
+			deploymentutil.MaxReplicasAnnotation:     "33",
+		}))
+	}
+
+	if testTerminationCompletePodReplacementPolicy {
+		framework.Logf("Verifying that partial scaleup completes for first rollout's replicaset once all terminating pods terminate")
+		err = forcefullyTerminateTerminatingRSPods(ctx, c, firstRS)
+		framework.ExpectNoError(err)
+
+		// maxUnavailable equals to number of terminating pods that have just been forcefully terminated
+		expectedFirstRolloutReplicas += int32(maxUnavailable)
+		framework.Logf("Verifying that first rollout's replicaset has .spec.replicas = %d", expectedFirstRolloutReplicas)
+		err = waitForReplicaSetTargetSpecReplicas(ctx, c, firstRS, expectedFirstRolloutReplicas)
+		framework.ExpectNoError(err)
+
+		framework.Logf("Verifying that first rollout's replicaset has correct annotations and .status.terminatingReplicas = 0")
+		firstRS, err = c.AppsV1().ReplicaSets(ns).Get(ctx, firstRS.Name, metav1.GetOptions{})
+		framework.ExpectNoError(err)
+		expectedTerminatingReplicas := int32(0)
+		gomega.Expect(secondRS.Status.TerminatingReplicas).To(gomega.Equal(&expectedTerminatingReplicas))
+		// not fully scaled
+		gomega.Expect(firstRS.Annotations).To(gomega.Equal(map[string]string{
+			deploymentutil.RevisionAnnotation:        "1",
+			deploymentutil.DesiredReplicasAnnotation: "30",
+			deploymentutil.MaxReplicasAnnotation:     "33",
+		}))
+	}
 }
 
 func checkDeploymentReplicaSetsControllerRef(ctx context.Context, c clientset.Interface, ns string, uid types.UID, label map[string]string) error {
@@ -1342,6 +1490,28 @@ func orphanDeploymentReplicaSets(ctx context.Context, c clientset.Interface, d *
 	deleteOptions := metav1.DeleteOptions{OrphanDependents: &trueVar}
 	deleteOptions.Preconditions = metav1.NewUIDPreconditions(string(d.UID))
 	return c.AppsV1().Deployments(d.Namespace).Delete(ctx, d.Name, deleteOptions)
+}
+
+func forcefullyTerminateTerminatingRSPods(ctx context.Context, c clientset.Interface, replicaSet *appsv1.ReplicaSet) error {
+	selector, err := metav1.LabelSelectorAsSelector(replicaSet.Spec.Selector)
+	if err != nil {
+		return err
+	}
+
+	pods, err := c.CoreV1().Pods(replicaSet.Namespace).List(ctx, metav1.ListOptions{LabelSelector: selector.String()})
+	if err != nil {
+		return err
+	}
+
+	for _, pod := range pods.Items {
+		if pod.DeletionTimestamp == nil {
+			continue
+		}
+		if err = c.CoreV1().Pods(replicaSet.Namespace).Delete(ctx, pod.Name, metav1.DeleteOptions{GracePeriodSeconds: ptr.To[int64](0)}); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func testRollingUpdateDeploymentWithLocalTrafficLoadBalancer(ctx context.Context, f *framework.Framework) {

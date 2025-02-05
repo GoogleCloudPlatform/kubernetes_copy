@@ -18,11 +18,15 @@ package deployment
 
 import (
 	"context"
+	"fmt"
+
 	apps "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/kubernetes/pkg/controller"
 	"k8s.io/kubernetes/pkg/controller/deployment/util"
+	"k8s.io/kubernetes/pkg/features"
 )
 
 // rolloutRecreate implements the logic for recreating a replica set.
@@ -44,9 +48,26 @@ func (dc *DeploymentController) rolloutRecreate(ctx context.Context, d *apps.Dep
 		// Update DeploymentStatus.
 		return dc.syncRolloutStatus(ctx, allRSs, newRS, d)
 	}
-
-	// Do not process a deployment when it has old pods running.
-	if oldPodsRunning(newRS, oldRSs, podMap) {
+	// This part of the code can be refactored in the future and the d.Spec.PodReplacementPolicy check removed once we
+	// gain confidence in the PodReplacementPolicy feature. Then the oldPodsRunning function and podInformer can be
+	// removed in favor of checking the ReplicaSet.Status.TerminatingReplicas.
+	if utilfeature.DefaultFeatureGate.Enabled(features.DeploymentPodReplacementPolicy) && d.Spec.PodReplacementPolicy != nil {
+		// Do not proceed with a deployment when it has old pods running.
+		if oldPods := util.GetActualReplicaCountForReplicaSets(oldRSs); oldPods > 0 {
+			return dc.syncRolloutStatus(ctx, allRSs, newRS, d)
+		}
+		// Do not process a deployment when it has old pods that are terminating unless the TerminationStarted pod replacement policy is specified.
+		if !util.HasTerminationStartedPodReplacement(d) {
+			oldPods := util.GetTerminatingReplicaCountForReplicaSets(oldRSs)
+			if oldPods == nil {
+				return fmt.Errorf("failed to calculate terminating replicas")
+			}
+			if *oldPods > 0 {
+				return dc.syncRolloutStatus(ctx, allRSs, newRS, d)
+			}
+		}
+	} else if oldPodsRunning(newRS, oldRSs, podMap) {
+		// Do not process a deployment when it has old pods running.
 		return dc.syncRolloutStatus(ctx, allRSs, newRS, d)
 	}
 
@@ -126,7 +147,16 @@ func oldPodsRunning(newRS *apps.ReplicaSet, oldRSs []*apps.ReplicaSet, podMap ma
 }
 
 // scaleUpNewReplicaSetForRecreate scales up new replica set when deployment strategy is "Recreate".
-func (dc *DeploymentController) scaleUpNewReplicaSetForRecreate(ctx context.Context, newRS *apps.ReplicaSet, deployment *apps.Deployment) (bool, error) {
-	scaled, _, err := dc.scaleReplicaSetAndRecordEvent(ctx, newRS, *(deployment.Spec.Replicas), deployment)
+func (dc *DeploymentController) scaleUpNewReplicaSetForRecreate(ctx context.Context, newRS *apps.ReplicaSet, deployment *apps.Deployment) (scaled bool, err error) {
+	newScale := *(deployment.Spec.Replicas)
+	if utilfeature.DefaultFeatureGate.Enabled(features.DeploymentPodReplacementPolicy) && util.HasTerminationCompletePodReplacement(deployment) {
+		// When scaling up. Terminating and surge pods must be considered. These can also appear
+		// in the newRS and we need to wait until they terminate.
+		newScale, err = util.NewRSNewReplicas(deployment, []*apps.ReplicaSet{newRS}, newRS)
+		if err != nil {
+			return false, err
+		}
+	}
+	scaled, _, err = dc.scaleReplicaSetAndRecordEvent(ctx, newRS, newScale, deployment)
 	return scaled, err
 }

@@ -19,8 +19,12 @@ package deployment
 import (
 	"context"
 	"fmt"
+	"math"
+	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/google/go-cmp/cmp"
 
 	apps "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
@@ -354,8 +358,50 @@ func TestPausedDeployment(t *testing.T) {
 	}
 }
 
-// Paused deployment can be scaled
 func TestScalePausedDeployment(t *testing.T) {
+	tests := []struct {
+		name                                 string
+		enableDeploymentPodReplacementPolicy bool
+		terminatingReplicas                  int32
+		podReplacementPolicy                 *apps.DeploymentPodReplacementPolicy
+		expectReplicasAfterScale             int32
+	}{
+		{
+			name:                     "scale paused deployment",
+			expectReplicasAfterScale: 10,
+		},
+		{
+			name:                                 "scale paused deployment with terminating replicas and empty policy",
+			enableDeploymentPodReplacementPolicy: true,
+			terminatingReplicas:                  2,
+			expectReplicasAfterScale:             10,
+		},
+		{
+			name:                                 "scale paused deployment with terminating replicas and TerminationStarted policy",
+			enableDeploymentPodReplacementPolicy: true,
+			podReplacementPolicy:                 ptr.To(apps.TerminationStarted),
+			terminatingReplicas:                  2,
+			expectReplicasAfterScale:             10,
+		},
+		{
+			name:                                 "scale paused deployment with terminating replicas and TerminationComplete policy",
+			enableDeploymentPodReplacementPolicy: true,
+			podReplacementPolicy:                 ptr.To(apps.TerminationComplete),
+			terminatingReplicas:                  2,
+			expectReplicasAfterScale:             8,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.DeploymentPodReplacementPolicy, test.enableDeploymentPodReplacementPolicy)
+			testScalePausedDeployment(t, test.terminatingReplicas, test.expectReplicasAfterScale, test.podReplacementPolicy)
+		})
+	}
+}
+
+// Paused deployment can be scaled
+func testScalePausedDeployment(t *testing.T, terminatingReplicas, expectReplicasAfterScale int32, podReplacementPolicy *apps.DeploymentPodReplacementPolicy) {
 	_, ctx := ktesting.NewTestContext(t)
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -367,10 +413,12 @@ func TestScalePausedDeployment(t *testing.T) {
 	ns := framework.CreateNamespaceOrDie(c, name, t)
 	defer framework.DeleteNamespaceOrDie(c, ns, t)
 
-	replicas := int32(1)
+	replicas := int32(2)
 	tester := &deploymentTester{t: t, c: c, deployment: newDeployment(name, ns.Name, replicas)}
-	tgps := int64(1)
-	tester.deployment.Spec.Template.Spec.TerminationGracePeriodSeconds = &tgps
+	tester.deployment.Spec.Strategy.RollingUpdate.MaxSurge = ptr.To(intstr.FromInt32(0))
+	tester.deployment.Spec.PodReplacementPolicy = podReplacementPolicy
+	tester.deployment.Spec.Template.Spec.NodeName = "fake-node"
+	tester.deployment.Spec.Template.Spec.TerminationGracePeriodSeconds = ptr.To(int64(300))
 
 	var err error
 	tester.deployment, err = c.AppsV1().Deployments(ns.Name).Create(context.TODO(), tester.deployment, metav1.CreateOptions{})
@@ -394,7 +442,8 @@ func TestScalePausedDeployment(t *testing.T) {
 	}
 
 	// A new replicaset should be created.
-	if _, err := tester.expectNewReplicaSet(); err != nil {
+	firstRS, err := tester.expectNewReplicaSet()
+	if err != nil {
 		t.Fatal(err)
 	}
 
@@ -409,6 +458,18 @@ func TestScalePausedDeployment(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	if terminatingReplicas > 0 {
+		// start terminating pods
+		err = tester.removeRSPods(ctx, firstRS, int(terminatingReplicas), false, 300)
+		if err != nil {
+			t.Fatal(err)
+		}
+		// Verify all replicas fields of DeploymentStatus have desired counts after pod termination
+		if err = tester.waitForDeploymentStatusReplicasFields(ctx, replicas, replicas, 0, 0, replicas, ptr.To(terminatingReplicas)); err != nil {
+			t.Fatal(err)
+		}
+	}
+
 	// Scale the paused deployment.
 	newReplicas := int32(10)
 	tester.deployment, err = tester.updateDeployment(func(update *apps.Deployment) {
@@ -421,6 +482,26 @@ func TestScalePausedDeployment(t *testing.T) {
 	// Wait for the controller to notice the scale.
 	if err := tester.waitForObservedDeployment(tester.deployment.Generation); err != nil {
 		t.Fatal(err)
+	}
+
+	if terminatingReplicas > 0 {
+		// Verify that the new replicaset is scaled while potentially taking terminating pods into account.
+		rs, err := tester.expectNewReplicaSet()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if *rs.Spec.Replicas != expectReplicasAfterScale {
+			t.Errorf("expected new replicaset replicas = %d, got %d", expectReplicasAfterScale, *rs.Spec.Replicas)
+		}
+
+		// remove terminating pods and skip graceful termination of the RS
+		if err := tester.removeRSPods(ctx, firstRS, math.MaxInt, true, 0); err != nil {
+			t.Fatal(err)
+		}
+		// Verify all replicas fields of DeploymentStatus have desired counts after pod termination
+		if err = tester.waitForDeploymentStatusReplicasFields(ctx, newReplicas, newReplicas, 0, 0, newReplicas, ptr.To[int32](0)); err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	// Verify that the new replicaset is scaled.
@@ -588,6 +669,113 @@ func TestFailedDeployment(t *testing.T) {
 	// Wait for the deployment to have a progress complete condition.
 	if err = tester.waitForDeploymentWithCondition(deploymentutil.NewRSAvailableReason, apps.DeploymentProgressing); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// Deployment should have a timeout condition when it fails to progress after given deadline.
+// If the number of terminating pods decreases, the DeploymentProgressing condition can report
+// a progress if a PodReplacementPolicy is used.
+func TestFailedDeploymentWithTerminatingPods(t *testing.T) {
+	tests := []struct {
+		name                                 string
+		enableDeploymentPodReplacementPolicy bool
+		podReplacementPolicy                 *apps.DeploymentPodReplacementPolicy
+
+		expectedTerminatingReplicas        *int32
+		expectedProgressingConditionReason string
+	}{
+		{
+			name:                                 "decrease of terminating pods should not progress a deployment with DeploymentPodReplacementPolicy=false",
+			enableDeploymentPodReplacementPolicy: false,
+			expectedTerminatingReplicas:          nil,
+			expectedProgressingConditionReason:   deploymentutil.TimedOutReason,
+		},
+		{
+			name:                                 "decrease of terminating pods should not progress a deployment with DeploymentPodReplacementPolicy=true",
+			enableDeploymentPodReplacementPolicy: true,
+			expectedTerminatingReplicas:          ptr.To[int32](2),
+			expectedProgressingConditionReason:   deploymentutil.TimedOutReason,
+		},
+		{
+			name:                                 "decrease of terminating pods should not progress a deployment with TerminationStarted policy",
+			enableDeploymentPodReplacementPolicy: true,
+			podReplacementPolicy:                 ptr.To(apps.TerminationStarted),
+			expectedTerminatingReplicas:          ptr.To[int32](2),
+			expectedProgressingConditionReason:   deploymentutil.TimedOutReason,
+		},
+		{
+			name:                                 "decrease of terminating pods should progress a deployment with TerminationComplete policy",
+			enableDeploymentPodReplacementPolicy: true,
+			podReplacementPolicy:                 ptr.To(apps.TerminationComplete),
+			expectedTerminatingReplicas:          ptr.To[int32](2),
+			expectedProgressingConditionReason:   deploymentutil.ReplicaSetUpdatedReason,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.DeploymentPodReplacementPolicy, test.enableDeploymentPodReplacementPolicy)
+
+			_, ctx := ktesting.NewTestContext(t)
+			ctx, cancel := context.WithCancel(ctx)
+			defer cancel()
+
+			closeFn, rm, dc, informers, c := dcSetup(ctx, t)
+			defer closeFn()
+
+			name := "test-failed-deployment"
+			ns := framework.CreateNamespaceOrDie(c, name, t)
+			defer framework.DeleteNamespaceOrDie(c, ns, t)
+
+			deploymentName := "progress-check"
+			replicas := int32(4)
+			three := int32(3)
+			tester := &deploymentTester{t: t, c: c, deployment: newDeployment(deploymentName, ns.Name, replicas)}
+			tester.deployment.Spec.ProgressDeadlineSeconds = &three
+			tester.deployment.Spec.PodReplacementPolicy = test.podReplacementPolicy
+			tester.deployment.Spec.Template.Spec.NodeName = "fake-node"
+			tester.deployment.Spec.Template.Spec.TerminationGracePeriodSeconds = ptr.To(int64(300))
+			var err error
+			tester.deployment, err = c.AppsV1().Deployments(ns.Name).Create(context.TODO(), tester.deployment, metav1.CreateOptions{})
+			if err != nil {
+				t.Fatalf("failed to create deployment %q: %v", deploymentName, err)
+			}
+
+			// Start informer and controllers
+			stopControllers := runControllersAndInformers(t, rm, dc, informers)
+			defer stopControllers()
+
+			if err = tester.waitForDeploymentUpdatedReplicasGTE(replicas); err != nil {
+				t.Fatal(err)
+			}
+			// Record current replicaset
+			rs, err := tester.expectNewReplicaSet()
+			if err != nil {
+				t.Fatal(err)
+			}
+			// Terminate 2 replicas
+			err = tester.removeRSPods(ctx, rs, 2, false, 300)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err = tester.waitForDeploymentStatusReplicasFields(ctx, replicas, replicas, 0, 0, replicas, test.expectedTerminatingReplicas); err != nil {
+				t.Fatal(err)
+			}
+			// Pods are not marked as Ready, therefore the deployment progress will eventually timeout after progressDeadlineSeconds has passed.
+			// Wait for the deployment to have a progress timeout condition.
+			if err = tester.waitForDeploymentWithCondition(deploymentutil.TimedOutReason, apps.DeploymentProgressing); err != nil {
+				t.Fatal(err)
+			}
+
+			// remove terminating pods and skip graceful termination of the RS
+			if err := tester.removeRSPods(ctx, rs, math.MaxInt, true, 0); err != nil {
+				t.Fatal(err)
+			}
+			// Check for a potential change in the progressing condition
+			if err = tester.waitForDeploymentWithCondition(test.expectedProgressingConditionReason, apps.DeploymentProgressing); err != nil {
+				t.Fatal(err)
+			}
+		})
 	}
 }
 
@@ -1399,5 +1587,561 @@ func TestTerminatingReplicasDeploymentStatus(t *testing.T) {
 	// Verify all replicas fields of DeploymentStatus have desired counts
 	if err = tester.checkDeploymentStatusReplicasFields(2, 2, 2, 2, 0, nil); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestRecreateDeploymentForPodReplacementPolicy(t *testing.T) {
+	tests := []struct {
+		name                                                   string
+		enableDeploymentPodReplacementPolicy                   bool
+		waitForOldTerminatingPods                              bool
+		waitForAllTerminatingPods                              bool
+		podReplacementPolicy                                   *apps.DeploymentPodReplacementPolicy
+		expectedReplicasAfterOldRSScaleDown                    int32
+		expectedTerminatingReplicasAfterOldRSScaleDown         *int32
+		expectedReplicasAfterNewRS                             int32
+		expectedTerminatingReplicasAfterNewRS                  *int32
+		expectedReplicasAfterInFlightPodTermination            int32
+		expectedTerminatingReplicasAfterInFlightPodTermination *int32
+		expectedReplicasAfterInFlightScaleUp                   int32
+		expectedTerminatingReplicasAfterInFlightScaleUp        *int32
+		expectedReplicasAfterInFlightScaleDown                 int32
+		expectedTerminatingReplicasAfterInFlightScaleDown      *int32
+		expectedReplicasForDeploymentComplete                  int32
+		expectedTerminatingReplicasForDeploymentComplete       *int32
+	}{
+		{
+			name:                                 "recreate should wait for terminating pods to complete in a new rollout with DeploymentPodReplacementPolicy=false",
+			enableDeploymentPodReplacementPolicy: false,
+			waitForOldTerminatingPods:            true,
+			waitForAllTerminatingPods:            false,
+
+			expectedReplicasAfterOldRSScaleDown:                    0,
+			expectedTerminatingReplicasAfterOldRSScaleDown:         nil, // terminating counting disabled for all expectedTerminating
+			expectedReplicasAfterNewRS:                             6,
+			expectedTerminatingReplicasAfterNewRS:                  nil,
+			expectedReplicasAfterInFlightPodTermination:            6, // 1 pod terminated
+			expectedTerminatingReplicasAfterInFlightPodTermination: nil,
+			expectedReplicasAfterInFlightScaleUp:                   7, // +1 scale up
+			expectedTerminatingReplicasAfterInFlightScaleUp:        nil,
+			expectedReplicasAfterInFlightScaleDown:                 5, // -2 scale down
+			expectedTerminatingReplicasAfterInFlightScaleDown:      nil,
+			expectedReplicasForDeploymentComplete:                  5,
+			expectedTerminatingReplicasForDeploymentComplete:       nil,
+		},
+		{
+			name:                                 "recreate should wait for terminating pods to complete in a new rollout with DeploymentPodReplacementPolicy=true",
+			enableDeploymentPodReplacementPolicy: true,
+			waitForOldTerminatingPods:            true,
+			waitForAllTerminatingPods:            false,
+
+			expectedReplicasAfterOldRSScaleDown:                    0,
+			expectedTerminatingReplicasAfterOldRSScaleDown:         ptr.To[int32](6),
+			expectedReplicasAfterNewRS:                             6,
+			expectedTerminatingReplicasAfterNewRS:                  ptr.To[int32](0),
+			expectedReplicasAfterInFlightPodTermination:            6, // 1 pod terminated
+			expectedTerminatingReplicasAfterInFlightPodTermination: ptr.To[int32](1),
+			expectedReplicasAfterInFlightScaleUp:                   7, // +1 scale up
+			expectedTerminatingReplicasAfterInFlightScaleUp:        ptr.To[int32](1),
+			expectedReplicasAfterInFlightScaleDown:                 5, // -2 scale down
+			expectedTerminatingReplicasAfterInFlightScaleDown:      ptr.To[int32](3),
+			expectedReplicasForDeploymentComplete:                  5,
+			expectedTerminatingReplicasForDeploymentComplete:       ptr.To[int32](3),
+		},
+		{
+			name:                                 "recreate with TerminationComplete policy should wait for terminating pods to complete in a new rollout",
+			enableDeploymentPodReplacementPolicy: true,
+			waitForOldTerminatingPods:            true,
+			waitForAllTerminatingPods:            true,
+			podReplacementPolicy:                 ptr.To(apps.TerminationComplete),
+
+			expectedReplicasAfterOldRSScaleDown:                    0,
+			expectedTerminatingReplicasAfterOldRSScaleDown:         ptr.To[int32](6),
+			expectedReplicasAfterNewRS:                             6,
+			expectedTerminatingReplicasAfterNewRS:                  ptr.To[int32](0),
+			expectedReplicasAfterInFlightPodTermination:            6, // 1 pod terminated
+			expectedTerminatingReplicasAfterInFlightPodTermination: ptr.To[int32](1),
+			expectedReplicasAfterInFlightScaleUp:                   6, // +1 scale up
+			expectedTerminatingReplicasAfterInFlightScaleUp:        ptr.To[int32](1),
+			expectedReplicasAfterInFlightScaleDown:                 5, // -2 scale down
+			expectedTerminatingReplicasAfterInFlightScaleDown:      ptr.To[int32](2),
+			expectedReplicasForDeploymentComplete:                  5,
+			expectedTerminatingReplicasForDeploymentComplete:       ptr.To[int32](0),
+		},
+		{
+			name:                                 "recreate with TerminationStarted policy should not wait for terminating pods to complete in a new rollout",
+			enableDeploymentPodReplacementPolicy: true,
+			waitForOldTerminatingPods:            false,
+			waitForAllTerminatingPods:            false,
+			podReplacementPolicy:                 ptr.To(apps.TerminationStarted),
+
+			expectedReplicasAfterOldRSScaleDown:                    6,
+			expectedTerminatingReplicasAfterOldRSScaleDown:         ptr.To[int32](6),
+			expectedReplicasAfterNewRS:                             6,
+			expectedTerminatingReplicasAfterNewRS:                  ptr.To[int32](6),
+			expectedReplicasAfterInFlightPodTermination:            6, // 1 pod terminated
+			expectedTerminatingReplicasAfterInFlightPodTermination: ptr.To[int32](7),
+			expectedReplicasAfterInFlightScaleUp:                   7, // +1 scale up
+			expectedTerminatingReplicasAfterInFlightScaleUp:        ptr.To[int32](7),
+			expectedReplicasAfterInFlightScaleDown:                 5, // -2 scale down
+			expectedTerminatingReplicasAfterInFlightScaleDown:      ptr.To[int32](9),
+			expectedReplicasForDeploymentComplete:                  5,
+			expectedTerminatingReplicasForDeploymentComplete:       ptr.To[int32](9),
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.DeploymentPodReplacementPolicy, test.enableDeploymentPodReplacementPolicy)
+
+			_, ctx := ktesting.NewTestContext(t)
+			ctx, cancel := context.WithCancel(ctx)
+			defer cancel()
+
+			closeFn, rm, dc, informers, c := dcSetup(ctx, t)
+			defer closeFn()
+
+			name := "test-recreate-deployment-pod-replacement-policy"
+			ns := framework.CreateNamespaceOrDie(c, name, t)
+			defer framework.DeleteNamespaceOrDie(c, ns, t)
+
+			// Start informer and controllers
+			stopControllers := runControllersAndInformers(t, rm, dc, informers)
+			defer stopControllers()
+
+			deploymentName := "deployment"
+			replicas := int32(6)
+			tester := &deploymentTester{t: t, c: c, deployment: newDeployment(deploymentName, ns.Name, replicas)}
+			tester.deployment.Spec.Strategy.Type = apps.RecreateDeploymentStrategyType
+			tester.deployment.Spec.Strategy.RollingUpdate = nil
+			tester.deployment.Spec.PodReplacementPolicy = test.podReplacementPolicy
+			tester.deployment.Spec.Template.Spec.NodeName = "fake-node"
+			tester.deployment.Spec.Template.Spec.TerminationGracePeriodSeconds = ptr.To(int64(300))
+
+			var err error
+			tester.deployment, err = c.AppsV1().Deployments(ns.Name).Create(context.TODO(), tester.deployment, metav1.CreateOptions{})
+			if err != nil {
+				t.Fatalf("failed to create deployment %q: %v", deploymentName, err)
+			}
+
+			// Ensure the deployment completes while marking its pods as ready simultaneously
+			if err := tester.waitForDeploymentCompleteAndMarkPodsReady(); err != nil {
+				t.Fatal(err)
+			}
+			// Record current replicaset before starting new rollout
+			firstRS, err := tester.expectNewReplicaSet()
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			// trigger a new rollout
+			tester.deployment, err = tester.updateDeployment(func(update *apps.Deployment) {
+				update.Spec.Template.Spec.Containers[0].Env = append(update.Spec.Template.Spec.Containers[0].Env, v1.EnvVar{Name: "deploy2", Value: "true"})
+			})
+			if err != nil {
+				t.Fatalf("failed updating deployment %q: %v", deploymentName, err)
+			}
+
+			// Wait for old replicaset of 1st rollout to have 0 replicas first
+			firstRS, err = c.AppsV1().ReplicaSets(ns.Name).Get(context.TODO(), firstRS.Name, metav1.GetOptions{})
+			if err != nil {
+				t.Fatalf("failed to get replicaset %q: %v", firstRS.Name, err)
+			}
+			firstRS.Spec.Replicas = ptr.To[int32](0)
+			if err = tester.waitRSStable(firstRS); err != nil {
+				t.Fatal(err)
+			}
+
+			// Verify all replicas fields of DeploymentStatus have desired counts after scale down phase
+			expectedReplicas := test.expectedReplicasAfterOldRSScaleDown
+			if err = tester.waitForDeploymentStatusReplicasFields(ctx, expectedReplicas, expectedReplicas, 0, 0, expectedReplicas, test.expectedTerminatingReplicasAfterOldRSScaleDown); err != nil {
+				t.Fatal(err)
+			}
+
+			if test.waitForOldTerminatingPods {
+				// Verify that the new rollout won't create new replica set, until the old pods terminate
+				if err := tester.expectNoNewReplicaSet(); err != nil {
+					t.Fatal(err)
+				}
+				// remove terminating pods and skip graceful termination of the old RS
+				if err := tester.removeRSPods(ctx, firstRS, math.MaxInt, true, 0); err != nil {
+					t.Fatal(err)
+				}
+			}
+			// Verify all replicas fields of DeploymentStatus have desired counts after new RS creation
+			expectedReplicas = test.expectedReplicasAfterNewRS
+			if err = tester.waitForDeploymentStatusReplicasFields(ctx, expectedReplicas, expectedReplicas, 0, 0, expectedReplicas, test.expectedTerminatingReplicasAfterNewRS); err != nil {
+				t.Fatal(err)
+			}
+			// Verify that the new rollout created new replica set
+			secondRS, err := tester.expectNewReplicaSet()
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			// start terminating 1 pod
+			err = tester.removeRSPods(ctx, secondRS, 1, false, 300)
+			if err != nil {
+				t.Fatal(err)
+			}
+			// Verify all replicas fields of DeploymentStatus have desired counts after surprise pod termination
+			expectedReplicas = test.expectedReplicasAfterInFlightPodTermination
+			if err = tester.waitForDeploymentStatusReplicasFields(ctx, expectedReplicas, expectedReplicas, 0, 0, expectedReplicas, test.expectedTerminatingReplicasAfterInFlightPodTermination); err != nil {
+				t.Fatal(err)
+			}
+
+			// Scale up during the deployment rollout
+			tester.deployment, err = tester.updateDeployment(func(update *apps.Deployment) {
+				update.Spec.Replicas = ptr.To[int32](7)
+			})
+			if err != nil {
+				t.Fatalf("failed to update deployment %q: %v", deploymentName, err)
+			}
+
+			// Verify all replicas fields of DeploymentStatus have desired counts after in flight scale up
+			expectedReplicas = test.expectedReplicasAfterInFlightScaleUp
+			if err = tester.waitForDeploymentStatusReplicasFields(ctx, expectedReplicas, expectedReplicas, 0, 0, expectedReplicas, test.expectedTerminatingReplicasAfterInFlightScaleUp); err != nil {
+				t.Fatal(err)
+			}
+
+			// Scale down during the deployment rollout
+			tester.deployment, err = tester.updateDeployment(func(update *apps.Deployment) {
+				update.Spec.Replicas = ptr.To[int32](5)
+			})
+			if err != nil {
+				t.Fatalf("failed to update/scale deployment %q: %v", deploymentName, err)
+			}
+
+			// Verify all replicas fields of DeploymentStatus have desired counts after in flight scale down
+			expectedReplicas = test.expectedReplicasAfterInFlightScaleDown
+			if err = tester.waitForDeploymentStatusReplicasFields(ctx, expectedReplicas, expectedReplicas, 0, 0, expectedReplicas, test.expectedTerminatingReplicasAfterInFlightScaleDown); err != nil {
+				t.Fatal(err)
+			}
+
+			if test.waitForAllTerminatingPods {
+				// remove terminating pods and skip graceful termination of the new RS
+				if err := tester.removeRSPods(ctx, secondRS, math.MaxInt, true, 0); err != nil {
+					t.Fatal(err)
+				}
+			}
+			// Verify all replicas fields of DeploymentStatus have desired counts before the deployment is completed
+			expectedReplicas = test.expectedReplicasForDeploymentComplete
+			if err = tester.waitForDeploymentStatusReplicasFields(ctx, expectedReplicas, expectedReplicas, 0, 0, expectedReplicas, test.expectedTerminatingReplicasForDeploymentComplete); err != nil {
+				t.Fatal(err)
+			}
+
+			// Ensure the new deployment completes while marking its pods as ready simultaneously
+			if err = tester.waitForDeploymentCompleteAndMarkPodsReady(); err != nil {
+				t.Fatal(err)
+			}
+			// Verify all replicas fields of DeploymentStatus have desired counts after the deployment is completed
+			expectedReplicas = test.expectedReplicasForDeploymentComplete
+			if err = tester.waitForDeploymentStatusReplicasFields(ctx, expectedReplicas, expectedReplicas, expectedReplicas, expectedReplicas, 0, test.expectedTerminatingReplicasForDeploymentComplete); err != nil {
+				t.Fatal(err)
+			}
+
+			// remove terminating pods (if there are any) and skip graceful termination of the old RS
+			if err := tester.removeRSPods(ctx, firstRS, math.MaxInt, true, 0); err != nil {
+				t.Fatal(err)
+			}
+			// remove terminating pods and skip graceful termination of the new RS
+			if err := tester.removeRSPods(ctx, secondRS, math.MaxInt, true, 0); err != nil {
+				t.Fatal(err)
+			}
+
+			// Verify all replicas fields of DeploymentStatus have desired counts after the deployment is completed and old pods have terminated
+			expectedReplicas = test.expectedReplicasForDeploymentComplete
+			var expectedFinalTerminatingReplicas *int32
+			if test.enableDeploymentPodReplacementPolicy {
+				expectedFinalTerminatingReplicas = ptr.To[int32](0)
+			}
+			if err = tester.waitForDeploymentStatusReplicasFields(ctx, expectedReplicas, expectedReplicas, expectedReplicas, expectedReplicas, 0, expectedFinalTerminatingReplicas); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+func TestRollingUpdateAndProportionalScalingForDeploymentPodReplacementPolicy(t *testing.T) {
+	tests := []struct {
+		name                                 string
+		enableDeploymentPodReplacementPolicy bool
+		podReplacementPolicy                 *apps.DeploymentPodReplacementPolicy
+		terminatingReplicasFirstRS           int32
+		terminatingReplicasSecondRS          int32
+
+		expectedFirstRSReplicasDuringNewRollout          int32
+		expectedSecondRSReplicasDuringNewRollout         int32
+		expectedTerminatingReplicasDuringNewRollout      *int32
+		expectedFirstRSReplicasAfterInFlightScaleUp      int32
+		expectedSecondRSReplicasAfterInFlightScaleUp     int32
+		expectedTerminatingReplicasDuringInFlightScaleUp *int32
+		expectedFirstRSAnnotationsAfterInFlightScaleUp   map[string]string
+		expectedSecondRSAnnotationsAfterInFlightScaleUp  map[string]string
+	}{
+		// starts with 100 replicas + 20 maxSurge
+		{
+			name:                                 "rolling update should not wait for terminating pods with DeploymentPodReplacementPolicy=false",
+			enableDeploymentPodReplacementPolicy: false,
+
+			expectedFirstRSReplicasDuringNewRollout:          100,
+			expectedSecondRSReplicasDuringNewRollout:         20,
+			expectedTerminatingReplicasDuringNewRollout:      nil,
+			expectedFirstRSReplicasAfterInFlightScaleUp:      117,
+			expectedSecondRSReplicasAfterInFlightScaleUp:     23,
+			expectedTerminatingReplicasDuringInFlightScaleUp: nil,
+			expectedFirstRSAnnotationsAfterInFlightScaleUp: map[string]string{
+				deploymentutil.DesiredReplicasAnnotation: "120",
+				deploymentutil.MaxReplicasAnnotation:     "140",
+				deploymentutil.RevisionAnnotation:        "1",
+			},
+			expectedSecondRSAnnotationsAfterInFlightScaleUp: map[string]string{
+				deploymentutil.DesiredReplicasAnnotation: "120",
+				deploymentutil.MaxReplicasAnnotation:     "140",
+				deploymentutil.RevisionAnnotation:        "2",
+			},
+		},
+		{
+			name:                                 "rolling update and scaling should not wait for terminating pods with DeploymentPodReplacementPolicy=true",
+			enableDeploymentPodReplacementPolicy: true,
+			terminatingReplicasFirstRS:           15,
+			terminatingReplicasSecondRS:          1,
+
+			expectedFirstRSReplicasDuringNewRollout:          100,
+			expectedSecondRSReplicasDuringNewRollout:         20,
+			expectedTerminatingReplicasDuringNewRollout:      ptr.To[int32](15),
+			expectedFirstRSReplicasAfterInFlightScaleUp:      117,
+			expectedSecondRSReplicasAfterInFlightScaleUp:     23,
+			expectedTerminatingReplicasDuringInFlightScaleUp: ptr.To[int32](16),
+			expectedFirstRSAnnotationsAfterInFlightScaleUp: map[string]string{
+				deploymentutil.DesiredReplicasAnnotation: "120",
+				deploymentutil.MaxReplicasAnnotation:     "140",
+				deploymentutil.RevisionAnnotation:        "1",
+			},
+			expectedSecondRSAnnotationsAfterInFlightScaleUp: map[string]string{
+				deploymentutil.DesiredReplicasAnnotation: "120",
+				deploymentutil.MaxReplicasAnnotation:     "140",
+				deploymentutil.RevisionAnnotation:        "2",
+			},
+		},
+		{
+			name:                                 "rolling update and scaling with TerminationStarted policy should not wait for terminating pods",
+			enableDeploymentPodReplacementPolicy: true,
+			podReplacementPolicy:                 ptr.To(apps.TerminationStarted),
+			terminatingReplicasFirstRS:           15,
+			terminatingReplicasSecondRS:          1,
+
+			expectedFirstRSReplicasDuringNewRollout:          100,
+			expectedSecondRSReplicasDuringNewRollout:         20,
+			expectedTerminatingReplicasDuringNewRollout:      ptr.To[int32](15),
+			expectedFirstRSReplicasAfterInFlightScaleUp:      117,
+			expectedSecondRSReplicasAfterInFlightScaleUp:     23,
+			expectedTerminatingReplicasDuringInFlightScaleUp: ptr.To[int32](16),
+			expectedFirstRSAnnotationsAfterInFlightScaleUp: map[string]string{
+				deploymentutil.DesiredReplicasAnnotation: "120",
+				deploymentutil.MaxReplicasAnnotation:     "140",
+				deploymentutil.RevisionAnnotation:        "1",
+			},
+			expectedSecondRSAnnotationsAfterInFlightScaleUp: map[string]string{
+				deploymentutil.DesiredReplicasAnnotation: "120",
+				deploymentutil.MaxReplicasAnnotation:     "140",
+				deploymentutil.RevisionAnnotation:        "2",
+			},
+		},
+		{
+			name:                                 "rolling update and scaling with TerminationComplete policy should wait for terminating pods",
+			enableDeploymentPodReplacementPolicy: true,
+			podReplacementPolicy:                 ptr.To(apps.TerminationComplete),
+			terminatingReplicasFirstRS:           15,
+			terminatingReplicasSecondRS:          4,
+
+			expectedFirstRSReplicasDuringNewRollout:          100,
+			expectedSecondRSReplicasDuringNewRollout:         5,
+			expectedTerminatingReplicasDuringNewRollout:      ptr.To[int32](15),
+			expectedFirstRSReplicasAfterInFlightScaleUp:      116,
+			expectedSecondRSReplicasAfterInFlightScaleUp:     5,
+			expectedTerminatingReplicasDuringInFlightScaleUp: ptr.To[int32](19),
+			expectedFirstRSAnnotationsAfterInFlightScaleUp: map[string]string{
+				deploymentutil.DesiredReplicasAnnotation:               "100",
+				deploymentutil.MaxReplicasAnnotation:                   "120",
+				deploymentutil.ReplicaSetReplicasBeforeScaleAnnotation: "100",
+				deploymentutil.RevisionAnnotation:                      "1",
+			},
+			expectedSecondRSAnnotationsAfterInFlightScaleUp: map[string]string{
+				deploymentutil.DesiredReplicasAnnotation:               "100",
+				deploymentutil.MaxReplicasAnnotation:                   "120",
+				deploymentutil.ReplicaSetReplicasBeforeScaleAnnotation: "5",
+				deploymentutil.RevisionAnnotation:                      "2",
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.DeploymentPodReplacementPolicy, test.enableDeploymentPodReplacementPolicy)
+
+			_, ctx := ktesting.NewTestContext(t)
+			ctx, cancel := context.WithCancel(ctx)
+			defer cancel()
+
+			closeFn, rm, dc, informers, c := dcSetup(ctx, t)
+			defer closeFn()
+
+			name := "test-proportional-scaling"
+			ns := framework.CreateNamespaceOrDie(c, name, t)
+			defer framework.DeleteNamespaceOrDie(c, ns, t)
+
+			// Start informer and controllers
+			stopControllers := runControllersAndInformers(t, rm, dc, informers)
+			defer stopControllers()
+
+			deploymentName := "deployment"
+			replicas := int32(100)
+			maxSurge := int32(20)
+			tester := &deploymentTester{t: t, c: c, deployment: newDeployment(deploymentName, ns.Name, replicas)}
+			tester.deployment.Spec.Strategy.RollingUpdate.MaxSurge = ptr.To(intstr.FromInt32(maxSurge))
+			tester.deployment.Spec.Strategy.RollingUpdate.MaxUnavailable = ptr.To(intstr.FromInt32(0))
+			tester.deployment.Spec.PodReplacementPolicy = test.podReplacementPolicy
+			tester.deployment.Spec.Template.Spec.NodeName = "fake-node"
+			tester.deployment.Spec.Template.Spec.TerminationGracePeriodSeconds = ptr.To(int64(300))
+
+			var err error
+			tester.deployment, err = c.AppsV1().Deployments(ns.Name).Create(context.TODO(), tester.deployment, metav1.CreateOptions{})
+			if err != nil {
+				t.Fatalf("failed to create deployment %q: %v", deploymentName, err)
+			}
+
+			// Ensure the deployment completes while marking its pods as ready simultaneously
+			if err := tester.waitForDeploymentCompleteAndMarkPodsReady(); err != nil {
+				t.Fatal(err)
+			}
+			// Record current replicaset before starting new rollout
+			firstRS, err := tester.expectNewReplicaSet()
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			// Terminating some replicas
+			err = tester.removeRSPods(ctx, firstRS, int(test.terminatingReplicasFirstRS), false, 300)
+			if err != nil {
+				t.Fatal(err)
+			}
+			// Check and test deployment completion.
+			if test.enableDeploymentPodReplacementPolicy && ptr.Equal(test.podReplacementPolicy, ptr.To(apps.TerminationComplete)) {
+				// We cannot wait for a complete deployment because TerminationComplete policy requires that no terminating pods should be present.
+				// Wait for the new pods to appear.
+				expectedReadyReplicas := test.expectedFirstRSReplicasDuringNewRollout - *test.expectedTerminatingReplicasDuringNewRollout
+				if err = tester.waitForDeploymentStatusReplicasFields(ctx, test.expectedFirstRSReplicasDuringNewRollout, test.expectedFirstRSReplicasDuringNewRollout, expectedReadyReplicas, expectedReadyReplicas, *test.expectedTerminatingReplicasDuringNewRollout, test.expectedTerminatingReplicasDuringNewRollout); err != nil {
+					t.Fatal(err)
+				}
+				if err := tester.markUpdatedPodsReadyWithoutComplete(); err != nil {
+					t.Fatal(err)
+				}
+				// Wait for the deployment status to sync.
+				if err = tester.waitForDeploymentStatusReplicasFields(ctx, test.expectedFirstRSReplicasDuringNewRollout, test.expectedFirstRSReplicasDuringNewRollout, test.expectedFirstRSReplicasDuringNewRollout, test.expectedFirstRSReplicasDuringNewRollout, 0, test.expectedTerminatingReplicasDuringNewRollout); err != nil {
+					t.Fatal(err)
+				}
+				// Make sure that the deployment is not complete, due to presence of terminating pods.
+				isDeploymentComplete, err := tester.deploymentComplete()
+				if err != nil {
+					t.Fatal(err)
+				}
+				if isDeploymentComplete {
+					t.Fatalf("deployment %q should not be complete when terminating pods are present", deploymentName)
+				}
+			} else {
+				// Ensure the deployment completes while marking its pods as ready simultaneously
+				// Terminating pods should not prevent the deployment from become complete.
+				if err := tester.waitForDeploymentCompleteAndMarkPodsReady(); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			// Trigger a new rollout
+			tester.deployment, err = tester.updateDeployment(func(update *apps.Deployment) {
+				update.Spec.Template.Spec.Containers[0].Env = append(update.Spec.Template.Spec.Containers[0].Env, v1.EnvVar{Name: "deploy2", Value: "true"})
+			})
+			if err != nil {
+				t.Fatalf("failed updating deployment %q: %v", deploymentName, err)
+			}
+			expectedReplicasDuringNewRollout := test.expectedFirstRSReplicasDuringNewRollout + test.expectedSecondRSReplicasDuringNewRollout
+			if err = tester.waitForDeploymentStatusReplicasFields(ctx, expectedReplicasDuringNewRollout, test.expectedSecondRSReplicasDuringNewRollout, test.expectedFirstRSReplicasDuringNewRollout, test.expectedFirstRSReplicasDuringNewRollout, test.expectedSecondRSReplicasDuringNewRollout, test.expectedTerminatingReplicasDuringNewRollout); err != nil {
+				t.Fatal(err)
+			}
+
+			// Verify that the new rollout created new replica set
+			secondRS, err := tester.expectNewReplicaSet()
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			// terminating additional replicas
+			err = tester.removeRSPods(ctx, secondRS, int(test.terminatingReplicasSecondRS), false, 300)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err = tester.waitForDeploymentStatusReplicasFields(ctx, expectedReplicasDuringNewRollout, test.expectedSecondRSReplicasDuringNewRollout, test.expectedFirstRSReplicasDuringNewRollout, test.expectedFirstRSReplicasDuringNewRollout, test.expectedSecondRSReplicasDuringNewRollout, test.expectedTerminatingReplicasDuringInFlightScaleUp); err != nil {
+				t.Fatal(err)
+			}
+
+			// Scale up during the deployment rollout
+			tester.deployment, err = tester.updateDeployment(func(update *apps.Deployment) {
+				update.Spec.Replicas = ptr.To[int32](120)
+			})
+			if err != nil {
+				t.Fatalf("failed to update/scale deployment %q: %v", deploymentName, err)
+			}
+			expectedReplicasDuringInFlightScaleUp := test.expectedFirstRSReplicasAfterInFlightScaleUp + test.expectedSecondRSReplicasAfterInFlightScaleUp
+			expectedSurgeReplicas := expectedReplicasDuringInFlightScaleUp - test.expectedFirstRSReplicasDuringNewRollout
+			if err = tester.waitForDeploymentStatusReplicasFields(ctx, expectedReplicasDuringInFlightScaleUp, test.expectedSecondRSReplicasAfterInFlightScaleUp, test.expectedFirstRSReplicasDuringNewRollout, test.expectedFirstRSReplicasDuringNewRollout, expectedSurgeReplicas, test.expectedTerminatingReplicasDuringInFlightScaleUp); err != nil {
+				t.Fatal(err)
+			}
+
+			// Check pod count and annotations for all replica sets
+			firstRS, err = c.AppsV1().ReplicaSets(ns.Name).Get(context.TODO(), firstRS.Name, metav1.GetOptions{})
+			if err != nil {
+				t.Fatalf("failed to get replicaset %q: %v", firstRS.Name, err)
+			}
+			if *(firstRS.Spec.Replicas) != test.expectedFirstRSReplicasAfterInFlightScaleUp {
+				t.Fatalf("unexpected first RS .spec.replicas: expect %d, got %d", test.expectedFirstRSReplicasAfterInFlightScaleUp, *(firstRS.Spec.Replicas))
+			}
+			if !reflect.DeepEqual(test.expectedFirstRSAnnotationsAfterInFlightScaleUp, firstRS.Annotations) {
+				t.Fatalf("unexpected %q replica set annotations: %s", firstRS.Name, cmp.Diff(test.expectedFirstRSAnnotationsAfterInFlightScaleUp, firstRS.Annotations))
+			}
+
+			secondRS, err = c.AppsV1().ReplicaSets(ns.Name).Get(context.TODO(), secondRS.Name, metav1.GetOptions{})
+			if err != nil {
+				t.Fatalf("failed to get replicaset %q: %v", secondRS.Name, err)
+			}
+			if *(secondRS.Spec.Replicas) != test.expectedSecondRSReplicasAfterInFlightScaleUp {
+				t.Fatalf("unexpected second RS .spec.replicas: expect %d, got %d", test.expectedSecondRSReplicasAfterInFlightScaleUp, *(secondRS.Spec.Replicas))
+			}
+			if !reflect.DeepEqual(test.expectedSecondRSAnnotationsAfterInFlightScaleUp, secondRS.Annotations) {
+				t.Fatalf("unexpected %q replica set annotations: %s", secondRS.Name, cmp.Diff(test.expectedSecondRSAnnotationsAfterInFlightScaleUp, secondRS.Annotations))
+			}
+
+			// Ensure the deployment completes while marking its pods as ready and removing terminated pods simultaneously
+			if err := tester.waitForDeploymentCompleteAndMarkPodsReadyAndRemoveTerminated(ctx); err != nil {
+				t.Fatal(err)
+			}
+
+			// all replica sets' annotations should be up-to-date in the end
+			rss := []*apps.ReplicaSet{firstRS, secondRS}
+			for idx, curRS := range rss {
+				curRS, err = c.AppsV1().ReplicaSets(ns.Name).Get(context.TODO(), curRS.Name, metav1.GetOptions{})
+				if err != nil {
+					t.Fatalf("failed to get replicaset when checking desired replicas annotation: %v", err)
+				}
+				expectedFinalAnnotations := map[string]string{
+					deploymentutil.DesiredReplicasAnnotation: "120",
+					deploymentutil.MaxReplicasAnnotation:     "140",
+					deploymentutil.RevisionAnnotation:        fmt.Sprintf("%d", idx+1),
+				}
+				if !reflect.DeepEqual(expectedFinalAnnotations, curRS.Annotations) {
+					t.Fatalf("unexpected %q replica set annotations: %s", curRS.Name, cmp.Diff(expectedFinalAnnotations, curRS.Annotations))
+				}
+			}
+
+		})
 	}
 }

@@ -82,6 +82,10 @@ var (
 	// TODO: document the feature (owning SIG, when to use this feature for a test)
 	CustomMetricsAutoscaling = framework.WithFeature(framework.ValidFeatures.Add("CustomMetricsAutoscaling"))
 
+	// Owner: sig-apps
+	// Marks tests that test PodReplacementPolicy for Deployments and that require the `DeploymentPodReplacementPolicy` feature gate
+	DeploymentPodReplacementPolicy = framework.WithFeature(framework.ValidFeatures.Add("DeploymentPodReplacementPolicy"))
+
 	// OWNER: sig-node
 	// Testing device managers
 	DeviceManager = framework.WithFeature(framework.ValidFeatures.Add("DeviceManager"))
