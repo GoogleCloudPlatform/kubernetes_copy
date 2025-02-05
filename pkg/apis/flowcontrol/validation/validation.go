@@ -435,6 +435,9 @@ func ValidateLimitedPriorityLevelConfiguration(lplc *flowcontrol.LimitedPriority
 	if lplc.BorrowingLimitPercent != nil && *lplc.BorrowingLimitPercent < 0 {
 		allErrs = append(allErrs, field.Invalid(fldPath.Child("borrowingLimitPercent"), *lplc.BorrowingLimitPercent, "if specified, must be a non-negative integer"))
 	}
+	if lplc.Weight != nil && (*lplc.Weight < 1 || *lplc.Weight > 1000) {
+		allErrs = append(allErrs, field.Invalid(fldPath.Child("weight"), *lplc.Weight, "if specified, must be an integer in the range 1--1000"))
+	}
 
 	return allErrs
 }

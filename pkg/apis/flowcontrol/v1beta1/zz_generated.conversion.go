@@ -493,6 +493,7 @@ func autoConvert_v1beta1_LimitedPriorityLevelConfiguration_To_flowcontrol_Limite
 	}
 	out.LendablePercent = (*int32)(unsafe.Pointer(in.LendablePercent))
 	out.BorrowingLimitPercent = (*int32)(unsafe.Pointer(in.BorrowingLimitPercent))
+	out.Weight = (*int32)(unsafe.Pointer(in.Weight))
 	return nil
 }
 
@@ -503,6 +504,7 @@ func autoConvert_flowcontrol_LimitedPriorityLevelConfiguration_To_v1beta1_Limite
 	}
 	out.LendablePercent = (*int32)(unsafe.Pointer(in.LendablePercent))
 	out.BorrowingLimitPercent = (*int32)(unsafe.Pointer(in.BorrowingLimitPercent))
+	out.Weight = (*int32)(unsafe.Pointer(in.Weight))
 	return nil
 }
 

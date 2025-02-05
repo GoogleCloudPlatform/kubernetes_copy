@@ -78,14 +78,14 @@ const (
 	// borrowingAdjustmentPeriod is that period.
 	borrowingAdjustmentPeriod = 10 * time.Second
 
-	// The input to the seat borrowing is smoothed seat demand figures.
+	// The input to the seat borrowing is exponentially smoothed seat demand figures.
 	// This constant controls the decay rate of that smoothing,
 	// as described in the comment on the `seatDemandStats` field of `priorityLevelState`.
 	// The particular number appearing here has the property that half-life
-	// of that decay is 5 minutes.
-	// This is a very preliminary guess at a good value and is likely to be tweaked
-	// once we get some experience with borrowing.
-	seatDemandSmoothingCoefficient = 0.977
+	// of that decay is about 100 seconds.
+	// For a given half-life L, the value here would be 0.5 ** (borrowingAdjustmentPeriod / L).
+	// The half-life was originally set to 5 minutes.
+	seatDemandSmoothingCoefficient = 0.933
 )
 
 // The funcs in this package follow the naming convention that the suffix
@@ -417,13 +417,19 @@ func (cfgCtlr *configController) updateBorrowingLocked(setCompleters bool, plSta
 			// - its configured concurrency limit.
 			// BUT: we do not want this to be lower than the lower bound from configuration.
 			// See KEP-1040 for a more detailed explanation.
+			lplc := plState.pl.Spec.Limited
 			minCurrentCL = max(plState.minCL, min(plState.nominalCL, plState.seatDemandStats.highWatermark))
 			idxOfNonExempt[plName] = len(items)
 			nonExemptPLNames = append(nonExemptPLNames, plName)
+			weight := float64(30) // defaut value
+			if lplc.Weight != nil {
+				weight = float64(*lplc.Weight)
+			}
 			items = append(items, allocProblemItem{
-				lowerBound: float64(minCurrentCL),
-				upperBound: float64(plState.maxCL),
-				target:     math.Max(float64(minCurrentCL), plState.seatDemandStats.smoothed),
+				lowerBound:  float64(minCurrentCL),
+				upperBound:  float64(plState.maxCL),
+				target:      math.Max(float64(minCurrentCL), plState.seatDemandStats.smoothed),
+				allocWeight: allocWeight{weight: weight},
 			})
 			minCLSum += plState.minCL
 			minCurrentCLSum += minCurrentCL
@@ -434,7 +440,7 @@ func (cfgCtlr *configController) updateBorrowingLocked(setCompleters bool, plSta
 		return
 	}
 	var allocs []float64
-	var shareFrac, fairFrac float64
+	var shareFrac, delta float64
 	var err error
 	if remainingServerCL <= minCLSum {
 		metrics.SetFairFrac(0)
@@ -442,7 +448,7 @@ func (cfgCtlr *configController) updateBorrowingLocked(setCompleters bool, plSta
 		shareFrac = float64(remainingServerCL-minCLSum) / float64(minCurrentCLSum-minCLSum)
 		metrics.SetFairFrac(0)
 	} else {
-		allocs, fairFrac, err = computeConcurrencyAllocation(cfgCtlr.nominalCLSum, items)
+		allocs, delta, err = computeConcurrencyAllocation(cfgCtlr.nominalCLSum, items)
 		if err != nil {
 			klog.ErrorS(err, "Unable to derive new concurrency limits", "plNames", nonExemptPLNames, "items", items)
 			allocs = make([]float64, len(items))
@@ -451,7 +457,9 @@ func (cfgCtlr *configController) updateBorrowingLocked(setCompleters bool, plSta
 				allocs[idx] = float64(plState.currentCL)
 			}
 		}
-		metrics.SetFairFrac(float64(fairFrac))
+		// For continuity with pre-weighting metrics, this is the proportion for a class with the default weight (30).
+		fairFrac := 1 + delta*30
+		metrics.SetFairFrac(fairFrac)
 	}
 	for plName, plState := range plStates {
 		idx, isNonExempt := idxOfNonExempt[plName]
@@ -490,7 +498,7 @@ func (cfgCtlr *configController) updateBorrowingLocked(setCompleters bool, plSta
 			concurrencyDenominator = int(math.Max(1, math.Round(float64(cfgCtlr.serverConcurrencyLimit)/10)))
 		}
 		plState.seatDemandRatioedGauge.SetDenominator(float64(concurrencyDenominator))
-		klog.V(logLevel).InfoS("Update CurrentCL", "plName", plName, "seatDemandHighWatermark", plState.seatDemandStats.highWatermark, "seatDemandAvg", plState.seatDemandStats.avg, "seatDemandStdev", plState.seatDemandStats.stdDev, "seatDemandSmoothed", plState.seatDemandStats.smoothed, "fairFrac", fairFrac, "currentCL", currentCL, "concurrencyDenominator", concurrencyDenominator, "backstop", err != nil)
+		klog.V(logLevel).InfoS("Update CurrentCL", "plName", plName, "seatDemandHighWatermark", plState.seatDemandStats.highWatermark, "seatDemandAvg", plState.seatDemandStats.avg, "seatDemandStdev", plState.seatDemandStats.stdDev, "seatDemandSmoothed", plState.seatDemandStats.smoothed, "delta", delta, "currentCL", currentCL, "concurrencyDenominator", concurrencyDenominator, "backstop", err != nil)
 		plState.queues = plState.qsCompleter.Complete(fq.DispatchingConfig{ConcurrencyLimit: currentCL, ConcurrencyDenominator: concurrencyDenominator})
 	}
 }

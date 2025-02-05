@@ -25,6 +25,7 @@ type LimitedPriorityLevelConfigurationApplyConfiguration struct {
 	LimitResponse            *LimitResponseApplyConfiguration `json:"limitResponse,omitempty"`
 	LendablePercent          *int32                           `json:"lendablePercent,omitempty"`
 	BorrowingLimitPercent    *int32                           `json:"borrowingLimitPercent,omitempty"`
+	Weight                   *int32                           `json:"weight,omitempty"`
 }
 
 // LimitedPriorityLevelConfigurationApplyConfiguration constructs a declarative configuration of the LimitedPriorityLevelConfiguration type for use with
@@ -62,5 +63,13 @@ func (b *LimitedPriorityLevelConfigurationApplyConfiguration) WithLendablePercen
 // If called multiple times, the BorrowingLimitPercent field is set to the value of the last call.
 func (b *LimitedPriorityLevelConfigurationApplyConfiguration) WithBorrowingLimitPercent(value int32) *LimitedPriorityLevelConfigurationApplyConfiguration {
 	b.BorrowingLimitPercent = &value
+	return b
+}
+
+// WithWeight sets the Weight field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the Weight field is set to the value of the last call.
+func (b *LimitedPriorityLevelConfigurationApplyConfiguration) WithWeight(value int32) *LimitedPriorityLevelConfigurationApplyConfiguration {
+	b.Weight = &value
 	return b
 }

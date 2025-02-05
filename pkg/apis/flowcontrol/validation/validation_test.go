@@ -963,11 +963,12 @@ func TestPriorityLevelConfigurationValidation(t *testing.T) {
 					LendablePercent:          pointer.Int32(0),
 					LimitResponse: flowcontrol.LimitResponse{
 						Type: flowcontrol.LimitResponseTypeReject,
-					}}},
+					},
+					Weight: pointer.Int32(10)}},
 		},
 		expectedErrors: field.ErrorList{},
 	}, {
-		name: "broken queuing level should fail",
+		name: "missing QueuingConfiguration should fail",
 		priorityLevelConfiguration: &flowcontrol.PriorityLevelConfiguration{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "system-foo",
