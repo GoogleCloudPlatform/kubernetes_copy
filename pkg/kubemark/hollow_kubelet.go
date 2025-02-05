@@ -160,7 +160,6 @@ func GetHollowKubeletConfig(opt *HollowKubeletOptions) (*options.KubeletFlags, *
 	f.MaxContainerCount = 100
 	f.MaxPerPodContainerCount = 2
 	f.NodeLabels = opt.NodeLabels
-	f.RegisterSchedulable = true
 
 	// Config struct
 	c, err := options.NewKubeletConfiguration()

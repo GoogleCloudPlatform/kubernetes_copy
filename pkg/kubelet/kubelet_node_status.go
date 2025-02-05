@@ -312,9 +312,6 @@ func (kl *Kubelet) initialNode(ctx context.Context) (*v1.Node, error) {
 				kubeletapis.LabelArch: goruntime.GOARCH,
 			},
 		},
-		Spec: v1.NodeSpec{
-			Unschedulable: !kl.registerSchedulable,
-		},
 	}
 	osLabels, err := getOSSpecificLabels()
 	if err != nil {

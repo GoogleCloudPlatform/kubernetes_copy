@@ -21,7 +21,6 @@ import (
 	"io"
 	"net"
 	"os"
-	"path/filepath"
 	"strings"
 
 	v1 "k8s.io/api/core/v1"
@@ -445,34 +444,4 @@ func (c *Configurer) GetPodDNS(pod *v1.Pod) (*runtimeapi.DNSConfig, error) {
 		dnsConfig = appendDNSConfig(dnsConfig, pod.Spec.DNSConfig)
 	}
 	return c.formDNSConfigFitsLimits(dnsConfig, pod), nil
-}
-
-// SetupDNSinContainerizedMounter replaces the nameserver in containerized-mounter's rootfs/etc/resolv.conf with kubelet.ClusterDNS
-func (c *Configurer) SetupDNSinContainerizedMounter(mounterPath string) {
-	resolvePath := filepath.Join(strings.TrimSuffix(mounterPath, "/mounter"), "rootfs", "etc", "resolv.conf")
-	dnsString := ""
-	for _, dns := range c.clusterDNS {
-		dnsString = dnsString + fmt.Sprintf("nameserver %s\n", dns)
-	}
-	if c.ResolverConfig != "" {
-		f, err := os.Open(c.ResolverConfig)
-		if err != nil {
-			klog.ErrorS(err, "Could not open resolverConf file")
-		} else {
-			defer f.Close()
-			_, hostSearch, _, err := parseResolvConf(f)
-			if err != nil {
-				klog.ErrorS(err, "Error for parsing the resolv.conf file")
-			} else {
-				dnsString = dnsString + "search"
-				for _, search := range hostSearch {
-					dnsString = dnsString + fmt.Sprintf(" %s", search)
-				}
-				dnsString = dnsString + "\n"
-			}
-		}
-	}
-	if err := os.WriteFile(resolvePath, []byte(dnsString), 0600); err != nil {
-		klog.ErrorS(err, "Could not write dns nameserver in the file", "path", resolvePath)
-	}
 }
