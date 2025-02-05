@@ -43,7 +43,7 @@ func NewTranslatingHandler(delegate http.Handler, translator http.Handler, shoul
 
 func (t *translatingHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	if t.shouldTranslate(req) {
-		klog.V(4).Infof("request handled by translator proxy")
+		klog.FromContext(req.Context()).V(4).Info("Request handled by translator proxy")
 		t.translator.ServeHTTP(w, req)
 		return
 	}

@@ -40,7 +40,7 @@ func TestFallbackDialer(t *testing.T) {
 	assert.Equal(t, primaryProtocol, negotiated, "primary negotiated protocol returned")
 	require.NoError(t, err, "error from primary dialer should be nil")
 	// If primary dialer error is upgrade error, then fallback returning secondary dial response.
-	primary = &fakeDialer{dialed: false, negotiatedProtocol: primaryProtocol, err: &httpstream.UpgradeFailureError{}}
+	primary = &fakeDialer{dialed: false, negotiatedProtocol: primaryProtocol, err: &httpstream.UpgradeFailureError{Cause: fmt.Errorf("fake error")}}
 	secondary = &fakeDialer{dialed: false, negotiatedProtocol: secondaryProtocol}
 	fallbackDialer = NewFallbackDialer(primary, secondary, httpstream.IsUpgradeFailure)
 	_, negotiated, err = fallbackDialer.Dial(protocols...)

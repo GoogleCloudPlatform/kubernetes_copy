@@ -34,7 +34,7 @@ var _ net.Conn = &TunnelingConnection{}
 // TunnelingConnection implements the "httpstream.Connection" interface, wrapping
 // a websocket connection that tunnels SPDY.
 type TunnelingConnection struct {
-	name              string
+	logger            klog.Logger
 	conn              *gwebsocket.Conn
 	inProgressMessage io.Reader
 	closeOnce         sync.Once
@@ -42,29 +42,46 @@ type TunnelingConnection struct {
 
 // NewTunnelingConnection wraps the passed gorilla/websockets connection
 // with the TunnelingConnection struct (implementing net.Conn).
+// The name is added to all log entries with [klog.LoggerWithName].
+//
+// Contextual logging: NewTunnelingConnectionWithLogger should be used instead of NewTunnelingConnection in code which supports contextual logging.
 func NewTunnelingConnection(name string, conn *gwebsocket.Conn) *TunnelingConnection {
+	logger := klog.LoggerWithName(klog.Background(), name)
+	return NewTunnelingConnectionWithLogger(logger, conn)
+}
+
+// NewTunnelingConnectionWithLogger is a variant of NewTunnelingConnection where
+// the caller is in control of logging. For example, [klog.LoggerWithName] can be used
+// to add a common name for all log entries to identify the connection.
+func NewTunnelingConnectionWithLogger(logger klog.Logger, conn *gwebsocket.Conn) *TunnelingConnection {
 	return &TunnelingConnection{
-		name: name,
-		conn: conn,
+		logger: logger,
+		conn:   conn,
 	}
 }
 
 // Read implements "io.Reader" interface, reading from the stored connection
 // into the passed buffer "p". Returns the number of bytes read and an error.
 // Can keep track of the "inProgress" messsage from the tunneled connection.
-func (c *TunnelingConnection) Read(p []byte) (int, error) {
-	klog.V(7).Infof("%s: tunneling connection read...", c.name)
-	defer klog.V(7).Infof("%s: tunneling connection read...complete", c.name)
+func (c *TunnelingConnection) Read(p []byte) (len int, err error) {
+	c.logger.V(7).Info("Tunneling connection read...")
+	defer func() {
+		if loggerV := c.logger.V(8); loggerV.Enabled() {
+			loggerV.Info("Tunneling connection read...complete", "length", len, "data", p[:len], "err", err)
+		} else {
+			c.logger.V(7).Info("Tunneling connection read...complete")
+		}
+	}()
 	for {
 		if c.inProgressMessage == nil {
-			klog.V(8).Infof("%s: tunneling connection read before NextReader()...", c.name)
+			c.logger.V(8).Info("Tunneling connection read before NextReader()...")
 			messageType, nextReader, err := c.conn.NextReader()
 			if err != nil {
 				closeError := &gwebsocket.CloseError{}
 				if errors.As(err, &closeError) && closeError.Code == gwebsocket.CloseNormalClosure {
 					return 0, io.EOF
 				}
-				klog.V(4).Infof("%s:tunneling connection NextReader() error: %v", c.name, err)
+				c.logger.V(4).Info("Tunneling connection NextReader() failed", "err", err)
 				return 0, err
 			}
 			if messageType != gwebsocket.BinaryMessage {
@@ -72,12 +89,11 @@ func (c *TunnelingConnection) Read(p []byte) (int, error) {
 			}
 			c.inProgressMessage = nextReader
 		}
-		klog.V(8).Infof("%s: tunneling connection read in progress message...", c.name)
+		c.logger.V(8).Info("Tunneling connection read in progress...")
 		i, err := c.inProgressMessage.Read(p)
 		if i == 0 && err == io.EOF {
 			c.inProgressMessage = nil
 		} else {
-			klog.V(8).Infof("%s: read %d bytes, error=%v, bytes=% X", c.name, i, err, p[:i])
 			return i, err
 		}
 	}
@@ -87,8 +103,8 @@ func (c *TunnelingConnection) Read(p []byte) (int, error) {
 // byte array "p" into the stored tunneled connection. Returns the number
 // of bytes written and an error.
 func (c *TunnelingConnection) Write(p []byte) (n int, err error) {
-	klog.V(7).Infof("%s: write: %d bytes, bytes=% X", c.name, len(p), p)
-	defer klog.V(7).Infof("%s: tunneling connection write...complete", c.name)
+	c.logger.V(7).Info("Tunneling connection write", "length", len(p), "data", p)
+	defer c.logger.V(7).Info("Tunneling connection write...complete")
 	w, err := c.conn.NextWriter(gwebsocket.BinaryMessage)
 	if err != nil {
 		return 0, err
@@ -111,7 +127,7 @@ func (c *TunnelingConnection) Write(p []byte) (n int, err error) {
 func (c *TunnelingConnection) Close() error {
 	var err error
 	c.closeOnce.Do(func() {
-		klog.V(7).Infof("%s: tunneling connection Close()...", c.name)
+		c.logger.V(7).Info("Tunneling connection Close()...")
 		// Signal other endpoint that websocket connection is closing; ignore error.
 		normalCloseMsg := gwebsocket.FormatCloseMessage(gwebsocket.CloseNormalClosure, "")
 		writeControlErr := c.conn.WriteControl(gwebsocket.CloseMessage, normalCloseMsg, time.Now().Add(time.Second))
