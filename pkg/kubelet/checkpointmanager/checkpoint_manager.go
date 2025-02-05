@@ -17,6 +17,7 @@ limitations under the License.
 package checkpointmanager
 
 import (
+	stderrors "errors"
 	"fmt"
 	"sync"
 
@@ -79,7 +80,7 @@ func (manager *impl) GetCheckpoint(checkpointKey string, checkpoint Checkpoint) 
 	defer manager.mutex.Unlock()
 	blob, err := manager.store.Read(checkpointKey)
 	if err != nil {
-		if err == utilstore.ErrKeyNotFound {
+		if stderrors.Is(err, utilstore.ErrKeyNotFound) {
 			return errors.ErrCheckpointNotFound
 		}
 		return err
