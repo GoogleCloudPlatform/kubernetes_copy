@@ -180,36 +180,48 @@ func (e *EventedPLEG) watchEventsChannel() {
 	containerEventsResponseCh := make(chan *runtimeapi.ContainerEventResponse, cap(e.eventChannel))
 	defer close(containerEventsResponseCh)
 
+	// The backOff has 5 steps, going from 1, 2, 4, 8 up to 16 seconds of
+	// waiting time.
+	backOff := wait.Backoff{
+		Duration: time.Second,
+		Factor:   2,
+		Steps:    e.eventedPlegMaxStreamRetries + 1, // the first connection setup does not count as retry
+	}
 	// Get the container events from the runtime.
-	go func() {
-		numAttempts := 0
-		for {
-			if numAttempts >= e.eventedPlegMaxStreamRetries {
-				if isEventedPLEGInUse() {
-					// Fall back to Generic PLEG relisting since Evented PLEG is not working.
-					e.logger.V(4).Info("Fall back to Generic PLEG relisting since Evented PLEG is not working")
-					e.Stop()
-					e.genericPleg.Stop()       // Stop the existing Generic PLEG which runs with longer relisting period when Evented PLEG is in use.
-					e.Update(e.relistDuration) // Update the relisting period to the default value for the Generic PLEG.
-					e.genericPleg.Start()
-					break
-				}
-			}
-
-			err := e.runtimeService.GetContainerEvents(context.Background(), containerEventsResponseCh, func(runtimeapi.RuntimeService_GetContainerEventsClient) {
-				metrics.EventedPLEGConn.Inc()
-			})
-			if err != nil {
-				metrics.EventedPLEGConnErr.Inc()
-				numAttempts++
-				e.Relist() // Force a relist to get the latest container and pods running metric.
-				e.logger.V(4).Info("Evented PLEG: Failed to get container events, retrying: ", "err", err)
-			}
-		}
-	}()
+	go e.backOffGetContainerEvents(backOff, containerEventsResponseCh)
 
 	if isEventedPLEGInUse() {
 		e.processCRIEvents(containerEventsResponseCh)
+	}
+}
+
+func (e *EventedPLEG) backOffGetContainerEvents(defaultBackOff wait.Backoff, containerEventsResponseCh chan *runtimeapi.ContainerEventResponse) {
+	backOff := defaultBackOff
+	for {
+		if err := e.runtimeService.GetContainerEvents(context.Background(), containerEventsResponseCh, func(runtimeapi.RuntimeService_GetContainerEventsClient) {
+			metrics.EventedPLEGConn.Inc()
+			// Reset the backoff if the connection got established,
+			// otherwise we would continue waiting from the last failed
+			// step.
+			backOff = defaultBackOff
+		}); err != nil {
+			metrics.EventedPLEGConnErr.Inc()
+			e.Relist() // Force a relist to get the latest container and pods running metric.
+			step := backOff.Step()
+
+			if backOff.Steps == 0 && isEventedPLEGInUse() {
+				// Fall back to Generic PLEG relisting since Evented PLEG is not working.
+				e.logger.V(4).Info("Fall back to Generic PLEG relisting since Evented PLEG is not working")
+				e.Stop()
+				e.genericPleg.Stop()       // Stop the existing Generic PLEG which runs with longer relisting period when Evented PLEG is in use.
+				e.Update(e.relistDuration) // Update the relisting period to the default value for the Generic PLEG.
+				e.genericPleg.Start()
+				break
+			} else {
+				e.logger.V(4).Info("Evented PLEG: Failed to get container events, retrying: ", "err", err, "sleep", step)
+				time.Sleep(step)
+			}
+		}
 	}
 }
 

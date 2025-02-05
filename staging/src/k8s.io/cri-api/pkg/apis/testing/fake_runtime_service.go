@@ -716,7 +716,11 @@ func (r *FakeRuntimeService) CheckpointContainer(_ context.Context, options *run
 	return nil
 }
 
-func (f *FakeRuntimeService) GetContainerEvents(ctx context.Context, containerEventsCh chan *runtimeapi.ContainerEventResponse, connectionEstablishedCallback func(runtimeapi.RuntimeService_GetContainerEventsClient)) error {
+func (r *FakeRuntimeService) GetContainerEvents(ctx context.Context, containerEventsCh chan *runtimeapi.ContainerEventResponse, connectionEstablishedCallback func(runtimeapi.RuntimeService_GetContainerEventsClient)) error {
+	r.Called = append(r.Called, "GetContainerEvents")
+	if err := r.popError("GetContainerEvents"); err != nil {
+		return err
+	}
 	return nil
 }
 

@@ -17,6 +17,7 @@ limitations under the License.
 package pleg
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -27,9 +28,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/component-base/metrics/testutil"
 	v1 "k8s.io/cri-api/pkg/apis/runtime/v1"
 	critest "k8s.io/cri-api/pkg/apis/testing"
+	"k8s.io/klog/v2"
 	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
 	containertest "k8s.io/kubernetes/pkg/kubelet/container/testing"
 	"k8s.io/kubernetes/pkg/kubelet/metrics"
@@ -37,12 +40,29 @@ import (
 )
 
 func newTestEventedPLEG() *EventedPLEG {
+	fakeRuntime := &containertest.FakeRuntime{}
+	clock := testingclock.NewFakeClock(time.Time{})
+	cache := kubecontainer.NewCache()
+	eventChannelCap := 100
+	relistDuration := &RelistDuration{RelistPeriod: time.Hour, RelistThreshold: 3 * time.Minute}
+	genericPleg := NewGenericPLEG(
+		klog.Logger{},
+		fakeRuntime,
+		make(chan *PodLifecycleEvent, eventChannelCap),
+		relistDuration,
+		cache,
+		clock,
+	).(*GenericPLEG)
 	return &EventedPLEG{
-		runtime:        &containertest.FakeRuntime{},
-		clock:          testingclock.NewFakeClock(time.Time{}),
-		cache:          kubecontainer.NewCache(),
-		runtimeService: critest.NewFakeRuntimeService(),
-		eventChannel:   make(chan *PodLifecycleEvent, 100),
+		runtime:           fakeRuntime,
+		clock:             clock,
+		cache:             kubecontainer.NewCache(),
+		runtimeService:    critest.NewFakeRuntimeService(),
+		relistDuration:    relistDuration,
+		genericPleg:       genericPleg,
+		eventChannel:      make(chan *PodLifecycleEvent, eventChannelCap),
+		stopCh:            make(chan struct{}),
+		stopCacheUpdateCh: make(chan struct{}),
 	}
 }
 
@@ -230,4 +250,19 @@ func TestEventedPLEG_getPodIPs(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestBackOffGetContainerEvents(t *testing.T) {
+	errTest := errors.New("")
+	sut := newTestEventedPLEG()
+	fakeRuntime := critest.NewFakeRuntimeService()
+	sut.runtimeService = fakeRuntime
+	setEventedPLEGUsage(true)
+	const method = "GetContainerEvents"
+
+	fakeRuntime.Errors = map[string][]error{method: {errTest, errTest}}
+	testBackOff := wait.Backoff{Steps: 2}
+
+	sut.backOffGetContainerEvents(testBackOff, nil)
+	assert.NoError(t, fakeRuntime.AssertCalls([]string{method, method}))
 }
