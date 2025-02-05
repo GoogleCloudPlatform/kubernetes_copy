@@ -17,7 +17,10 @@ limitations under the License.
 package cpumanager
 
 import (
-	"k8s.io/api/core/v1"
+	"context"
+
+	"github.com/go-logr/logr"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/kubelet/cm/containermap"
 	"k8s.io/kubernetes/pkg/kubelet/cm/cpumanager/state"
@@ -28,41 +31,43 @@ import (
 )
 
 type fakeManager struct {
-	state state.State
+	logger logr.Logger
+	state  state.State
 }
 
 func (m *fakeManager) Start(activePods ActivePodsFunc, sourcesReady config.SourcesReady, podStatusProvider status.PodStatusProvider, containerRuntime runtimeService, initialContainers containermap.ContainerMap) error {
-	klog.InfoS("Start()")
+	m.logger.Info("Start()")
 	return nil
 }
 
 func (m *fakeManager) Policy() Policy {
-	klog.InfoS("Policy()")
-	pol, _ := NewNonePolicy(nil)
+	m.logger.Info("Policy()")
+	ctx := klog.NewContext(context.Background(), m.logger)
+	pol, _ := NewNonePolicy(ctx, nil)
 	return pol
 }
 
 func (m *fakeManager) Allocate(pod *v1.Pod, container *v1.Container) error {
-	klog.InfoS("Allocate", "pod", klog.KObj(pod), "containerName", container.Name)
+	m.logger.Info("Allocate", "pod", klog.KObj(pod), "containerName", container.Name)
 	return nil
 }
 
 func (m *fakeManager) AddContainer(pod *v1.Pod, container *v1.Container, containerID string) {
-	klog.InfoS("AddContainer", "pod", klog.KObj(pod), "containerName", container.Name, "containerID", containerID)
+	m.logger.Info("AddContainer", "pod", klog.KObj(pod), "containerName", container.Name, "containerID", containerID)
 }
 
 func (m *fakeManager) RemoveContainer(containerID string) error {
-	klog.InfoS("RemoveContainer", "containerID", containerID)
+	m.logger.Info("RemoveContainer", "containerID", containerID)
 	return nil
 }
 
 func (m *fakeManager) GetTopologyHints(pod *v1.Pod, container *v1.Container) map[string][]topologymanager.TopologyHint {
-	klog.InfoS("Get container topology hints")
+	m.logger.Info("Get container topology hints")
 	return map[string][]topologymanager.TopologyHint{}
 }
 
 func (m *fakeManager) GetPodTopologyHints(pod *v1.Pod) map[string][]topologymanager.TopologyHint {
-	klog.InfoS("Get pod topology hints")
+	m.logger.Info("Get pod topology hints")
 	return map[string][]topologymanager.TopologyHint{}
 }
 
@@ -71,28 +76,30 @@ func (m *fakeManager) State() state.Reader {
 }
 
 func (m *fakeManager) GetExclusiveCPUs(podUID, containerName string) cpuset.CPUSet {
-	klog.InfoS("GetExclusiveCPUs", "podUID", podUID, "containerName", containerName)
+	m.logger.Info("GetExclusiveCPUs", "podUID", podUID, "containerName", containerName)
 	return cpuset.CPUSet{}
 }
 
 func (m *fakeManager) GetAllocatableCPUs() cpuset.CPUSet {
-	klog.InfoS("Get Allocatable CPUs")
+	m.logger.Info("Get Allocatable CPUs")
 	return cpuset.CPUSet{}
 }
 
 func (m *fakeManager) GetCPUAffinity(podUID, containerName string) cpuset.CPUSet {
-	klog.InfoS("GetCPUAffinity", "podUID", podUID, "containerName", containerName)
+	m.logger.Info("GetCPUAffinity", "podUID", podUID, "containerName", containerName)
 	return cpuset.CPUSet{}
 }
 
 func (m *fakeManager) GetAllCPUs() cpuset.CPUSet {
-	klog.InfoS("GetAllCPUs")
+	m.logger.Info("GetAllCPUs")
 	return cpuset.CPUSet{}
 }
 
 // NewFakeManager creates empty/fake cpu manager
-func NewFakeManager() Manager {
+func NewFakeManager(ctx context.Context) Manager {
+	logger := klog.LoggerWithName(klog.FromContext(ctx), "cpu.fake")
 	return &fakeManager{
-		state: state.NewMemoryState(),
+		logger: logger,
+		state:  state.NewMemoryState(logger),
 	}
 }

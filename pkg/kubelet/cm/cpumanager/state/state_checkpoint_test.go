@@ -26,6 +26,7 @@ import (
 	"k8s.io/kubernetes/pkg/kubelet/checkpointmanager"
 	"k8s.io/kubernetes/pkg/kubelet/cm/containermap"
 	testutil "k8s.io/kubernetes/pkg/kubelet/cm/cpumanager/state/testing"
+	"k8s.io/kubernetes/test/utils/ktesting"
 	"k8s.io/utils/cpuset"
 )
 
@@ -219,7 +220,8 @@ func TestCheckpointStateRestore(t *testing.T) {
 				require.NoErrorf(t, err, "could not create testing checkpoint: %v", err)
 			}
 
-			restoredState, err := NewCheckpointState(testingDir, testingCheckpoint, tc.policyName, tc.initialContainers)
+			logger, _ := ktesting.NewTestContext(t)
+			restoredState, err := NewCheckpointState(logger, testingDir, testingCheckpoint, tc.policyName, tc.initialContainers)
 			if strings.TrimSpace(tc.expectedError) == "" {
 				require.NoError(t, err)
 			} else {
@@ -273,7 +275,8 @@ func TestCheckpointStateStore(t *testing.T) {
 			// ensure there is no previous checkpoint
 			cpm.RemoveCheckpoint(testingCheckpoint)
 
-			cs1, err := NewCheckpointState(testingDir, testingCheckpoint, "none", nil)
+			logger, _ := ktesting.NewTestContext(t)
+			cs1, err := NewCheckpointState(logger, testingDir, testingCheckpoint, "none", nil)
 			if err != nil {
 				t.Fatalf("could not create testing checkpointState instance: %v", err)
 			}
@@ -283,7 +286,7 @@ func TestCheckpointStateStore(t *testing.T) {
 			cs1.SetCPUAssignments(tc.expectedState.assignments)
 
 			// restore checkpoint with previously stored values
-			cs2, err := NewCheckpointState(testingDir, testingCheckpoint, "none", nil)
+			cs2, err := NewCheckpointState(logger, testingDir, testingCheckpoint, "none", nil)
 			if err != nil {
 				t.Fatalf("could not create testing checkpointState instance: %v", err)
 			}
@@ -346,7 +349,8 @@ func TestCheckpointStateHelpers(t *testing.T) {
 			// ensure there is no previous checkpoint
 			cpm.RemoveCheckpoint(testingCheckpoint)
 
-			state, err := NewCheckpointState(testingDir, testingCheckpoint, "none", nil)
+			logger, _ := ktesting.NewTestContext(t)
+			state, err := NewCheckpointState(logger, testingDir, testingCheckpoint, "none", nil)
 			if err != nil {
 				t.Fatalf("could not create testing checkpointState instance: %v", err)
 			}
@@ -395,7 +399,8 @@ func TestCheckpointStateClear(t *testing.T) {
 			}
 			defer os.RemoveAll(testingDir)
 
-			state, err := NewCheckpointState(testingDir, testingCheckpoint, "none", nil)
+			logger, _ := ktesting.NewTestContext(t)
+			state, err := NewCheckpointState(logger, testingDir, testingCheckpoint, "none", nil)
 			if err != nil {
 				t.Fatalf("could not create testing checkpointState instance: %v", err)
 			}

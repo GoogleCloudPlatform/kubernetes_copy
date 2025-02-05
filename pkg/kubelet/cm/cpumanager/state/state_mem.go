@@ -19,12 +19,14 @@ package state
 import (
 	"sync"
 
+	"github.com/go-logr/logr"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/cpuset"
 )
 
 type stateMemory struct {
 	sync.RWMutex
+	logger        logr.Logger
 	assignments   ContainerCPUAssignments
 	defaultCPUSet cpuset.CPUSet
 }
@@ -32,9 +34,11 @@ type stateMemory struct {
 var _ State = &stateMemory{}
 
 // NewMemoryState creates new State for keeping track of cpu/pod assignment
-func NewMemoryState() State {
-	klog.InfoS("Initialized new in-memory state store")
+func NewMemoryState(logger logr.Logger) State {
+	logger = klog.LoggerWithName(logger, "state")
+	logger.Info("Initialized")
 	return &stateMemory{
+		logger:        logger,
 		assignments:   ContainerCPUAssignments{},
 		defaultCPUSet: cpuset.New(),
 	}
@@ -77,7 +81,7 @@ func (s *stateMemory) SetCPUSet(podUID string, containerName string, cset cpuset
 	}
 
 	s.assignments[podUID][containerName] = cset
-	klog.InfoS("Updated desired CPUSet", "podUID", podUID, "containerName", containerName, "cpuSet", cset)
+	s.logger.Info("Updated desired CPUSet", "podUID", podUID, "containerName", containerName, "cpuSet", cset)
 }
 
 func (s *stateMemory) SetDefaultCPUSet(cset cpuset.CPUSet) {
@@ -85,7 +89,7 @@ func (s *stateMemory) SetDefaultCPUSet(cset cpuset.CPUSet) {
 	defer s.Unlock()
 
 	s.defaultCPUSet = cset
-	klog.InfoS("Updated default CPUSet", "cpuSet", cset)
+	s.logger.Info("Updated default CPUSet", "cpuSet", cset)
 }
 
 func (s *stateMemory) SetCPUAssignments(a ContainerCPUAssignments) {
@@ -93,7 +97,7 @@ func (s *stateMemory) SetCPUAssignments(a ContainerCPUAssignments) {
 	defer s.Unlock()
 
 	s.assignments = a.Clone()
-	klog.InfoS("Updated CPUSet assignments", "assignments", a)
+	s.logger.Info("Updated CPUSet assignments", "assignments", a)
 }
 
 func (s *stateMemory) Delete(podUID string, containerName string) {
@@ -104,7 +108,7 @@ func (s *stateMemory) Delete(podUID string, containerName string) {
 	if len(s.assignments[podUID]) == 0 {
 		delete(s.assignments, podUID)
 	}
-	klog.V(2).InfoS("Deleted CPUSet assignment", "podUID", podUID, "containerName", containerName)
+	s.logger.V(2).Info("Deleted CPUSet assignment", "podUID", podUID, "containerName", containerName)
 }
 
 func (s *stateMemory) ClearState() {
@@ -113,5 +117,5 @@ func (s *stateMemory) ClearState() {
 
 	s.defaultCPUSet = cpuset.CPUSet{}
 	s.assignments = make(ContainerCPUAssignments)
-	klog.V(2).InfoS("Cleared state")
+	s.logger.V(2).Info("Cleared state")
 }

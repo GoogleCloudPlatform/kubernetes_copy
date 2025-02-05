@@ -223,6 +223,7 @@ linters-settings: # please keep this alphabetized
           contextual k8s.io/kubernetes/pkg/kubelet/clustertrustbundle/.*
           contextual k8s.io/kubernetes/pkg/kubelet/token/.*
           contextual k8s.io/kubernetes/pkg/kubelet/cadvisor/.*
+          contextual k8s.io/kubernetes/pkg/kubelet/cm/cpumanager/.*
           contextual k8s.io/kubernetes/pkg/kubelet/oom/.*
           contextual k8s.io/kubernetes/pkg/kubelet/sysctl/.*
           
