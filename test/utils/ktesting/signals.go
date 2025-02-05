@@ -19,6 +19,7 @@ package ktesting
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"os/signal"
@@ -40,6 +41,15 @@ type ginkgoReporter interface {
 }
 
 func init() {
+	// os.Stderr gets redirected by "go test". "go test -v" has to be
+	// used to see the output while a test runs. Opening /dev/tty avoids
+	// the redirection, but isn't always possible.
+	console, err := os.OpenFile("/dev/tty", os.O_RDWR|os.O_APPEND, 0)
+	if err != nil {
+		console = os.Stderr
+		fmt.Fprintf(console, "Cannot use /dev/tty: %v", err)
+	}
+
 	// Setting up signals is intentionally done in an init function because
 	// then importing ktesting in a unit or integration test is sufficient
 	// to activate the signal behavior.
@@ -47,11 +57,13 @@ func init() {
 	cancelCtx, cancel := context.WithCancelCause(context.Background())
 	go func() {
 		<-signalCtx.Done()
+		fmt.Fprintf(console, "\n\nINFO: canceling test context(s): received interrupt signal\n\n")
 		cancel(errors.New("received interrupt signal"))
 	}()
 
 	// This reimplements the contract between Ginkgo and Gomega for progress reporting.
-	// When using Ginkgo contexts, Ginkgo will implement it. This here is for "go test".
+	// When using Ginkgo contexts, Ginkgo will implement it. This here is for "go test"
+	// in combination with Gomega.
 	//
 	// nolint:staticcheck // It complains about using a plain string. This can only be fixed
 	// by Ginkgo and Gomega formalizing this interface and define a type (somewhere...
@@ -64,9 +76,7 @@ func init() {
 		signal.Notify(defaultSignalChannel, progressSignals...)
 	}
 
-	// os.Stderr gets redirected by "go test". "go test -v" has to be
-	// used to see the output while a test runs.
-	defaultProgressReporter.setOutput(os.Stderr)
+	defaultProgressReporter.setOutput(console)
 	go defaultProgressReporter.run(interruptCtx, defaultSignalChannel)
 }
 

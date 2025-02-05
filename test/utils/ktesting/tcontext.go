@@ -239,7 +239,14 @@ func Init(tb TB, opts ...InitOption) TContext {
 		Deadline() (time.Time, bool)
 	})
 
+	// If testing has been interrupted, immediately fail all new tests.
+	// Giving them a canceled context also works, but only if the tests
+	// actually check it.
 	ctx := interruptCtx
+	if ctx.Err() != nil {
+		tb.Fatalf("testing has been interrupted: %v", context.Cause(ctx))
+	}
+
 	if c.PerTestOutput {
 		config := ktesting.NewConfig(
 			ktesting.AnyToString(func(v interface{}) string {

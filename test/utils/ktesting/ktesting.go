@@ -43,6 +43,7 @@ func SetDefaultVerbosity(v int) {
 // NewTestContext is a replacement for ktesting.NewTestContext
 // which returns a more versatile context.
 func NewTestContext(tb testing.TB) (klog.Logger, TContext) {
+	tb.Helper()
 	tCtx := Init(tb)
 	return tCtx.Logger(), tCtx
 }
