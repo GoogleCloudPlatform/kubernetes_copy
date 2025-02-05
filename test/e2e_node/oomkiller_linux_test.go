@@ -61,7 +61,7 @@ var _ = SIGDescribe("OOMKiller for pod using more memory than node allocatable [
 	}
 
 	for _, testCase := range testCases {
-		runOomKillerTest(f, testCase, KubeReservedMemory)
+		runOomKillerTest(f, testCase, KubeReservedMemory, "LimitedSwap")
 	}
 })
 
@@ -113,19 +113,21 @@ var _ = SIGDescribe("OOMKiller [LinuxOnly]", framework.WithNodeConformance(), fr
 		})
 	}
 	for _, tc := range testCases {
-		runOomKillerTest(f, tc, 0)
+		runOomKillerTest(f, tc, 0, "NoSwap")
 	}
 })
 
-func runOomKillerTest(f *framework.Framework, testCase testCase, kubeReservedMemory float64) {
+func runOomKillerTest(f *framework.Framework, testCase testCase, kubeReservedMemory float64, swapBehavior string) {
 	ginkgo.Context(testCase.name, func() {
 		// Update KubeReservedMemory in KubeletConfig.
 		tempSetCurrentKubeletConfig(f, func(ctx context.Context, initialConfig *kubeletconfig.KubeletConfiguration) {
 			if kubeReservedMemory > 0 {
+				// Set the swap behavior to the value specified in the test case
+				initialConfig.MemorySwap.SwapBehavior = swapBehavior
 				if initialConfig.KubeReserved == nil {
 					initialConfig.KubeReserved = map[string]string{}
 				}
-				// There's a race condition observed between system OOM and cgroup OOM if node alocatable
+				// There's a race condition observed between system OOM and cgroup OOM if node allocatable
 				// memory is equal to node capacity. Hence, reserving a fraction of node's memory capacity for
 				// K8s components such that node allocatable memory is less than node capacity to
 				// observe OOM kills at cgroup level instead of system OOM kills.
@@ -325,6 +327,48 @@ func getOOMTargetContainerWithoutLimit(name string) v1.Container {
 			RunAsGroup:               ptr.To[int64](999),
 			RunAsNonRoot:             ptr.To(true),
 			Capabilities:             &v1.Capabilities{Drop: []v1.Capability{"ALL"}},
+		},
+	}
+}
+
+var _ = SIGDescribe("OOMKiller with LimitedSwap", framework.WithSerial(), framework.WithFeature("Swap"), func() {
+	f := framework.NewDefaultFramework("oomkiller-limitedswap-test")
+	f.NamespacePodSecurityLevel = admissionapi.LevelPrivileged
+
+	framework.ConformanceIt("should trigger OOMKiller with LimitedSwap", func() {
+		testCases := []testCase{
+			{
+				name:                   "single process container with LimitedSwap",
+				oomTargetContainerName: "oomkill-limitedswap-container",
+				podSpec: getOOMTargetPod("oomkill-limitedswap-pod", "oomkill-limitedswap-container",
+					getOOMTargetContainerWithLimitedSwap),
+			},
+		}
+
+		for _, tc := range testCases {
+			if framework.NodeOSDistroIs("swap-enabled") {
+				runOomKillerTest(f, tc, 0, "LimitedSwap")
+			}
+		}
+	})
+})
+
+// getOOMTargetContainerWithLimitedSwap returns a container with a single process which attempts to allocate more memory
+// than the container's memory and swap limit combined.
+func getOOMTargetContainerWithLimitedSwap(name string) v1.Container {
+	return v1.Container{
+		Name:  name,
+		Image: busyboxImage,
+		Command: []string{
+			"sh",
+			"-c",
+			// use the dd tool to attempt to allocate a block of memory which exceeds the memory limit
+			"sleep 5 && dd if=/dev/zero of=/dev/null iflag=fullblock count=10 bs=10G",
+		},
+		Resources: v1.ResourceRequirements{
+			Requests: v1.ResourceList{
+				v1.ResourceMemory: resource.MustParse("100Mi"),
+			},
 		},
 	}
 }
