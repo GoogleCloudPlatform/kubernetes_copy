@@ -24,6 +24,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -125,7 +126,7 @@ func main() {
 func searchPathForStableMetrics(path string) ([]metric, []error) {
 	metrics := []metric{}
 	errors := []error{}
-	err := filepath.Walk(path, func(path string, info os.FileInfo, err error) error {
+	err := filepath.WalkDir(path, func(path string, d fs.DirEntry, err error) error {
 		if strings.HasPrefix(path, "vendor") {
 			return filepath.SkipDir
 		}

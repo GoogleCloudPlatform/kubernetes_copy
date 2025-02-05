@@ -18,6 +18,7 @@ package cm
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"path"
 	"path/filepath"
@@ -433,12 +434,12 @@ func (m *cgroupCommon) Pids(name CgroupName) []int {
 		pidsToKill.Insert(pids...)
 
 		// WalkFunc which is called for each file and directory in the pod cgroup dir
-		visitor := func(path string, info os.FileInfo, err error) error {
+		visitor := func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
 				klog.V(4).InfoS("Cgroup manager encountered error scanning cgroup path", "path", path, "err", err)
 				return filepath.SkipDir
 			}
-			if !info.IsDir() {
+			if !d.IsDir() {
 				return nil
 			}
 			pids, err = getCgroupProcs(path)
@@ -452,7 +453,7 @@ func (m *cgroupCommon) Pids(name CgroupName) []int {
 		// Walk through the pod cgroup directory to check if
 		// container cgroups haven't been GCed yet. Get attached processes to
 		// all such unwanted containers under the pod cgroup
-		if err = filepath.Walk(dir, visitor); err != nil {
+		if err = filepath.WalkDir(dir, visitor); err != nil {
 			klog.V(4).InfoS("Cgroup manager encountered error scanning pids for directory", "path", dir, "err", err)
 		}
 	}

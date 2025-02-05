@@ -44,7 +44,7 @@ func BenchmarkEncoding(b *testing.B) {
 	// Each "data/(v[0-9]/)?*.log" file is expected to contain JSON log
 	// messages. We generate one sub-benchmark for each file where logging
 	// is tested with the log level from the directory.
-	if err := filepath.Walk("data", func(path string, info fs.FileInfo, err error) error {
+	if err := filepath.WalkDir("data", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}

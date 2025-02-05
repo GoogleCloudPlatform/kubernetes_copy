@@ -24,8 +24,8 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"io/fs"
 	"log"
-	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -229,7 +229,7 @@ type testList struct {
 // handlePath walks the filesystem recursively, collecting tests
 // from files with paths *e2e*.go and *_test.go, ignoring third_party
 // and staging directories.
-func (t *testList) handlePath(path string, info os.FileInfo, err error) error {
+func (t *testList) handlePath(path string, d fs.DirEntry, err error) error {
 	if err != nil {
 		return err
 	}
@@ -254,7 +254,7 @@ func main() {
 	}
 	tests := testList{}
 	for _, arg := range args {
-		err := filepath.Walk(arg, tests.handlePath)
+		err := filepath.WalkDir(arg, tests.handlePath)
 		if err != nil {
 			log.Fatalf("Error walking: %v", err)
 		}

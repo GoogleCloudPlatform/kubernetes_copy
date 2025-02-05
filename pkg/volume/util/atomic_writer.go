@@ -19,6 +19,7 @@ package util
 import (
 	"bytes"
 	"fmt"
+	"io/fs"
 	"os"
 	"path"
 	"path/filepath"
@@ -357,7 +358,7 @@ func shouldWriteFile(path string, content []byte) (bool, error) {
 // written to the target directory.
 func (w *AtomicWriter) pathsToRemove(payload map[string]FileProjection, oldTSDir string) (sets.Set[string], error) {
 	paths := sets.New[string]()
-	visitor := func(path string, info os.FileInfo, err error) error {
+	visitor := func(path string, d fs.DirEntry, err error) error {
 		relativePath := strings.TrimPrefix(path, oldTSDir)
 		relativePath = strings.TrimPrefix(relativePath, string(os.PathSeparator))
 		if relativePath == "" {
@@ -368,7 +369,7 @@ func (w *AtomicWriter) pathsToRemove(payload map[string]FileProjection, oldTSDir
 		return nil
 	}
 
-	err := filepath.Walk(oldTSDir, visitor)
+	err := filepath.WalkDir(oldTSDir, visitor)
 	if os.IsNotExist(err) {
 		return nil, nil
 	} else if err != nil {
