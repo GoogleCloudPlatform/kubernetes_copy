@@ -167,6 +167,7 @@ func makePod(podUID, containerName, cpuRequest, cpuLimit string) *v1.Pod {
 	}
 
 	pod.UID = types.UID(podUID)
+	pod.Name = podUID
 	pod.Spec.Containers[0].Name = containerName
 
 	return pod
