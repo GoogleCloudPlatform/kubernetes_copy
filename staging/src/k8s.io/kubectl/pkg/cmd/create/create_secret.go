@@ -18,6 +18,7 @@ package create
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -90,6 +91,9 @@ var (
 	  # Create a new secret named my-secret with key1=supersecret and key2=topsecret
 	  kubectl create secret generic my-secret --from-literal=key1=supersecret --from-literal=key2=topsecret
 
+	  # Create a new secret named my-secret with key1=c3VwZXJzZWNyZXQK(base64 encoded "supersecret") and key2=dG9wc2VjcmV0Cg==(base64 encoded "secret")
+	  kubectl create secret generic my-secret --from-base64-literal=key1=c3VwZXJzZWNyZXQK --from-base64-literal=key2=dG9wc2VjcmV0Cg==
+
 	  # Create a new secret named my-secret using a combination of a file and a literal
 	  kubectl create secret generic my-secret --from-file=ssh-privatekey=path/to/id_rsa --from-literal=passphrase=topsecret
 
@@ -113,6 +117,8 @@ type CreateSecretOptions struct {
 	LiteralSources []string
 	// EnvFileSources to derive the secret from (optional)
 	EnvFileSources []string
+	// EncodedSources to derive the secret from (optional)
+	EncodedSources []string
 	// AppendHash; if true, derive a hash from the Secret data and type and append it to the name
 	AppendHash bool
 
@@ -141,9 +147,9 @@ func NewCmdCreateSecretGeneric(f cmdutil.Factory, ioStreams genericiooptions.IOS
 	o := NewSecretOptions(ioStreams)
 
 	cmd := &cobra.Command{
-		Use:                   "generic NAME [--type=string] [--from-file=[key=]source] [--from-literal=key1=value1] [--dry-run=server|client|none]",
+		Use:                   "generic NAME [--type=string] [--from-file=[key=]source] [--from-literal=key1=value1] [--from-base64-literal=key1=base64_encoded_value1] [--dry-run=server|client|none]",
 		DisableFlagsInUseLine: true,
-		Short:                 i18n.T("Create a secret from a local file, directory, or literal value"),
+		Short:                 i18n.T("Create a secret from a local file, directory, literal value or base64 encoded literal value"),
 		Long:                  secretForGenericLong,
 		Example:               secretForGenericExample,
 		Run: func(cmd *cobra.Command, args []string) {
@@ -161,6 +167,7 @@ func NewCmdCreateSecretGeneric(f cmdutil.Factory, ioStreams genericiooptions.IOS
 	cmd.Flags().StringSliceVar(&o.FileSources, "from-file", o.FileSources, "Key files can be specified using their file path, in which case a default name will be given to them, or optionally with a name and file path, in which case the given name will be used.  Specifying a directory will iterate each named file in the directory that is a valid secret key.")
 	cmd.Flags().StringArrayVar(&o.LiteralSources, "from-literal", o.LiteralSources, "Specify a key and literal value to insert in secret (i.e. mykey=somevalue)")
 	cmd.Flags().StringSliceVar(&o.EnvFileSources, "from-env-file", o.EnvFileSources, "Specify the path to a file to read lines of key=val pairs to create a secret.")
+	cmd.Flags().StringArrayVar(&o.EncodedSources, "from-base64-literal", o.EncodedSources, "Specify a key and base64 encoded literal value to insert in secret (i.e. mykey=base64-encoded-value)")
 	cmd.Flags().StringVar(&o.Type, "type", o.Type, i18n.T("The type of secret to create"))
 	cmd.Flags().BoolVar(&o.AppendHash, "append-hash", o.AppendHash, "Append a hash of the secret to its name.")
 
@@ -222,8 +229,8 @@ func (o *CreateSecretOptions) Validate() error {
 	if len(o.Name) == 0 {
 		return fmt.Errorf("name must be specified")
 	}
-	if len(o.EnvFileSources) > 0 && (len(o.FileSources) > 0 || len(o.LiteralSources) > 0) {
-		return fmt.Errorf("from-env-file cannot be combined with from-file or from-literal")
+	if len(o.EnvFileSources) > 0 && (len(o.FileSources) > 0 || len(o.LiteralSources) > 0 || len(o.EncodedSources) > 0) {
+		return fmt.Errorf("from-env-file cannot be combined with from-file, from-literal or from-base64-literal")
 	}
 	return nil
 }
@@ -277,6 +284,11 @@ func (o *CreateSecretOptions) createSecret() (*corev1.Secret, error) {
 	}
 	if len(o.EnvFileSources) > 0 {
 		if err := handleSecretFromEnvFileSources(secret, o.EnvFileSources); err != nil {
+			return nil, err
+		}
+	}
+	if len(o.EncodedSources) > 0 {
+		if err := handleSecretFromEncodedSources(secret, o.EncodedSources); err != nil {
 			return nil, err
 		}
 	}
@@ -389,6 +401,26 @@ func handleSecretFromEnvFileSources(secret *corev1.Secret, envFileSources []stri
 			return addKeyFromLiteralToSecret(secret, key, []byte(value))
 		})
 		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// handleSecretFromEncodedSources adds the specified base64 encoded literal source
+// information into the provided secret after decoding it
+func handleSecretFromEncodedSources(secret *corev1.Secret, encodedSources []string) error {
+	for _, encodedSource := range encodedSources {
+		keyName, value, err := util.ParseLiteralSource(encodedSource)
+		if err != nil {
+			return err
+		}
+		actualValue, err := base64.StdEncoding.DecodeString(value)
+		if err != nil {
+			return fmt.Errorf("base64 string decoding error")
+		}
+		if err = addKeyFromLiteralToSecret(secret, keyName, actualValue); err != nil {
 			return err
 		}
 	}

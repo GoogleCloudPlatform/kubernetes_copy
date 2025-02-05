@@ -50,13 +50,14 @@ func TestCreateSecretObject(t *testing.T) {
 
 func TestCreateSecretGeneric(t *testing.T) {
 	tests := map[string]struct {
-		secretName  string
-		secretType  string
-		fromLiteral []string
-		fromFile    []string
-		fromEnvFile []string
-		appendHash  bool
-		setup       func(t *testing.T, secretGenericOptions *CreateSecretOptions) func()
+		secretName        string
+		secretType        string
+		fromLiteral       []string
+		fromBase64Literal []string
+		fromFile          []string
+		fromEnvFile       []string
+		appendHash        bool
+		setup             func(t *testing.T, secretGenericOptions *CreateSecretOptions) func()
 
 		expected  *corev1.Secret
 		expectErr string
@@ -154,6 +155,41 @@ func TestCreateSecretGeneric(t *testing.T) {
 				},
 			},
 		},
+		"create_secret_foo_two_base64_literal": {
+			secretName:        "foo",
+			fromBase64Literal: []string{"key1=dmFsdWUx", "key2=dmFsdWUy"},
+			expected: &corev1.Secret{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: corev1.SchemeGroupVersion.String(),
+					Kind:       "Secret",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "foo",
+				},
+				Data: map[string][]byte{
+					"key1": []byte("value1"),
+					"key2": []byte("value2"),
+				},
+			},
+		},
+		"create_secret_foo_two_base64_literal_hash": {
+			secretName:        "foo",
+			fromBase64Literal: []string{"key1=dmFsdWUx", "key2=dmFsdWUy"},
+			appendHash:        true,
+			expected: &corev1.Secret{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: corev1.SchemeGroupVersion.String(),
+					Kind:       "Secret",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "foo-tf72c228m4",
+				},
+				Data: map[string][]byte{
+					"key1": []byte("value1"),
+					"key2": []byte("value2"),
+				},
+			},
+		},
 		"create_secret_foo_key1_=value1": {
 			secretName:  "foo",
 			fromLiteral: []string{"key1==value1"},
@@ -167,6 +203,22 @@ func TestCreateSecretGeneric(t *testing.T) {
 				},
 				Data: map[string][]byte{
 					"key1": []byte("=value1"),
+				},
+			},
+		},
+		"create_secret_foo_base64_literal_key1_value1": {
+			secretName:        "foo",
+			fromBase64Literal: []string{"key1=dmFsdWUx"},
+			expected: &corev1.Secret{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: corev1.SchemeGroupVersion.String(),
+					Kind:       "Secret",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "foo",
+				},
+				Data: map[string][]byte{
+					"key1": []byte("value1"),
 				},
 			},
 		},
@@ -437,6 +489,16 @@ func TestCreateSecretGeneric(t *testing.T) {
 			fromLiteral: []string{"key#1=value1"},
 			expectErr:   `"key#1" is not valid key name for a Secret a valid config key must consist of alphanumeric characters, '-', '_' or '.' (e.g. 'key.name',  or 'KEY_NAME',  or 'key-name', regex used for validation is '[-._a-zA-Z0-9]+')`,
 		},
+		"create_invalid_secret_base64_literal_key_contains_=": {
+			secretName:        "foo",
+			fromBase64Literal: []string{"=key=value1"},
+			expectErr:         `invalid literal source =key=value1, expected key=value`,
+		},
+		"create_invalid_secret_base64_literal_key_with_invalid_character": {
+			secretName:        "foo",
+			fromBase64Literal: []string{"key#1=value1"},
+			expectErr:         `base64 string decoding error`,
+		},
 		"create_invalid_secret_env_key_contains_#": {
 			secretName:  "invalid_key",
 			setup:       setupSecretEnvFile([][]string{{"key#1=value1"}}),
@@ -470,6 +532,11 @@ func TestCreateSecretGeneric(t *testing.T) {
 			fromLiteral: []string{"key1value1"},
 			expectErr:   `invalid literal source key1value1, expected key=value`,
 		},
+		"create_invalid_secret_invalid_base64_literal": {
+			secretName:        "foo",
+			fromBase64Literal: []string{"key1value1"},
+			expectErr:         `invalid literal source key1value1, expected key=value`,
+		},
 		"create_invalid_secret_invalid_filepath": {
 			secretName: "foo",
 			fromFile:   []string{"key1==file1"},
@@ -482,20 +549,48 @@ func TestCreateSecretGeneric(t *testing.T) {
 			secretName:  "too_many_args",
 			fromFile:    []string{"key1=/file1"},
 			fromEnvFile: []string{"foo"},
-			expectErr:   `from-env-file cannot be combined with from-file or from-literal`,
+			expectErr:   `from-env-file cannot be combined with from-file, from-literal or from-base64-literal`,
 		},
 		"create_invalid_secret_too_many_args_1": {
 			secretName:  "too_many_args_1",
 			fromLiteral: []string{"key1=value1"},
 			fromEnvFile: []string{"foo"},
-			expectErr:   `from-env-file cannot be combined with from-file or from-literal`,
+			expectErr:   `from-env-file cannot be combined with from-file, from-literal or from-base64-literal`,
 		},
 		"create_invalid_secret_too_many_args_2": {
-			secretName:  "too_many_args_2",
-			fromFile:    []string{"key1=/file1"},
+			secretName:        "too_many_args_2",
+			fromBase64Literal: []string{"key1=value1"},
+			fromEnvFile:       []string{"foo"},
+			expectErr:         `from-env-file cannot be combined with from-file, from-literal or from-base64-literal`,
+		},
+		"create_invalid_secret_too_many_args_3": {
+			secretName:  "too_many_args_3",
+			fromFile:    []string{"key0=/file1"},
 			fromLiteral: []string{"key1=value1"},
 			fromEnvFile: []string{"foo"},
-			expectErr:   `from-env-file cannot be combined with from-file or from-literal`,
+			expectErr:   `from-env-file cannot be combined with from-file, from-literal or from-base64-literal`,
+		},
+		"create_invalid_secret_too_many_args_4": {
+			secretName:        "too_many_args_4",
+			fromFile:          []string{"key0=/file1"},
+			fromBase64Literal: []string{"key1=value1"},
+			fromEnvFile:       []string{"foo"},
+			expectErr:         `from-env-file cannot be combined with from-file, from-literal or from-base64-literal`,
+		},
+		"create_invalid_secret_too_many_args_5": {
+			secretName:        "too_many_args_5",
+			fromLiteral:       []string{"key1=value1"},
+			fromBase64Literal: []string{"key2=value2"},
+			fromEnvFile:       []string{"foo"},
+			expectErr:         `from-env-file cannot be combined with from-file, from-literal or from-base64-literal`,
+		},
+		"create_invalid_secret_too_many_args_6": {
+			secretName:        "too_many_args_6",
+			fromFile:          []string{"key0=/file1"},
+			fromLiteral:       []string{"key1=value1"},
+			fromBase64Literal: []string{"key2=value2"},
+			fromEnvFile:       []string{"foo"},
+			expectErr:         `from-env-file cannot be combined with from-file, from-literal or from-base64-literal`,
 		},
 	}
 
@@ -509,6 +604,7 @@ func TestCreateSecretGeneric(t *testing.T) {
 				AppendHash:     test.appendHash,
 				FileSources:    test.fromFile,
 				LiteralSources: test.fromLiteral,
+				EncodedSources: test.fromBase64Literal,
 				EnvFileSources: test.fromEnvFile,
 			}
 			if test.setup != nil {
