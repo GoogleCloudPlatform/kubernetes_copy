@@ -416,7 +416,7 @@ func getRequestWaitContext(ctx context.Context, defaultRequestWaitLimit time.Dur
 	//   wait-limit = min(defaultRequestWaitLimit, 1m)
 	thisReqWaitLimit := defaultRequestWaitLimit
 	if deadline, ok := ctx.Deadline(); ok {
-		thisReqWaitLimit = deadline.Sub(reqArrivedAt) / 4
+		thisReqWaitLimit = (deadline.Sub(reqArrivedAt) / 4) * 3
 	}
 	if thisReqWaitLimit > time.Minute {
 		thisReqWaitLimit = time.Minute
