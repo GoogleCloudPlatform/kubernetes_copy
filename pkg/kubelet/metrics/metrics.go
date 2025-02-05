@@ -152,6 +152,8 @@ const (
 
 	// Metrics to track kubelet admission rejections.
 	AdmissionRejectionsTotalKey = "admission_rejections_total"
+	// Metrics to track container resizing
+	ResizeRequestsTotalKey = "resize_requests_total"
 )
 
 type imageSizeBucket struct {
@@ -1008,6 +1010,16 @@ var (
 		},
 		[]string{"reason"},
 	)
+	// ResizeRequestsTotal is a CounterVec that tracks the total number of resize requests observed by the Kubelet.
+	ResizeRequestsTotal = metrics.NewCounterVec(
+		&metrics.CounterOpts{
+			Subsystem:      KubeletSubsystem,
+			Name:           ResizeRequestsTotalKey,
+			Help:           "Total number of resize requests observed by the Kubelet.",
+			StabilityLevel: metrics.ALPHA,
+		},
+		[]string{"resize_state"},
+	)
 )
 
 var registerMetrics sync.Once
@@ -1107,6 +1119,9 @@ func Register(collectors ...metrics.StableCollector) {
 		}
 
 		legacyregistry.MustRegister(AdmissionRejectionsTotal)
+		if utilfeature.DefaultFeatureGate.Enabled(features.InPlacePodVerticalScaling) {
+			legacyregistry.MustRegister(ResizeRequestsTotal)
+		}
 	})
 }
 

@@ -55,6 +55,7 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/flowcontrol"
 	featuregatetesting "k8s.io/component-base/featuregate/testing"
+	basemetrics "k8s.io/component-base/metrics"
 	"k8s.io/component-base/metrics/testutil"
 	internalapi "k8s.io/cri-api/pkg/apis"
 	runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1"
@@ -2586,6 +2587,8 @@ func TestHandlePodResourcesResize(t *testing.T) {
 	featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.InPlacePodVerticalScaling, true)
 	testKubelet := newTestKubelet(t, false)
 	defer testKubelet.Cleanup()
+	metricsRegistry := basemetrics.NewKubeRegistry()
+	metricsRegistry.MustRegister(metrics.ResizeRequestsTotal)
 	kubelet := testKubelet.kubelet
 
 	cpu1m := resource.MustParse("1m")
@@ -2683,6 +2686,7 @@ func TestHandlePodResourcesResize(t *testing.T) {
 		expectedResize        v1.PodResizeStatus
 		expectBackoffReset    bool
 		goos                  string
+		expectMetricCount     int
 	}{
 		{
 			name:                  "Request CPU and memory decrease - expect InProgress",
@@ -2691,6 +2695,7 @@ func TestHandlePodResourcesResize(t *testing.T) {
 			expectedAllocatedReqs: v1.ResourceList{v1.ResourceCPU: cpu500m, v1.ResourceMemory: mem500M},
 			expectedResize:        v1.PodResizeStatusInProgress,
 			expectBackoffReset:    true,
+			expectMetricCount:     1,
 		},
 		{
 			name:                  "Request CPU increase, memory decrease - expect InProgress",
@@ -2699,6 +2704,7 @@ func TestHandlePodResourcesResize(t *testing.T) {
 			expectedAllocatedReqs: v1.ResourceList{v1.ResourceCPU: cpu1500m, v1.ResourceMemory: mem500M},
 			expectedResize:        v1.PodResizeStatusInProgress,
 			expectBackoffReset:    true,
+			expectMetricCount:     1,
 		},
 		{
 			name:                  "Request CPU decrease, memory increase - expect InProgress",
@@ -2707,6 +2713,7 @@ func TestHandlePodResourcesResize(t *testing.T) {
 			expectedAllocatedReqs: v1.ResourceList{v1.ResourceCPU: cpu500m, v1.ResourceMemory: mem1500M},
 			expectedResize:        v1.PodResizeStatusInProgress,
 			expectBackoffReset:    true,
+			expectMetricCount:     1,
 		},
 		{
 			name:                  "Request CPU and memory increase beyond current capacity - expect Deferred",
@@ -2714,6 +2721,7 @@ func TestHandlePodResourcesResize(t *testing.T) {
 			newRequests:           v1.ResourceList{v1.ResourceCPU: cpu2500m, v1.ResourceMemory: mem2500M},
 			expectedAllocatedReqs: v1.ResourceList{v1.ResourceCPU: cpu1000m, v1.ResourceMemory: mem1000M},
 			expectedResize:        v1.PodResizeStatusDeferred,
+			expectMetricCount:     1,
 		},
 		{
 			name:                  "Request CPU decrease and memory increase beyond current capacity - expect Deferred",
@@ -2721,6 +2729,7 @@ func TestHandlePodResourcesResize(t *testing.T) {
 			newRequests:           v1.ResourceList{v1.ResourceCPU: cpu500m, v1.ResourceMemory: mem2500M},
 			expectedAllocatedReqs: v1.ResourceList{v1.ResourceCPU: cpu1000m, v1.ResourceMemory: mem1000M},
 			expectedResize:        v1.PodResizeStatusDeferred,
+			expectMetricCount:     1,
 		},
 		{
 			name:                  "Request memory increase beyond node capacity - expect Infeasible",
@@ -2728,6 +2737,7 @@ func TestHandlePodResourcesResize(t *testing.T) {
 			newRequests:           v1.ResourceList{v1.ResourceCPU: cpu1000m, v1.ResourceMemory: mem4500M},
 			expectedAllocatedReqs: v1.ResourceList{v1.ResourceCPU: cpu1000m, v1.ResourceMemory: mem1000M},
 			expectedResize:        v1.PodResizeStatusInfeasible,
+			expectMetricCount:     1,
 		},
 		{
 			name:                  "Request CPU increase beyond node capacity - expect Infeasible",
@@ -2735,6 +2745,7 @@ func TestHandlePodResourcesResize(t *testing.T) {
 			newRequests:           v1.ResourceList{v1.ResourceCPU: cpu5000m, v1.ResourceMemory: mem1000M},
 			expectedAllocatedReqs: v1.ResourceList{v1.ResourceCPU: cpu1000m, v1.ResourceMemory: mem1000M},
 			expectedResize:        v1.PodResizeStatusInfeasible,
+			expectMetricCount:     1,
 		},
 		{
 			name:                  "CPU increase in progress - expect InProgress",
@@ -2743,6 +2754,7 @@ func TestHandlePodResourcesResize(t *testing.T) {
 			newResourcesAllocated: true,
 			expectedAllocatedReqs: v1.ResourceList{v1.ResourceCPU: cpu1500m, v1.ResourceMemory: mem1000M},
 			expectedResize:        v1.PodResizeStatusInProgress,
+			expectMetricCount:     1,
 		},
 		{
 			name:                  "No resize",
@@ -2758,6 +2770,7 @@ func TestHandlePodResourcesResize(t *testing.T) {
 			expectedAllocatedReqs: v1.ResourceList{v1.ResourceCPU: cpu1000m, v1.ResourceMemory: mem1000M},
 			expectedResize:        v1.PodResizeStatusInfeasible,
 			goos:                  "windows",
+			expectMetricCount:     1,
 		},
 		{
 			name:                  "Increase CPU from min shares",
@@ -2766,6 +2779,7 @@ func TestHandlePodResourcesResize(t *testing.T) {
 			expectedAllocatedReqs: v1.ResourceList{v1.ResourceCPU: cpu1000m},
 			expectedResize:        v1.PodResizeStatusInProgress,
 			expectBackoffReset:    true,
+			expectMetricCount:     1,
 		},
 		{
 			name:                  "Decrease CPU to min shares",
@@ -2774,6 +2788,7 @@ func TestHandlePodResourcesResize(t *testing.T) {
 			expectedAllocatedReqs: v1.ResourceList{v1.ResourceCPU: cpu2m},
 			expectedResize:        v1.PodResizeStatusInProgress,
 			expectBackoffReset:    true,
+			expectMetricCount:     1,
 		},
 		{
 			name:                  "Equivalent min CPU shares",
@@ -2803,6 +2818,7 @@ func TestHandlePodResourcesResize(t *testing.T) {
 			expectedAllocatedLims: v1.ResourceList{v1.ResourceCPU: resource.MustParse("20m")},
 			expectedResize:        v1.PodResizeStatusInProgress,
 			expectBackoffReset:    true,
+			expectMetricCount:     1,
 		},
 		{
 			name:                  "Decrease CPU to min limit",
@@ -2814,6 +2830,7 @@ func TestHandlePodResourcesResize(t *testing.T) {
 			expectedAllocatedLims: v1.ResourceList{v1.ResourceCPU: resource.MustParse("10m")},
 			expectedResize:        v1.PodResizeStatusInProgress,
 			expectBackoffReset:    true,
+			expectMetricCount:     1,
 		},
 		{
 			name:                  "Equivalent min CPU limit",
@@ -2848,6 +2865,7 @@ func TestHandlePodResourcesResize(t *testing.T) {
 			if tt.goos != "" {
 				goos = tt.goos
 			}
+			defer metricsRegistry.Reset()
 			kubelet.statusManager = status.NewFakeManager()
 
 			originalPod := testPod1.DeepCopy()
@@ -2906,6 +2924,17 @@ func TestHandlePodResourcesResize(t *testing.T) {
 				assert.False(t, isInBackoff, "container backoff should be reset")
 			} else {
 				assert.True(t, isInBackoff, "container backoff should not be reset")
+			}
+
+			if tt.expectMetricCount != 0 {
+				expectedMetrics := fmt.Sprintf(`
+				# HELP kubelet_resize_requests_total [ALPHA] Total number of resize requests observed by the Kubelet.
+				# TYPE kubelet_resize_requests_total counter
+				kubelet_resize_requests_total{resize_state="%v"} %v
+				`, tt.expectedResize, tt.expectMetricCount)
+				if err := testutil.GatherAndCompare(metricsRegistry, strings.NewReader(expectedMetrics), "kubelet_resize_requests_total"); err != nil {
+					t.Error(err)
+				}
 			}
 		})
 	}

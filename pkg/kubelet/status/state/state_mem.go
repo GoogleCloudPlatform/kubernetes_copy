@@ -21,6 +21,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/klog/v2"
+	"k8s.io/kubernetes/pkg/kubelet/metrics"
 )
 
 type stateMemory struct {
@@ -82,6 +83,11 @@ func (s *stateMemory) SetPodResizeStatus(podUID string, resizeStatus v1.PodResiz
 	defer s.Unlock()
 
 	if resizeStatus != "" {
+		oldResizeStatus, exist := s.podResizeStatus[podUID]
+		// If the resize status is changed or the resize status is not exist, record the metrics
+		if (exist && oldResizeStatus != resizeStatus) || !exist {
+			metrics.ResizeRequestsTotal.WithLabelValues(string(resizeStatus)).Inc()
+		}
 		s.podResizeStatus[podUID] = resizeStatus
 	} else {
 		delete(s.podResizeStatus, podUID)
