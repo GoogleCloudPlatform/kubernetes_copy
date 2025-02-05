@@ -107,37 +107,15 @@ func isIPTablesBased(mode proxyconfigapi.ProxyMode) bool {
 	return mode == proxyconfigapi.ProxyModeIPTables || mode == proxyconfigapi.ProxyModeIPVS
 }
 
-// getIPTables returns an array of [IPv4, IPv6] utiliptables.Interfaces. If primaryFamily
-// is not v1.IPFamilyUnknown then it will also separately return the interface for just
-// that family.
-func getIPTables(primaryFamily v1.IPFamily) ([2]utiliptables.Interface, utiliptables.Interface) {
-	execer := exec.New()
-
-	// Create iptables handlers for both families. Always ordered as IPv4, IPv6
-	ipt := [2]utiliptables.Interface{
-		utiliptables.New(execer, utiliptables.ProtocolIPv4),
-		utiliptables.New(execer, utiliptables.ProtocolIPv6),
-	}
-
-	var iptInterface utiliptables.Interface
-	if primaryFamily == v1.IPv4Protocol {
-		iptInterface = ipt[0]
-	} else if primaryFamily == v1.IPv6Protocol {
-		iptInterface = ipt[1]
-	}
-
-	return ipt, iptInterface
-}
-
 // platformCheckSupported is called immediately before creating the Proxier, to check
 // what IP families are supported (and whether the configuration is usable at all).
 func (s *ProxyServer) platformCheckSupported(ctx context.Context) (ipv4Supported, ipv6Supported, dualStackSupported bool, err error) {
 	logger := klog.FromContext(ctx)
 
 	if isIPTablesBased(s.Config.Mode) {
-		ipt, _ := getIPTables(v1.IPFamilyUnknown)
-		ipv4Supported = ipt[0].Present()
-		ipv6Supported = ipt[1].Present()
+		ipts := utiliptables.NewDualStack()
+		ipv4Supported = ipts[v1.IPv4Protocol] != nil
+		ipv6Supported = ipts[v1.IPv6Protocol] != nil
 
 		if !ipv4Supported && !ipv6Supported {
 			err = fmt.Errorf("iptables is not available on this host")
@@ -168,14 +146,13 @@ func (s *ProxyServer) createProxier(ctx context.Context, config *proxyconfigapi.
 
 	if config.Mode == proxyconfigapi.ProxyModeIPTables {
 		logger.Info("Using iptables Proxier")
+		ipts := utiliptables.NewDualStack()
 
 		if dualStack {
-			ipt, _ := getIPTables(s.PrimaryIPFamily)
-
 			// TODO this has side effects that should only happen when Run() is invoked.
 			proxier, err = iptables.NewDualStackProxier(
 				ctx,
-				ipt,
+				ipts,
 				utilsysctl.New(),
 				exec.New(),
 				config.SyncPeriod.Duration,
@@ -193,13 +170,12 @@ func (s *ProxyServer) createProxier(ctx context.Context, config *proxyconfigapi.
 			)
 		} else {
 			// Create a single-stack proxier if and only if the node does not support dual-stack (i.e, no iptables support).
-			_, iptInterface := getIPTables(s.PrimaryIPFamily)
 
 			// TODO this has side effects that should only happen when Run() is invoked.
 			proxier, err = iptables.NewProxier(
 				ctx,
 				s.PrimaryIPFamily,
-				iptInterface,
+				ipts[s.PrimaryIPFamily],
 				utilsysctl.New(),
 				exec.New(),
 				config.SyncPeriod.Duration,
@@ -227,13 +203,13 @@ func (s *ProxyServer) createProxier(ctx context.Context, config *proxyconfigapi.
 		if err := ipvs.CanUseIPVSProxier(ctx, ipvsInterface, ipsetInterface, config.IPVS.Scheduler); err != nil {
 			return nil, fmt.Errorf("can't use the IPVS proxier: %v", err)
 		}
+		ipts := utiliptables.NewDualStack()
 
 		logger.Info("Using ipvs Proxier")
 		if dualStack {
-			ipt, _ := getIPTables(s.PrimaryIPFamily)
 			proxier, err = ipvs.NewDualStackProxier(
 				ctx,
-				ipt,
+				ipts,
 				ipvsInterface,
 				ipsetInterface,
 				utilsysctl.New(),
@@ -257,11 +233,10 @@ func (s *ProxyServer) createProxier(ctx context.Context, config *proxyconfigapi.
 				initOnly,
 			)
 		} else {
-			_, iptInterface := getIPTables(s.PrimaryIPFamily)
 			proxier, err = ipvs.NewProxier(
 				ctx,
 				s.PrimaryIPFamily,
-				iptInterface,
+				ipts[s.PrimaryIPFamily],
 				ipvsInterface,
 				ipsetInterface,
 				utilsysctl.New(),
@@ -516,7 +491,7 @@ func platformCleanup(ctx context.Context, mode proxyconfigapi.ProxyMode, cleanup
 
 	// Clean up iptables and ipvs rules if switching to nftables, or if cleanupAndExit
 	if !isIPTablesBased(mode) || cleanupAndExit {
-		ipts, _ := getIPTables(v1.IPFamilyUnknown)
+		ipts := utiliptables.NewDualStack()
 		execer := exec.New()
 		ipsetInterface := utilipset.New(execer)
 		ipvsInterface := utilipvs.New()

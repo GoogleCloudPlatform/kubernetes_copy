@@ -30,6 +30,7 @@ import (
 	"sync"
 	"time"
 
+	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	utilversion "k8s.io/apimachinery/pkg/util/version"
 	utilwait "k8s.io/apimachinery/pkg/util/wait"
@@ -219,12 +220,6 @@ type runner struct {
 // newInternal returns a new Interface which will exec iptables, and allows the
 // caller to change the iptables-restore lockfile path
 func newInternal(exec utilexec.Interface, protocol Protocol, lockfilePath14x, lockfilePath16x string) Interface {
-	version, err := getIPTablesVersion(exec, protocol)
-	if err != nil {
-		klog.InfoS("Error checking iptables version, assuming version at least", "version", MinCheckVersion, "err", err)
-		version = MinCheckVersion
-	}
-
 	if lockfilePath16x == "" {
 		lockfilePath16x = LockfilePath16x
 	}
@@ -235,19 +230,50 @@ func newInternal(exec utilexec.Interface, protocol Protocol, lockfilePath14x, lo
 	runner := &runner{
 		exec:            exec,
 		protocol:        protocol,
-		hasCheck:        version.AtLeast(MinCheckVersion),
-		hasRandomFully:  version.AtLeast(RandomFullyMinVersion),
-		waitFlag:        getIPTablesWaitFlag(version),
-		restoreWaitFlag: getIPTablesRestoreWaitFlag(version, exec, protocol),
 		lockfilePath14x: lockfilePath14x,
 		lockfilePath16x: lockfilePath16x,
 	}
+
+	version, err := getIPTablesVersion(exec, protocol)
+	if err != nil {
+		// The only likely error is "no such file or directory", in which case any
+		// further commands will fail the same way, so we don't need to do
+		// anything special here.
+		return runner
+	}
+
+	runner.hasCheck = version.AtLeast(MinCheckVersion)
+	runner.hasRandomFully = version.AtLeast(RandomFullyMinVersion)
+	runner.waitFlag = getIPTablesWaitFlag(version)
+	runner.restoreWaitFlag = getIPTablesRestoreWaitFlag(version, exec, protocol)
 	return runner
 }
 
 // New returns a new Interface which will exec iptables.
-func New(exec utilexec.Interface, protocol Protocol) Interface {
-	return newInternal(exec, protocol, "", "")
+func New(protocol Protocol) Interface {
+	return newInternal(utilexec.New(), protocol, "", "")
+}
+
+func newDualStackInternal(exec utilexec.Interface) map[v1.IPFamily]Interface {
+	interfaces := map[v1.IPFamily]Interface{}
+
+	iptv4 := newInternal(exec, ProtocolIPv4, "", "")
+	if iptv4.Present() {
+		interfaces[v1.IPv4Protocol] = iptv4
+	}
+	iptv6 := newInternal(exec, ProtocolIPv6, "", "")
+	if iptv6.Present() {
+		interfaces[v1.IPv6Protocol] = iptv6
+	}
+
+	return interfaces
+}
+
+// NewDualStack returns a map containing an IPv4 Interface (if IPv4 iptables is supported)
+// and an IPv6 Interface (if IPv6 iptables is supported). If either family is not
+// supported, no Interface will be returned for that family.
+func NewDualStack() map[v1.IPFamily]Interface {
+	return newDualStackInternal(utilexec.New())
 }
 
 // EnsureChain is part of Interface.

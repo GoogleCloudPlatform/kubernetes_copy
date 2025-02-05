@@ -25,7 +25,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/klog/v2"
 	utiliptables "k8s.io/kubernetes/pkg/util/iptables"
-	utilexec "k8s.io/utils/exec"
 )
 
 const (
@@ -38,14 +37,14 @@ const (
 )
 
 func (kl *Kubelet) initNetworkUtil() {
-	exec := utilexec.New()
-	iptClients := []utiliptables.Interface{
-		utiliptables.New(exec, utiliptables.ProtocolIPv4),
-		utiliptables.New(exec, utiliptables.ProtocolIPv6),
+	iptClients := utiliptables.NewDualStack()
+	if len(iptClients) == 0 {
+		klog.InfoS("No iptables support on this system; not creating the KUBE-IPTABLES-HINT chain")
+		return
 	}
 
-	for i := range iptClients {
-		iptClient := iptClients[i]
+	for family := range iptClients {
+		iptClient := iptClients[family]
 		if kl.syncIPTablesRules(iptClient) {
 			klog.InfoS("Initialized iptables rules.", "protocol", iptClient.Protocol())
 			go iptClient.Monitor(
