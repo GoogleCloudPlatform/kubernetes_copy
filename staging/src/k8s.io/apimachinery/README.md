@@ -15,6 +15,7 @@ There are *NO compatibility guarantees* for this repository. It is in direct sup
 will track Kubernetes and be compatible with that repo. As we more cleanly separate the layers, we will review the
 compatibility guarantee.
 
+The `kubernetes-1.x.y` tags are not to be referenced by golang packages and are the same exact code commit as the `v0.x.y` tags which can be used by golang to match the x.y specific version of Kubernetes.
 
 ## Where does it come from?
 
