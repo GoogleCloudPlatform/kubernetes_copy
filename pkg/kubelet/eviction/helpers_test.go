@@ -146,7 +146,6 @@ func TestParseThresholdConfig(t *testing.T) {
 		evictionSoft            map[string]string
 		evictionSoftGracePeriod map[string]string
 		evictionMinReclaim      map[string]string
-		mergeDefault            bool
 		expectErr               bool
 		expectThresholds        []evictionapi.Threshold
 	}{
@@ -156,7 +155,6 @@ func TestParseThresholdConfig(t *testing.T) {
 			evictionSoft:            map[string]string{},
 			evictionSoftGracePeriod: map[string]string{},
 			evictionMinReclaim:      map[string]string{},
-			mergeDefault:            false,
 			expectErr:               false,
 			expectThresholds:        []evictionapi.Threshold{},
 		},
@@ -166,7 +164,6 @@ func TestParseThresholdConfig(t *testing.T) {
 			evictionSoft:            map[string]string{"memory.available": "300Mi"},
 			evictionSoftGracePeriod: map[string]string{"memory.available": "30s"},
 			evictionMinReclaim:      map[string]string{"memory.available": "0"},
-			mergeDefault:            false,
 			expectErr:               false,
 			expectThresholds: []evictionapi.Threshold{
 				{
@@ -208,7 +205,6 @@ func TestParseThresholdConfig(t *testing.T) {
 			evictionSoft:            map[string]string{"memory.available": "30%"},
 			evictionSoftGracePeriod: map[string]string{"memory.available": "30s"},
 			evictionMinReclaim:      map[string]string{"memory.available": "5%"},
-			mergeDefault:            false,
 			expectErr:               false,
 			expectThresholds: []evictionapi.Threshold{
 				{
@@ -240,7 +236,6 @@ func TestParseThresholdConfig(t *testing.T) {
 			evictionSoft:            map[string]string{"imagefs.available": "300Mi", "nodefs.available": "200Mi"},
 			evictionSoftGracePeriod: map[string]string{"imagefs.available": "30s", "nodefs.available": "30s"},
 			evictionMinReclaim:      map[string]string{"imagefs.available": "2Gi", "nodefs.available": "1Gi"},
-			mergeDefault:            false,
 			expectErr:               false,
 			expectThresholds: []evictionapi.Threshold{
 				{
@@ -293,7 +288,6 @@ func TestParseThresholdConfig(t *testing.T) {
 			evictionSoft:            map[string]string{"imagefs.available": "30%", "nodefs.available": "20.5%"},
 			evictionSoftGracePeriod: map[string]string{"imagefs.available": "30s", "nodefs.available": "30s"},
 			evictionMinReclaim:      map[string]string{"imagefs.available": "10%", "nodefs.available": "5%"},
-			mergeDefault:            false,
 			expectErr:               false,
 			expectThresholds: []evictionapi.Threshold{
 				{
@@ -346,7 +340,6 @@ func TestParseThresholdConfig(t *testing.T) {
 			evictionSoft:            map[string]string{"imagefs.inodesFree": "300Mi", "nodefs.inodesFree": "200Mi"},
 			evictionSoftGracePeriod: map[string]string{"imagefs.inodesFree": "30s", "nodefs.inodesFree": "30s"},
 			evictionMinReclaim:      map[string]string{"imagefs.inodesFree": "2Gi", "nodefs.inodesFree": "1Gi"},
-			mergeDefault:            false,
 			expectErr:               false,
 			expectThresholds: []evictionapi.Threshold{
 				{
@@ -397,7 +390,6 @@ func TestParseThresholdConfig(t *testing.T) {
 			allocatableConfig: []string{},
 			evictionHard:      map[string]string{"memory.available": "0%"},
 			evictionSoft:      map[string]string{"memory.available": "0%"},
-			mergeDefault:      false,
 			expectErr:         false,
 			expectThresholds:  []evictionapi.Threshold{},
 		},
@@ -405,7 +397,6 @@ func TestParseThresholdConfig(t *testing.T) {
 			allocatableConfig: []string{},
 			evictionHard:      map[string]string{"memory.available": "100%"},
 			evictionSoft:      map[string]string{"memory.available": "100%"},
-			mergeDefault:      false,
 			expectErr:         false,
 			expectThresholds:  []evictionapi.Threshold{},
 		},
@@ -415,7 +406,6 @@ func TestParseThresholdConfig(t *testing.T) {
 			evictionSoft:            map[string]string{},
 			evictionSoftGracePeriod: map[string]string{},
 			evictionMinReclaim:      map[string]string{},
-			mergeDefault:            false,
 			expectErr:               true,
 			expectThresholds:        []evictionapi.Threshold{},
 		},
@@ -425,7 +415,6 @@ func TestParseThresholdConfig(t *testing.T) {
 			evictionSoft:            map[string]string{},
 			evictionSoftGracePeriod: map[string]string{},
 			evictionMinReclaim:      map[string]string{},
-			mergeDefault:            false,
 			expectErr:               true,
 			expectThresholds:        []evictionapi.Threshold{},
 		},
@@ -435,7 +424,6 @@ func TestParseThresholdConfig(t *testing.T) {
 			evictionSoft:            map[string]string{},
 			evictionSoftGracePeriod: map[string]string{},
 			evictionMinReclaim:      map[string]string{},
-			mergeDefault:            false,
 			expectErr:               true,
 			expectThresholds:        []evictionapi.Threshold{},
 		},
@@ -445,7 +433,6 @@ func TestParseThresholdConfig(t *testing.T) {
 			evictionSoft:            map[string]string{},
 			evictionSoftGracePeriod: map[string]string{},
 			evictionMinReclaim:      map[string]string{},
-			mergeDefault:            false,
 			expectErr:               true,
 			expectThresholds:        []evictionapi.Threshold{},
 		},
@@ -455,7 +442,6 @@ func TestParseThresholdConfig(t *testing.T) {
 			evictionSoft:            map[string]string{"memory.available": "-150Mi"},
 			evictionSoftGracePeriod: map[string]string{},
 			evictionMinReclaim:      map[string]string{},
-			mergeDefault:            false,
 			expectErr:               true,
 			expectThresholds:        []evictionapi.Threshold{},
 		},
@@ -465,7 +451,6 @@ func TestParseThresholdConfig(t *testing.T) {
 			evictionSoft:            map[string]string{},
 			evictionSoftGracePeriod: map[string]string{},
 			evictionMinReclaim:      map[string]string{},
-			mergeDefault:            false,
 			expectErr:               true,
 			expectThresholds:        []evictionapi.Threshold{},
 		},
@@ -475,7 +460,6 @@ func TestParseThresholdConfig(t *testing.T) {
 			evictionSoft:            map[string]string{"memory.available": "150Mi"},
 			evictionSoftGracePeriod: map[string]string{},
 			evictionMinReclaim:      map[string]string{},
-			mergeDefault:            false,
 			expectErr:               true,
 			expectThresholds:        []evictionapi.Threshold{},
 		},
@@ -485,7 +469,6 @@ func TestParseThresholdConfig(t *testing.T) {
 			evictionSoft:            map[string]string{"memory.available": "150Mi"},
 			evictionSoftGracePeriod: map[string]string{"memory.available": "-30s"},
 			evictionMinReclaim:      map[string]string{},
-			mergeDefault:            false,
 			expectErr:               true,
 			expectThresholds:        []evictionapi.Threshold{},
 		},
@@ -495,7 +478,6 @@ func TestParseThresholdConfig(t *testing.T) {
 			evictionSoft:            map[string]string{},
 			evictionSoftGracePeriod: map[string]string{},
 			evictionMinReclaim:      map[string]string{"memory.available": "-300Mi"},
-			mergeDefault:            false,
 			expectErr:               true,
 			expectThresholds:        []evictionapi.Threshold{},
 		},
@@ -505,7 +487,6 @@ func TestParseThresholdConfig(t *testing.T) {
 			evictionSoft:            map[string]string{},
 			evictionSoftGracePeriod: map[string]string{},
 			evictionMinReclaim:      map[string]string{"mem.available": "300Mi"},
-			mergeDefault:            false,
 			expectErr:               true,
 			expectThresholds:        []evictionapi.Threshold{},
 		},
@@ -515,7 +496,6 @@ func TestParseThresholdConfig(t *testing.T) {
 			evictionSoft:            map[string]string{},
 			evictionSoftGracePeriod: map[string]string{},
 			evictionMinReclaim:      map[string]string{"memory.available": ""},
-			mergeDefault:            false,
 			expectErr:               true,
 			expectThresholds:        []evictionapi.Threshold{},
 		},
@@ -525,7 +505,6 @@ func TestParseThresholdConfig(t *testing.T) {
 			evictionSoft:            map[string]string{},
 			evictionSoftGracePeriod: map[string]string{},
 			evictionMinReclaim:      map[string]string{"memory.available": "-15%"},
-			mergeDefault:            false,
 			expectErr:               true,
 			expectThresholds:        []evictionapi.Threshold{},
 		},
@@ -535,7 +514,6 @@ func TestParseThresholdConfig(t *testing.T) {
 			evictionSoft:            map[string]string{},
 			evictionSoftGracePeriod: map[string]string{},
 			evictionMinReclaim:      map[string]string{"memory.available": "10..5%"},
-			mergeDefault:            false,
 			expectErr:               true,
 			expectThresholds:        []evictionapi.Threshold{},
 		},
@@ -545,7 +523,6 @@ func TestParseThresholdConfig(t *testing.T) {
 			evictionSoft:            map[string]string{},
 			evictionSoftGracePeriod: map[string]string{},
 			evictionMinReclaim:      map[string]string{},
-			mergeDefault:            false,
 			expectErr:               true,
 			expectThresholds:        []evictionapi.Threshold{},
 		},
@@ -555,7 +532,6 @@ func TestParseThresholdConfig(t *testing.T) {
 			evictionSoft:            map[string]string{},
 			evictionSoftGracePeriod: map[string]string{},
 			evictionMinReclaim:      map[string]string{},
-			mergeDefault:            false,
 			expectErr:               true,
 			expectThresholds:        []evictionapi.Threshold{},
 		},
@@ -565,7 +541,6 @@ func TestParseThresholdConfig(t *testing.T) {
 			evictionSoft:            map[string]string{"memory.available": "150Mi"},
 			evictionSoftGracePeriod: map[string]string{"mem.available": "30s"},
 			evictionMinReclaim:      map[string]string{},
-			mergeDefault:            false,
 			expectErr:               true,
 			expectThresholds:        []evictionapi.Threshold{},
 		},
@@ -575,13 +550,12 @@ func TestParseThresholdConfig(t *testing.T) {
 			evictionSoft:            map[string]string{"memory.available": "150Mi"},
 			evictionSoftGracePeriod: map[string]string{"memory.available": "30mins"},
 			evictionMinReclaim:      map[string]string{},
-			mergeDefault:            false,
 			expectErr:               true,
 			expectThresholds:        []evictionapi.Threshold{},
 		},
 	}
 	for testName, testCase := range testCases {
-		thresholds, err := ParseThresholdConfig(testCase.allocatableConfig, testCase.evictionHard, testCase.evictionSoft, testCase.evictionSoftGracePeriod, testCase.evictionMinReclaim, testCase.mergeDefault)
+		thresholds, err := ParseThresholdConfig(testCase.allocatableConfig, testCase.evictionHard, testCase.evictionSoft, testCase.evictionSoftGracePeriod, testCase.evictionMinReclaim)
 		if testCase.expectErr != (err != nil) {
 			t.Errorf("Err not as expected, test: %v, error expected: %v, actual: %v", testName, testCase.expectErr, err)
 		}
@@ -589,445 +563,6 @@ func TestParseThresholdConfig(t *testing.T) {
 			t.Errorf("thresholds not as expected, test: %v, expected: %v, actual: %v", testName, testCase.expectThresholds, thresholds)
 		}
 	}
-}
-
-// Test ParseThresholdConfig when MergeDefaultEvictionSettings is true
-func TestParseThresholdConfigMergeTrue(t *testing.T) {
-	gracePeriod, _ := time.ParseDuration("30s")
-	testCases := map[string]struct {
-		allocatableConfig       []string
-		evictionHard            map[string]string
-		evictionSoft            map[string]string
-		evictionSoftGracePeriod map[string]string
-		evictionMinReclaim      map[string]string
-		mergeDefault            bool
-		expectErr               bool
-		expectThresholds        []evictionapi.Threshold
-	}{
-		"no values": {
-			allocatableConfig:       []string{},
-			evictionHard:            map[string]string{},
-			evictionSoft:            map[string]string{},
-			evictionSoftGracePeriod: map[string]string{},
-			evictionMinReclaim:      map[string]string{},
-			mergeDefault:            true,
-			expectErr:               false,
-			expectThresholds:        []evictionapi.Threshold{},
-		},
-		"all memory eviction values": {
-			allocatableConfig:       []string{kubetypes.NodeAllocatableEnforcementKey},
-			evictionHard:            map[string]string{"memory.available": "150Mi"},
-			evictionSoft:            map[string]string{"memory.available": "300Mi"},
-			evictionSoftGracePeriod: map[string]string{"memory.available": "30s"},
-			evictionMinReclaim:      map[string]string{"memory.available": "0"},
-			mergeDefault:            true,
-			expectErr:               false,
-			expectThresholds: []evictionapi.Threshold{
-				{
-					Signal:   evictionapi.SignalAllocatableMemoryAvailable,
-					Operator: evictionapi.OpLessThan,
-					Value: evictionapi.ThresholdValue{
-						Quantity: quantityMustParse("150Mi"),
-					},
-					MinReclaim: &evictionapi.ThresholdValue{
-						Quantity: quantityMustParse("0"),
-					},
-				},
-				{
-					Signal:   evictionapi.SignalMemoryAvailable,
-					Operator: evictionapi.OpLessThan,
-					Value: evictionapi.ThresholdValue{
-						Quantity: quantityMustParse("150Mi"),
-					},
-					MinReclaim: &evictionapi.ThresholdValue{
-						Quantity: quantityMustParse("0"),
-					},
-				},
-				{
-					Signal:   evictionapi.SignalNodeFsAvailable,
-					Operator: evictionapi.OpLessThan,
-					Value: evictionapi.ThresholdValue{
-						Percentage: 0.1,
-					},
-					MinReclaim: &evictionapi.ThresholdValue{
-						Quantity: quantityMustParse("0"),
-					},
-				},
-				{
-					Signal:   evictionapi.SignalImageFsAvailable,
-					Operator: evictionapi.OpLessThan,
-					Value: evictionapi.ThresholdValue{
-						Percentage: 0.15,
-					},
-					MinReclaim: &evictionapi.ThresholdValue{
-						Quantity: quantityMustParse("0"),
-					},
-				},
-				{
-					Signal:   evictionapi.SignalImageFsInodesFree,
-					Operator: evictionapi.OpLessThan,
-					Value: evictionapi.ThresholdValue{
-						Percentage: 0.05,
-					},
-					MinReclaim: &evictionapi.ThresholdValue{
-						Quantity: quantityMustParse("0"),
-					},
-				},
-				{
-					Signal:   evictionapi.SignalNodeFsInodesFree,
-					Operator: evictionapi.OpLessThan,
-					Value: evictionapi.ThresholdValue{
-						Percentage: 0.05,
-					},
-					MinReclaim: &evictionapi.ThresholdValue{
-						Quantity: quantityMustParse("0"),
-					},
-				},
-				{
-					Signal:   evictionapi.SignalMemoryAvailable,
-					Operator: evictionapi.OpLessThan,
-					Value: evictionapi.ThresholdValue{
-						Quantity: quantityMustParse("300Mi"),
-					},
-					GracePeriod: gracePeriod,
-					MinReclaim: &evictionapi.ThresholdValue{
-						Quantity: quantityMustParse("0"),
-					},
-				},
-			},
-		},
-		"disk eviction values": {
-			allocatableConfig:       []string{},
-			evictionHard:            map[string]string{"imagefs.available": "150Mi", "nodefs.available": "100Mi"},
-			evictionSoft:            map[string]string{"imagefs.available": "300Mi", "nodefs.available": "200Mi"},
-			evictionSoftGracePeriod: map[string]string{"imagefs.available": "30s", "nodefs.available": "30s"},
-			evictionMinReclaim:      map[string]string{"imagefs.available": "2Gi", "nodefs.available": "1Gi"},
-			mergeDefault:            true,
-			expectErr:               false,
-			expectThresholds: []evictionapi.Threshold{
-				{
-					Signal:   evictionapi.SignalImageFsAvailable,
-					Operator: evictionapi.OpLessThan,
-					Value: evictionapi.ThresholdValue{
-						Quantity: quantityMustParse("150Mi"),
-					},
-					MinReclaim: &evictionapi.ThresholdValue{
-						Quantity: quantityMustParse("2Gi"),
-					},
-				},
-				{
-					Signal:   evictionapi.SignalNodeFsAvailable,
-					Operator: evictionapi.OpLessThan,
-					Value: evictionapi.ThresholdValue{
-						Quantity: quantityMustParse("100Mi"),
-					},
-					MinReclaim: &evictionapi.ThresholdValue{
-						Quantity: quantityMustParse("1Gi"),
-					},
-				},
-				{
-					Signal:   evictionapi.SignalMemoryAvailable,
-					Operator: evictionapi.OpLessThan,
-					Value: evictionapi.ThresholdValue{
-						Quantity: quantityMustParse("100Mi"),
-					},
-					MinReclaim: &evictionapi.ThresholdValue{
-						Quantity: quantityMustParse("0"),
-					},
-				},
-				{
-					Signal:   evictionapi.SignalImageFsInodesFree,
-					Operator: evictionapi.OpLessThan,
-					Value: evictionapi.ThresholdValue{
-						Percentage: 0.05,
-					},
-					MinReclaim: &evictionapi.ThresholdValue{
-						Quantity: quantityMustParse("0"),
-					},
-				},
-				{
-					Signal:   evictionapi.SignalNodeFsInodesFree,
-					Operator: evictionapi.OpLessThan,
-					Value: evictionapi.ThresholdValue{
-						Percentage: 0.05,
-					},
-					MinReclaim: &evictionapi.ThresholdValue{
-						Quantity: quantityMustParse("0"),
-					},
-				},
-				{
-					Signal:   evictionapi.SignalImageFsAvailable,
-					Operator: evictionapi.OpLessThan,
-					Value: evictionapi.ThresholdValue{
-						Quantity: quantityMustParse("300Mi"),
-					},
-					GracePeriod: gracePeriod,
-					MinReclaim: &evictionapi.ThresholdValue{
-						Quantity: quantityMustParse("2Gi"),
-					},
-				},
-				{
-					Signal:   evictionapi.SignalNodeFsAvailable,
-					Operator: evictionapi.OpLessThan,
-					Value: evictionapi.ThresholdValue{
-						Quantity: quantityMustParse("200Mi"),
-					},
-					GracePeriod: gracePeriod,
-					MinReclaim: &evictionapi.ThresholdValue{
-						Quantity: quantityMustParse("1Gi"),
-					},
-				},
-			},
-		},
-		"all memory eviction values in percentages": {
-			allocatableConfig:       []string{},
-			evictionHard:            map[string]string{"memory.available": "10%"},
-			evictionSoft:            map[string]string{"memory.available": "30%"},
-			evictionSoftGracePeriod: map[string]string{"memory.available": "30s"},
-			evictionMinReclaim:      map[string]string{"memory.available": "5%"},
-			mergeDefault:            true,
-			expectErr:               false,
-			expectThresholds: []evictionapi.Threshold{
-				{
-					Signal:   evictionapi.SignalMemoryAvailable,
-					Operator: evictionapi.OpLessThan,
-					Value: evictionapi.ThresholdValue{
-						Percentage: 0.1,
-					},
-					MinReclaim: &evictionapi.ThresholdValue{
-						Percentage: 0.05,
-					},
-				},
-				{
-					Signal:   evictionapi.SignalNodeFsAvailable,
-					Operator: evictionapi.OpLessThan,
-					Value: evictionapi.ThresholdValue{
-						Percentage: 0.1,
-					},
-					MinReclaim: &evictionapi.ThresholdValue{
-						Quantity: quantityMustParse("0"),
-					},
-				},
-				{
-					Signal:   evictionapi.SignalImageFsAvailable,
-					Operator: evictionapi.OpLessThan,
-					Value: evictionapi.ThresholdValue{
-						Percentage: 0.15,
-					},
-					MinReclaim: &evictionapi.ThresholdValue{
-						Quantity: quantityMustParse("0"),
-					},
-				},
-				{
-					Signal:   evictionapi.SignalImageFsInodesFree,
-					Operator: evictionapi.OpLessThan,
-					Value: evictionapi.ThresholdValue{
-						Percentage: 0.05,
-					},
-					MinReclaim: &evictionapi.ThresholdValue{
-						Quantity: quantityMustParse("0"),
-					},
-				},
-				{
-					Signal:   evictionapi.SignalNodeFsInodesFree,
-					Operator: evictionapi.OpLessThan,
-					Value: evictionapi.ThresholdValue{
-						Percentage: 0.05,
-					},
-					MinReclaim: &evictionapi.ThresholdValue{
-						Quantity: quantityMustParse("0"),
-					},
-				},
-				{
-					Signal:   evictionapi.SignalMemoryAvailable,
-					Operator: evictionapi.OpLessThan,
-					Value: evictionapi.ThresholdValue{
-						Percentage: 0.3,
-					},
-					GracePeriod: gracePeriod,
-					MinReclaim: &evictionapi.ThresholdValue{
-						Percentage: 0.05,
-					},
-				},
-			},
-		},
-		"disk eviction values in percentages": {
-			allocatableConfig:       []string{},
-			evictionHard:            map[string]string{"imagefs.available": "15%", "nodefs.available": "10.5%"},
-			evictionSoft:            map[string]string{"imagefs.available": "30%", "nodefs.available": "20.5%"},
-			evictionSoftGracePeriod: map[string]string{"imagefs.available": "30s", "nodefs.available": "30s"},
-			evictionMinReclaim:      map[string]string{"imagefs.available": "10%", "nodefs.available": "5%"},
-			mergeDefault:            true,
-			expectErr:               false,
-			expectThresholds: []evictionapi.Threshold{
-				{
-					Signal:   evictionapi.SignalImageFsAvailable,
-					Operator: evictionapi.OpLessThan,
-					Value: evictionapi.ThresholdValue{
-						Percentage: 0.15,
-					},
-					MinReclaim: &evictionapi.ThresholdValue{
-						Percentage: 0.1,
-					},
-				},
-				{
-					Signal:   evictionapi.SignalNodeFsAvailable,
-					Operator: evictionapi.OpLessThan,
-					Value: evictionapi.ThresholdValue{
-						Percentage: 0.105,
-					},
-					MinReclaim: &evictionapi.ThresholdValue{
-						Percentage: 0.05,
-					},
-				},
-				{
-					Signal:   evictionapi.SignalMemoryAvailable,
-					Operator: evictionapi.OpLessThan,
-					Value: evictionapi.ThresholdValue{
-						Quantity: quantityMustParse("100Mi"),
-					},
-					MinReclaim: &evictionapi.ThresholdValue{
-						Quantity: quantityMustParse("0"),
-					},
-				},
-				{
-					Signal:   evictionapi.SignalImageFsInodesFree,
-					Operator: evictionapi.OpLessThan,
-					Value: evictionapi.ThresholdValue{
-						Percentage: 0.05,
-					},
-					MinReclaim: &evictionapi.ThresholdValue{
-						Quantity: quantityMustParse("0"),
-					},
-				},
-				{
-					Signal:   evictionapi.SignalNodeFsInodesFree,
-					Operator: evictionapi.OpLessThan,
-					Value: evictionapi.ThresholdValue{
-						Percentage: 0.05,
-					},
-					MinReclaim: &evictionapi.ThresholdValue{
-						Quantity: quantityMustParse("0"),
-					},
-				},
-				{
-					Signal:   evictionapi.SignalImageFsAvailable,
-					Operator: evictionapi.OpLessThan,
-					Value: evictionapi.ThresholdValue{
-						Percentage: 0.3,
-					},
-					GracePeriod: gracePeriod,
-					MinReclaim: &evictionapi.ThresholdValue{
-						Percentage: 0.1,
-					},
-				},
-				{
-					Signal:   evictionapi.SignalNodeFsAvailable,
-					Operator: evictionapi.OpLessThan,
-					Value: evictionapi.ThresholdValue{
-						Percentage: 0.205,
-					},
-					GracePeriod: gracePeriod,
-					MinReclaim: &evictionapi.ThresholdValue{
-						Percentage: 0.05,
-					},
-				},
-			},
-		},
-		"inode eviction values": {
-			allocatableConfig:       []string{},
-			evictionHard:            map[string]string{"imagefs.inodesFree": "150Mi", "nodefs.inodesFree": "100Mi"},
-			evictionSoft:            map[string]string{"imagefs.inodesFree": "300Mi", "nodefs.inodesFree": "200Mi"},
-			evictionSoftGracePeriod: map[string]string{"imagefs.inodesFree": "30s", "nodefs.inodesFree": "30s"},
-			evictionMinReclaim:      map[string]string{"imagefs.inodesFree": "2Gi", "nodefs.inodesFree": "1Gi"},
-			mergeDefault:            true,
-			expectErr:               false,
-			expectThresholds: []evictionapi.Threshold{
-				{
-					Signal:   evictionapi.SignalImageFsInodesFree,
-					Operator: evictionapi.OpLessThan,
-					Value: evictionapi.ThresholdValue{
-						Quantity: quantityMustParse("150Mi"),
-					},
-					MinReclaim: &evictionapi.ThresholdValue{
-						Quantity: quantityMustParse("2Gi"),
-					},
-				},
-				{
-					Signal:   evictionapi.SignalNodeFsInodesFree,
-					Operator: evictionapi.OpLessThan,
-					Value: evictionapi.ThresholdValue{
-						Quantity: quantityMustParse("100Mi"),
-					},
-					MinReclaim: &evictionapi.ThresholdValue{
-						Quantity: quantityMustParse("1Gi"),
-					},
-				},
-				{
-					Signal:   evictionapi.SignalMemoryAvailable,
-					Operator: evictionapi.OpLessThan,
-					Value: evictionapi.ThresholdValue{
-						Quantity: quantityMustParse("100Mi"),
-					},
-					MinReclaim: &evictionapi.ThresholdValue{
-						Quantity: quantityMustParse("0"),
-					},
-				},
-				{
-					Signal:   evictionapi.SignalNodeFsAvailable,
-					Operator: evictionapi.OpLessThan,
-					Value: evictionapi.ThresholdValue{
-						Percentage: 0.1,
-					},
-					MinReclaim: &evictionapi.ThresholdValue{
-						Quantity: quantityMustParse("0"),
-					},
-				},
-				{
-					Signal:   evictionapi.SignalImageFsAvailable,
-					Operator: evictionapi.OpLessThan,
-					Value: evictionapi.ThresholdValue{
-						Percentage: 0.15,
-					},
-					MinReclaim: &evictionapi.ThresholdValue{
-						Quantity: quantityMustParse("0"),
-					},
-				},
-				{
-					Signal:   evictionapi.SignalImageFsInodesFree,
-					Operator: evictionapi.OpLessThan,
-					Value: evictionapi.ThresholdValue{
-						Quantity: quantityMustParse("300Mi"),
-					},
-					GracePeriod: gracePeriod,
-					MinReclaim: &evictionapi.ThresholdValue{
-						Quantity: quantityMustParse("2Gi"),
-					},
-				},
-				{
-					Signal:   evictionapi.SignalNodeFsInodesFree,
-					Operator: evictionapi.OpLessThan,
-					Value: evictionapi.ThresholdValue{
-						Quantity: quantityMustParse("200Mi"),
-					},
-					GracePeriod: gracePeriod,
-					MinReclaim: &evictionapi.ThresholdValue{
-						Quantity: quantityMustParse("1Gi"),
-					},
-				},
-			},
-		},
-	}
-	for testName, testCase := range testCases {
-		thresholds, err := ParseThresholdConfig(testCase.allocatableConfig, testCase.evictionHard, testCase.evictionSoft, testCase.evictionSoftGracePeriod, testCase.evictionMinReclaim, testCase.mergeDefault)
-		if testCase.expectErr != (err != nil) {
-			t.Errorf("Err not as expected, test: %v, error expected: %v, actual: %v", testName, testCase.expectErr, err)
-		}
-		if !thresholdsValuesEqual(testCase.expectThresholds, thresholds) {
-			t.Errorf("thresholds not as expected, test: %v, expected: %v, actual: %v", testName, testCase.expectThresholds, thresholds)
-		}
-	}
-
 }
 
 func TestAddAllocatableThresholds(t *testing.T) {
@@ -1250,36 +785,6 @@ func TestFallbackResourcesUsage(t *testing.T) {
 			assert.NotEqualf(t, 0, test.usageFunc(), "%s: unexpected fallback value", test.usageFuncName)
 		})
 	}
-}
-
-// check equality of the values of two thresholds
-func thresholdsValuesEqual(expected []evictionapi.Threshold, actual []evictionapi.Threshold) bool {
-	if len(expected) != len(actual) {
-		return false
-	}
-	for _, aThreshold := range expected {
-		equal := false
-		for _, bThreshold := range actual {
-			if aThreshold.Signal == bThreshold.Signal && compareThresholdValue(aThreshold.Value, bThreshold.Value) {
-				equal = true
-			}
-		}
-		if !equal {
-			return false
-		}
-	}
-	for _, aThreshold := range actual {
-		equal := false
-		for _, bThreshold := range expected {
-			if aThreshold.Signal == bThreshold.Signal && compareThresholdValue(aThreshold.Value, bThreshold.Value) {
-				equal = true
-			}
-		}
-		if !equal {
-			return false
-		}
-	}
-	return true
 }
 
 func thresholdsEqual(expected []evictionapi.Threshold, actual []evictionapi.Threshold) bool {

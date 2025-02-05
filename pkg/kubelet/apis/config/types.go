@@ -322,9 +322,9 @@ type KubeletConfiguration struct {
 	// amount of a given resource the kubelet will reclaim when performing a pod eviction while
 	// that resource is under pressure. For example: {"imagefs.available": "2Gi"}
 	EvictionMinimumReclaim map[string]string
-	// Add support for the eviction hard parameters to merge the default values for other parameters
-	// in case any of the parameter is changed. Earlier if any parameter is changed, the other
-	// parameters were set to 0. Disable it to use this behaviour
+	// Add support to merge the default values for other eviction signals
+	// in case any of the eviction signal is changed. Currently if any eviction signal is changed then other
+	// signals are set to 0. Currently this is applicable for eviction hard thresholds.
 	MergeDefaultEvictionSettings bool
 	// podsPerCore is the maximum number of pods per core. Cannot exceed MaxPods.
 	// If 0, this field is ignored.
