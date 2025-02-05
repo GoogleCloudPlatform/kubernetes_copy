@@ -30,9 +30,12 @@ import (
 
 	"k8s.io/apiserver/pkg/server"
 	"k8s.io/apiserver/pkg/server/options"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	cloudprovider "k8s.io/cloud-provider"
 	cloudctrlmgrtesting "k8s.io/cloud-provider/app/testing"
 	"k8s.io/cloud-provider/fake"
+	featuregatetesting "k8s.io/component-base/featuregate/testing"
+	zpagesfeatures "k8s.io/component-base/zpages/features"
 	"k8s.io/klog/v2/ktesting"
 	kubeapiservertesting "k8s.io/kubernetes/cmd/kube-apiserver/app/testing"
 	kubectrlmgrtesting "k8s.io/kubernetes/cmd/kube-controller-manager/app/testing"
@@ -288,4 +291,141 @@ func fakeCloudProviderFactory(io.Reader) (cloudprovider.Interface, error) {
 	return &fake.Cloud{
 		DisableRoutes: true, // disable routes for server tests, otherwise --cluster-cidr is required
 	}, nil
+}
+
+func TestKubeControllerManagerServingStatusz(t *testing.T) {
+
+	// authenticate to apiserver via bearer token
+	token := "flwqkenfjasasdfmwerasd" // Fake token for testing.
+	tokenFile, err := os.CreateTemp("", "kubeconfig")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = tokenFile.WriteString(fmt.Sprintf(`
+%s,system:kube-controller-manager,system:kube-controller-manager,""
+`, token)); err != nil {
+		t.Fatal(err)
+	}
+	if err = tokenFile.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	// start apiserver
+	server := kubeapiservertesting.StartTestServerOrDie(t, nil, []string{
+		"--token-auth-file", tokenFile.Name(),
+		"--authorization-mode", "RBAC",
+	}, framework.SharedEtcd())
+	defer server.TearDownFn()
+
+	// create kubeconfig for the apiserver
+	apiserverConfig, err := os.CreateTemp("", "kubeconfig")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = apiserverConfig.WriteString(fmt.Sprintf(`
+apiVersion: v1
+kind: Config
+clusters:
+- cluster:
+    server: %s
+    certificate-authority: %s
+  name: integration
+contexts:
+- context:
+    cluster: integration
+    user: controller-manager
+  name: default-context
+current-context: default-context
+users:
+- name: controller-manager
+  user:
+    token: %s
+`, server.ClientConfig.Host, server.ServerOpts.SecureServing.ServerCert.CertKey.CertFile, token)); err != nil {
+		t.Fatal(err)
+	}
+	if err = apiserverConfig.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name           string
+		flags          []string
+		path           string
+		anonymous      bool // to use the token or not
+		wantErr        bool
+		wantSecureCode *int
+	}{
+		{"serving /statusz", []string{
+			"--authentication-skip-lookup", // to survive inaccessible extensions-apiserver-authentication configmap
+			"--authentication-kubeconfig", apiserverConfig.Name(),
+			"--authorization-kubeconfig", apiserverConfig.Name(),
+			"--authorization-always-allow-paths", "/statusz",
+			"--kubeconfig", apiserverConfig.Name(),
+			"--leader-elect=false",
+		}, "/statusz", false, false, intPtr(http.StatusOK)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, zpagesfeatures.ComponentStatusz, true)
+			_, ctx := ktesting.NewTestContext(t)
+			secureOptions, secureInfo, tearDownFn, err := kubeControllerManagerTester{}.StartTestServer(ctx, append(append([]string{}, tt.flags...), []string{}...))
+			if tearDownFn != nil {
+				defer tearDownFn()
+			}
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("StartTestServer() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if err != nil {
+				return
+			}
+
+			if want, got := tt.wantSecureCode != nil, secureInfo != nil; want != got {
+				t.Errorf("SecureServing enabled: expected=%v got=%v", want, got)
+			} else if want {
+				url := fmt.Sprintf("https://%s%s", secureInfo.Listener.Addr().String(), tt.path)
+				url = strings.ReplaceAll(url, "[::]", "127.0.0.1") // switch to IPv4 because the self-signed cert does not support [::]
+
+				// read self-signed server cert disk
+				pool := x509.NewCertPool()
+				serverCertPath := path.Join(secureOptions.ServerCert.CertDirectory, secureOptions.ServerCert.PairName+".crt")
+				serverCert, err := os.ReadFile(serverCertPath)
+				if err != nil {
+					t.Fatalf("Failed to read component server cert %q: %v", serverCertPath, err)
+				}
+				pool.AppendCertsFromPEM(serverCert)
+				tr := &http.Transport{
+					TLSClientConfig: &tls.Config{
+						RootCAs: pool,
+					},
+				}
+
+				client := &http.Client{Transport: tr}
+				req, err := http.NewRequest(http.MethodGet, url, nil)
+				req.Header.Set("Accept", "text/plain")
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !tt.anonymous {
+					req.Header.Add("Authorization", fmt.Sprintf("Token %s", token))
+				}
+				r, err := client.Do(req)
+				if err != nil {
+					t.Fatalf("failed to GET %s from component: %v", tt.path, err)
+				}
+
+				if _, err = io.ReadAll(r.Body); err != nil {
+					t.Fatalf("failed to read response body: %v", err)
+				}
+				defer func() {
+					if err := r.Body.Close(); err != nil {
+						t.Fatalf("Error closing response body: %v", err)
+					}
+				}()
+
+				if got, expected := r.StatusCode, *tt.wantSecureCode; got != expected {
+					t.Fatalf("expected http %d at %s of component, got: %d", expected, tt.path, got)
+				}
+			}
+		})
+	}
 }
