@@ -440,7 +440,11 @@ func NewMainKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 		}))
 		nodeLister = kubeInformers.Core().V1().Nodes().Lister()
 		nodeHasSynced = func() bool {
-			return kubeInformers.Core().V1().Nodes().Informer().HasSynced()
+			if !kubeInformers.Core().V1().Nodes().Informer().HasSynced() {
+				return false
+			}
+			_, err := nodeLister.Get(string(nodeName))
+			return err == nil
 		}
 		kubeInformers.Start(wait.NeverStop)
 		klog.InfoS("Attempting to sync node with API server")
