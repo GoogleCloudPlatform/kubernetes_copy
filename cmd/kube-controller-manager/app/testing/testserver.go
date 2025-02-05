@@ -97,7 +97,7 @@ func StartTestServer(ctx context.Context, customFlags []string) (result TestServ
 		return TestServer{}, err
 	}
 	all, disabled, aliases := app.KnownControllers(), app.ControllersDisabledByDefault(), app.ControllerAliases()
-	namedFlagSets := s.Flags(all, disabled, aliases)
+	namedFlagSets := s.Flags(ctx, all, disabled, aliases)
 	for _, f := range namedFlagSets.FlagSets {
 		fs.AddFlagSet(f)
 	}

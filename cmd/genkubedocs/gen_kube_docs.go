@@ -18,6 +18,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -34,6 +35,7 @@ import (
 )
 
 func main() {
+	ctx := context.Background()
 	// use os.Args instead of "flags" because "flags" will mess up the man pages!
 	path := ""
 	module := ""
@@ -58,7 +60,7 @@ func main() {
 		doc.GenMarkdownTree(apiserver, outDir)
 	case "kube-controller-manager":
 		// generate docs for kube-controller-manager
-		controllermanager := cmapp.NewControllerManagerCommand()
+		controllermanager := cmapp.NewControllerManagerCommand(ctx)
 		doc.GenMarkdownTree(controllermanager, outDir)
 	case "kube-proxy":
 		// generate docs for kube-proxy

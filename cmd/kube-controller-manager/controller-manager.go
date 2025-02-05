@@ -21,6 +21,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"os"
 	_ "time/tzdata" // for CronJob Time Zone support
 
@@ -32,7 +33,8 @@ import (
 )
 
 func main() {
-	command := app.NewControllerManagerCommand()
+	ctx := context.Background()
+	command := app.NewControllerManagerCommand(ctx)
 	code := cli.Run(command)
 	os.Exit(code)
 }

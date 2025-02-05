@@ -94,7 +94,7 @@ const (
 )
 
 // NewControllerManagerCommand creates a *cobra.Command object with default parameters
-func NewControllerManagerCommand() *cobra.Command {
+func NewControllerManagerCommand(ctx context.Context) *cobra.Command {
 	_, _ = featuregate.DefaultComponentGlobalsRegistry.ComponentGlobalsOrRegister(
 		featuregate.DefaultKubeComponent, utilversion.DefaultBuildEffectiveVersion(), utilfeature.DefaultMutableFeatureGate)
 
@@ -153,7 +153,7 @@ controller, and serviceaccounts controller.`,
 	}
 
 	fs := cmd.Flags()
-	namedFlagSets := s.Flags(KnownControllers(), ControllersDisabledByDefault(), ControllerAliases())
+	namedFlagSets := s.Flags(ctx, KnownControllers(), ControllersDisabledByDefault(), ControllerAliases())
 	verflag.AddFlags(namedFlagSets.FlagSet("global"))
 	globalflag.AddGlobalFlags(namedFlagSets.FlagSet("global"), cmd.Name(), logs.SkipLoggingConfigurationFlags())
 	for _, f := range namedFlagSets.FlagSets {

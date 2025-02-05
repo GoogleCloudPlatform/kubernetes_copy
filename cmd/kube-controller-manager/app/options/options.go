@@ -18,6 +18,7 @@ limitations under the License.
 package options
 
 import (
+	"context"
 	"fmt"
 	"net"
 
@@ -247,7 +248,8 @@ func NewDefaultComponentConfig() (kubectrlmgrconfig.KubeControllerManagerConfigu
 }
 
 // Flags returns flags for a specific KubeController by section name
-func (s *KubeControllerManagerOptions) Flags(allControllers []string, disabledByDefaultControllers []string, controllerAliases map[string]string) cliflag.NamedFlagSets {
+func (s *KubeControllerManagerOptions) Flags(ctx context.Context, allControllers []string, disabledByDefaultControllers []string, controllerAliases map[string]string) cliflag.NamedFlagSets {
+	logger := klog.FromContext(ctx)
 	fss := cliflag.NamedFlagSets{}
 	s.Generic.AddFlags(&fss, allControllers, disabledByDefaultControllers, controllerAliases)
 	s.KubeCloudShared.AddFlags(fss.FlagSet("generic"))
@@ -296,7 +298,7 @@ func (s *KubeControllerManagerOptions) Flags(allControllers []string, disabledBy
 			// it turns out that there are some integration tests that start multiple control plane components which
 			// share global DefaultFeatureGate/DefaultMutableFeatureGate variables.
 			// in those cases, the above call will fail (FG already registered and cannot be overridden), and the error will be logged.
-			klog.Errorf("unable to set %s feature gate, err: %v", clientgofeaturegate.WatchListClient, err)
+			logger.Error(err, "Unable to set feature gate", "featureGate", clientgofeaturegate.WatchListClient)
 		}
 	}
 

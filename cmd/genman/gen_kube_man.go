@@ -18,6 +18,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -38,6 +39,7 @@ import (
 )
 
 func main() {
+	ctx := context.Background()
 	// use os.Args instead of "flags" because "flags" will mess up the man pages!
 	path := "docs/man/man1"
 	module := ""
@@ -69,7 +71,7 @@ func main() {
 		}
 	case "kube-controller-manager":
 		// generate manpage for kube-controller-manager
-		controllermanager := cmapp.NewControllerManagerCommand()
+		controllermanager := cmapp.NewControllerManagerCommand(ctx)
 		genMarkdown(controllermanager, "", outDir)
 		for _, c := range controllermanager.Commands() {
 			genMarkdown(c, "kube-controller-manager", outDir)

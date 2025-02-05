@@ -50,6 +50,8 @@ import (
 	cmconfig "k8s.io/controller-manager/config"
 	cmoptions "k8s.io/controller-manager/options"
 	migration "k8s.io/controller-manager/pkg/leadermigration/options"
+	"k8s.io/klog/v2/ktesting"
+	_ "k8s.io/klog/v2/ktesting/init"
 	kubecontrollerconfig "k8s.io/kubernetes/cmd/kube-controller-manager/app/config"
 	kubectrlmgrconfig "k8s.io/kubernetes/pkg/controller/apis/config"
 	csrsigningconfig "k8s.io/kubernetes/pkg/controller/certificates/signer/config"
@@ -1490,9 +1492,10 @@ func TestControllerManagerAliases(t *testing.T) {
 }
 
 func TestWatchListClientFlagUsage(t *testing.T) {
+	_, ctx := ktesting.NewTestContext(t)
 	fs := pflag.NewFlagSet("addflagstest", pflag.ContinueOnError)
 	s, _ := NewKubeControllerManagerOptions()
-	for _, f := range s.Flags([]string{""}, []string{""}, nil).FlagSets {
+	for _, f := range s.Flags(ctx, []string{""}, []string{""}, nil).FlagSets {
 		fs.AddFlagSet(f)
 	}
 
@@ -1501,13 +1504,14 @@ func TestWatchListClientFlagUsage(t *testing.T) {
 }
 
 func TestWatchListClientFlagChange(t *testing.T) {
+	_, ctx := ktesting.NewTestContext(t)
 	fs := pflag.NewFlagSet("addflagstest", pflag.ContinueOnError)
 	s, err := NewKubeControllerManagerOptions()
 	if err != nil {
 		t.Fatal(fmt.Errorf("NewKubeControllerManagerOptions failed with %w", err))
 	}
 
-	for _, f := range s.Flags([]string{""}, []string{""}, nil).FlagSets {
+	for _, f := range s.Flags(ctx, []string{""}, []string{""}, nil).FlagSets {
 		fs.AddFlagSet(f)
 	}
 
@@ -1552,13 +1556,14 @@ func assertWatchListCommandLineDefaultValue(t *testing.T, fs *pflag.FlagSet) {
 }
 
 func setupControllerManagerFlagSet(t *testing.T) (*pflag.FlagSet, *KubeControllerManagerOptions) {
+	_, ctx := ktesting.NewTestContext(t)
 	fs := pflag.NewFlagSet("addflagstest", pflag.ContinueOnError)
 	s, err := NewKubeControllerManagerOptions()
 	if err != nil {
 		t.Fatal(fmt.Errorf("NewKubeControllerManagerOptions failed with %w", err))
 	}
 
-	for _, f := range s.Flags([]string{""}, []string{""}, nil).FlagSets {
+	for _, f := range s.Flags(ctx, []string{""}, []string{""}, nil).FlagSets {
 		fs.AddFlagSet(f)
 	}
 	return fs, s
