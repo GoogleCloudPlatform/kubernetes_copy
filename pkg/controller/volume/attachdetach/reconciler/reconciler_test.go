@@ -530,7 +530,7 @@ func Test_Run_OneVolumeAttachAndDetachMultipleNodesWithReadWriteOnce(t *testing.
 	waitForDetachCallCount(t, 0 /* expectedDetachCallCount */, fakePlugin)
 	waitForAttachedToNodesCount(t, 1 /* expectedNodeCount */, generatedVolumeName, asw)
 
-	nodesForVolume := asw.GetNodesForAttachedVolume(generatedVolumeName)
+	nodesForVolume := asw.GetPossiblyAttachedNodesForVolume(generatedVolumeName)
 
 	// check if multiattach is marked
 	// at least one volume+node should be marked with multiattach error
@@ -612,7 +612,7 @@ func Test_Run_OneVolumeAttachAndDetachUncertainNodesWithReadWriteOnce(t *testing
 	}
 
 	time.Sleep(1 * time.Second)
-	// Volume is added to asw. Because attach operation fails, volume should not be reported as attached to the node.
+	// Volume is added to asw. After 1s, volume should be attached to the node after retry.
 	waitForVolumeAddedToNode(t, generatedVolumeName, nodeName1, asw)
 	verifyVolumeAttachedToNode(t, generatedVolumeName, nodeName1, cache.AttachStateAttached, asw)
 	verifyVolumeReportedAsAttachedToNode(t, logger, generatedVolumeName, nodeName1, true, asw, volumeAttachedCheckTimeout)
@@ -1286,69 +1286,73 @@ func Test_ReportMultiAttachError(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		// Arrange
-		t.Logf("Test %q starting", test.name)
-		volumePluginMgr, _ := volumetesting.GetTestVolumePluginMgr(t)
-		dsw := cache.NewDesiredStateOfWorld(volumePluginMgr)
-		asw := cache.NewActualStateOfWorld(volumePluginMgr)
-		fakeKubeClient := controllervolumetesting.CreateTestClient()
-		fakeRecorder := record.NewFakeRecorder(100)
-		fakeHandler := volumetesting.NewBlockVolumePathHandler()
-		ad := operationexecutor.NewOperationExecutor(operationexecutor.NewOperationGenerator(
-			fakeKubeClient,
-			volumePluginMgr,
-			fakeRecorder,
-			fakeHandler))
-		informerFactory := informers.NewSharedInformerFactory(fakeKubeClient, controller.NoResyncPeriodFunc())
-		nodeLister := informerFactory.Core().V1().Nodes().Lister()
-		nsu := statusupdater.NewFakeNodeStatusUpdater(false /* returnError */)
-		rc := NewReconciler(
-			reconcilerLoopPeriod, maxWaitForUnmountDuration, syncLoopPeriod, false, false, dsw, asw, ad, nsu, nodeLister, fakeRecorder)
+		t.Run(test.name, func(t *testing.T) {
+			// Arrange
+			t.Logf("Test %q starting", test.name)
+			volumePluginMgr, _ := volumetesting.GetTestVolumePluginMgr(t)
+			dsw := cache.NewDesiredStateOfWorld(volumePluginMgr)
+			asw := cache.NewActualStateOfWorld(volumePluginMgr)
+			fakeKubeClient := controllervolumetesting.CreateTestClient()
+			fakeRecorder := record.NewFakeRecorder(100)
+			fakeHandler := volumetesting.NewBlockVolumePathHandler()
+			ad := operationexecutor.NewOperationExecutor(operationexecutor.NewOperationGenerator(
+				fakeKubeClient,
+				volumePluginMgr,
+				fakeRecorder,
+				fakeHandler))
+			informerFactory := informers.NewSharedInformerFactory(fakeKubeClient, controller.NoResyncPeriodFunc())
+			nodeLister := informerFactory.Core().V1().Nodes().Lister()
+			nsu := statusupdater.NewFakeNodeStatusUpdater(false /* returnError */)
+			rc := NewReconciler(
+				reconcilerLoopPeriod, maxWaitForUnmountDuration, syncLoopPeriod, false, false, dsw, asw, ad, nsu, nodeLister, fakeRecorder)
 
-		nodes := []k8stypes.NodeName{}
-		for _, n := range test.nodes {
-			dsw.AddNode(n.name)
-			nodes = append(nodes, n.name)
-			for _, podName := range n.podNames {
-				volumeName := v1.UniqueVolumeName("volume-name")
-				volumeSpec := controllervolumetesting.GetTestVolumeSpec(string(volumeName), volumeName)
-				volumeSpec.PersistentVolume.Spec.AccessModes = []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce}
-				uid := string(n.name) + "-" + podName // unique UID
-				namespace, name := utilstrings.SplitQualifiedName(podName)
-				pod := controllervolumetesting.NewPod(uid, name)
-				pod.Namespace = namespace
-				_, err := dsw.AddPod(types.UniquePodName(uid), pod, volumeSpec, n.name)
-				if err != nil {
-					t.Fatalf("Error adding pod %s to DSW: %s", podName, err)
+			otherNodes := []k8stypes.NodeName{}
+			for _, n := range test.nodes {
+				dsw.AddNode(n.name)
+				if n.name != "node1" {
+					otherNodes = append(otherNodes, n.name)
+				}
+				for _, podName := range n.podNames {
+					volumeName := v1.UniqueVolumeName("volume-name")
+					volumeSpec := controllervolumetesting.GetTestVolumeSpec(string(volumeName), volumeName)
+					volumeSpec.PersistentVolume.Spec.AccessModes = []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce}
+					uid := string(n.name) + "-" + podName // unique UID
+					namespace, name := utilstrings.SplitQualifiedName(podName)
+					pod := controllervolumetesting.NewPod(uid, name)
+					pod.Namespace = namespace
+					_, err := dsw.AddPod(types.UniquePodName(uid), pod, volumeSpec, n.name)
+					if err != nil {
+						t.Fatalf("Error adding pod %s to DSW: %s", podName, err)
+					}
 				}
 			}
-		}
-		// Act
-		logger, _ := ktesting.NewTestContext(t)
-		volumes := dsw.GetVolumesToAttach()
-		for _, vol := range volumes {
-			if vol.NodeName == "node1" {
-				rc.(*reconciler).reportMultiAttachError(logger, vol, nodes)
-			}
-		}
-
-		// Assert
-		close(fakeRecorder.Events)
-		index := 0
-		for event := range fakeRecorder.Events {
-			if len(test.expectedEvents) < index {
-				t.Errorf("Test %q: unexpected event received: %s", test.name, event)
-			} else {
-				expectedEvent := test.expectedEvents[index]
-				if expectedEvent != event {
-					t.Errorf("Test %q: event %d: expected %q, got %q", test.name, index, expectedEvent, event)
+			// Act
+			logger, _ := ktesting.NewTestContext(t)
+			volumes := dsw.GetVolumesToAttach()
+			for _, vol := range volumes {
+				if vol.NodeName == "node1" {
+					rc.(*reconciler).reportMultiAttachError(logger, vol, otherNodes)
 				}
 			}
-			index++
-		}
-		for i := index; i < len(test.expectedEvents); i++ {
-			t.Errorf("Test %q: event %d: expected %q, got none", test.name, i, test.expectedEvents[i])
-		}
+
+			// Assert
+			close(fakeRecorder.Events)
+			index := 0
+			for event := range fakeRecorder.Events {
+				if len(test.expectedEvents) < index {
+					t.Errorf("Test %q: unexpected event received: %s", test.name, event)
+				} else {
+					expectedEvent := test.expectedEvents[index]
+					if expectedEvent != event {
+						t.Errorf("Test %q: event %d: expected %q, got %q", test.name, index, expectedEvent, event)
+					}
+				}
+				index++
+			}
+			for i := index; i < len(test.expectedEvents); i++ {
+				t.Errorf("Test %q: event %d: expected %q, got none", test.name, i, test.expectedEvents[i])
+			}
+		})
 	}
 }
 
@@ -1579,7 +1583,7 @@ func waitForAttachedToNodesCount(
 	err := retryWithExponentialBackOff(
 		time.Duration(5*time.Millisecond),
 		func() (bool, error) {
-			count := len(asw.GetNodesForAttachedVolume(volumeName))
+			count := len(asw.GetPossiblyAttachedNodesForVolume(volumeName))
 			if count == expectedNodeCount {
 				return true, nil
 			}
@@ -1594,7 +1598,7 @@ func waitForAttachedToNodesCount(
 	)
 
 	if err != nil {
-		count := len(asw.GetNodesForAttachedVolume(volumeName))
+		count := len(asw.GetPossiblyAttachedNodesForVolume(volumeName))
 		t.Fatalf(
 			"Wrong number of nodes having <%v> attached. Expected: <%v> Actual: <%v>",
 			volumeName,
@@ -1721,6 +1725,7 @@ func verifyVolumeAttachedToNode(
 	expectedAttachState cache.AttachState,
 	asw cache.ActualStateOfWorld,
 ) {
+	t.Helper()
 	attachState := asw.GetAttachState(volumeName, nodeName)
 	if attachState != expectedAttachState {
 		t.Fatalf("Check volume <%v> is attached to node <%v>, got %v, expected %v",

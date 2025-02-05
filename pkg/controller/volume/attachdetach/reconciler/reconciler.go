@@ -22,6 +22,7 @@ package reconciler
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -343,7 +344,8 @@ func (rc *reconciler) attachDesiredVolumes(logger klog.Logger) {
 		}
 
 		if !util.IsMultiAttachAllowed(volumeToAttach.VolumeSpec) {
-			nodes := rc.actualStateOfWorld.GetNodesForAttachedVolume(volumeToAttach.VolumeName)
+			nodes := rc.actualStateOfWorld.GetPossiblyAttachedNodesForVolume(volumeToAttach.VolumeName)
+			nodes = slices.DeleteFunc(nodes, func(node types.NodeName) bool { return node == volumeToAttach.NodeName })
 			if len(nodes) > 0 {
 				if !volumeToAttach.MultiAttachErrorReported {
 					rc.reportMultiAttachError(logger, volumeToAttach, nodes)
@@ -369,22 +371,7 @@ func (rc *reconciler) attachDesiredVolumes(logger klog.Logger) {
 
 // reportMultiAttachError sends events and logs situation that a volume that
 // should be attached to a node is already attached to different node(s).
-func (rc *reconciler) reportMultiAttachError(logger klog.Logger, volumeToAttach cache.VolumeToAttach, nodes []types.NodeName) {
-	// Filter out the current node from list of nodes where the volume is
-	// attached.
-	// Some methods need []string, some other needs []NodeName, collect both.
-	// In theory, these arrays should have always only one element - the
-	// controller does not allow more than one attachment. But use array just
-	// in case...
-	otherNodes := []types.NodeName{}
-	otherNodesStr := []string{}
-	for _, node := range nodes {
-		if node != volumeToAttach.NodeName {
-			otherNodes = append(otherNodes, node)
-			otherNodesStr = append(otherNodesStr, string(node))
-		}
-	}
-
+func (rc *reconciler) reportMultiAttachError(logger klog.Logger, volumeToAttach cache.VolumeToAttach, otherNodes []types.NodeName) {
 	// Get list of pods that use the volume on the other nodes.
 	pods := rc.desiredStateOfWorld.GetVolumePodsOnNodes(otherNodes, volumeToAttach.VolumeName)
 	if len(pods) == 0 {
@@ -394,7 +381,7 @@ func (rc *reconciler) reportMultiAttachError(logger klog.Logger, volumeToAttach 
 			rc.recorder.Eventf(pod, v1.EventTypeWarning, kevents.FailedAttachVolume, simpleMsg)
 		}
 		// Log detailed message to system admin
-		logger.Info("Multi-Attach error: volume is already exclusively attached and can't be attached to another node", "attachedTo", otherNodesStr, "volume", volumeToAttach)
+		logger.Info("Multi-Attach error: volume is already exclusively attached and can't be attached to another node", "attachedTo", otherNodes, "volume", volumeToAttach)
 		return
 	}
 
@@ -430,5 +417,5 @@ func (rc *reconciler) reportMultiAttachError(logger klog.Logger, volumeToAttach 
 	}
 
 	// Log all pods for system admin
-	logger.Info("Multi-Attach error: volume is already used by pods", "pods", klog.KObjSlice(pods), "attachedTo", otherNodesStr, "volume", volumeToAttach)
+	logger.Info("Multi-Attach error: volume is already used by pods", "pods", klog.KObjSlice(pods), "attachedTo", otherNodes, "volume", volumeToAttach)
 }

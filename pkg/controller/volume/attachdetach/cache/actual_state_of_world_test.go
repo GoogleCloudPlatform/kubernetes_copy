@@ -114,9 +114,12 @@ func Test_AddVolumeNode_Positive_NewVolumeNewNodeWithFalseAttached(t *testing.T)
 		t.Fatalf("AddVolumeNode_Positive_NewVolumeNewNodeWithFalseAttached failed. Actual: <node %q exist> Expect: <node does not exist in the reportedAsAttached map", nodeName)
 	}
 
-	nodes := asw.GetNodesForAttachedVolume(volumeName)
-	if len(nodes) > 0 {
-		t.Fatalf("AddVolumeNode_Positive_NewVolumeNewNodeWithFalseAttached failed. Expect no nodes returned.")
+	nodes := asw.GetPossiblyAttachedNodesForVolume(volumeName)
+	if len(nodes) != 1 {
+		t.Fatalf("AddVolumeNode_Positive_NewVolumeNewNodeWithFalseAttached failed. Expect one node returned, got %v", nodes)
+	}
+	if nodes[0] != nodeName {
+		t.Fatalf("AddVolumeNode_Positive_NewVolumeNewNodeWithFalseAttached failed. Expect node %v, Actual node %v", nodeName, nodes[0])
 	}
 
 	// Add the volume to the node second time with attached set to true
@@ -146,9 +149,9 @@ func Test_AddVolumeNode_Positive_NewVolumeNewNodeWithFalseAttached(t *testing.T)
 
 	verifyAttachedVolume(t, attachedVolumes, generatedVolumeName, string(volumeName), nodeName, devicePath, true /* expectedMountedByNode */, false /* expectNonZeroDetachRequestedTime */)
 
-	nodes = asw.GetNodesForAttachedVolume(volumeName)
+	nodes = asw.GetPossiblyAttachedNodesForVolume(volumeName)
 	if len(nodes) != 1 {
-		t.Fatalf("AddVolumeNode_Positive_NewVolumeNewNodeWithFalseAttached failed. Expect one node returned.")
+		t.Fatalf("AddVolumeNode_Positive_NewVolumeNewNodeWithFalseAttached failed. Expect one node returned, got %v", nodes)
 	}
 	if nodes[0] != nodeName {
 		t.Fatalf("AddVolumeNode_Positive_NewVolumeNewNodeWithFalseAttached failed. Expect node %v, Actual node %v", nodeName, nodes[0])
@@ -229,9 +232,9 @@ func Test_AddVolumeNode_Positive_NewVolumeTwoNodesWithFalseAttached(t *testing.T
 		t.Fatalf("AddVolumeNode_Positive_NewVolumeTwoNodesWithFalseAttached failed. Actual: <node %q does not exist> Expect: <node does exist in the reportedAsAttached map", node2Name)
 	}
 
-	nodes := asw.GetNodesForAttachedVolume(volumeName)
-	if len(nodes) != 1 {
-		t.Fatalf("AddVolumeNode_Positive_NewVolumeNewNodeWithFalseAttached failed. Expect one node returned.")
+	nodes := asw.GetPossiblyAttachedNodesForVolume(volumeName)
+	if len(nodes) != 2 {
+		t.Fatalf("AddVolumeNode_Positive_NewVolumeNewNodeWithFalseAttached failed. Expect 2 nodes returned, got %v", nodes)
 	}
 
 	reportAsAttachedVolumesMap := asw.GetVolumesToReportAttached(logger)

@@ -120,9 +120,9 @@ type ActualStateOfWorld interface {
 	// reconciler to verify whether the volume is still attached to the node.
 	GetAttachedVolumesPerNode() map[types.NodeName][]operationexecutor.AttachedVolume
 
-	// GetNodesForAttachedVolume returns the nodes on which the volume is attached.
+	// GetPossiblyAttachedNodesForVolume returns the nodes on which the volume is possibly attached.
 	// This function is used by reconciler for multi-attach check.
-	GetNodesForAttachedVolume(volumeName v1.UniqueVolumeName) []types.NodeName
+	GetPossiblyAttachedNodesForVolume(volumeName v1.UniqueVolumeName) []types.NodeName
 
 	// GetVolumesToReportAttached returns a map containing the set of nodes for
 	// which the VolumesAttached Status field in the Node API object should be
@@ -645,7 +645,7 @@ func (asw *actualStateOfWorld) GetAttachedVolumesPerNode() map[types.NodeName][]
 	return attachedVolumesPerNode
 }
 
-func (asw *actualStateOfWorld) GetNodesForAttachedVolume(volumeName v1.UniqueVolumeName) []types.NodeName {
+func (asw *actualStateOfWorld) GetPossiblyAttachedNodesForVolume(volumeName v1.UniqueVolumeName) []types.NodeName {
 	asw.RLock()
 	defer asw.RUnlock()
 
@@ -655,10 +655,8 @@ func (asw *actualStateOfWorld) GetNodesForAttachedVolume(volumeName v1.UniqueVol
 	}
 
 	nodes := []types.NodeName{}
-	for nodeName, nodesAttached := range volumeObj.nodesAttachedTo {
-		if nodesAttached.attachedConfirmed {
-			nodes = append(nodes, nodeName)
-		}
+	for nodeName := range volumeObj.nodesAttachedTo {
+		nodes = append(nodes, nodeName)
 	}
 	return nodes
 }
