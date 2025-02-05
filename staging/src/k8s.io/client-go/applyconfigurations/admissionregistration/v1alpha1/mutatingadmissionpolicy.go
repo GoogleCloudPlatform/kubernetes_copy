@@ -79,6 +79,9 @@ func extractMutatingAdmissionPolicy(mutatingAdmissionPolicy *admissionregistrati
 	b.WithAPIVersion("admissionregistration.k8s.io/v1alpha1")
 	return b, nil
 }
+func (b MutatingAdmissionPolicyApplyConfiguration) IsApplyConfiguration() bool {
+	return true
+}
 
 // WithKind sets the Kind field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.

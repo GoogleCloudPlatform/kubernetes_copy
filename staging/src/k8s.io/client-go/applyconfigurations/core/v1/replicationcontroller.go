@@ -82,6 +82,9 @@ func extractReplicationController(replicationController *corev1.ReplicationContr
 	b.WithAPIVersion("v1")
 	return b, nil
 }
+func (b ReplicationControllerApplyConfiguration) IsApplyConfiguration() bool {
+	return true
+}
 
 // WithKind sets the Kind field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.

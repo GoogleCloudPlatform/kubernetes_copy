@@ -82,6 +82,9 @@ func extractReplicaSet(replicaSet *appsv1beta2.ReplicaSet, fieldManager string, 
 	b.WithAPIVersion("apps/v1beta2")
 	return b, nil
 }
+func (b ReplicaSetApplyConfiguration) IsApplyConfiguration() bool {
+	return true
+}
 
 // WithKind sets the Kind field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.

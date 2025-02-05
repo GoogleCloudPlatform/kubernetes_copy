@@ -80,6 +80,9 @@ func extractVolumeAttachment(volumeAttachment *storagev1.VolumeAttachment, field
 	b.WithAPIVersion("storage.k8s.io/v1")
 	return b, nil
 }
+func (b VolumeAttachmentApplyConfiguration) IsApplyConfiguration() bool {
+	return true
+}
 
 // WithKind sets the Kind field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.

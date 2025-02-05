@@ -83,6 +83,9 @@ func extractEndpointSlice(endpointSlice *discoveryv1beta1.EndpointSlice, fieldMa
 	b.WithAPIVersion("discovery.k8s.io/v1beta1")
 	return b, nil
 }
+func (b EndpointSliceApplyConfiguration) IsApplyConfiguration() bool {
+	return true
+}
 
 // WithKind sets the Kind field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.

@@ -82,6 +82,9 @@ func extractHorizontalPodAutoscaler(horizontalPodAutoscaler *autoscalingv2.Horiz
 	b.WithAPIVersion("autoscaling/v2")
 	return b, nil
 }
+func (b HorizontalPodAutoscalerApplyConfiguration) IsApplyConfiguration() bool {
+	return true
+}
 
 // WithKind sets the Kind field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.

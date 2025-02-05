@@ -108,6 +108,7 @@ func (g *applyConfigurationGenerator) GenerateType(c *generator.Context, t *type
 		if typeParams.OpenAPIType != nil {
 			g.generateClientgenExtract(sw, typeParams, !typeParams.Tags.NoStatus)
 		}
+		g.generateIsApplyConfiguration(typeParams.ApplyConfig.ApplyConfiguration, sw)
 	} else {
 		if hasTypeMetaField(t) {
 			sw.Do(constructorWithTypeMeta, typeParams)
@@ -268,6 +269,12 @@ func (g *applyConfigurationGenerator) generateStruct(sw *generator.SnippetWriter
 		}
 	}
 	sw.Do("}\n", typeParams)
+}
+
+func (g *applyConfigurationGenerator) generateIsApplyConfiguration(t *types.Type, sw *generator.SnippetWriter) {
+	sw.Do("func (b $.|public$) IsApplyConfiguration() bool {\n", t)
+	sw.Do("  return true\n", nil)
+	sw.Do("}\n", nil)
 }
 
 func deref(t *types.Type) *types.Type {

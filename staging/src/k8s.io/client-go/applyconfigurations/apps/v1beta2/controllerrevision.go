@@ -83,6 +83,9 @@ func extractControllerRevision(controllerRevision *appsv1beta2.ControllerRevisio
 	b.WithAPIVersion("apps/v1beta2")
 	return b, nil
 }
+func (b ControllerRevisionApplyConfiguration) IsApplyConfiguration() bool {
+	return true
+}
 
 // WithKind sets the Kind field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.

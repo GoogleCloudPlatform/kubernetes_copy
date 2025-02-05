@@ -384,3 +384,9 @@ type Unstructured interface {
 	// If the items passed to fn are not retained, or are retained for the same duration, use EachListItem instead for memory efficiency.
 	EachListItemWithAlloc(func(Object) error) error
 }
+
+// ApplyConfiguration is an interface that root apply configuration types implement.
+type ApplyConfiguration interface {
+	// IsApplyConfiguration returns true if the object is the root of an apply configuration.
+	IsApplyConfiguration() bool
+}

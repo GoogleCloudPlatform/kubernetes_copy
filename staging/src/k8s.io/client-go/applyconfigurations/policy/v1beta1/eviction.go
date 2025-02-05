@@ -81,6 +81,9 @@ func extractEviction(eviction *policyv1beta1.Eviction, fieldManager string, subr
 	b.WithAPIVersion("policy/v1beta1")
 	return b, nil
 }
+func (b EvictionApplyConfiguration) IsApplyConfiguration() bool {
+	return true
+}
 
 // WithKind sets the Kind field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
