@@ -813,7 +813,7 @@ func handleListWatch(
 		setLastSyncResourceVersion, exitOnWatchListBookmarkReceived, clock, errCh)
 }
 
-// handleListWatch consumes events from w, updates the Store, and records the
+// handleWatch consumes events from w, updates the Store, and records the
 // last seen ResourceVersion, to allow continuing from that ResourceVersion on
 // retry. The watcher will always be stopped on exit.
 func handleWatch(
