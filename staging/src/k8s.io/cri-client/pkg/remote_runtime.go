@@ -610,6 +610,23 @@ func (r *remoteRuntimeService) portForwardV1(ctx context.Context, req *runtimeap
 	return resp, nil
 }
 
+// UpdatePodSandboxResources synchronously updates the PodSandboxConfig with
+// the pod-level resource configuration.
+func (r *remoteRuntimeService) UpdatePodSandboxResources(ctx context.Context, req *runtimeapi.UpdatePodSandboxResourcesRequest) (*runtimeapi.UpdatePodSandboxResourcesResponse, error) {
+	r.log(10, "[RemoteRuntimeService] UpdatePodSandboxResources", "PodSandboxId", req.PodSandboxId, "timeout", r.timeout)
+	ctx, cancel := context.WithTimeout(ctx, r.timeout)
+	defer cancel()
+
+	resp, err := r.runtimeClient.UpdatePodSandboxResources(ctx, req)
+	if err != nil {
+		r.logErr(err, "UpdatePodSandboxResources from runtime service failed", "podSandboxID", req.PodSandboxId)
+		return nil, err
+	}
+	r.log(10, "[RemoteRuntimeService] UpdatePodSandboxResources Response", "podSandboxID", req.PodSandboxId)
+
+	return resp, nil
+}
+
 // UpdateRuntimeConfig updates the config of a runtime service. The only
 // update payload currently supported is the pod CIDR assigned to a node,
 // and the runtime service just proxies it down to the network plugin.

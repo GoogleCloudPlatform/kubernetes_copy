@@ -47,6 +47,13 @@ func (m *kubeGenericRuntimeManager) generateContainerResources(pod *v1.Pod, cont
 	}
 }
 
+// generateUpdatePodSandboxResourcesRequest generates platform specific podsandox resources config for runtime
+func (m *kubeGenericRuntimeManager) generateUpdatePodSandboxResourcesRequest(sandboxID string, pod *v1.Pod) *runtimeapi.UpdatePodSandboxResourcesRequest {
+	return &runtimeapi.UpdatePodSandboxResourcesRequest{
+		PodSandboxId: sandboxID,
+	}
+}
+
 // generateWindowsContainerResources generates windows container resources config for runtime
 func (m *kubeGenericRuntimeManager) generateWindowsContainerResources(pod *v1.Pod, container *v1.Container) *runtimeapi.WindowsContainerResources {
 	wcr := m.calculateWindowsResources(container.Resources.Limits.Cpu(), container.Resources.Limits.Memory())

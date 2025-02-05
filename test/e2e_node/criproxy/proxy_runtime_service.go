@@ -34,35 +34,36 @@ import (
 )
 
 const (
-	Version                  = "Version"
-	RunPodSandbox            = "RunPodSandbox"
-	StopPodSandbox           = "StopPodSandbox"
-	RemovePodSandbox         = "RemovePodSandbox"
-	PodSandboxStatus         = "PodSandboxStatus"
-	ListPodSandbox           = "ListPodSandbox"
-	CreateContainer          = "CreateContainer"
-	StartContainer           = "StartContainer"
-	StopContainer            = "StopContainer"
-	RemoveContainer          = "RemoveContainer"
-	ListContainers           = "ListContainers"
-	ContainerStatus          = "ContainerStatus"
-	UpdateContainerResources = "UpdateContainerResources"
-	ReopenContainerLog       = "ReopenContainerLog"
-	ExecSync                 = "ExecSync"
-	Exec                     = "Exec"
-	Attach                   = "Attach"
-	PortForward              = "PortForward"
-	ContainerStats           = "ContainerStats"
-	ListContainerStats       = "ListContainerStats"
-	PodSandboxStats          = "PodSandboxStats"
-	ListPodSandboxStats      = "ListPodSandboxStats"
-	UpdateRuntimeConfig      = "UpdateRuntimeConfig"
-	Status                   = "Status"
-	CheckpointContainer      = "CheckpointContainer"
-	GetContainerEvents       = "GetContainerEvents"
-	ListMetricDescriptors    = "ListMetricDescriptors"
-	ListPodSandboxMetrics    = "ListPodSandboxMetrics"
-	RuntimeConfig            = "RuntimeConfig"
+	Version                   = "Version"
+	RunPodSandbox             = "RunPodSandbox"
+	StopPodSandbox            = "StopPodSandbox"
+	RemovePodSandbox          = "RemovePodSandbox"
+	PodSandboxStatus          = "PodSandboxStatus"
+	ListPodSandbox            = "ListPodSandbox"
+	CreateContainer           = "CreateContainer"
+	StartContainer            = "StartContainer"
+	StopContainer             = "StopContainer"
+	RemoveContainer           = "RemoveContainer"
+	ListContainers            = "ListContainers"
+	ContainerStatus           = "ContainerStatus"
+	UpdateContainerResources  = "UpdateContainerResources"
+	ReopenContainerLog        = "ReopenContainerLog"
+	ExecSync                  = "ExecSync"
+	Exec                      = "Exec"
+	Attach                    = "Attach"
+	PortForward               = "PortForward"
+	ContainerStats            = "ContainerStats"
+	ListContainerStats        = "ListContainerStats"
+	PodSandboxStats           = "PodSandboxStats"
+	ListPodSandboxStats       = "ListPodSandboxStats"
+	UpdateRuntimeConfig       = "UpdateRuntimeConfig"
+	Status                    = "Status"
+	CheckpointContainer       = "CheckpointContainer"
+	GetContainerEvents        = "GetContainerEvents"
+	ListMetricDescriptors     = "ListMetricDescriptors"
+	ListPodSandboxMetrics     = "ListPodSandboxMetrics"
+	RuntimeConfig             = "RuntimeConfig"
+	UpdatePodSandboxResources = "UpdatePodSandboxResources"
 )
 
 // AddInjector inject the error or delay to the next call to the RuntimeService.
@@ -405,6 +406,15 @@ func (p *RemoteRuntime) UpdateRuntimeConfig(ctx context.Context, req *runtimeapi
 		return nil, err
 	}
 	return &runtimeapi.UpdateRuntimeConfigResponse{}, nil
+}
+
+// UpdatePodSandboxResources synchronously updates the PodSandboxConfig.
+func (p *RemoteRuntime) UpdatePodSandboxResources(ctx context.Context, req *runtimeapi.UpdatePodSandboxResourcesRequest) (*runtimeapi.UpdatePodSandboxResourcesResponse, error) {
+	if err := p.runInjectors(UpdatePodSandboxResources); err != nil {
+		return nil, err
+	}
+
+	return p.runtimeService.UpdatePodSandboxResources(ctx, req)
 }
 
 // Status returns the status of the runtime.

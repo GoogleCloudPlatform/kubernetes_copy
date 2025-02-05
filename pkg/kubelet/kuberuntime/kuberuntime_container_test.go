@@ -969,3 +969,39 @@ func TestUpdateContainerResources(t *testing.T) {
 	// Verify container is updated
 	assert.Contains(t, fakeRuntime.Called, "UpdateContainerResources")
 }
+
+// TestUpdatePodSandboxResources tests updating a podSandBox resources.
+func TestUpdatePodSandboxResources(t *testing.T) {
+	fakeRuntime, _, m, errCreate := createTestRuntimeManager()
+	require.NoError(t, errCreate)
+	pod := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			UID:       "12345678",
+			Name:      "bar",
+			Namespace: "new",
+		},
+		Spec: v1.PodSpec{
+			Containers: []v1.Container{
+				{
+					Name:            "foo",
+					Image:           "busybox",
+					ImagePullPolicy: v1.PullIfNotPresent,
+				},
+			},
+		},
+	}
+
+	// Create fake sandbox and container
+	fakeSandbox, fakeContainers := makeAndSetFakePod(t, m, fakeRuntime, pod)
+	assert.Len(t, fakeContainers, 1)
+
+	ctx := context.Background()
+	_, err := m.getPodContainerStatuses(ctx, pod.UID, pod.Name, pod.Namespace)
+	require.NoError(t, err)
+
+	err = m.updatePodSandboxResources(fakeSandbox.Id, pod)
+	require.NoError(t, err)
+
+	// Verify sandbox is updated
+	assert.Contains(t, fakeRuntime.Called, "UpdatePodSandboxResources")
+}

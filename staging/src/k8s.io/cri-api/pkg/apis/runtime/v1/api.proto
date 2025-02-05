@@ -140,6 +140,13 @@ service RuntimeService {
     //   The Kubelet will not re-request the RuntimeConfiguration after startup, and CRI implementations should
     //   avoid updating them without a full node reboot.
     rpc RuntimeConfig(RuntimeConfigRequest) returns (RuntimeConfigResponse) {}
+
+    // UpdatePodSandboxResources synchronously updates the PodSandboxConfig with
+    // the pod-level resource configuration. This method is called _after_ the
+    // Kubelet reconfigures the pod-level cgroups.
+    // This request is treated as best effort, and failure will not block the
+    // Kubelet with proceeding with a resize.
+    rpc UpdatePodSandboxResources(UpdatePodSandboxResourcesRequest) returns (UpdatePodSandboxResourcesResponse) {}
 }
 
 // ImageService defines the public APIs for managing images.
@@ -1982,3 +1989,19 @@ enum CgroupDriver {
     CGROUPFS = 1;
 }
 
+message UpdatePodSandboxResourcesRequest {
+    // ID of the PodSandbox to update.
+    string pod_sandbox_id = 1;
+
+    // Optional overhead represents the overheads associated with this sandbox
+    LinuxContainerResources overhead = 2;
+    // Optional resources represents the sum of container resources for this sandbox
+    LinuxContainerResources resources = 3;
+
+    // Unstructured key-value map holding arbitrary additional information for
+    // sandbox resources updating. This can be used for specifying experimental
+    // resources to update or other options to use when updating the sandbox.
+    map<string, string> annotations = 4;
+}
+
+message UpdatePodSandboxResourcesResponse {}

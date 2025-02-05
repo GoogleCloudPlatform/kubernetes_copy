@@ -272,6 +272,15 @@ func (in instrumentedRuntimeService) PortForward(ctx context.Context, req *runti
 	return resp, err
 }
 
+func (in instrumentedRuntimeService) UpdatePodSandboxResources(ctx context.Context, req *runtimeapi.UpdatePodSandboxResourcesRequest) (*runtimeapi.UpdatePodSandboxResourcesResponse, error) {
+	const operation = "update_podsandbox"
+	defer recordOperation(operation, time.Now())
+
+	resp, err := in.service.UpdatePodSandboxResources(ctx, req)
+	recordError(operation, err)
+	return resp, err
+}
+
 func (in instrumentedRuntimeService) UpdateRuntimeConfig(ctx context.Context, runtimeConfig *runtimeapi.RuntimeConfig) error {
 	const operation = "update_runtime_config"
 	defer recordOperation(operation, time.Now())

@@ -20,7 +20,7 @@ limitations under the License.
 package kuberuntime
 
 import (
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1"
 	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
 )
@@ -32,6 +32,11 @@ func (m *kubeGenericRuntimeManager) applyPlatformSpecificContainerConfig(config 
 
 // generateContainerResources generates platform specific container resources config for runtime
 func (m *kubeGenericRuntimeManager) generateContainerResources(pod *v1.Pod, container *v1.Container) *runtimeapi.ContainerResources {
+	return nil
+}
+
+// generateUpdatePodSandboxResourcesRequest generates platform specific podsandox resources config for runtime
+func (m *kubeGenericRuntimeManager) generateUpdatePodSandboxResourcesRequest(sandboxID string, pod *v1.Pod) *runtimeapi.UpdatePodSandboxResourcesRequest {
 	return nil
 }
 
