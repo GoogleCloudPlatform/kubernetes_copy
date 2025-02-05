@@ -840,6 +840,9 @@ func (m *ManagerImpl) allocateContainerResources(pod *v1.Pod, container *v1.Cont
 		if !m.isDevicePluginResource(resource) {
 			continue
 		}
+		if needed == 0 {
+			continue
+		}
 		// Updates allocatedDevices to garbage collect any stranded resources
 		// before doing the device plugin allocation.
 		if !allocatedDevicesUpdated {
