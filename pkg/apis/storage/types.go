@@ -39,6 +39,9 @@ type StorageClass struct {
 	// This is an optionally-prefixed name, like a label key.
 	// For example: "kubernetes.io/gce-pd" or "kubernetes.io/aws-ebs".
 	// This value may not be empty.
+	//
+	// This field is immutable.
+	//
 	Provisioner string
 
 	// parameters holds parameters for the provisioner.
@@ -46,11 +49,17 @@ type StorageClass struct {
 	// to the provisioner.  The only validation done on keys is that they are
 	// not empty.  The maximum number of parameters is
 	// 512, with a cumulative max size of 256K
+	//
+	// This field is immutable.
+	//
 	// +optional
 	Parameters map[string]string
 
 	// reclaimPolicy is the reclaim policy that dynamically provisioned
 	// PersistentVolumes of this storage class are created with
+	//
+	// This field is immutable.
+	//
 	// +optional
 	ReclaimPolicy *api.PersistentVolumeReclaimPolicy
 
@@ -68,6 +77,9 @@ type StorageClass struct {
 	// VolumeBindingMode indicates how PersistentVolumeClaims should be
 	// provisioned and bound.  When unset, VolumeBindingImmediate is used.
 	// This field is only honored by servers that enable the VolumeScheduling feature.
+	//
+	// This field is immutable.
+	//
 	// +optional
 	VolumeBindingMode *VolumeBindingMode
 
@@ -109,6 +121,9 @@ type VolumeAttachment struct {
 
 	// Specification of the desired attach/detach volume behavior.
 	// Populated by the Kubernetes system.
+	//
+	// This field is immutable.
+	//
 	Spec VolumeAttachmentSpec
 
 	// Status of the VolumeAttachment request.
@@ -511,6 +526,9 @@ type CSINodeSpec struct {
 	// If all drivers in the list are uninstalled, this can become empty.
 	// +patchMergeKey=name
 	// +patchStrategy=merge
+	//
+	// This field is immutable.
+	//
 	Drivers []CSINodeDriver
 }
 
@@ -703,6 +721,9 @@ type VolumeAttributesClass struct {
 	// a cumulative max size of 256K. If the CSI driver rejects invalid parameters,
 	// the target PersistentVolumeClaim will be set to an "Infeasible" state in the
 	// modifyVolumeStatus field.
+	//
+	// This field is immutable.
+	//
 	Parameters map[string]string
 }
 
