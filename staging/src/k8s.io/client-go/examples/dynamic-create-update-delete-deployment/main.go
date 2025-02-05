@@ -61,6 +61,9 @@ func main() {
 		panic(err)
 	}
 
+	// Warning: with "dynamic client", we have to use "deployments" here and not "deployment" or "Deployments" !!!
+	// Otherwise, we get the following error:
+	//   cannot create resource "deployment" in API group ...
 	deploymentRes := schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "deployments"}
 
 	deployment := &unstructured.Unstructured{
