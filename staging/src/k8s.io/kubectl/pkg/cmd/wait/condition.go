@@ -34,6 +34,7 @@ import (
 	"k8s.io/cli-runtime/pkg/resource"
 	"k8s.io/client-go/tools/cache"
 	watchtools "k8s.io/client-go/tools/watch"
+	"k8s.io/klog/v2"
 	"k8s.io/kubectl/pkg/util/interrupt"
 )
 
@@ -72,6 +73,7 @@ func (w ConditionalWait) checkCondition(obj *unstructured.Unstructured) (bool, e
 		if found {
 			observedGeneration, found := getObservedGeneration(obj, condition)
 			if found && observedGeneration < generation {
+				klog.V(2).Info("observedGeneration < generation, meaning the controller has yet to process the new changes resulting in a stale condition")
 				return false, nil
 			}
 		}
