@@ -913,7 +913,11 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 	}
 
 	// If systemd is used, notify it that we have started
-	go daemon.SdNotify(false, "READY=1")
+	go func() {
+		if _, err := daemon.SdNotify(false, daemon.SdNotifyReady); err != nil {
+			klog.ErrorS(err, "Failed to send systemd daemon successful start message")
+		}
+	}()
 
 	select {
 	case <-done:
