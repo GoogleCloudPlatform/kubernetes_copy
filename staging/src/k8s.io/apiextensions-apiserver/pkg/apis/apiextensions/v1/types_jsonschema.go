@@ -333,9 +333,23 @@ type JSON struct {
 // the OpenAPI spec of this type.
 //
 // See: https://github.com/kubernetes/kube-openapi/tree/master/pkg/generators
-func (_ JSON) OpenAPISchemaType() []string {
-	// TODO: return actual types when anyOf is supported
+func (JSON) OpenAPISchemaType() []string {
 	return nil
+}
+
+// OpenAPIV3OneOfTypes is used by the kube-openapi generator when constructing
+// the OpenAPI spec of this type.
+//
+// See: https://github.com/kubernetes/kube-openapi/tree/master/pkg/generators
+func (JSON) OpenAPIV3OneOfTypes() []string {
+	return []string{
+		"string",
+		"number",
+		"integer",
+		"boolean",
+		"array",
+		"object",
+	}
 }
 
 // OpenAPISchemaFormat is used by the kube-openapi generator when constructing
