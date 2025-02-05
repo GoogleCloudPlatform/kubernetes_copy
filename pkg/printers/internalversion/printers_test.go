@@ -1537,9 +1537,8 @@ func TestPrintPod(t *testing.T) {
 					Phase: api.PodSucceeded,
 					ContainerStatuses: []api.ContainerStatus{
 						{
-							Ready:        false,
-							RestartCount: 0,
-							State:        api.ContainerState{Terminated: &api.ContainerStateTerminated{Reason: "Completed", ExitCode: 0}},
+							Ready: false,
+							State: api.ContainerState{Terminated: &api.ContainerStateTerminated{Reason: "Completed", ExitCode: 0}},
 						},
 					},
 				},
@@ -1555,9 +1554,8 @@ func TestPrintPod(t *testing.T) {
 					Phase: api.PodFailed,
 					ContainerStatuses: []api.ContainerStatus{
 						{
-							Ready:        false,
-							RestartCount: 0,
-							State:        api.ContainerState{Terminated: &api.ContainerStateTerminated{Reason: "Error", ExitCode: 1}},
+							Ready: false,
+							State: api.ContainerState{Terminated: &api.ContainerStateTerminated{Reason: "Error", ExitCode: 1}},
 						},
 					},
 				},
@@ -1573,9 +1571,8 @@ func TestPrintPod(t *testing.T) {
 					Phase: api.PodSucceeded,
 					ContainerStatuses: []api.ContainerStatus{
 						{
-							Ready:        false,
-							RestartCount: 0,
-							State:        api.ContainerState{Terminated: &api.ContainerStateTerminated{Reason: "Completed", ExitCode: 0}},
+							Ready: false,
+							State: api.ContainerState{Terminated: &api.ContainerStateTerminated{Reason: "Completed", ExitCode: 0}},
 						},
 					},
 				},
@@ -1588,12 +1585,11 @@ func TestPrintPod(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{Name: "test19", DeletionTimestamp: &deleteTime},
 				Spec:       api.PodSpec{Containers: make([]api.Container, 1)},
 				Status: api.PodStatus{
-					Phase: "Running",
+					Phase: api.PodRunning,
 					ContainerStatuses: []api.ContainerStatus{
 						{
-							Ready:        false,
-							RestartCount: 0,
-							State:        api.ContainerState{Running: &api.ContainerStateRunning{}},
+							Ready: false,
+							State: api.ContainerState{Running: &api.ContainerStateRunning{}},
 						},
 					},
 				},
@@ -1605,10 +1601,164 @@ func TestPrintPod(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{Name: "test20", DeletionTimestamp: &deleteTime},
 				Spec:       api.PodSpec{Containers: make([]api.Container, 1)},
 				Status: api.PodStatus{
-					Phase: "Pending",
+					Phase: api.PodPending,
 				},
 			},
 			[]metav1.TableRow{{Cells: []interface{}{"test20", "0/1", "Terminating", "0", "<unknown>"}}},
+		},
+		// Test the two containers. They are ready and State are Error/Running
+		// reference: https://github.com/kubernetes/kubernetes/issues/107713
+		{
+			api.Pod{
+				ObjectMeta: metav1.ObjectMeta{Name: "test21"},
+				Spec:       api.PodSpec{Containers: make([]api.Container, 2)},
+				Status: api.PodStatus{
+					Phase: api.PodFailed,
+					ContainerStatuses: []api.ContainerStatus{
+						{
+							Ready: false,
+							State: api.ContainerState{Terminated: &api.ContainerStateTerminated{
+								FinishedAt: metav1.NewTime(time.Now()),
+								ExitCode:   1,
+								Reason:     "podCrash"},
+							},
+							LastTerminationState: api.ContainerState{},
+						},
+						{
+							Ready: true,
+							State: api.ContainerState{Running: &api.ContainerStateRunning{
+								StartedAt: metav1.NewTime(time.Now())},
+							},
+							LastTerminationState: api.ContainerState{},
+						},
+					},
+				},
+			},
+			[]metav1.TableRow{
+				{
+					Cells:      []interface{}{"test21", "1/2", "podCrash", "0", "<unknown>"},
+					Conditions: podFailedConditions,
+				},
+			},
+		},
+		// Test the two containers. They are ready and State are Running/Error
+		// reference: https://github.com/kubernetes/kubernetes/issues/107713
+		{
+			api.Pod{
+				ObjectMeta: metav1.ObjectMeta{Name: "test22"},
+				Spec:       api.PodSpec{Containers: make([]api.Container, 2)},
+				Status: api.PodStatus{
+					Phase: api.PodFailed,
+					ContainerStatuses: []api.ContainerStatus{
+						{
+							Ready: true,
+							State: api.ContainerState{Running: &api.ContainerStateRunning{
+								StartedAt: metav1.NewTime(time.Now())},
+							},
+							LastTerminationState: api.ContainerState{},
+						},
+						{
+							Ready: false,
+							State: api.ContainerState{Terminated: &api.ContainerStateTerminated{
+								FinishedAt: metav1.NewTime(time.Now()),
+								ExitCode:   1,
+								Reason:     "podCrash"},
+							},
+							LastTerminationState: api.ContainerState{},
+						},
+					},
+				},
+			},
+			[]metav1.TableRow{
+				{
+					Cells:      []interface{}{"test22", "1/2", "podCrash", "0", "<unknown>"},
+					Conditions: podFailedConditions,
+				},
+			},
+		},
+		{
+			// Test the three containers. They are ready and State are Running/Error/Completed
+			api.Pod{
+				ObjectMeta: metav1.ObjectMeta{Name: "test23"},
+				Spec:       api.PodSpec{Containers: make([]api.Container, 3)},
+				Status: api.PodStatus{
+					Phase: "Failed",
+					ContainerStatuses: []api.ContainerStatus{
+						{
+							Ready: true,
+							State: api.ContainerState{Running: &api.ContainerStateRunning{
+								StartedAt: metav1.NewTime(time.Now())},
+							},
+							LastTerminationState: api.ContainerState{},
+						},
+						{
+							Ready: true,
+							State: api.ContainerState{Terminated: &api.ContainerStateTerminated{
+								FinishedAt: metav1.NewTime(time.Now()),
+								ExitCode:   1,
+								Reason:     "podCrash"},
+							},
+							LastTerminationState: api.ContainerState{},
+						},
+						{
+							Ready: true,
+							State: api.ContainerState{Terminated: &api.ContainerStateTerminated{
+								FinishedAt: metav1.NewTime(time.Now()),
+								ExitCode:   0},
+							},
+							LastTerminationState: api.ContainerState{},
+						},
+					},
+				},
+			},
+			[]metav1.TableRow{
+				{
+					Cells:      []interface{}{"test23", "1/3", "podCrash", "0", "<unknown>"},
+					Conditions: podFailedConditions,
+				},
+			},
+		},
+		{
+			// Test the three containers. They are notReady and State are Running/Error/Completed
+			api.Pod{
+				ObjectMeta: metav1.ObjectMeta{Name: "test24"},
+				Spec:       api.PodSpec{Containers: make([]api.Container, 3)},
+				Status: api.PodStatus{
+					Phase: "Failed",
+					ContainerStatuses: []api.ContainerStatus{
+						{
+							Ready: false,
+							State: api.ContainerState{Running: &api.ContainerStateRunning{
+								StartedAt: metav1.NewTime(time.Now())},
+							},
+							LastTerminationState: api.ContainerState{},
+						},
+						{
+							Ready: false,
+							State: api.ContainerState{Terminated: &api.ContainerStateTerminated{
+								FinishedAt: metav1.NewTime(time.Now()),
+								ExitCode:   1,
+								Reason:     "podCrash"},
+							},
+							LastTerminationState: api.ContainerState{},
+						},
+						{
+							Ready: false,
+							State: api.ContainerState{Terminated: &api.ContainerStateTerminated{
+								FinishedAt: metav1.NewTime(time.Now()),
+								ExitCode:   0},
+							},
+							LastTerminationState: api.ContainerState{},
+						},
+					},
+				},
+			},
+			[]metav1.TableRow{
+				{
+					Cells:      []interface{}{"test24", "0/3", "podCrash", "0", "<unknown>"},
+					Conditions: podFailedConditions,
+				},
+			},
 		},
 	}
 
