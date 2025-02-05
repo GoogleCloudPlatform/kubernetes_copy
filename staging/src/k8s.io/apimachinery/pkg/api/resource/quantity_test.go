@@ -1820,3 +1820,36 @@ func TestQuantityRoundtripCBOR(t *testing.T) {
 		}
 	}
 }
+
+func TestMilliChecked(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		q           *Quantity
+		expectError bool
+	}{
+		{
+			name:        "overflow",
+			q:           func() *Quantity { q := MustParse("16Pi"); return &q }(),
+			expectError: true,
+		},
+		{
+			name:        "1 SI",
+			q:           NewQuantity(1, BinarySI),
+			expectError: false,
+		},
+		{
+			name:        "0 SI",
+			q:           NewQuantity(0, BinarySI),
+			expectError: false,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := tc.q.CheckedMilliValue()
+			if err == nil && tc.expectError {
+				t.Error("expected error but got none")
+			} else if err != nil && !tc.expectError {
+				t.Errorf("expected no error error but got %v", err)
+			}
+		})
+	}
+}
