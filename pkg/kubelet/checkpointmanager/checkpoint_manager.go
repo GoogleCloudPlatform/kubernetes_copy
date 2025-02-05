@@ -18,6 +18,7 @@ package checkpointmanager
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 
 	"k8s.io/kubernetes/pkg/kubelet/checkpointmanager/errors"
@@ -106,5 +107,12 @@ func (manager *impl) ListCheckpoints() ([]string, error) {
 	if err != nil {
 		return []string{}, fmt.Errorf("failed to list checkpoint store: %v", err)
 	}
-	return keys, nil
+	// Filter out sockets, as they are not checkpoints.
+	var checkpointNames []string
+	for _, key := range keys {
+		if !strings.HasSuffix(key, ".sock") {
+			checkpointNames = append(checkpointNames, key)
+		}
+	}
+	return checkpointNames, nil
 }
