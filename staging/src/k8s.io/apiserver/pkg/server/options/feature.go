@@ -42,7 +42,10 @@ func NewFeatureOptions() *FeatureOptions {
 		EnableProfiling:           defaults.EnableProfiling,
 		DebugSocketPath:           defaults.DebugSocketPath,
 		EnableContentionProfiling: defaults.EnableContentionProfiling,
-		EnablePriorityAndFairness: true,
+		// Disable PriorityAndFairness by default since it only makes sense to have
+		// on by default for the kube-apiserver and not for the aggregated
+		// apiservers that are reusing this library.
+		EnablePriorityAndFairness: false,
 	}
 }
 

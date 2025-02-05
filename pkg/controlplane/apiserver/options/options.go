@@ -130,6 +130,10 @@ func NewOptions() *Options {
 	// Overwrite the default for storage data format.
 	s.Etcd.DefaultStorageMediaType = "application/vnd.kubernetes.protobuf"
 
+	// Overwrite the default for Priority and Fairness to enable it by default in
+	// the kube-apiserver.
+	s.Features.EnablePriorityAndFairness = true
+
 	return &s
 }
 
