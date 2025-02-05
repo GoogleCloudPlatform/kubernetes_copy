@@ -4295,7 +4295,7 @@ var _ = SIGDescribe(feature.SidecarContainers, "Containers Lifecycle", func() {
 
 				pod := &v1.Pod{
 					ObjectMeta: metav1.ObjectMeta{
-						Name: "serialize-termination",
+						Name: "serialize-termination-prestop-no-exit",
 					},
 					Spec: v1.PodSpec{
 						RestartPolicy: v1.RestartPolicyNever,
@@ -4399,7 +4399,7 @@ var _ = SIGDescribe(feature.SidecarContainers, "Containers Lifecycle", func() {
 					fmt.Sprintf("expected PreStop 2 & PreStop 3 to be killed at the same time, got %s", results))
 
 				// 30 seconds + 2 second minimum grace for the SIGKILL
-				const lifetimeToleration = 1000 // milliseconds
+				const lifetimeToleration = 2000 // milliseconds 1000 grace for loop delay + 1000 buffer
 				gomega.Expect(ps1Last-ps1).To(gomega.BeNumerically("~", 32000, lifetimeToleration),
 					fmt.Sprintf("expected PreStop 1 to live for ~32 seconds, got %s", results))
 				gomega.Expect(ps2Last-ps2).To(gomega.BeNumerically("~", 32000, lifetimeToleration),
@@ -4642,19 +4642,31 @@ var _ = SIGDescribe(feature.SidecarContainers, "Containers Lifecycle", func() {
 				framework.ExpectNoError(err)
 
 				// the init container is running, so we stop the pod before the sidecars even start
-				start := time.Now()
 				grace := int64(3)
+				buffer := int64(20)
 				ginkgo.By("deleting the pod")
 				err = client.Delete(ctx, pod.Name, metav1.DeleteOptions{GracePeriodSeconds: &grace})
 				framework.ExpectNoError(err)
-				ginkgo.By("waiting for the pod to disappear")
-				err = e2epod.WaitForPodNotFoundInNamespace(ctx, f.ClientSet, pod.Name, pod.Namespace, 120*time.Second)
+
+				ginkgo.By("ensuring the restartable init containers never start", func() {
+					gomega.Consistently(ctx, func() bool {
+						err = e2epod.WaitForPodNotFoundInNamespace(ctx, f.ClientSet, pod.Name, pod.Namespace, 120*time.Second)
+						if err == nil {
+							return true
+						}
+						pod, err = client.Get(ctx, pod.Name, metav1.GetOptions{})
+						framework.ExpectNoError(err)
+						for _, status := range pod.Status.InitContainerStatuses {
+							if (status.Started != nil && *status.Started) || status.State.Running != nil || status.RestartCount > 0 {
+								return false
+							}
+						}
+						return true
+					}, time.Duration(grace+buffer)*time.Second, f.Timeouts.Poll).Should(gomega.BeTrueBecause("the restartable init containers should not start"))
+				})
+				err = e2epod.WaitForPodNotFoundInNamespace(ctx, f.ClientSet, pod.Name, pod.Namespace, 5*time.Second)
 				framework.ExpectNoError(err)
 
-				buffer := int64(2)
-				deleteTime := time.Since(start).Seconds()
-				// should delete quickly and not try to start/wait on any sidecars since they never started
-				gomega.Expect(deleteTime).To(gomega.BeNumerically("<", grace+buffer), fmt.Sprintf("should delete in < %d seconds, took %f", grace+buffer, deleteTime))
 			})
 		})
 
