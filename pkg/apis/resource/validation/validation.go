@@ -383,14 +383,14 @@ func validateAllocationConfigSource(source resource.AllocationConfigSource, fldP
 	return allErrs
 }
 
-// ValidateClass validates a DeviceClass.
+// ValidateDeviceClass validates a DeviceClass.
 func ValidateDeviceClass(class *resource.DeviceClass) field.ErrorList {
 	allErrs := corevalidation.ValidateObjectMeta(&class.ObjectMeta, false, corevalidation.ValidateClassName, field.NewPath("metadata"))
 	allErrs = append(allErrs, validateDeviceClassSpec(&class.Spec, nil, field.NewPath("spec"))...)
 	return allErrs
 }
 
-// ValidateClassUpdate tests if an update to DeviceClass is valid.
+// ValidateDeviceClassUpdate tests if an update to DeviceClass is valid.
 func ValidateDeviceClassUpdate(class, oldClass *resource.DeviceClass) field.ErrorList {
 	allErrs := corevalidation.ValidateObjectMetaUpdate(&class.ObjectMeta, &oldClass.ObjectMeta, field.NewPath("metadata"))
 	allErrs = append(allErrs, validateDeviceClassSpec(&class.Spec, &oldClass.Spec, field.NewPath("spec"))...)
@@ -466,7 +466,7 @@ func ValidateResourceSlice(slice *resource.ResourceSlice) field.ErrorList {
 	return allErrs
 }
 
-// ValidateResourceSlice tests if a ResourceSlice update is valid.
+// ValidateResourceSliceUpdate tests if a ResourceSlice update is valid.
 func ValidateResourceSliceUpdate(resourceSlice, oldResourceSlice *resource.ResourceSlice) field.ErrorList {
 	allErrs := corevalidation.ValidateObjectMetaUpdate(&resourceSlice.ObjectMeta, &oldResourceSlice.ObjectMeta, field.NewPath("metadata"))
 	allErrs = append(allErrs, validateResourceSliceSpec(&resourceSlice.Spec, &oldResourceSlice.Spec, field.NewPath("spec"))...)
@@ -505,7 +505,19 @@ func validateResourceSliceSpec(spec, oldSpec *resource.ResourceSliceSpec, fldPat
 		allErrs = append(allErrs, field.Required(fldPath, "exactly one of `nodeName`, `nodeSelector`, or `allNodes` is required"))
 	case 1:
 	default:
-		allErrs = append(allErrs, field.Invalid(fldPath, nil, "exactly one of `nodeName`, `nodeSelector`, or `allNodes` is required"))
+		setFields := make([]string, 0, 10) // Definitely large enough, avoids allocation on heap.
+		if spec.NodeName != "" {
+			setFields = append(setFields, "`nodeName`")
+		}
+		if spec.NodeSelector != nil {
+			setFields = append(setFields, "`nodeSelector`")
+		}
+		if spec.AllNodes {
+			setFields = append(setFields, "`allNodes`")
+		}
+		allErrs = append(allErrs, field.Invalid(fldPath, nil,
+			fmt.Sprintf("exactly one of `nodeName`, `nodeSelector`, or `allNodes` is required, but multiple fields are set: %s", strings.Join(setFields, ", ")),
+		))
 	}
 
 	allErrs = append(allErrs, validateSet(spec.Devices, resource.ResourceSliceMaxDevices, validateDevice,
@@ -569,7 +581,6 @@ var (
 
 		// optional dot-separated build identifier segments (e.g. +build.id.20240305)
 		`(\+` + buildIdentifier + `(\.` + buildIdentifier + `)*)?` +
-
 		`$`)
 )
 
