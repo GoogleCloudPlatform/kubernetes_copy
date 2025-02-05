@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"net"
 	"sync"
-	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -123,13 +122,9 @@ func (c *client) SocketPath() string {
 
 // dial establishes the gRPC communication with the registered device plugin. https://godoc.org/google.golang.org/grpc#Dial
 func dial(unixSocketPath string) (api.DevicePluginClient, *grpc.ClientConn, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	c, err := grpc.DialContext(ctx, unixSocketPath,
+	c, err := grpc.NewClient(unixSocketPath,
 		grpc.WithAuthority("localhost"),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithBlock(),
 		grpc.WithContextDialer(func(ctx context.Context, addr string) (net.Conn, error) {
 			return (&net.Dialer{}).DialContext(ctx, "unix", addr)
 		}),

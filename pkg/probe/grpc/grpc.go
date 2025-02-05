@@ -18,6 +18,7 @@ package grpc
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"time"
@@ -55,7 +56,6 @@ func (p grpcProber) Probe(host, service string, port int, timeout time.Duration)
 
 	opts := []grpc.DialOption{
 		grpc.WithUserAgent(fmt.Sprintf("kube-probe/%s.%s", v.Major, v.Minor)),
-		grpc.WithBlock(),
 		grpc.WithTransportCredentials(insecure.NewCredentials()), //credentials are currently not supported
 		grpc.WithContextDialer(func(ctx context.Context, addr string) (net.Conn, error) {
 			return probe.ProbeDialer().DialContext(ctx, "tcp", addr)
@@ -67,10 +67,10 @@ func (p grpcProber) Probe(host, service string, port int, timeout time.Duration)
 	defer cancel()
 
 	addr := net.JoinHostPort(host, fmt.Sprintf("%d", port))
-	conn, err := grpc.DialContext(ctx, addr, opts...)
+	conn, err := grpc.NewClient(addr, opts...)
 
 	if err != nil {
-		if err == context.DeadlineExceeded {
+		if errors.Is(err, context.DeadlineExceeded) {
 			klog.V(4).ErrorS(err, "failed to connect grpc service due to timeout", "addr", addr, "service", service, "timeout", timeout)
 			return probe.Failure, fmt.Sprintf("timeout: failed to connect service %q within %v: %+v", addr, timeout, err), nil
 		} else {

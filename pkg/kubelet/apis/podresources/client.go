@@ -17,7 +17,6 @@ limitations under the License.
 package podresources
 
 import (
-	"context"
 	"fmt"
 	"time"
 
@@ -39,10 +38,8 @@ func GetV1alpha1Client(socket string, connectionTimeout time.Duration, maxMsgSiz
 	if err != nil {
 		return nil, nil, err
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), connectionTimeout)
-	defer cancel()
 
-	conn, err := grpc.DialContext(ctx, addr,
+	conn, err := grpc.NewClient(addr,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithContextDialer(dialer),
 		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(maxMsgSize)))
@@ -58,10 +55,8 @@ func GetV1Client(socket string, connectionTimeout time.Duration, maxMsgSize int)
 	if err != nil {
 		return nil, nil, err
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), connectionTimeout)
-	defer cancel()
 
-	conn, err := grpc.DialContext(ctx, addr,
+	conn, err := grpc.NewClient(addr,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithContextDialer(dialer),
 		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(maxMsgSize)))

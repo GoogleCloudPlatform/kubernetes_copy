@@ -118,7 +118,7 @@ func NewRemoteRuntimeService(endpoint string, connectionTimeout time.Duration, t
 		grpc.WithConnectParams(connParams),
 	)
 
-	conn, err := grpc.DialContext(ctx, addr, dialOpts...)
+	conn, err := grpc.NewClient(addr, dialOpts...)
 	if err != nil {
 		internal.LogErr(logger, err, "Connect remote runtime failed", "address", addr)
 		return nil, err
