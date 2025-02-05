@@ -205,6 +205,7 @@ func (m *manager) Start(activePods ActivePodsFunc, sourcesReady config.SourcesRe
 
 	m.allocatableMemory = m.policy.GetAllocatableMemory(m.state)
 
+	klog.V(4).InfoS("memorymanager started", "policy", m.policy.Name())
 	return nil
 }
 
@@ -248,11 +249,11 @@ func (m *manager) GetMemoryNUMANodes(pod *v1.Pod, container *v1.Container) sets.
 	}
 
 	if numaNodes.Len() == 0 {
-		klog.V(5).InfoS("No allocation is available", "pod", klog.KObj(pod), "containerName", container.Name)
+		klog.V(5).InfoS("No allocation is available", "pod", klog.KObj(pod), "podUID", pod.UID, "containerName", container.Name)
 		return nil
 	}
 
-	klog.InfoS("Memory affinity", "pod", klog.KObj(pod), "containerName", container.Name, "numaNodes", numaNodes)
+	klog.InfoS("Memory affinity", "pod", klog.KObj(pod), "podUID", pod.UID, "containerName", container.Name, "numaNodes", numaNodes)
 	return numaNodes
 }
 
@@ -266,7 +267,7 @@ func (m *manager) Allocate(pod *v1.Pod, container *v1.Container) error {
 
 	// Call down into the policy to assign this container memory if required.
 	if err := m.policy.Allocate(m.state, pod, container); err != nil {
-		klog.ErrorS(err, "Allocate error")
+		klog.ErrorS(err, "Allocate error", "pod", klog.KObj(pod), "podUID", pod.UID, "containerName", container.Name)
 		return err
 	}
 	return nil
@@ -280,7 +281,7 @@ func (m *manager) RemoveContainer(containerID string) error {
 	// if error appears it means container entry already does not exist under the container map
 	podUID, containerName, err := m.containerMap.GetContainerRef(containerID)
 	if err != nil {
-		klog.InfoS("Failed to get container from container map", "containerID", containerID, "err", err)
+		klog.ErrorS(err, "Failed to get container from container map", "containerID", containerID)
 		return nil
 	}
 
@@ -344,7 +345,7 @@ func (m *manager) removeStaleState() {
 	for podUID := range assignments {
 		for containerName := range assignments[podUID] {
 			if _, ok := activeContainers[podUID][containerName]; !ok {
-				klog.InfoS("RemoveStaleState removing state", "podUID", podUID, "containerName", containerName)
+				klog.V(2).InfoS("RemoveStaleState removing state", "podUID", podUID, "containerName", containerName)
 				m.policyRemoveContainerByRef(podUID, containerName)
 			}
 		}
@@ -352,7 +353,7 @@ func (m *manager) removeStaleState() {
 
 	m.containerMap.Visit(func(podUID, containerName, containerID string) {
 		if _, ok := activeContainers[podUID][containerName]; !ok {
-			klog.InfoS("RemoveStaleState removing state", "podUID", podUID, "containerName", containerName)
+			klog.V(2).InfoS("RemoveStaleState removing state", "podUID", podUID, "containerName", containerName)
 			m.policyRemoveContainerByRef(podUID, containerName)
 		}
 	})

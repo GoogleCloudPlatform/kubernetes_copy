@@ -131,7 +131,7 @@ func (sc *stateCheckpoint) SetMachineState(memoryMap NUMANodeMap) {
 	sc.cache.SetMachineState(memoryMap)
 	err := sc.storeState()
 	if err != nil {
-		klog.InfoS("Store state to checkpoint error", "err", err)
+		klog.ErrorS(err, "Store state to checkpoint error")
 	}
 }
 
@@ -143,7 +143,7 @@ func (sc *stateCheckpoint) SetMemoryBlocks(podUID string, containerName string, 
 	sc.cache.SetMemoryBlocks(podUID, containerName, blocks)
 	err := sc.storeState()
 	if err != nil {
-		klog.InfoS("Store state to checkpoint error", "err", err)
+		klog.ErrorS(err, "Store state to checkpoint error", "podUID", podUID, "containerName", containerName)
 	}
 }
 
@@ -155,7 +155,7 @@ func (sc *stateCheckpoint) SetMemoryAssignments(assignments ContainerMemoryAssig
 	sc.cache.SetMemoryAssignments(assignments)
 	err := sc.storeState()
 	if err != nil {
-		klog.InfoS("Store state to checkpoint error", "err", err)
+		klog.ErrorS(err, "Store state to checkpoint error")
 	}
 }
 
@@ -167,7 +167,7 @@ func (sc *stateCheckpoint) Delete(podUID string, containerName string) {
 	sc.cache.Delete(podUID, containerName)
 	err := sc.storeState()
 	if err != nil {
-		klog.InfoS("Store state to checkpoint error", "err", err)
+		klog.ErrorS(err, "Store state to checkpoint error", "podUID", podUID, "containerName", containerName)
 	}
 }
 
@@ -179,6 +179,6 @@ func (sc *stateCheckpoint) ClearState() {
 	sc.cache.ClearState()
 	err := sc.storeState()
 	if err != nil {
-		klog.InfoS("Store state to checkpoint error", "err", err)
+		klog.ErrorS(err, "Store state to checkpoint error")
 	}
 }
