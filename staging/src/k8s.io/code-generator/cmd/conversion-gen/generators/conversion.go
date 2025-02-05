@@ -396,6 +396,9 @@ func (e equalMemoryTypes) equal(a, b *types.Type, alreadyVisitedTypes map[*types
 			}
 			for i, inMember := range in.Members {
 				outMember := out.Members[i]
+				if inMember.Name != outMember.Name {
+					return false
+				}
 				if !e.cachingEqual(inMember.Type, outMember.Type, alreadyVisitedTypes) {
 					return false
 				}
