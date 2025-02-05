@@ -48,6 +48,7 @@ source "${KUBE_ROOT}/test/cmd/generic-resources.sh"
 source "${KUBE_ROOT}/test/cmd/get.sh"
 source "${KUBE_ROOT}/test/cmd/help.sh"
 source "${KUBE_ROOT}/test/cmd/kubeconfig.sh"
+source "${KUBE_ROOT}/test/cmd/kuberc.sh"
 source "${KUBE_ROOT}/test/cmd/node-management.sh"
 source "${KUBE_ROOT}/test/cmd/plugins.sh"
 source "${KUBE_ROOT}/test/cmd/proxy.sh"
@@ -1055,6 +1056,12 @@ runTests() {
     record_command run_kubectl_debug_restricted_node_tests
     record_command run_kubectl_debug_netadmin_node_tests
   fi
+
+  #######################
+  # kuberc              #
+  #######################
+
+  record_command run_kuberc_tests
 
   cleanup_tests
 }

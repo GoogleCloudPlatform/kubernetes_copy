@@ -432,6 +432,7 @@ const (
 	PortForwardWebsockets   FeatureGate = "KUBECTL_PORT_FORWARD_WEBSOCKETS"
 	// DebugCustomProfile should be dropped in 1.34
 	DebugCustomProfile FeatureGate = "KUBECTL_DEBUG_CUSTOM_PROFILE"
+	KubeRC             FeatureGate = "KUBECTL_KUBERC"
 )
 
 // IsEnabled returns true iff environment variable is set to true.
