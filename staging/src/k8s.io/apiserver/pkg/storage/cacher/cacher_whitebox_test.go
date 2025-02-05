@@ -61,7 +61,7 @@ import (
 	"k8s.io/utils/pointer"
 )
 
-func newTestCacherWithoutSyncing(s storage.Interface) (*Cacher, storage.Versioner, error) {
+func newTestCacherWithoutSyncing(s storage.Interface, c clock.WithTicker) (*Cacher, storage.Versioner, error) {
 	prefix := "pods"
 	config := Config{
 		Storage:             s,
@@ -85,7 +85,7 @@ func newTestCacherWithoutSyncing(s storage.Interface) (*Cacher, storage.Versione
 		NewFunc:     func() runtime.Object { return &example.Pod{} },
 		NewListFunc: func() runtime.Object { return &example.PodList{} },
 		Codec:       codecs.LegacyCodec(examplev1.SchemeGroupVersion),
-		Clock:       clock.RealClock{},
+		Clock:       c,
 	}
 	cacher, err := NewCacherFromConfig(config)
 
@@ -93,7 +93,7 @@ func newTestCacherWithoutSyncing(s storage.Interface) (*Cacher, storage.Versione
 }
 
 func newTestCacher(s storage.Interface) (*Cacher, storage.Versioner, error) {
-	cacher, versioner, err := newTestCacherWithoutSyncing(s)
+	cacher, versioner, err := newTestCacherWithoutSyncing(s, clock.RealClock{})
 	if err != nil {
 		return nil, versioner, err
 	}
@@ -435,17 +435,15 @@ apiserver_watch_cache_consistent_read_total{fallback="true", resource="pods", su
 				podList.ResourceVersion = tc.watchCacheRV
 				return nil
 			}
-			// TODO: Use fake clock for this test to reduce execution time.
-			cacher, _, err := newTestCacher(backingStorage)
+			c := testingclock.NewFakeClock(time.Now())
+			cacher, _, err := newTestCacherWithoutSyncing(backingStorage, c)
 			if err != nil {
 				t.Fatalf("Couldn't create cacher: %v", err)
 			}
 			defer cacher.Stop()
 			proxy := NewCacheProxy(cacher, backingStorage)
-			if !utilfeature.DefaultFeatureGate.Enabled(features.ResilientWatchCacheInitialization) {
-				if err := cacher.ready.wait(context.Background()); err != nil {
-					t.Fatalf("unexpected error waiting for the cache to be ready")
-				}
+			if err := cacher.ready.wait(context.Background()); err != nil {
+				t.Fatalf("unexpected error waiting for the cache to be ready")
 			}
 
 			if fmt.Sprintf("%d", cacher.watchCache.resourceVersion) != tc.watchCacheRV {
@@ -466,8 +464,28 @@ apiserver_watch_cache_consistent_read_total{fallback="true", resource="pods", su
 				return nil
 			}
 			result := &example.PodList{}
+
+			ctx, clockStepCancelFn := context.WithTimeout(context.TODO(), time.Minute)
+			defer clockStepCancelFn()
+			if tc.expectBlock {
+				go func(ctx context.Context) {
+					for {
+						select {
+						case <-ctx.Done():
+							return
+						default:
+							if c.HasWaiters() {
+								c.Step(blockTimeout)
+							}
+							time.Sleep(time.Millisecond)
+						}
+					}
+				}(ctx)
+			}
+
 			start := cacher.clock.Now()
 			err = proxy.GetList(context.TODO(), "pods/ns", storage.ListOptions{ResourceVersion: ""}, result)
+			clockStepCancelFn()
 			duration := cacher.clock.Since(start)
 			if (err != nil) != tc.expectError {
 				t.Fatalf("Unexpected error err: %v", err)
@@ -625,7 +643,7 @@ func TestTooManyRequestsNotReturned(t *testing.T) {
 
 	dummyErr := fmt.Errorf("dummy")
 	backingStorage := &dummyStorage{err: dummyErr}
-	cacher, _, err := newTestCacherWithoutSyncing(backingStorage)
+	cacher, _, err := newTestCacherWithoutSyncing(backingStorage, clock.RealClock{})
 	if err != nil {
 		t.Fatalf("Couldn't create cacher: %v", err)
 	}
@@ -752,7 +770,7 @@ func TestWatchNotHangingOnStartupFailure(t *testing.T) {
 	// constantly failing lists to the underlying storage.
 	dummyErr := fmt.Errorf("dummy")
 	backingStorage := &dummyStorage{err: dummyErr}
-	cacher, _, err := newTestCacherWithoutSyncing(backingStorage)
+	cacher, _, err := newTestCacherWithoutSyncing(backingStorage, clock.RealClock{})
 	if err != nil {
 		t.Fatalf("Couldn't create cacher: %v", err)
 	}
