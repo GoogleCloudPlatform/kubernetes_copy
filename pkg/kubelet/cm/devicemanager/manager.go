@@ -20,6 +20,7 @@ import (
 	"context"
 	goerrors "errors"
 	"fmt"
+	"k8s.io/apimachinery/pkg/types"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -122,8 +123,11 @@ type endpointInfo struct {
 
 type sourcesReadyStub struct{}
 
-// PodReusableDevices is a map by pod name of devices to reuse.
-type PodReusableDevices map[string]map[string]sets.Set[string]
+// PodReusableDevices is a struct by pod name of devices to reuse.
+type PodReusableDevices struct {
+	podUID  types.UID
+	toReuse map[string]sets.Set[string]
+}
 
 func (s *sourcesReadyStub) AddSource(source string) {}
 func (s *sourcesReadyStub) AllReady() bool          { return true }
@@ -155,7 +159,7 @@ func newManagerImpl(socketPath string, topology []cadvisorapi.Node, topologyAffi
 		podDevices:            newPodDevices(),
 		numaNodes:             numaNodes,
 		topologyAffinityStore: topologyAffinityStore,
-		devicesToReuse:        make(PodReusableDevices),
+		devicesToReuse:        PodReusableDevices{},
 		update:                make(chan resourceupdates.Update, 100),
 	}
 
@@ -367,38 +371,34 @@ func (m *ManagerImpl) Stop() error {
 // Allocate is the call that you can use to allocate a set of devices
 // from the registered device plugins.
 func (m *ManagerImpl) Allocate(pod *v1.Pod, container *v1.Container) error {
-	if _, ok := m.devicesToReuse[string(pod.UID)]; !ok {
-		m.devicesToReuse[string(pod.UID)] = make(map[string]sets.Set[string])
+	if m.devicesToReuse.podUID != pod.UID {
+		m.devicesToReuse.podUID = pod.UID
+		m.devicesToReuse.toReuse = make(map[string]sets.Set[string])
 	}
-	// If pod entries to m.devicesToReuse other than the current pod exist, delete them.
-	for podUID := range m.devicesToReuse {
-		if podUID != string(pod.UID) {
-			delete(m.devicesToReuse, podUID)
-		}
-	}
+
 	// Allocate resources for init containers first as we know the caller always loops
 	// through init containers before looping through app containers. Should the caller
 	// ever change those semantics, this logic will need to be amended.
 	for _, initContainer := range pod.Spec.InitContainers {
 		if container.Name == initContainer.Name {
-			if err := m.allocateContainerResources(pod, container, m.devicesToReuse[string(pod.UID)]); err != nil {
+			if err := m.allocateContainerResources(pod, container, m.devicesToReuse.toReuse); err != nil {
 				return err
 			}
 			if !podutil.IsRestartableInitContainer(&initContainer) {
-				m.podDevices.addContainerAllocatedResources(string(pod.UID), container.Name, m.devicesToReuse[string(pod.UID)])
+				m.podDevices.addContainerAllocatedResources(string(pod.UID), container.Name, m.devicesToReuse.toReuse)
 			} else {
 				// If the init container is restartable, we need to keep the
 				// devices allocated. In other words, we should remove them
 				// from the devicesToReuse.
-				m.podDevices.removeContainerAllocatedResources(string(pod.UID), container.Name, m.devicesToReuse[string(pod.UID)])
+				m.podDevices.removeContainerAllocatedResources(string(pod.UID), container.Name, m.devicesToReuse.toReuse)
 			}
 			return nil
 		}
 	}
-	if err := m.allocateContainerResources(pod, container, m.devicesToReuse[string(pod.UID)]); err != nil {
+	if err := m.allocateContainerResources(pod, container, m.devicesToReuse.toReuse); err != nil {
 		return err
 	}
-	m.podDevices.removeContainerAllocatedResources(string(pod.UID), container.Name, m.devicesToReuse[string(pod.UID)])
+	m.podDevices.removeContainerAllocatedResources(string(pod.UID), container.Name, m.devicesToReuse.toReuse)
 	return nil
 }
 

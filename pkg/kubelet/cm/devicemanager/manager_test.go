@@ -838,7 +838,7 @@ func getTestManager(tmpDir string, activePods ActivePodsFunc, testRes []TestReso
 		allocatedDevices:      make(map[string]sets.Set[string]),
 		endpoints:             make(map[string]endpointInfo),
 		podDevices:            newPodDevices(),
-		devicesToReuse:        make(PodReusableDevices),
+		devicesToReuse:        PodReusableDevices{},
 		topologyAffinityStore: topologymanager.NewFakeManager(),
 		activePods:            activePods,
 		sourcesReady:          &sourcesReadyStub{},
