@@ -664,11 +664,13 @@ func (config *inClusterClientConfig) Possible() bool {
 // to the default config.
 func BuildConfigFromFlags(masterUrl, kubeconfigPath string) (*restclient.Config, error) {
 	if kubeconfigPath == "" && masterUrl == "" {
+		//nolint:logcheck // A helper function like this should not log. But this is probably part of the the established client-go API and not worth changing.
 		klog.Warning("Neither --kubeconfig nor --master was specified.  Using the inClusterConfig.  This might not work.")
 		kubeconfig, err := restclient.InClusterConfig()
 		if err == nil {
 			return kubeconfig, nil
 		}
+		//nolint:logcheck // A helper function like this should not log. But this is probably part of the the established client-go API and not worth changing.
 		klog.Warning("error creating inClusterConfig, falling back to default config: ", err)
 	}
 	return NewNonInteractiveDeferredLoadingClientConfig(

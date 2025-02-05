@@ -90,6 +90,7 @@ func parseBool(key string) bool {
 	}
 	value, err := strconv.ParseBool(key)
 	if err != nil {
+		//nolint:logcheck // Hopefully never happens.
 		utilruntime.HandleError(fmt.Errorf("couldn't parse '%s' as bool for unstructured mismatch detection", key))
 	}
 	return value
@@ -249,9 +250,11 @@ func (c *unstructuredConverter) FromUnstructuredWithValidation(u map[string]inte
 		newObj := reflect.New(t.Elem()).Interface()
 		newErr := fromUnstructuredViaJSON(u, newObj)
 		if (err != nil) != (newErr != nil) {
+			//nolint:logcheck // Hopefully not reached, it would kill the process.
 			klog.Fatalf("FromUnstructured unexpected error for %v: error: %v", u, err)
 		}
 		if err == nil && !c.comparison.DeepEqual(obj, newObj) {
+			//nolint:logcheck // Hopefully not reached, it would kill the process.
 			klog.Fatalf("FromUnstructured mismatch\nobj1: %#v\nobj2: %#v", obj, newObj)
 		}
 	}
@@ -589,9 +592,11 @@ func (c *unstructuredConverter) ToUnstructured(obj interface{}) (map[string]inte
 		newUnstr := map[string]interface{}{}
 		newErr := toUnstructuredViaJSON(obj, &newUnstr)
 		if (err != nil) != (newErr != nil) {
+			//nolint:logcheck // Hopefully not reached, it would kill the process.
 			klog.Fatalf("ToUnstructured unexpected error for %v: error: %v; newErr: %v", obj, err, newErr)
 		}
 		if err == nil && !c.comparison.DeepEqual(u, newUnstr) {
+			//nolint:logcheck // Hopefully not reached, it would kill the process.
 			klog.Fatalf("ToUnstructured mismatch\nobj1: %#v\nobj2: %#v", u, newUnstr)
 		}
 	}

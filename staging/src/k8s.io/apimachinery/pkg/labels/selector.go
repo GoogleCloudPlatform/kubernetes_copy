@@ -255,12 +255,14 @@ func (r *Requirement) Matches(ls Labels) bool {
 		}
 		lsValue, err := strconv.ParseInt(ls.Get(r.key), 10, 64)
 		if err != nil {
+			//nolint:logcheck // Not worth changing the API for.
 			klog.V(10).Infof("ParseInt failed for value %+v in label %+v, %+v", ls.Get(r.key), ls, err)
 			return false
 		}
 
 		// There should be only one strValue in r.strValues, and can be converted to an integer.
 		if len(r.strValues) != 1 {
+			//nolint:logcheck // Not worth changing the API for.
 			klog.V(10).Infof("Invalid values count %+v of requirement %#v, for 'Gt', 'Lt' operators, exactly one value is required", len(r.strValues), r)
 			return false
 		}
@@ -269,6 +271,7 @@ func (r *Requirement) Matches(ls Labels) bool {
 		for i := range r.strValues {
 			rValue, err = strconv.ParseInt(r.strValues[i], 10, 64)
 			if err != nil {
+				//nolint:logcheck // Not worth changing the API for.
 				klog.V(10).Infof("ParseInt failed for value %+v in requirement %#v, for 'Gt', 'Lt' operators, the value must be an integer", r.strValues[i], r)
 				return false
 			}

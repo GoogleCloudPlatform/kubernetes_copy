@@ -22,6 +22,7 @@ import (
 	"net/http"
 
 	"k8s.io/apimachinery/pkg/util/httpstream"
+	"k8s.io/klog/v2"
 )
 
 // StreamOptions holds information pertaining to the current streaming session:
@@ -54,5 +55,5 @@ type streamCreator interface {
 }
 
 type streamProtocolHandler interface {
-	stream(conn streamCreator) error
+	stream(logger klog.Logger, conn streamCreator) error
 }

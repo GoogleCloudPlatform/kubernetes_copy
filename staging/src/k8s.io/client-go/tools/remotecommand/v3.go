@@ -22,8 +22,9 @@ import (
 	"net/http"
 	"sync"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/klog/v2"
 )
 
 // streamProtocolV3 implements version 3 of the streaming protocol for attach
@@ -62,12 +63,12 @@ func (p *streamProtocolV3) createStreams(conn streamCreator) error {
 	return nil
 }
 
-func (p *streamProtocolV3) handleResizes() {
+func (p *streamProtocolV3) handleResizes(logger klog.Logger) {
 	if p.resizeStream == nil || p.TerminalSizeQueue == nil {
 		return
 	}
 	go func() {
-		defer runtime.HandleCrash()
+		defer runtime.HandleCrashWithLogger(logger)
 
 		encoder := json.NewEncoder(p.resizeStream)
 		for {
@@ -76,28 +77,28 @@ func (p *streamProtocolV3) handleResizes() {
 				return
 			}
 			if err := encoder.Encode(&size); err != nil {
-				runtime.HandleError(err)
+				runtime.HandleErrorWithLogger(logger, err, "Encoding terminal size failed")
 			}
 		}
 	}()
 }
 
-func (p *streamProtocolV3) stream(conn streamCreator) error {
+func (p *streamProtocolV3) stream(logger klog.Logger, conn streamCreator) error {
 	if err := p.createStreams(conn); err != nil {
 		return err
 	}
 
 	// now that all the streams have been created, proceed with reading & copying
 
-	errorChan := watchErrorStream(p.errorStream, &errorDecoderV3{})
+	errorChan := watchErrorStream(logger, p.errorStream, &errorDecoderV3{})
 
-	p.handleResizes()
+	p.handleResizes(logger)
 
-	p.copyStdin()
+	p.copyStdin(logger)
 
 	var wg sync.WaitGroup
-	p.copyStdout(&wg)
-	p.copyStderr(&wg)
+	p.copyStdout(logger, &wg)
+	p.copyStderr(logger, &wg)
 
 	// we're waiting for stdout/stderr to finish copying
 	wg.Wait()

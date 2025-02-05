@@ -252,14 +252,14 @@ func (c *dynamicResourceClient) Get(ctx context.Context, name string, opts metav
 
 func (c *dynamicResourceClient) List(ctx context.Context, opts metav1.ListOptions) (*unstructured.UnstructuredList, error) {
 	if watchListOptions, hasWatchListOptionsPrepared, watchListOptionsErr := watchlist.PrepareWatchListOptionsFromListOptions(opts); watchListOptionsErr != nil {
-		klog.Warningf("Failed preparing watchlist options for %v, falling back to the standard LIST semantics, err = %v", c.resource, watchListOptionsErr)
+		klog.FromContext(ctx).Info("Warning: failed preparing watchlist options, falling back to the standard LIST semantics", "resource", c.resource, "err", watchListOptionsErr)
 	} else if hasWatchListOptionsPrepared {
 		result, err := c.watchList(ctx, watchListOptions)
 		if err == nil {
 			consistencydetector.CheckWatchListFromCacheDataConsistencyIfRequested(ctx, fmt.Sprintf("watchlist request for %v", c.resource), c.list, opts, result)
 			return result, nil
 		}
-		klog.Warningf("The watchlist request for %v ended with an error, falling back to the standard LIST semantics, err = %v", c.resource, err)
+		klog.FromContext(ctx).Info("Warning: the watchlist request ended with an error, falling back to the standard LIST semantics", "resource", c.resource, "err", err)
 	}
 	result, err := c.list(ctx, opts)
 	if err == nil {

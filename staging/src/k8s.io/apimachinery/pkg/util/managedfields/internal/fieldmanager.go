@@ -152,6 +152,7 @@ func (f *FieldManager) UpdateNoErrors(liveObj, newObj runtime.Object, manager st
 				name = accessor.GetName()
 			}
 
+			//nolint:logcheck // Should not happen.
 			klog.ErrorS(err, "[SHOULD NOT HAPPEN] failed to update managedFields", "versionKind",
 				newObj.GetObjectKind().GroupVersionKind(), "namespace", ns, "name", name)
 		})

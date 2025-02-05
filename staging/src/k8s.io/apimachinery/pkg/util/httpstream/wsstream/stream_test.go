@@ -18,6 +18,7 @@ package wsstream
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"fmt"
 	"io"
@@ -32,6 +33,7 @@ import (
 
 func TestStream(t *testing.T) {
 	input := "some random text"
+	//nolint:logcheck // Intentionally uses the old API.
 	r := NewReader(bytes.NewBuffer([]byte(input)), true, NewDefaultReaderProtocols())
 	r.SetIdleTimeout(time.Second)
 	data, err := readWebSocket(r, t, nil)
@@ -45,6 +47,7 @@ func TestStream(t *testing.T) {
 
 func TestStreamPing(t *testing.T) {
 	input := "some random text"
+	//nolint:logcheck // Intentionally uses the old API.
 	r := NewReader(bytes.NewBuffer([]byte(input)), true, NewDefaultReaderProtocols())
 	r.SetIdleTimeout(time.Second)
 	err := expectWebSocketFrames(r, t, nil, [][]byte{
@@ -59,6 +62,7 @@ func TestStreamPing(t *testing.T) {
 func TestStreamBase64(t *testing.T) {
 	input := "some random text"
 	encoded := base64.StdEncoding.EncodeToString([]byte(input))
+	//nolint:logcheck // Intentionally uses the old API.
 	r := NewReader(bytes.NewBuffer([]byte(input)), true, NewDefaultReaderProtocols())
 	data, err := readWebSocket(r, t, nil, "base64.binary.k8s.io")
 	if !reflect.DeepEqual(data, []byte(encoded)) {
@@ -72,6 +76,7 @@ func TestStreamBase64(t *testing.T) {
 func TestStreamVersionedBase64(t *testing.T) {
 	input := "some random text"
 	encoded := base64.StdEncoding.EncodeToString([]byte(input))
+	//nolint:logcheck // Intentionally uses the old API.
 	r := NewReader(bytes.NewBuffer([]byte(input)), true, map[string]ReaderProtocolConfig{
 		"":                        {Binary: true},
 		"binary.k8s.io":           {Binary: true},
@@ -100,6 +105,7 @@ func TestStreamVersionedCopy(t *testing.T) {
 				}
 			}
 			input := "some random text"
+			//nolint:logcheck // Intentionally uses the old API.
 			r := NewReader(bytes.NewBuffer([]byte(input)), true, supportedProtocols)
 			s, addr := newServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 				err := r.Copy(w, req)
@@ -145,6 +151,7 @@ func TestStreamError(t *testing.T) {
 		},
 		err: fmt.Errorf("bad read"),
 	}
+	//nolint:logcheck // Intentionally uses the old API.
 	r := NewReader(errs, false, NewDefaultReaderProtocols())
 
 	data, err := readWebSocket(r, t, nil)
@@ -165,10 +172,11 @@ func TestStreamSurvivesPanic(t *testing.T) {
 		},
 		panicMessage: "bad read",
 	}
+	//nolint:logcheck // Intentionally uses the old API.
 	r := NewReader(errs, false, NewDefaultReaderProtocols())
 
 	// do not call runtime.HandleCrash() in handler. Otherwise, the tests are interrupted.
-	r.handleCrash = func(additionalHandlers ...func(interface{})) { recover() }
+	r.handleCrash = func(_ context.Context, additionalHandlers ...func(context.Context, interface{})) { recover() }
 
 	data, err := readWebSocket(r, t, nil)
 	if !reflect.DeepEqual(data, []byte(input)) {
@@ -191,6 +199,7 @@ func TestStreamClosedDuringRead(t *testing.T) {
 			err:   fmt.Errorf("stuff"),
 			pause: ch,
 		}
+		//nolint:logcheck // Intentionally uses the old API.
 		r := NewReader(errs, false, NewDefaultReaderProtocols())
 
 		data, err := readWebSocket(r, t, func(c *websocket.Conn) {

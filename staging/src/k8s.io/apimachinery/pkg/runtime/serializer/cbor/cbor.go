@@ -184,6 +184,8 @@ func diagnose(data []byte) string {
 	if err != nil {
 		// Since the input must already be well-formed CBOR, converting it to diagnostic
 		// notation should not fail.
+		//
+		//nolint:logcheck
 		util.HandleError(err)
 
 		return hex.EncodeToString(data)

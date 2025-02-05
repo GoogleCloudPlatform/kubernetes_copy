@@ -116,6 +116,7 @@ func identifier(encodeGV runtime.GroupVersioner, encoder runtime.Encoder) runtim
 	}
 	identifier, err := json.Marshal(result)
 	if err != nil {
+		//nolint:logcheck // Let's hope this never gets reached. It would kill the process.
 		klog.Fatalf("Failed marshaling identifier for codec: %v", err)
 	}
 	identifiersMap.Store(result, runtime.Identifier(identifier))
@@ -222,6 +223,7 @@ func (c *codec) doEncode(obj runtime.Object, w io.Writer, memAlloc runtime.Memor
 				return encoder.EncodeWithAllocator(obj, w, memAlloc)
 			}
 		} else {
+			//nolint:logcheck // Hopefully not reached.
 			klog.V(6).Infof("a memory allocator was provided but the encoder %s doesn't implement the runtime.EncoderWithAllocator, using regular encoder.Encode method", c.encoder.Identifier())
 		}
 	}

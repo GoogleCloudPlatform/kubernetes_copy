@@ -292,7 +292,7 @@ func (e *eventBroadcasterImpl) recordToSink(sink EventSink, event *v1.Event, eve
 	event = &eventCopy
 	result, err := eventCorrelator.EventCorrelate(event)
 	if err != nil {
-		utilruntime.HandleError(err)
+		utilruntime.HandleErrorWithContext(e.cancelationCtx, err, "Event correlation failed")
 	}
 	if result.Skip {
 		return
@@ -402,7 +402,7 @@ func (e *eventBroadcasterImpl) StartEventWatcher(eventHandler func(*v1.Event)) w
 		return watch.NewEmptyWatch()
 	}
 	go func() {
-		defer utilruntime.HandleCrash()
+		defer utilruntime.HandleCrashWithContext(e.cancelationCtx)
 		for {
 			select {
 			case <-e.cancelationCtx.Done():

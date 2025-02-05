@@ -28,6 +28,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/httpstream"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/klog/v2/ktesting"
 )
 
 type fakeReader struct {
@@ -179,6 +180,7 @@ func TestV2CreateStreams(t *testing.T) {
 }
 
 func TestV2ErrorStreamReading(t *testing.T) {
+	logger, _ := ktesting.NewTestContext(t)
 	tests := []struct {
 		name          string
 		stream        io.Reader
@@ -217,7 +219,7 @@ func TestV2ErrorStreamReading(t *testing.T) {
 		h := newStreamProtocolV2(StreamOptions{}).(*streamProtocolV2)
 		h.errorStream = test.stream
 
-		ch := watchErrorStream(h.errorStream, &errorDecoderV2{})
+		ch := watchErrorStream(logger, h.errorStream, &errorDecoderV2{})
 		if ch == nil {
 			t.Fatalf("%s: unexpected nil channel", test.name)
 		}

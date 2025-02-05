@@ -20,7 +20,7 @@ import (
 	"testing"
 	"time"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -29,7 +29,7 @@ import (
 
 func TestMutationDetector(t *testing.T) {
 	fakeWatch := watch.NewFake()
-	lw := &testLW{
+	lw := &ListWatch{
 		WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 			return fakeWatch, nil
 		},

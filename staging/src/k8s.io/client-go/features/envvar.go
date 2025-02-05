@@ -141,6 +141,13 @@ func (f *envVarFeatureGates) Set(featureName Feature, featureValue bool) error {
 // read from the corresponding environmental variable.
 func (f *envVarFeatureGates) getEnabledMapFromEnvVar() map[Feature]bool {
 	f.readEnvVarsOnce.Do(func() {
+		// This code does not really support contextual logging. Making it do so has huge
+		// implications for several call chains because the Enabled call then needs
+		// a `*WithLogger` variant. This does not matter in Kubernetes itself because
+		// all Kubernetes components replace the feature gate implementation used
+		// by client-go, but it might matter elsewhere.
+		logger := klog.Background()
+
 		featureGatesState := map[Feature]bool{}
 		for feature, featureSpec := range f.known {
 			featureState, featureStateSet := os.LookupEnv(fmt.Sprintf("KUBE_FEATURE_%s", feature))
@@ -150,10 +157,10 @@ func (f *envVarFeatureGates) getEnabledMapFromEnvVar() map[Feature]bool {
 			boolVal, boolErr := strconv.ParseBool(featureState)
 			switch {
 			case boolErr != nil:
-				utilruntime.HandleError(fmt.Errorf("cannot set feature gate %q to %q, due to %v", feature, featureState, boolErr))
+				utilruntime.HandleErrorWithLogger(logger, boolErr, "Could not set feature gate", "feature", feature, "desiredState", featureState)
 			case featureSpec.LockToDefault:
 				if boolVal != featureSpec.Default {
-					utilruntime.HandleError(fmt.Errorf("cannot set feature gate %q to %q, feature is locked to %v", feature, featureState, featureSpec.Default))
+					utilruntime.HandleErrorWithLogger(logger, nil, "Could not set feature gate, feature is locked", "feature", feature, "desiredState", featureState, "lockedState", featureSpec.Default)
 					break
 				}
 				featureGatesState[feature] = featureSpec.Default
@@ -166,10 +173,10 @@ func (f *envVarFeatureGates) getEnabledMapFromEnvVar() map[Feature]bool {
 
 		for feature, featureSpec := range f.known {
 			if featureState, ok := featureGatesState[feature]; ok {
-				klog.V(1).InfoS("Feature gate updated state", "feature", feature, "enabled", featureState)
+				logger.V(1).Info("Feature gate updated state", "feature", feature, "enabled", featureState)
 				continue
 			}
-			klog.V(1).InfoS("Feature gate default state", "feature", feature, "enabled", featureSpec.Default)
+			logger.V(1).Info("Feature gate default state", "feature", feature, "enabled", featureSpec.Default)
 		}
 	})
 	return f.enabledViaEnvVar.Load().(map[Feature]bool)

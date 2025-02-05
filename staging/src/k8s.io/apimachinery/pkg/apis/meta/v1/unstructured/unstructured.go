@@ -211,6 +211,7 @@ func (u *Unstructured) SetOwnerReferences(references []metav1.OwnerReference) {
 	for _, reference := range references {
 		out, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&reference)
 		if err != nil {
+			//nolint:logcheck // Should not happen?
 			utilruntime.HandleError(fmt.Errorf("unable to convert Owner Reference: %v", err))
 			continue
 		}
@@ -462,11 +463,13 @@ func (u *Unstructured) GetManagedFields() []metav1.ManagedFieldsEntry {
 	for _, item := range items {
 		m, ok := item.(map[string]interface{})
 		if !ok {
+			//nolint:logcheck // Hopefully never happens.
 			utilruntime.HandleError(fmt.Errorf("unable to retrieve managedFields for object, item %v is not a map", item))
 			return nil
 		}
 		out := metav1.ManagedFieldsEntry{}
 		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(m, &out); err != nil {
+			//nolint:logcheck // Hopefully never happens.
 			utilruntime.HandleError(fmt.Errorf("unable to retrieve managedFields for object: %v", err))
 			return nil
 		}
@@ -484,6 +487,7 @@ func (u *Unstructured) SetManagedFields(managedFields []metav1.ManagedFieldsEntr
 	for _, managedFieldsEntry := range managedFields {
 		out, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&managedFieldsEntry)
 		if err != nil {
+			//nolint:logcheck // Hopefully never happens.
 			utilruntime.HandleError(fmt.Errorf("unable to set managedFields for object: %v", err))
 			return
 		}

@@ -328,7 +328,7 @@ func (e *eventBroadcasterImpl) StartStructuredLogging(verbosity klog.Level) func
 // To adjust verbosity, use the logger's V method (i.e. pass `logger.V(3)` instead of `logger`).
 // The returned function can be ignored or used to stop recording, if desired.
 func (e *eventBroadcasterImpl) StartLogging(logger klog.Logger) (func(), error) {
-	return e.StartEventWatcher(
+	return e.startEventWatcher(logger,
 		func(obj runtime.Object) {
 			event, ok := obj.(*eventsv1.Event)
 			if !ok {
@@ -342,12 +342,16 @@ func (e *eventBroadcasterImpl) StartLogging(logger klog.Logger) (func(), error) 
 // StartEventWatcher starts sending events received from this EventBroadcaster to the given event handler function.
 // The return value is used to stop recording
 func (e *eventBroadcasterImpl) StartEventWatcher(eventHandler func(event runtime.Object)) (func(), error) {
+	return e.startEventWatcher(klog.Background(), eventHandler)
+}
+
+func (e *eventBroadcasterImpl) startEventWatcher(logger klog.Logger, eventHandler func(event runtime.Object)) (func(), error) {
 	watcher, err := e.Watch()
 	if err != nil {
 		return nil, err
 	}
 	go func() {
-		defer utilruntime.HandleCrash()
+		defer utilruntime.HandleCrashWithLogger(logger)
 		for {
 			watchEvent, ok := <-watcher.ResultChan()
 			if !ok {

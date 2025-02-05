@@ -235,6 +235,7 @@ func TestUpdateNoRotation(t *testing.T) {
 		t.Fatalf("Unable to create the file %q: %v", certFile, err)
 	}
 
+	//nolint:logcheck // Intentionally uses the old API.
 	s, err := NewFileStore(prefix, dir, dir, certFile, keyFile)
 	if err != nil {
 		t.Fatalf("Got %v while creating a new store.", err)
@@ -269,6 +270,7 @@ func TestUpdateRotation(t *testing.T) {
 		t.Fatalf("Unable to create the file %q: %v", certFile, err)
 	}
 
+	//nolint:logcheck // Intentionally uses the old API.
 	s, err := NewFileStore(prefix, dir, dir, certFile, keyFile)
 	if err != nil {
 		t.Fatalf("Got %v while creating a new store.", err)
@@ -303,6 +305,7 @@ func TestUpdateTwoCerts(t *testing.T) {
 		t.Fatalf("Unable to create the file %q: %v", certFile, err)
 	}
 
+	//nolint:logcheck // Intentionally uses the old API.
 	s, err := NewFileStore(prefix, dir, dir, certFile, keyFile)
 	if err != nil {
 		t.Fatalf("Got %v while creating a new store.", err)
@@ -340,6 +343,7 @@ func TestUpdateWithBadCertKeyData(t *testing.T) {
 		t.Fatalf("Unable to create the file %q: %v", certFile, err)
 	}
 
+	//nolint:logcheck // Intentionally uses the old API.
 	s, err := NewFileStore(prefix, dir, dir, certFile, keyFile)
 	if err != nil {
 		t.Fatalf("Got %v while creating a new store.", err)
@@ -376,6 +380,7 @@ func TestCurrentPairFile(t *testing.T) {
 		t.Fatalf("unable to create a symlink from %q to %q: %v", currentFile, pairFile, err)
 	}
 
+	//nolint:logcheck // Intentionally uses the old API.
 	store, err := NewFileStore("kubelet-server", dir, dir, "", "")
 	if err != nil {
 		t.Fatalf("Failed to initialize certificate store: %v", err)
@@ -413,6 +418,7 @@ func TestCurrentCertKeyFiles(t *testing.T) {
 		t.Fatalf("Unable to create the file %q: %v", keyFile, err)
 	}
 
+	//nolint:logcheck // Intentionally uses the old API.
 	store, err := NewFileStore(prefix, dir, dir, certFile, keyFile)
 	if err != nil {
 		t.Fatalf("Failed to initialize certificate store: %v", err)
@@ -450,6 +456,7 @@ func TestCurrentTwoCerts(t *testing.T) {
 		t.Fatalf("Unable to create the file %q: %v", keyFile, err)
 	}
 
+	//nolint:logcheck // Intentionally uses the old API.
 	store, err := NewFileStore(prefix, dir, dir, certFile, keyFile)
 	if err != nil {
 		t.Fatalf("Failed to initialize certificate store: %v", err)
@@ -481,6 +488,7 @@ func TestCurrentNoFiles(t *testing.T) {
 		}
 	}()
 
+	//nolint:logcheck // Intentionally uses the old API.
 	store, err := NewFileStore("kubelet-server", dir, dir, "", "")
 	if err != nil {
 		t.Fatalf("Failed to initialize certificate store: %v", err)

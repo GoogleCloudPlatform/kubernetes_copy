@@ -22,8 +22,9 @@ import (
 	"net/http"
 	"sync"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/klog/v2"
 )
 
 // streamProtocolV2 implements version 2 of the streaming protocol for attach
@@ -87,13 +88,13 @@ func (p *streamProtocolV2) createStreams(conn streamCreator) error {
 	return nil
 }
 
-func (p *streamProtocolV2) copyStdin() {
+func (p *streamProtocolV2) copyStdin(logger klog.Logger) {
 	if p.Stdin != nil {
 		var once sync.Once
 
 		// copy from client's stdin to container's stdin
 		go func() {
-			defer runtime.HandleCrash()
+			defer runtime.HandleCrashWithLogger(logger)
 
 			// if p.stdin is noninteractive, p.g. `echo abc | kubectl exec -i <pod> -- cat`, make sure
 			// we close remoteStdin as soon as the copy from p.stdin to remoteStdin finishes. Otherwise
@@ -101,7 +102,7 @@ func (p *streamProtocolV2) copyStdin() {
 			defer once.Do(func() { p.remoteStdin.Close() })
 
 			if _, err := io.Copy(p.remoteStdin, readerWrapper{p.Stdin}); err != nil {
-				runtime.HandleError(err)
+				runtime.HandleErrorWithLogger(logger, err, "Copying stdin failed")
 			}
 		}()
 
@@ -120,26 +121,26 @@ func (p *streamProtocolV2) copyStdin() {
 		// When that happens, we must Close() on our side of remoteStdin, to
 		// allow the copy in hijack to complete, and hijack to return.
 		go func() {
-			defer runtime.HandleCrash()
+			defer runtime.HandleCrashWithLogger(logger)
 			defer once.Do(func() { p.remoteStdin.Close() })
 
 			// this "copy" doesn't actually read anything - it's just here to wait for
 			// the server to close remoteStdin.
 			if _, err := io.Copy(io.Discard, p.remoteStdin); err != nil {
-				runtime.HandleError(err)
+				runtime.HandleErrorWithLogger(logger, err, "Waiting for server to close stdin failed")
 			}
 		}()
 	}
 }
 
-func (p *streamProtocolV2) copyStdout(wg *sync.WaitGroup) {
+func (p *streamProtocolV2) copyStdout(logger klog.Logger, wg *sync.WaitGroup) {
 	if p.Stdout == nil {
 		return
 	}
 
 	wg.Add(1)
 	go func() {
-		defer runtime.HandleCrash()
+		defer runtime.HandleCrashWithLogger(logger)
 		defer wg.Done()
 		// make sure, packet in queue can be consumed.
 		// block in queue may lead to deadlock in conn.server
@@ -147,42 +148,42 @@ func (p *streamProtocolV2) copyStdout(wg *sync.WaitGroup) {
 		defer io.Copy(io.Discard, p.remoteStdout)
 
 		if _, err := io.Copy(p.Stdout, p.remoteStdout); err != nil {
-			runtime.HandleError(err)
+			runtime.HandleErrorWithLogger(logger, err, "Copying stdout failed")
 		}
 	}()
 }
 
-func (p *streamProtocolV2) copyStderr(wg *sync.WaitGroup) {
+func (p *streamProtocolV2) copyStderr(logger klog.Logger, wg *sync.WaitGroup) {
 	if p.Stderr == nil || p.Tty {
 		return
 	}
 
 	wg.Add(1)
 	go func() {
-		defer runtime.HandleCrash()
+		defer runtime.HandleCrashWithLogger(logger)
 		defer wg.Done()
 		defer io.Copy(io.Discard, p.remoteStderr)
 
 		if _, err := io.Copy(p.Stderr, p.remoteStderr); err != nil {
-			runtime.HandleError(err)
+			runtime.HandleErrorWithLogger(logger, err, "Copying stderr failed")
 		}
 	}()
 }
 
-func (p *streamProtocolV2) stream(conn streamCreator) error {
+func (p *streamProtocolV2) stream(logger klog.Logger, conn streamCreator) error {
 	if err := p.createStreams(conn); err != nil {
 		return err
 	}
 
 	// now that all the streams have been created, proceed with reading & copying
 
-	errorChan := watchErrorStream(p.errorStream, &errorDecoderV2{})
+	errorChan := watchErrorStream(logger, p.errorStream, &errorDecoderV2{})
 
-	p.copyStdin()
+	p.copyStdin(logger)
 
 	var wg sync.WaitGroup
-	p.copyStdout(&wg)
-	p.copyStderr(&wg)
+	p.copyStdout(logger, &wg)
+	p.copyStderr(logger, &wg)
 
 	// we're waiting for stdout/stderr to finish copying
 	wg.Wait()

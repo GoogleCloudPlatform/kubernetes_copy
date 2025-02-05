@@ -58,6 +58,7 @@ const (
 // Deprecated: use FromInt32 instead.
 func FromInt(val int) IntOrString {
 	if val > math.MaxInt32 || val < math.MinInt32 {
+		//nolint:logcheck // FromInt is deprecated and only used in tests in-tree.
 		klog.Errorf("value: %d overflows int32\n%s\n", val, debug.Stack())
 	}
 	return IntOrString{Type: Int, IntVal: int32(val)}
