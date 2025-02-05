@@ -73,8 +73,15 @@ func (c *GenericConfig) NewRESTStorage(apiResourceConfigSource serverstorage.API
 		ParameterCodec:               legacyscheme.ParameterCodec,
 		NegotiatedSerializer:         legacyscheme.Codecs,
 	}
+	opts := []serializer.CodecFactoryOptionsMutator{}
 	if utilfeature.DefaultFeatureGate.Enabled(features.CBORServingAndStorage) {
-		apiGroupInfo.NegotiatedSerializer = serializer.NewCodecFactory(legacyscheme.Scheme, serializer.WithSerializer(cbor.NewSerializerInfo))
+		opts = append(opts, serializer.WithSerializer(cbor.NewSerializerInfo))
+	}
+	if utilfeature.DefaultFeatureGate.Enabled(features.StreamingCollectionEncodingToJSON) {
+		opts = append(opts, serializer.WithStreamingCollectionEncodingToJSON())
+	}
+	if len(opts) != 0 {
+		apiGroupInfo.NegotiatedSerializer = serializer.NewCodecFactory(legacyscheme.Scheme, opts...)
 	}
 
 	eventStorage, err := eventstore.NewREST(restOptionsGetter, uint64(c.EventTTL.Seconds()))

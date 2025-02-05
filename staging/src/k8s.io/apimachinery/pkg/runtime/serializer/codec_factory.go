@@ -28,7 +28,7 @@ import (
 func newSerializersForScheme(scheme *runtime.Scheme, mf json.MetaFactory, options CodecFactoryOptions) []runtime.SerializerInfo {
 	jsonSerializer := json.NewSerializerWithOptions(
 		mf, scheme, scheme,
-		json.SerializerOptions{Yaml: false, Pretty: false, Strict: options.Strict},
+		json.SerializerOptions{Yaml: false, Pretty: false, Strict: options.Strict, StreamingCollectionsEncoding: options.StreamingCollectionsEncodingToJSON},
 	)
 	jsonSerializerType := runtime.SerializerInfo{
 		MediaType:        runtime.ContentTypeJSON,
@@ -38,7 +38,7 @@ func newSerializersForScheme(scheme *runtime.Scheme, mf json.MetaFactory, option
 		Serializer:       jsonSerializer,
 		StrictSerializer: json.NewSerializerWithOptions(
 			mf, scheme, scheme,
-			json.SerializerOptions{Yaml: false, Pretty: false, Strict: true},
+			json.SerializerOptions{Yaml: false, Pretty: false, Strict: true, StreamingCollectionsEncoding: options.StreamingCollectionsEncodingToJSON},
 		),
 		StreamSerializer: &runtime.StreamSerializerInfo{
 			EncodesAsText: true,
@@ -113,6 +113,8 @@ type CodecFactoryOptions struct {
 	// Pretty includes a pretty serializer along with the non-pretty one
 	Pretty bool
 
+	StreamingCollectionsEncodingToJSON bool
+
 	serializers []func(runtime.ObjectCreater, runtime.ObjectTyper) runtime.SerializerInfo
 }
 
@@ -144,6 +146,12 @@ func DisableStrict(options *CodecFactoryOptions) {
 func WithSerializer(f func(runtime.ObjectCreater, runtime.ObjectTyper) runtime.SerializerInfo) CodecFactoryOptionsMutator {
 	return func(options *CodecFactoryOptions) {
 		options.serializers = append(options.serializers, f)
+	}
+}
+
+func WithStreamingCollectionEncodingToJSON() CodecFactoryOptionsMutator {
+	return func(options *CodecFactoryOptions) {
+		options.StreamingCollectionsEncodingToJSON = true
 	}
 }
 

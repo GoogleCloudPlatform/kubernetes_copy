@@ -851,6 +851,7 @@ func (r *crdHandler) getOrCreateServingInfoFor(uid types.UID, name string) (*crd
 		clusterScoped := crd.Spec.Scope == apiextensionsv1.ClusterScoped
 
 		// CRDs explicitly do not support protobuf, but some objects returned by the API server do
+		streamingCollections := utilfeature.DefaultFeatureGate.Enabled(features.StreamingCollectionEncodingToJSON)
 		negotiatedSerializer := unstructuredNegotiatedSerializer{
 			typer:                 typer,
 			creator:               creator,
@@ -864,10 +865,11 @@ func (r *crdHandler) getOrCreateServingInfoFor(uid types.UID, name string) (*crd
 					MediaTypeType:    "application",
 					MediaTypeSubType: "json",
 					EncodesAsText:    true,
-					Serializer:       json.NewSerializerWithOptions(json.DefaultMetaFactory, creator, typer, json.SerializerOptions{}),
+					Serializer:       json.NewSerializerWithOptions(json.DefaultMetaFactory, creator, typer, json.SerializerOptions{StreamingCollectionsEncoding: streamingCollections}),
 					PrettySerializer: json.NewSerializerWithOptions(json.DefaultMetaFactory, creator, typer, json.SerializerOptions{Pretty: true}),
 					StrictSerializer: json.NewSerializerWithOptions(json.DefaultMetaFactory, creator, typer, json.SerializerOptions{
-						Strict: true,
+						Strict:                       true,
+						StreamingCollectionsEncoding: streamingCollections,
 					}),
 					StreamSerializer: &runtime.StreamSerializerInfo{
 						EncodesAsText: true,
@@ -969,6 +971,9 @@ func (r *crdHandler) getOrCreateServingInfoFor(uid types.UID, name string) (*crd
 		var opts []serializer.CodecFactoryOptionsMutator
 		if utilfeature.DefaultFeatureGate.Enabled(features.CBORServingAndStorage) {
 			opts = append(opts, serializer.WithSerializer(cbor.NewSerializerInfo))
+		}
+		if utilfeature.DefaultFeatureGate.Enabled(features.StreamingCollectionEncodingToJSON) {
+			opts = append(opts, serializer.WithStreamingCollectionEncodingToJSON())
 		}
 		scaleScope.Serializer = serializer.NewCodecFactory(scaleConverter.Scheme(), opts...)
 		scaleScope.Kind = autoscalingv1.SchemeGroupVersion.WithKind("Scale")
