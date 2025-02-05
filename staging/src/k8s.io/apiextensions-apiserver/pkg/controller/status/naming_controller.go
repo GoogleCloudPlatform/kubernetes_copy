@@ -253,8 +253,11 @@ func (c *NamingConditionController) sync(key string) error {
 		return err
 	}
 
-	// Skip checking names if Spec and Status names are same.
-	if equality.Semantic.DeepEqual(inCustomResourceDefinition.Spec.Names, inCustomResourceDefinition.Status.AcceptedNames) {
+	namesAccepted := apiextensionshelpers.FindCRDCondition(inCustomResourceDefinition, apiextensionsv1.NamesAccepted)
+
+	// Skip checking names if Spec and Status names are same and NamesAccepted condition is True.
+	if equality.Semantic.DeepEqual(inCustomResourceDefinition.Spec.Names, inCustomResourceDefinition.Status.AcceptedNames) &&
+		(namesAccepted == nil || namesAccepted != nil && namesAccepted.Status == apiextensionsv1.ConditionTrue) {
 		return nil
 	}
 
