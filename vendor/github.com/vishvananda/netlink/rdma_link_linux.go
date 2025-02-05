@@ -3,6 +3,7 @@ package netlink
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"net"
 
@@ -85,19 +86,25 @@ func execRdmaSetLink(req *nl.NetlinkRequest) error {
 
 // RdmaLinkList gets a list of RDMA link devices.
 // Equivalent to: `rdma dev show`
+//
+// If the returned error is [ErrDumpInterrupted], results may be inconsistent
+// or incomplete.
 func RdmaLinkList() ([]*RdmaLink, error) {
 	return pkgHandle.RdmaLinkList()
 }
 
 // RdmaLinkList gets a list of RDMA link devices.
 // Equivalent to: `rdma dev show`
+//
+// If the returned error is [ErrDumpInterrupted], results may be inconsistent
+// or incomplete.
 func (h *Handle) RdmaLinkList() ([]*RdmaLink, error) {
 	proto := getProtoField(nl.RDMA_NL_NLDEV, nl.RDMA_NLDEV_CMD_GET)
 	req := h.newNetlinkRequest(proto, unix.NLM_F_ACK|unix.NLM_F_DUMP)
 
-	msgs, err := req.Execute(unix.NETLINK_RDMA, 0)
-	if err != nil {
-		return nil, err
+	msgs, executeErr := req.Execute(unix.NETLINK_RDMA, 0)
+	if executeErr != nil && !errors.Is(executeErr, ErrDumpInterrupted) {
+		return nil, executeErr
 	}
 
 	var res []*RdmaLink
@@ -109,17 +116,23 @@ func (h *Handle) RdmaLinkList() ([]*RdmaLink, error) {
 		res = append(res, link)
 	}
 
-	return res, nil
+	return res, executeErr
 }
 
 // RdmaLinkByName finds a link by name and returns a pointer to the object if
 // found and nil error, otherwise returns error code.
+//
+// If the returned error is [ErrDumpInterrupted], the result may be missing or
+// outdated and the caller should retry.
 func RdmaLinkByName(name string) (*RdmaLink, error) {
 	return pkgHandle.RdmaLinkByName(name)
 }
 
 // RdmaLinkByName finds a link by name and returns a pointer to the object if
 // found and nil error, otherwise returns error code.
+//
+// If the returned error is [ErrDumpInterrupted], the result may be missing or
+// outdated and the caller should retry.
 func (h *Handle) RdmaLinkByName(name string) (*RdmaLink, error) {
 	links, err := h.RdmaLinkList()
 	if err != nil {
@@ -288,6 +301,8 @@ func RdmaLinkDel(name string) error {
 }
 
 // RdmaLinkDel deletes an rdma link.
+//
+// If the returned error is [ErrDumpInterrupted], the caller should retry.
 func (h *Handle) RdmaLinkDel(name string) error {
 	link, err := h.RdmaLinkByName(name)
 	if err != nil {
@@ -307,6 +322,7 @@ func (h *Handle) RdmaLinkDel(name string) error {
 
 // RdmaLinkAdd adds an rdma link for the specified type to the network device.
 // Similar to: rdma link add NAME type TYPE netdev NETDEV
+//
 //	NAME - specifies the new name of the rdma link to add
 //	TYPE - specifies which rdma type to use.  Link types:
 //		rxe - Soft RoCE driver

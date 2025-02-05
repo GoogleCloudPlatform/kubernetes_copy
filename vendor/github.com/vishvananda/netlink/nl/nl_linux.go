@@ -45,6 +45,26 @@ var SocketTimeoutTv = unix.Timeval{Sec: 60, Usec: 0}
 // ErrorMessageReporting is the default error message reporting configuration for the new netlink sockets
 var EnableErrorMessageReporting bool = false
 
+// ErrDumpInterrupted is an instance of errDumpInterrupted, used to report that
+// a netlink function has set the NLM_F_DUMP_INTR flag in a response message,
+// indicating that the results may be incomplete or inconsistent.
+var ErrDumpInterrupted = errDumpInterrupted{}
+
+// errDumpInterrupted is an error type, used to report that NLM_F_DUMP_INTR was
+// set in a netlink response.
+type errDumpInterrupted struct{}
+
+func (errDumpInterrupted) Error() string {
+	return "results may be incomplete or inconsistent"
+}
+
+// Before errDumpInterrupted was introduced, EINTR was returned when a netlink
+// response had NLM_F_DUMP_INTR. Retain backward compatibility with code that
+// may be checking for EINTR using Is.
+func (e errDumpInterrupted) Is(target error) bool {
+	return target == unix.EINTR
+}
+
 // GetIPFamily returns the family type of a net.IP.
 func GetIPFamily(ip net.IP) int {
 	if len(ip) <= net.IPv4len {
@@ -494,22 +514,26 @@ func (req *NetlinkRequest) AddRawData(data []byte) {
 // Execute the request against the given sockType.
 // Returns a list of netlink messages in serialized format, optionally filtered
 // by resType.
+// If the returned error is [ErrDumpInterrupted], results may be inconsistent
+// or incomplete.
 func (req *NetlinkRequest) Execute(sockType int, resType uint16) ([][]byte, error) {
 	var res [][]byte
 	err := req.ExecuteIter(sockType, resType, func(msg []byte) bool {
 		res = append(res, msg)
 		return true
 	})
-	if err != nil {
+	if err != nil && !errors.Is(err, ErrDumpInterrupted) {
 		return nil, err
 	}
-	return res, nil
+	return res, err
 }
 
 // ExecuteIter executes the request against the given sockType.
 // Calls the provided callback func once for each netlink message.
 // If the callback returns false, it is not called again, but
 // the remaining messages are consumed/discarded.
+// If the returned error is [ErrDumpInterrupted], results may be inconsistent
+// or incomplete.
 //
 // Thread safety: ExecuteIter holds a lock on the socket until
 // it finishes iteration so the callback must not call back into
@@ -561,6 +585,8 @@ func (req *NetlinkRequest) ExecuteIter(sockType int, resType uint16, f func(msg 
 		return err
 	}
 
+	dumpIntr := false
+
 done:
 	for {
 		msgs, from, err := s.Receive()
@@ -582,7 +608,7 @@ done:
 			}
 
 			if m.Header.Flags&unix.NLM_F_DUMP_INTR != 0 {
-				return syscall.Errno(unix.EINTR)
+				dumpIntr = true
 			}
 
 			if m.Header.Type == unix.NLMSG_DONE || m.Header.Type == unix.NLMSG_ERROR {
@@ -635,6 +661,9 @@ done:
 				break done
 			}
 		}
+	}
+	if dumpIntr {
+		return ErrDumpInterrupted
 	}
 	return nil
 }

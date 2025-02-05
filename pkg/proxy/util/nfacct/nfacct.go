@@ -31,6 +31,6 @@ type Interface interface {
 	Add(name string) error
 	// Get retrieves the nfacct counter with the specified name, returning an error if it doesn't exist.
 	Get(name string) (*Counter, error)
-	// List retrieves all nfacct counters.
+	// List retrieves nfacct counters, it could receive all counters or a subset of them with an unix.EINTR error.
 	List() ([]*Counter, error)
 }

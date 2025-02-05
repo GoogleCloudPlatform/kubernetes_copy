@@ -23,39 +23,74 @@ import (
 	"github.com/vishvananda/netlink"
 )
 
-// FakeInterface implements Interface by just recording entries that have been cleared.
-type FakeInterface struct {
-	entries []*netlink.ConntrackFlow
+type fakeHandler struct {
+	tableType netlink.ConntrackTableType
+	ipFamily  netlink.InetFamily
+	filters   []*conntrackFilter
+
+	entries         [][]*netlink.ConntrackFlow
+	tableListErrors []error
+	deleteErrors    []error
+
+	// callsConntrackTableList is a counter that gets incremented each time ConntrackTableList is called
+	callsConntrackTableList int
+	// callsConntrackDeleteFilters is a counter that gets incremented each time ConntrackDeleteFilters is called
+	callsConntrackDeleteFilters int
 }
 
-var _ Interface = &FakeInterface{}
+// ConntrackTableList is part of netlinkHandler interface.
+func (fake *fakeHandler) ConntrackTableList(_ netlink.ConntrackTableType, _ netlink.InetFamily) ([]*netlink.ConntrackFlow, error) {
+	calls := fake.callsConntrackTableList
+	fake.callsConntrackTableList++
 
-// NewFake creates a new FakeInterface
-func NewFake() *FakeInterface {
-	return &FakeInterface{entries: make([]*netlink.ConntrackFlow, 0)}
+	if len(fake.entries) <= calls {
+		return nil, nil
+	}
+	return fake.entries[calls], fake.tableListErrors[calls]
 }
 
-// ListEntries is part of Interface
-func (fake *FakeInterface) ListEntries(_ uint8) ([]*netlink.ConntrackFlow, error) {
-	return fake.entries, nil
-}
+// ConntrackDeleteFilters is part of netlinkHandler interface.
+func (fake *fakeHandler) ConntrackDeleteFilters(tableType netlink.ConntrackTableType, family netlink.InetFamily, netlinkFilters ...netlink.CustomConntrackFilter) (uint, error) {
+	fake.tableType = tableType
+	fake.ipFamily = family
+	deleteCalls := fake.callsConntrackDeleteFilters
+	otherCalls := fake.callsConntrackTableList
+	fake.callsConntrackDeleteFilters++
+	fake.filters = make([]*conntrackFilter, 0, len(netlinkFilters))
+	for _, netlinkFilter := range netlinkFilters {
+		fake.filters = append(fake.filters, netlinkFilter.(*conntrackFilter))
+	}
 
-// ClearEntries is part of Interface
-func (fake *FakeInterface) ClearEntries(_ uint8, filters ...netlink.CustomConntrackFilter) (int, error) {
 	var flows []*netlink.ConntrackFlow
 	before := len(fake.entries)
-	for _, flow := range fake.entries {
-		var matched bool
-		for _, filter := range filters {
-			matched = filter.MatchConntrackFlow(flow)
-			if matched {
-				break
+	if before > 0 {
+		for _, flow := range fake.entries[otherCalls] {
+			var matched bool
+			for _, filter := range fake.filters {
+				matched = filter.MatchConntrackFlow(flow)
+				if matched {
+					break
+				}
+			}
+			if !matched {
+				flows = append(flows, flow)
 			}
 		}
-		if !matched {
-			flows = append(flows, flow)
-		}
+		fake.entries[otherCalls] = flows
 	}
-	fake.entries = flows
-	return before - len(fake.entries), nil
+	var err error
+	if deleteCalls < len(fake.deleteErrors) {
+		err = fake.deleteErrors[deleteCalls]
+	} else {
+		err = nil
+	}
+
+	return uint(before - len(fake.entries)), err
+}
+
+var _ netlinkHandler = (*fakeHandler)(nil)
+
+// NewFake creates a new FakeInterface
+func NewFake() Interface {
+	return &conntracker{handler: &fakeHandler{}}
 }

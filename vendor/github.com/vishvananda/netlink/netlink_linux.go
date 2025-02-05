@@ -9,3 +9,6 @@ const (
 	FAMILY_V6   = nl.FAMILY_V6
 	FAMILY_MPLS = nl.FAMILY_MPLS
 )
+
+// ErrDumpInterrupted is an alias for [nl.ErrDumpInterrupted].
+var ErrDumpInterrupted = nl.ErrDumpInterrupted

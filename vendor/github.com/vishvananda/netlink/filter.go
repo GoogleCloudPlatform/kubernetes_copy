@@ -231,6 +231,35 @@ func NewCsumAction() *CsumAction {
 	}
 }
 
+type VlanAct int8
+
+type VlanAction struct {
+	ActionAttrs
+	Action VlanAct
+	VlanID uint16
+}
+
+const (
+	TCA_VLAN_ACT_POP  VlanAct = 1
+	TCA_VLAN_ACT_PUSH VlanAct = 2
+)
+
+func (action *VlanAction) Type() string {
+	return "vlan"
+}
+
+func (action *VlanAction) Attrs() *ActionAttrs {
+	return &action.ActionAttrs
+}
+
+func NewVlanAction() *VlanAction {
+	return &VlanAction{
+		ActionAttrs: ActionAttrs{
+			Action: TC_ACT_PIPE,
+		},
+	}
+}
+
 type MirredAct uint8
 
 func (a MirredAct) String() string {

@@ -1,6 +1,7 @@
 package netlink
 
 import (
+	"errors"
 	"fmt"
 	"net"
 
@@ -215,6 +216,9 @@ func (h *Handle) XfrmPolicyDel(policy *XfrmPolicy) error {
 // XfrmPolicyList gets a list of xfrm policies in the system.
 // Equivalent to: `ip xfrm policy show`.
 // The list can be filtered by ip family.
+//
+// If the returned error is [ErrDumpInterrupted], results may be inconsistent
+// or incomplete.
 func XfrmPolicyList(family int) ([]XfrmPolicy, error) {
 	return pkgHandle.XfrmPolicyList(family)
 }
@@ -222,15 +226,18 @@ func XfrmPolicyList(family int) ([]XfrmPolicy, error) {
 // XfrmPolicyList gets a list of xfrm policies in the system.
 // Equivalent to: `ip xfrm policy show`.
 // The list can be filtered by ip family.
+//
+// If the returned error is [ErrDumpInterrupted], results may be inconsistent
+// or incomplete.
 func (h *Handle) XfrmPolicyList(family int) ([]XfrmPolicy, error) {
 	req := h.newNetlinkRequest(nl.XFRM_MSG_GETPOLICY, unix.NLM_F_DUMP)
 
 	msg := nl.NewIfInfomsg(family)
 	req.AddData(msg)
 
-	msgs, err := req.Execute(unix.NETLINK_XFRM, nl.XFRM_MSG_NEWPOLICY)
-	if err != nil {
-		return nil, err
+	msgs, executeErr := req.Execute(unix.NETLINK_XFRM, nl.XFRM_MSG_NEWPOLICY)
+	if executeErr != nil && !errors.Is(executeErr, ErrDumpInterrupted) {
+		return nil, executeErr
 	}
 
 	var res []XfrmPolicy
@@ -243,7 +250,7 @@ func (h *Handle) XfrmPolicyList(family int) ([]XfrmPolicy, error) {
 			return nil, err
 		}
 	}
-	return res, nil
+	return res, executeErr
 }
 
 // XfrmPolicyGet gets a the policy described by the index or selector, if found.

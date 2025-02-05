@@ -1,6 +1,7 @@
 package netlink
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/vishvananda/netlink/nl"
@@ -9,21 +10,27 @@ import (
 
 // BridgeVlanList gets a map of device id to bridge vlan infos.
 // Equivalent to: `bridge vlan show`
+//
+// If the returned error is [ErrDumpInterrupted], results may be inconsistent
+// or incomplete.
 func BridgeVlanList() (map[int32][]*nl.BridgeVlanInfo, error) {
 	return pkgHandle.BridgeVlanList()
 }
 
 // BridgeVlanList gets a map of device id to bridge vlan infos.
 // Equivalent to: `bridge vlan show`
+//
+// If the returned error is [ErrDumpInterrupted], results may be inconsistent
+// or incomplete.
 func (h *Handle) BridgeVlanList() (map[int32][]*nl.BridgeVlanInfo, error) {
 	req := h.newNetlinkRequest(unix.RTM_GETLINK, unix.NLM_F_DUMP)
 	msg := nl.NewIfInfomsg(unix.AF_BRIDGE)
 	req.AddData(msg)
 	req.AddData(nl.NewRtAttr(unix.IFLA_EXT_MASK, nl.Uint32Attr(uint32(nl.RTEXT_FILTER_BRVLAN))))
 
-	msgs, err := req.Execute(unix.NETLINK_ROUTE, unix.RTM_NEWLINK)
-	if err != nil {
-		return nil, err
+	msgs, executeErr := req.Execute(unix.NETLINK_ROUTE, unix.RTM_NEWLINK)
+	if executeErr != nil && !errors.Is(executeErr, ErrDumpInterrupted) {
+		return nil, executeErr
 	}
 	ret := make(map[int32][]*nl.BridgeVlanInfo)
 	for _, m := range msgs {
@@ -51,7 +58,7 @@ func (h *Handle) BridgeVlanList() (map[int32][]*nl.BridgeVlanInfo, error) {
 			}
 		}
 	}
-	return ret, nil
+	return ret, executeErr
 }
 
 // BridgeVlanAdd adds a new vlan filter entry
