@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"strings"
 	"sync"
 	"time"
 
@@ -255,6 +256,17 @@ var _ = SIGDescribe("SchedulerPriorities", framework.WithSerial(), func() {
 		tolePod, err := cs.CoreV1().Pods(ns).Get(ctx, tolerationPodName, metav1.GetOptions{})
 		framework.ExpectNoError(err)
 		gomega.Expect(tolePod.Spec.NodeName).To(gomega.Equal(nodeName))
+
+		ginkgo.By("Pod should contain the PodScheduled condition and its manager should be kube-scheduler")
+		managedFields := tolePod.GetManagedFields()
+		PodScheduledConditionFound := false
+		for _, entry := range managedFields {
+			if strings.Contains(entry.FieldsV1.String(), "PodScheduled") {
+				gomega.Expect(entry.Manager).To(gomega.Equal("kube-scheduler"))
+				PodScheduledConditionFound = true
+			}
+		}
+		gomega.Expect(PodScheduledConditionFound).To(gomega.BeTrueBecause("PodCondition PodScheduled is not found."))
 	})
 
 	ginkgo.Context("PodTopologySpread Scoring", func() {

@@ -309,12 +309,25 @@ func (sched *Scheduler) bindingCycle(
 		return status
 	}
 
-	// Any failures after this point cannot lead to the Pod being considered unschedulable.
+	// Any failures after this point cannot lead to the Pod being considered unschedulable and so we create the PodScheduled condition.
 	// We define the Pod as "unschedulable" only when Pods are rejected at specific extension points, and PreBind is the last one in the scheduling/binding cycle.
 	//
 	// We can call Done() here because
 	// we can free the cluster events stored in the scheduling queue sonner, which is worth for busy clusters memory consumption wise.
 	sched.SchedulingQueue.Done(assumedPod.UID)
+	podScheduled := &v1.PodCondition{
+		Type:   v1.PodScheduled,
+		Status: v1.ConditionTrue,
+	}
+	newStatus := assumedPod.Status.DeepCopy()
+	updated := podutil.UpdatePodCondition(newStatus, podScheduled)
+	if updated {
+		if err := util.PatchPodStatus(ctx, sched.client, assumedPod, newStatus); err != nil {
+			logger.Error(err, "Error updating pod with PodScheduled condition", "pod", klog.KObj(assumedPod))
+		} else {
+			assumedPod.Status = *newStatus
+		}
+	}
 
 	// Run "bind" plugins.
 	if status := sched.bind(ctx, fwk, assumedPod, scheduleResult.SuggestedHost, state); !status.IsSuccess() {

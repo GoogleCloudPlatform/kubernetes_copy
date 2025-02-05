@@ -665,6 +665,12 @@ func TestSchedulerScheduleOne(t *testing.T) {
 	errS := errors.New("scheduler")
 	errB := errors.New("binder")
 	preBindErr := errors.New("on PreBind")
+	podStatusConditions := []v1.PodCondition{
+		{
+			Type:   v1.PodScheduled,
+			Status: v1.ConditionTrue,
+		},
+	}
 
 	table := []struct {
 		name                string
@@ -723,7 +729,7 @@ func TestSchedulerScheduleOne(t *testing.T) {
 			sendPod:          podWithID("foo", ""),
 			mockResult:       mockScheduleResult{ScheduleResult{SuggestedHost: testNode.Name, EvaluatedNodes: 1, FeasibleNodes: 1}, nil},
 			expectBind:       &v1.Binding{ObjectMeta: metav1.ObjectMeta{Name: "foo", UID: types.UID("foo")}, Target: v1.ObjectReference{Kind: "Node", Name: testNode.Name}},
-			expectAssumedPod: podWithID("foo", testNode.Name),
+			expectAssumedPod: podWithCondition("foo", testNode.Name, podStatusConditions),
 			eventReason:      "Scheduled",
 		},
 		{
@@ -739,11 +745,11 @@ func TestSchedulerScheduleOne(t *testing.T) {
 			sendPod:          podWithID("foo", ""),
 			mockResult:       mockScheduleResult{ScheduleResult{SuggestedHost: testNode.Name, EvaluatedNodes: 1, FeasibleNodes: 1}, nil},
 			expectBind:       &v1.Binding{ObjectMeta: metav1.ObjectMeta{Name: "foo", UID: types.UID("foo")}, Target: v1.ObjectReference{Kind: "Node", Name: testNode.Name}},
-			expectAssumedPod: podWithID("foo", testNode.Name),
+			expectAssumedPod: podWithCondition("foo", testNode.Name, podStatusConditions),
 			injectBindError:  errB,
 			expectError:      fmt.Errorf("running Bind plugin %q: %w", "DefaultBinder", errors.New("binder")),
-			expectErrorPod:   podWithID("foo", testNode.Name),
-			expectForgetPod:  podWithID("foo", testNode.Name),
+			expectErrorPod:   podWithCondition("foo", testNode.Name, podStatusConditions),
+			expectForgetPod:  podWithCondition("foo", testNode.Name, podStatusConditions),
 			eventReason:      "FailedScheduling",
 		},
 		{
@@ -837,20 +843,29 @@ func TestSchedulerScheduleOne(t *testing.T) {
 				}
 				sched.ScheduleOne(ctx)
 				<-called
-				if e, a := item.expectAssumedPod, gotAssumedPod; !reflect.DeepEqual(e, a) {
-					t.Errorf("assumed pod: wanted %v, got %v", e, a)
+				if diff := cmp.Diff(item.expectAssumedPod, gotAssumedPod, cmpopts.IgnoreFields(v1.PodCondition{}, "LastTransitionTime")); diff != "" {
+					t.Errorf("unexpected conditions (-want, +got):\n%s", diff)
 				}
-				if e, a := item.expectErrorPod, gotPod; !reflect.DeepEqual(e, a) {
-					t.Errorf("error pod: wanted %v, got %v", e, a)
+				if diff := cmp.Diff(item.expectErrorPod, gotPod, cmpopts.IgnoreFields(v1.PodCondition{}, "LastTransitionTime")); diff != "" {
+					t.Errorf("unexpected conditions (-want, +got):\n%s", diff)
 				}
-				if e, a := item.expectForgetPod, gotForgetPod; !reflect.DeepEqual(e, a) {
-					t.Errorf("forget pod: wanted %v, got %v", e, a)
+				if diff := cmp.Diff(item.expectForgetPod, gotForgetPod, cmpopts.IgnoreFields(v1.PodCondition{}, "LastTransitionTime")); diff != "" {
+					t.Errorf("unexpected conditions (-want, +got):\n%s", diff)
 				}
 				if e, a := item.expectError, gotError; !reflect.DeepEqual(e, a) {
 					t.Errorf("error: wanted %v, got %v", e, a)
 				}
 				if diff := cmp.Diff(item.expectBind, gotBinding); diff != "" {
 					t.Errorf("got binding diff (-want, +got): %s", diff)
+				}
+				if item.eventReason == "Scheduled" {
+					updatedPod, err := client.CoreV1().Pods(item.sendPod.Namespace).Get(ctx, item.sendPod.Name, metav1.GetOptions{})
+					if err != nil {
+						t.Fatal(err)
+					}
+					if diff := cmp.Diff(podStatusConditions, updatedPod.Status.Conditions, cmpopts.IgnoreFields(v1.PodCondition{}, "LastTransitionTime")); diff != "" {
+						t.Errorf("unexpected conditions (-want, +got):\n%s", diff)
+					}
 				}
 				// We have to use wait here
 				// because the Pod goes to the binding cycle in some test cases and the inflight pods might not be empty immediately at this point in such case.
@@ -3608,6 +3623,12 @@ func podWithID(id, desiredHost string) *v1.Pod {
 
 func deletingPod(id string) *v1.Pod {
 	return st.MakePod().Name(id).UID(id).Terminating().Node("").SchedulerName(testSchedulerName).Obj()
+}
+
+func podWithCondition(id, desiredHost string, podConditions []v1.PodCondition) *v1.Pod {
+	pod := podWithID(id, desiredHost)
+	pod.Status.Conditions = podConditions
+	return pod
 }
 
 func podWithPort(id, desiredHost string, port int) *v1.Pod {
