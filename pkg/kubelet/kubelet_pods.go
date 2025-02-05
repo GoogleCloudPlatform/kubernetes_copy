@@ -63,6 +63,7 @@ import (
 	"k8s.io/kubernetes/pkg/kubelet/util/format"
 	utilfs "k8s.io/kubernetes/pkg/util/filesystem"
 	utilkernel "k8s.io/kubernetes/pkg/util/kernel"
+	"k8s.io/kubernetes/pkg/kubelet/util/format"
 	utilpod "k8s.io/kubernetes/pkg/util/pod"
 	volumeutil "k8s.io/kubernetes/pkg/volume/util"
 	"k8s.io/kubernetes/pkg/volume/util/hostutil"
@@ -76,6 +77,7 @@ import (
 const (
 	managedHostsHeader                = "# Kubernetes-managed hosts file.\n"
 	managedHostsHeaderWithHostNetwork = "# Kubernetes-managed hosts file (host network).\n"
+	nodeLabelsToEnv                   = "pod.alpha.kubernetes.io/node-labels-to-env"
 )
 
 // Container state reason list
@@ -603,6 +605,33 @@ func (kl *Kubelet) GetPodCgroupParent(pod *v1.Pod) string {
 	return cgroupParent
 }
 
+func (kl *Kubelet) generateAppendEnvs(pod *v1.Pod) []kubecontainer.EnvVar {
+	if pod.Annotations[nodeLabelsToEnv] == "" {
+		return nil
+	}
+
+	node, err := kl.getNodeAnyWay()
+	if err != nil {
+		klog.Errorf("Failed get node when append env for pod %s err: %s", format.Pod(pod), err.Error())
+		return nil
+	}
+	klog.V(5).Infof("generateAppendEnvs pod %s get node %s labels %s", format.Pod(pod), node.Name, node.Labels)
+	var envs = []kubecontainer.EnvVar{}
+	keys := strings.Split(pod.Annotations[nodeLabelsToEnv], ",")
+	for _, key := range keys {
+		for nlk, nlv := range node.Labels {
+			if nlk == key {
+				envs = append(envs, kubecontainer.EnvVar{
+					Name:  nlk,
+					Value: nlv,
+				})
+			}
+		}
+	}
+
+	return envs
+}
+
 // GenerateRunContainerOptions generates the RunContainerOptions, which can be used by
 // the container runtime to set parameters for launching a container.
 func (kl *Kubelet) GenerateRunContainerOptions(ctx context.Context, pod *v1.Pod, container *v1.Container, podIP string, podIPs []string, imageVolumes kubecontainer.ImageVolumes) (*kubecontainer.RunContainerOptions, func(), error) {
@@ -633,6 +662,7 @@ func (kl *Kubelet) GenerateRunContainerOptions(ctx context.Context, pod *v1.Pod,
 		return nil, nil, err
 	}
 	opts.Envs = append(opts.Envs, envs...)
+	opts.Envs = append(opts.Envs, kl.generateAppendEnvs(pod)...)
 
 	// only podIPs is sent to makeMounts, as podIPs is populated even if dual-stack feature flag is not enabled.
 	mounts, cleanupAction, err := makeMounts(pod, kl.getPodDir(pod.UID), container, hostname, hostDomainName, podIPs, volumes, kl.hostutil, kl.subpather, opts.Envs, supportsRRO, imageVolumes)
