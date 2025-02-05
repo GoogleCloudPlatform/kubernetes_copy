@@ -71,10 +71,13 @@ const (
 var _ framework.ScorePlugin = &TestScoreWithNormalizePlugin{}
 var _ framework.ScorePlugin = &TestScorePlugin{}
 
-var cmpOpts = []cmp.Option{
+var statusCmpOpts = []cmp.Option{
 	cmp.Comparer(func(s1 *framework.Status, s2 *framework.Status) bool {
 		if s1 == nil || s2 == nil {
 			return s1.IsSuccess() && s2.IsSuccess()
+		}
+		if s1.Code() == framework.Error {
+			return s1.AsError().Error() == s2.AsError().Error()
 		}
 		return s1.Code() == s2.Code() && s1.Plugin() == s2.Plugin() && s1.Message() == s2.Message()
 	}),
@@ -2135,7 +2138,7 @@ func TestFilterPlugins(t *testing.T) {
 			state := framework.NewCycleState()
 			state.SkipFilterPlugins = tt.skippedPlugins
 			gotStatus := f.RunFilterPlugins(ctx, state, pod, nil)
-			if diff := cmp.Diff(tt.wantStatus, gotStatus, cmpOpts...); diff != "" {
+			if diff := cmp.Diff(tt.wantStatus, gotStatus, statusCmpOpts...); diff != "" {
 				t.Errorf("Unexpected status: (-want,+got):\n%s", diff)
 			}
 		})
@@ -2262,7 +2265,7 @@ func TestPostFilterPlugins(t *testing.T) {
 			}()
 			_, gotStatus := f.RunPostFilterPlugins(ctx, nil, pod, nil)
 
-			if diff := cmp.Diff(tt.wantStatus, gotStatus, cmpOpts...); diff != "" {
+			if diff := cmp.Diff(tt.wantStatus, gotStatus, statusCmpOpts...); diff != "" {
 				t.Errorf("Unexpected status (-want,+got):\n%s", diff)
 			}
 		})
@@ -2430,7 +2433,7 @@ func TestFilterPluginsWithNominatedPods(t *testing.T) {
 			}()
 			tt.nodeInfo.SetNode(tt.node)
 			gotStatus := f.RunFilterPluginsWithNominatedPods(ctx, framework.NewCycleState(), tt.pod, tt.nodeInfo)
-			if diff := cmp.Diff(tt.wantStatus, gotStatus, cmpOpts...); diff != "" {
+			if diff := cmp.Diff(tt.wantStatus, gotStatus, statusCmpOpts...); diff != "" {
 				t.Errorf("Unexpected status: (-want,+got):\n%s", diff)
 			}
 		})
@@ -2592,7 +2595,7 @@ func TestPreBindPlugins(t *testing.T) {
 
 			status := f.RunPreBindPlugins(ctx, nil, pod, "")
 
-			if diff := cmp.Diff(tt.wantStatus, status, cmpOpts...); diff != "" {
+			if diff := cmp.Diff(tt.wantStatus, status, statusCmpOpts...); diff != "" {
 				t.Errorf("Wrong status code (-want,+got):\n%s", diff)
 			}
 		})
@@ -2754,7 +2757,7 @@ func TestReservePlugins(t *testing.T) {
 
 			status := f.RunReservePluginsReserve(ctx, nil, pod, "")
 
-			if diff := cmp.Diff(tt.wantStatus, status, cmpOpts...); diff != "" {
+			if diff := cmp.Diff(tt.wantStatus, status, statusCmpOpts...); diff != "" {
 				t.Errorf("Wrong status code (-want,+got):\n%s", diff)
 			}
 		})
@@ -2885,7 +2888,7 @@ func TestPermitPlugins(t *testing.T) {
 			}
 
 			status := f.RunPermitPlugins(ctx, nil, pod, "")
-			if diff := cmp.Diff(tt.want, status, cmpOpts...); diff != "" {
+			if diff := cmp.Diff(tt.want, status, statusCmpOpts...); diff != "" {
 				t.Errorf("Wrong status code (-want,+got):\n%s", diff)
 			}
 		})
@@ -3320,7 +3323,7 @@ func TestWaitOnPermit(t *testing.T) {
 			go tt.action(f)
 
 			got := f.WaitOnPermit(ctx, pod)
-			if diff := cmp.Diff(tt.want, got, cmpOpts...); diff != "" {
+			if diff := cmp.Diff(tt.want, got, statusCmpOpts...); diff != "" {
 				t.Errorf("Unexpected status (-want,+got):\n%s", diff)
 			}
 		})
@@ -3368,7 +3371,7 @@ func TestListPlugins(t *testing.T) {
 				_ = f.Close()
 			}()
 			got := f.ListPlugins()
-			if diff := cmp.Diff(tt.want, got, cmpOpts...); diff != "" {
+			if diff := cmp.Diff(tt.want, got, statusCmpOpts...); diff != "" {
 				t.Errorf("Unexpected plugins (-want,+got):\n%s", diff)
 			}
 		})

@@ -612,7 +612,7 @@ func TestPreScoreStateEmptyNodes(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if diff := cmp.Diff(tt.want, got, cmpOpts...); diff != "" {
+			if diff := cmp.Diff(tt.want, got, preFilterStateCmpOpts...); diff != "" {
 				t.Errorf("PodTopologySpread#PreScore() returned (-want, +got):\n%s", diff)
 			}
 		})
@@ -1407,7 +1407,7 @@ func TestPodTopologySpreadScore(t *testing.T) {
 			if !status.IsSuccess() {
 				t.Errorf("unexpected error: %v", status)
 			}
-			if diff := cmp.Diff(tt.want, gotList, cmpOpts...); diff != "" {
+			if diff := cmp.Diff(tt.want, gotList, preFilterStateCmpOpts...); diff != "" {
 				t.Errorf("unexpected scores (-want,+got):\n%s", diff)
 			}
 		})
