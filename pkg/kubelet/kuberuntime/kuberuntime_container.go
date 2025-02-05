@@ -388,6 +388,7 @@ func (m *kubeGenericRuntimeManager) generateContainerConfig(ctx context.Context,
 		}
 	}
 	config.Envs = envs
+	klog.V(4).Infof("Pod %s init env for container %s is: %v", format.Pod(pod), container.Name, config.Envs)
 
 	return config, cleanupAction, nil
 }
