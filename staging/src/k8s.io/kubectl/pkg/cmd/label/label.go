@@ -18,7 +18,6 @@ package label
 
 import (
 	"fmt"
-	"reflect"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -47,9 +46,10 @@ import (
 )
 
 const (
-	MsgNotLabeled = "not labeled"
-	MsgLabeled    = "labeled"
-	MsgUnLabeled  = "unlabeled"
+	MsgNotLabeled    = "not labeled"
+	MsgLabeled       = "labeled"
+	MsgUnLabeled     = "unlabeled"
+	MsgLabelsChanged = "label(s) changed" // means that labels were added and remove by the same operation
 )
 
 // LabelOptions have the data required to perform the label operation
@@ -283,11 +283,11 @@ func (o *LabelOptions) RunLabel() error {
 		obj := info.Object
 
 		if len(o.resourceVersion) != 0 {
-			// ensure resourceVersion is always sent in the patch by clearing it from the starting JSON
 			accessor, err := meta.Accessor(obj)
 			if err != nil {
 				return err
 			}
+			// ensure resourceVersion is always sent in the patch by clearing it from the starting JSON
 			accessor.SetResourceVersion("")
 		}
 
@@ -295,16 +295,25 @@ func (o *LabelOptions) RunLabel() error {
 		if err != nil {
 			return err
 		}
+
+		accessor, err := meta.Accessor(obj.DeepCopyObject())
+		if err != nil {
+			return err
+		}
+		oldLabels := accessor.GetLabels()
 		if o.dryRunStrategy == cmdutil.DryRunClient || o.local || o.list {
 			err = labelFunc(obj, o.overwrite, o.resourceVersion, o.newLabels, o.removeLabels)
 			if err != nil {
 				return err
 			}
-			newObj, err := json.Marshal(obj)
+
+			accessor, err := meta.Accessor(obj)
 			if err != nil {
 				return err
 			}
-			dataChangeMsg = updateDataChangeMsg(oldData, newObj, o.overwrite)
+			newLabels := accessor.GetLabels()
+
+			dataChangeMsg = updateDataChangeMsg(oldLabels, newLabels)
 			outputObj = info.Object
 		} else {
 			name, namespace := info.Name, info.Namespace
@@ -331,7 +340,12 @@ func (o *LabelOptions) RunLabel() error {
 			if err != nil {
 				return err
 			}
-			dataChangeMsg = updateDataChangeMsg(oldData, newObj, o.overwrite)
+			accessor, err = meta.Accessor(obj.DeepCopyObject())
+			if err != nil {
+				return err
+			}
+			newLabels := accessor.GetLabels()
+			dataChangeMsg = updateDataChangeMsg(oldLabels, newLabels)
 			patchBytes, err := jsonpatch.CreateMergePatch(oldData, newObj)
 			createdPatch := err == nil
 			if err != nil {
@@ -387,14 +401,33 @@ func (o *LabelOptions) RunLabel() error {
 	})
 }
 
-func updateDataChangeMsg(oldObj []byte, newObj []byte, overwrite bool) string {
+func updateDataChangeMsg(oldLabels map[string]string, newLabels map[string]string) string {
+	isUnlabeled := false
+	isLabeled := false
 	msg := MsgNotLabeled
-	if !reflect.DeepEqual(oldObj, newObj) {
-		msg = MsgLabeled
-		if !overwrite && len(newObj) < len(oldObj) {
-			msg = MsgUnLabeled
+
+	for k, oldVal := range oldLabels {
+		if newVal, ok := newLabels[k]; !ok {
+			isUnlabeled = true
+		} else if newVal != oldVal {
+			isLabeled = true
 		}
 	}
+
+	for k := range newLabels {
+		if _, ok := oldLabels[k]; !ok {
+			isLabeled = true
+		}
+	}
+
+	if isLabeled && isUnlabeled {
+		msg = MsgLabelsChanged
+	} else if isLabeled {
+		msg = MsgLabeled
+	} else if isUnlabeled {
+		msg = MsgUnLabeled
+	}
+
 	return msg
 }
 

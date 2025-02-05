@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"net/http"
 	"reflect"
 	"strings"
@@ -29,7 +30,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/util/json"
 	"k8s.io/cli-runtime/pkg/genericiooptions"
 	"k8s.io/cli-runtime/pkg/resource"
 	"k8s.io/client-go/rest/fake"
@@ -835,7 +835,7 @@ func TestLabelMsg(t *testing.T) {
 					},
 				},
 			},
-			expectMsg: MsgLabeled,
+			expectMsg: MsgLabelsChanged,
 		},
 		{
 			obj: &v1.Pod{
@@ -875,12 +875,15 @@ func TestLabelMsg(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		oldData, err := json.Marshal(test.obj)
+		obj := test.obj
+
+		accessor, err := meta.Accessor(obj.DeepCopyObject())
 		if err != nil {
 			t.Errorf("unexpected error: %v %v", err, test)
 		}
+		oldLabels := accessor.GetLabels()
 
-		err = labelFunc(test.obj, test.overwrite, test.resourceVersion, test.labels, test.remove)
+		err = labelFunc(obj, test.overwrite, test.resourceVersion, test.labels, test.remove)
 		if test.expectErr && err == nil {
 			t.Errorf("unexpected non-error: %v", test)
 			continue
@@ -889,12 +892,13 @@ func TestLabelMsg(t *testing.T) {
 			t.Errorf("unexpected error: %v %v", err, test)
 		}
 
-		newObj, err := json.Marshal(test.obj)
+		accessor, err = meta.Accessor(obj.DeepCopyObject())
 		if err != nil {
 			t.Errorf("unexpected error: %v %v", err, test)
 		}
+		newLabels := accessor.GetLabels()
 
-		dataChangeMsg := updateDataChangeMsg(oldData, newObj, test.overwrite)
+		dataChangeMsg := updateDataChangeMsg(oldLabels, newLabels)
 		if dataChangeMsg != test.expectMsg {
 			t.Errorf("unexpected dataChangeMsg: %v != %v, %v", dataChangeMsg, test.expectMsg, test)
 		}
