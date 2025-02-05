@@ -1,0 +1,198 @@
+go version go1.23.0 linux/amd64
++++ [1024 15:32:13] Building go targets for linux/amd64
+    github.com/onsi/ginkgo/v2/ginkgo (non-static)
+Makefile:195: warning: undefined variable '''
+go version go1.23.0 linux/amd64
++++ [1024 15:32:15] Set GOMAXPROCS automatically to 4
+Creating artifacts directory at /tmp/_artifacts/241024T153215
+Test artifacts will be written to /tmp/_artifacts/241024T153215
+No need to refresh sudo credentials
+I1024 15:32:21.052675  950231 build.go:60] Building k8s binaries...
+Makefile:195: warning: undefined variable '''
++++ [1024 15:32:21] Building go targets for linux/amd64
+    k8s.io/kubernetes/cmd/kubelet (non-static)
+I1024 15:32:26.940064  950231 build.go:60] Building k8s binaries...
+Makefile:195: warning: undefined variable '''
++++ [1024 15:32:27] Building go targets for linux/amd64
+    github.com/onsi/ginkgo/v2/ginkgo (non-static)
+    k8s.io/kubernetes/cluster/gce/gci/mounter (static)
+    k8s.io/kubernetes/test/e2e_node/e2e_node.test (test)
+    k8s.io/kubernetes/test/e2e_node/plugins/gcp-credential-provider (non-static)
+I1024 15:32:36.229308  950231 run_local.go:60] Got build output dir: /home/ubuntu/kubernetes/_output/local/go/bin
+I1024 15:32:36.229347  950231 run_local.go:121] Running command: /home/ubuntu/kubernetes/_output/local/go/bin/ginkgo -timeout=24h -nodes=8  -focus="PreStop Hook TestSuite"  -skip="\[Flaky\]|\[Slow\]|\[Serial\]"  /home/ubuntu/kubernetes/_output/local/go/bin/e2e_node.test -- --v 4 --report-dir=/tmp/_artifacts/241024T153215 --node-name srv579909 --kubelet-flags="--cluster-domain=cluster.local" --dns-domain="cluster.local" --prepull-images=false  --container-runtime-endpoint=unix:///run/containerd/containerd.sock  --runtime-config= --kubelet-config-file="test/e2e_node/jenkins/default-kubelet-config.yaml"
+Running Suite: E2eNode Suite - /home/ubuntu/kubernetes/_output/local/go/bin
+===========================================================================
+Random Seed: 1729783956 - will randomize all specs
+
+Will run 1 of 668 specs
+Running in parallel across 8 processes
+I1024 15:32:36.623820  951785 factory.go:193] Registered Plugin "containerd"
+  I1024 15:32:36.646544  951785 mount_linux.go:334] Detected umount with safe 'not mounted' behavior
+  I1024 15:32:36.648275  951785 mount_linux.go:334] Detected umount with safe 'not mounted' behavior
+  I1024 15:32:36.649755  951785 mount_linux.go:334] Detected umount with safe 'not mounted' behavior
+  W1024 15:32:36.672323  951785 test_context.go:538] Unable to find in-cluster config, using default host : https://127.0.0.1:6443
+  I1024 15:32:36.672373  951785 test_context.go:553] Tolerating taints "node-role.kubernetes.io/control-plane" when considering if nodes are ready
+  I1024 15:32:36.672379 951785 test_context.go:561] The --provider flag is not set. Continuing as if --provider=skeleton had been used.
+  I1024 15:32:36.672511  951785 feature_gate.go:387] feature gates: {map[]}
+  I1024 15:32:36.672555  951785 feature_gate.go:387] feature gates: {map[]}
+Validating os...
+OS: Linux
+Validating kernel...
+KERNEL_VERSION: 6.8.0-47-generic
+CONFIG_NAMESPACES: enabled
+CONFIG_NET_NS: enabled
+CONFIG_PID_NS: enabled
+CONFIG_IPC_NS: enabled
+CONFIG_UTS_NS: enabled
+CONFIG_CGROUPS: enabled
+CONFIG_CGROUP_CPUACCT: enabled
+CONFIG_CGROUP_DEVICE: enabled
+CONFIG_CGROUP_FREEZER: enabled
+CONFIG_CGROUP_PIDS: enabled
+CONFIG_CGROUP_SCHED: enabled
+CONFIG_CPUSETS: enabled
+CONFIG_MEMCG: enabled
+CONFIG_INET: enabled
+CONFIG_EXT4_FS: enabled
+CONFIG_PROC_FS: enabled
+CONFIG_NETFILTER_XT_TARGET_REDIRECT: enabled (as module)
+CONFIG_NETFILTER_XT_MATCH_COMMENT: enabled (as module)
+CONFIG_FAIR_GROUP_SCHED: enabled
+CONFIG_OVERLAY_FS: enabled (as module)
+CONFIG_AUFS_FS: not set - Required for aufs.
+CONFIG_BLK_DEV_DM: enabled
+CONFIG_CFS_BANDWIDTH: enabled
+CONFIG_CGROUP_HUGETLB: enabled
+CONFIG_SECCOMP: enabled
+CONFIG_SECCOMP_FILTER: enabled
+Validating cgroups...
+CGROUPS_CPU: enabled
+CGROUPS_CPUSET: enabled
+CGROUPS_DEVICES: enabled
+CGROUPS_FREEZER: enabled
+CGROUPS_MEMORY: enabled
+CGROUPS_PIDS: enabled
+CGROUPS_HUGETLB: enabled
+CGROUPS_IO: enabled
+Validating package...
+PASS
+------------------------------
+[SynchronizedBeforeSuite] PASSED [4.265 seconds]
+[SynchronizedBeforeSuite] 
+k8s.io/kubernetes/test/e2e_node/e2e_node_suite_test.go:228
+
+  Captured StdOut/StdErr Output >>
+  I1024 15:32:36.623820  951785 factory.go:193] Registered Plugin "containerd"
+    I1024 15:32:36.646544  951785 mount_linux.go:334] Detected umount with safe 'not mounted' behavior
+    I1024 15:32:36.648275  951785 mount_linux.go:334] Detected umount with safe 'not mounted' behavior
+    I1024 15:32:36.649755  951785 mount_linux.go:334] Detected umount with safe 'not mounted' behavior
+    W1024 15:32:36.672323  951785 test_context.go:538] Unable to find in-cluster config, using default host : https://127.0.0.1:6443
+    I1024 15:32:36.672373  951785 test_context.go:553] Tolerating taints "node-role.kubernetes.io/control-plane" when considering if nodes are ready
+    I1024 15:32:36.672379 951785 test_context.go:561] The --provider flag is not set. Continuing as if --provider=skeleton had been used.
+    I1024 15:32:36.672511  951785 feature_gate.go:387] feature gates: {map[]}
+    I1024 15:32:36.672555  951785 feature_gate.go:387] feature gates: {map[]}
+  Validating os...
+  OS: Linux
+  Validating kernel...
+  KERNEL_VERSION: 6.8.0-47-generic
+  CONFIG_NAMESPACES: enabled
+  CONFIG_NET_NS: enabled
+  CONFIG_PID_NS: enabled
+  CONFIG_IPC_NS: enabled
+  CONFIG_UTS_NS: enabled
+  CONFIG_CGROUPS: enabled
+  CONFIG_CGROUP_CPUACCT: enabled
+  CONFIG_CGROUP_DEVICE: enabled
+  CONFIG_CGROUP_FREEZER: enabled
+  CONFIG_CGROUP_PIDS: enabled
+  CONFIG_CGROUP_SCHED: enabled
+  CONFIG_CPUSETS: enabled
+  CONFIG_MEMCG: enabled
+  CONFIG_INET: enabled
+  CONFIG_EXT4_FS: enabled
+  CONFIG_PROC_FS: enabled
+  CONFIG_NETFILTER_XT_TARGET_REDIRECT: enabled (as module)
+  CONFIG_NETFILTER_XT_MATCH_COMMENT: enabled (as module)
+  CONFIG_FAIR_GROUP_SCHED: enabled
+  CONFIG_OVERLAY_FS: enabled (as module)
+  CONFIG_AUFS_FS: not set - Required for aufs.
+  CONFIG_BLK_DEV_DM: enabled
+  CONFIG_CFS_BANDWIDTH: enabled
+  CONFIG_CGROUP_HUGETLB: enabled
+  CONFIG_SECCOMP: enabled
+  CONFIG_SECCOMP_FILTER: enabled
+  Validating cgroups...
+  CGROUPS_CPU: enabled
+  CGROUPS_CPUSET: enabled
+  CGROUPS_DEVICES: enabled
+  CGROUPS_FREEZER: enabled
+  CGROUPS_MEMORY: enabled
+  CGROUPS_PIDS: enabled
+  CGROUPS_HUGETLB: enabled
+  CGROUPS_IO: enabled
+  Validating package...
+  PASS
+  << Captured StdOut/StdErr Output
+------------------------------
+SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
+------------------------------
+• [14.141 seconds]
+PreStop Hook TestSuite should run PreStop hook basic test case and verify execution
+k8s.io/kubernetes/test/e2e_node/prestop_hook_test.go:37
+
+  Captured StdOut/StdErr Output >>
+  <testdoc:name>hooks:prestop:Basic</testdoc:name>
+  <testdoc:step>When you have a PreStop hook defined on your container, it will execute before the container is terminated.</testdoc:step>
+  <testdoc:log>Creating a Pod with PreStop hook that writes to a shared volume</testdoc:log>
+  <testdoc:step>Imagine You Have a Pod with the Following Specification</testdoc:step>
+  <testdoc:podspec>metadata:
+    creationTimestamp: null
+    name: prestop-pod
+  spec:
+    containers:
+    - args:
+      - pause
+      image: registry.k8s.io/e2e-test-images/agnhost:2.53
+      lifecycle:
+        preStop:
+          exec:
+            command:
+            - sh
+            - -c
+            - echo 'PreStop Hook Executed' > /data/prestop_hook_executed; sleep 10
+      name: prestop-container
+      resources: {}
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+          - ALL
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      volumeMounts:
+      - mountPath: /data
+        name: shared-data
+    terminationGracePeriodSeconds: 60
+    volumes:
+    - emptyDir: {}
+      name: shared-data
+  status: {}
+  </testdoc:podspec>
+  <testdoc:step>This Pod should start successfully and run for some time</testdoc:step>
+  <testdoc:log>Pod is created successfully</testdoc:log>
+  <testdoc:log>The Pod is running successfully</testdoc:log>
+  <testdoc:step>When the container is terminated, the PreStop hook will be triggered within the grace period</testdoc:step>
+  <testdoc:log>Pod was deleted successfully</testdoc:log>
+  <testdoc:step>Waiting briefly before checking for the file</testdoc:step>
+  <testdoc:step>Once the PreStop hook is successfully executed, the container terminates successfully</testdoc:step>
+  <testdoc:log>Pod Events and debug</testdoc:log>
+  <testdoc:step>PreStop hook logs will be created</testdoc:step>
+  <testdoc:log>PreStop Hook Executed</testdoc:log>
+  <testdoc:log>PreStop hook executed successfully</testdoc:log>
+  <testdoc:log>Waiting for the Pod to be deleted</testdoc:log>
+  << Captured StdOut/StdErr Output
+------------------------------
+SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
