@@ -269,17 +269,31 @@ func updatePodFromAllocation(pod *v1.Pod, allocs state.PodResourceAllocation) (*
 	}
 
 	updated := false
-	for i, c := range pod.Spec.Containers {
+	containerAlloc := func(c v1.Container) (v1.ResourceRequirements, bool) {
 		if cAlloc, ok := allocated[c.Name]; ok {
 			if !apiequality.Semantic.DeepEqual(c.Resources, cAlloc) {
-				// Allocation differs from pod spec, update
+				// Allocation differs from pod spec, retrieve the allocation
 				if !updated {
-					// If this is the first update, copy the pod
+					// If this is the first update to be performed, copy the pod
 					pod = pod.DeepCopy()
 					updated = true
 				}
-				pod.Spec.Containers[i].Resources = cAlloc
+				return cAlloc, true
 			}
+		}
+		return v1.ResourceRequirements{}, false
+	}
+
+	for i, c := range pod.Spec.Containers {
+		if cAlloc, found := containerAlloc(c); found {
+			// Allocation differs from pod spec, update
+			pod.Spec.Containers[i].Resources = cAlloc
+		}
+	}
+	for i, c := range pod.Spec.InitContainers {
+		if cAlloc, found := containerAlloc(c); found {
+			// Allocation differs from pod spec, update
+			pod.Spec.InitContainers[i].Resources = cAlloc
 		}
 	}
 	return pod, updated
@@ -302,6 +316,18 @@ func (m *manager) SetPodAllocation(pod *v1.Pod) error {
 			return err
 		}
 	}
+
+	if utilfeature.DefaultFeatureGate.Enabled(features.SidecarContainers) {
+		for _, container := range pod.Spec.InitContainers {
+			if podutil.IsRestartableInitContainer(&container) {
+				alloc := *container.Resources.DeepCopy()
+				if err := m.state.SetContainerResourceAllocation(string(pod.UID), container.Name, alloc); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
 	return nil
 }
 

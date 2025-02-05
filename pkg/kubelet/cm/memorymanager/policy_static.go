@@ -447,7 +447,13 @@ func getRequestedResources(pod *v1.Pod, container *v1.Container) (map[v1.Resourc
 	// We should return this value because this is what kubelet agreed to allocate for the container
 	// and the value configured with runtime.
 	if utilfeature.DefaultFeatureGate.Enabled(features.InPlacePodVerticalScaling) {
-		if cs, ok := podutil.GetContainerStatus(pod.Status.ContainerStatuses, container.Name); ok {
+		containerStatuses := pod.Status.ContainerStatuses
+		if utilfeature.DefaultFeatureGate.Enabled(features.SidecarContainers) && podutil.IsRestartableInitContainer(container) {
+			if len(pod.Status.InitContainerStatuses) != 0 {
+				containerStatuses = append(containerStatuses, pod.Status.InitContainerStatuses...)
+			}
+		}
+		if cs, ok := podutil.GetContainerStatus(containerStatuses, container.Name); ok {
 			resources = cs.AllocatedResources
 		}
 	}

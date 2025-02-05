@@ -289,18 +289,21 @@ var ResizeStrategy = podResizeStrategy{
 	),
 }
 
-// dropNonResizeUpdates discards all changes except for pod.Spec.Containers[*].Resources,ResizePolicy and certain metadata
+// dropNonResizeUpdates discards all changes except for pod.Spec.Containers[*].Resources, pod.Spec.InitContainers[*].Resources, ResizePolicy and certain metadata
 func dropNonResizeUpdates(newPod, oldPod *api.Pod) *api.Pod {
 	pod := dropPodUpdates(newPod, oldPod)
 
 	// Containers are not allowed to be re-ordered, but in case they were,
 	// we don't want to corrupt them here. It will get caught in validation.
 	oldCtrToIndex := make(map[string]int)
+	oldInitCtrToIndex := make(map[string]int)
 	for idx, ctr := range pod.Spec.Containers {
 		oldCtrToIndex[ctr.Name] = idx
 	}
-	// TODO: Once we add in-place pod resize support for sidecars, we need to allow
-	// modifying sidecar resources via resize subresource too.
+	for idx, ctr := range pod.Spec.InitContainers {
+		oldInitCtrToIndex[ctr.Name] = idx
+	}
+
 	for _, ctr := range newPod.Spec.Containers {
 		idx, ok := oldCtrToIndex[ctr.Name]
 		if !ok {
@@ -308,6 +311,17 @@ func dropNonResizeUpdates(newPod, oldPod *api.Pod) *api.Pod {
 		}
 		pod.Spec.Containers[idx].Resources = ctr.Resources
 		pod.Spec.Containers[idx].ResizePolicy = ctr.ResizePolicy
+	}
+
+	if utilfeature.DefaultFeatureGate.Enabled(features.SidecarContainers) {
+		for _, ctr := range newPod.Spec.InitContainers {
+			idx, ok := oldInitCtrToIndex[ctr.Name]
+			if !ok {
+				continue
+			}
+			pod.Spec.InitContainers[idx].Resources = ctr.Resources
+			pod.Spec.InitContainers[idx].ResizePolicy = ctr.ResizePolicy
+		}
 	}
 	return pod
 }

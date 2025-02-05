@@ -10301,11 +10301,6 @@ func TestValidatePodSpec(t *testing.T) {
 				FSGroupChangePolicy: &badfsGroupChangePolicy1,
 			}),
 		),
-		"disallowed resources resize policy for init containers": *podtest.MakePod("",
-			podtest.SetInitContainers(podtest.MakeContainer("initctr", podtest.SetContainerResizePolicy(
-				core.ContainerResizePolicy{ResourceName: "cpu", RestartPolicy: "NotRequired"},
-			))),
-		),
 	}
 	for k, v := range failureCases {
 		opts := PodValidationOptions{
@@ -25936,9 +25931,8 @@ func TestValidatePodResize(t *testing.T) {
 			test: "Pod QoS unchanged, burstable -> burstable, remove cpu and memory requests",
 			old:  mkPodWithInitContainers(getResources("100m", "100Mi", "", ""), getResources("100m", "", "", ""), ""),
 			new:  mkPodWithInitContainers(core.ResourceList{}, getResources("100m", "", "", ""), ""),
-			err:  "spec: Forbidden: only cpu and memory resources are mutable",
-		},
-		{
+			err:  "spec: Forbidden: resources for non-sidecar init containers are immutable",
+		}, {
 			test: "Pod with nil Resource field in Status",
 			old: mkPod(core.ResourceList{}, getResources("100m", "0", "1Gi", ""), podtest.SetStatus(core.PodStatus{
 				ContainerStatuses: []core.ContainerStatus{{
@@ -26005,6 +25999,36 @@ func TestValidatePodResize(t *testing.T) {
 			})),
 			new: mkPod(core.ResourceList{}, getResources("200m", "0", "1Gi", "")),
 			err: "",
+		}, {
+			test: "cpu limit change for sidecar containers",
+			old:  mkPodWithInitContainers(core.ResourceList{}, getResources("100m", "0", "1Gi", ""), core.ContainerRestartPolicyAlways),
+			new:  mkPodWithInitContainers(core.ResourceList{}, getResources("200m", "0", "1Gi", ""), core.ContainerRestartPolicyAlways),
+			err:  "",
+		}, {
+			test: "memory limit change for sidecar containers",
+			old:  mkPodWithInitContainers(core.ResourceList{}, getResources("100m", "200Mi", "", ""), core.ContainerRestartPolicyAlways),
+			new:  mkPodWithInitContainers(core.ResourceList{}, getResources("100m", "100Mi", "", ""), core.ContainerRestartPolicyAlways),
+			err:  "",
+		}, {
+			test: "storage limit change for sidecar containers",
+			old:  mkPodWithInitContainers(core.ResourceList{}, getResources("100m", "100Mi", "2Gi", ""), core.ContainerRestartPolicyAlways),
+			new:  mkPodWithInitContainers(core.ResourceList{}, getResources("100m", "100Mi", "1Gi", ""), core.ContainerRestartPolicyAlways),
+			err:  "spec: Forbidden: only cpu and memory resources for sidecar containers are mutable",
+		}, {
+			test: "cpu request change for sidecar containers",
+			old:  mkPodWithInitContainers(getResources("200m", "0", "", ""), core.ResourceList{}, core.ContainerRestartPolicyAlways),
+			new:  mkPodWithInitContainers(getResources("100m", "0", "", ""), core.ResourceList{}, core.ContainerRestartPolicyAlways),
+			err:  "",
+		}, {
+			test: "memory request change for sidecar containers",
+			old:  mkPodWithInitContainers(getResources("0", "100Mi", "", ""), core.ResourceList{}, core.ContainerRestartPolicyAlways),
+			new:  mkPodWithInitContainers(getResources("0", "200Mi", "", ""), core.ResourceList{}, core.ContainerRestartPolicyAlways),
+			err:  "",
+		}, {
+			test: "storage request change for sidecar containers",
+			old:  mkPodWithInitContainers(getResources("100m", "0", "1Gi", ""), core.ResourceList{}, core.ContainerRestartPolicyAlways),
+			new:  mkPodWithInitContainers(getResources("100m", "0", "2Gi", ""), core.ResourceList{}, core.ContainerRestartPolicyAlways),
+			err:  "spec: Forbidden: only cpu and memory resources for sidecar containers are mutable",
 		},
 	}
 

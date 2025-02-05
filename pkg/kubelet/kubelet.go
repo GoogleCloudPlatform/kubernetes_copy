@@ -2812,30 +2812,6 @@ func (kl *Kubelet) HandlePodSyncs(pods []*v1.Pod) {
 	}
 }
 
-func isPodResizeInProgress(pod *v1.Pod, podStatus *kubecontainer.PodStatus) bool {
-	for _, c := range pod.Spec.Containers {
-		if cs := podStatus.FindContainerStatusByName(c.Name); cs != nil {
-			if cs.State != kubecontainer.ContainerStateRunning || cs.Resources == nil {
-				continue
-			}
-			if c.Resources.Requests != nil {
-				if cs.Resources.CPURequest != nil && !cs.Resources.CPURequest.Equal(*c.Resources.Requests.Cpu()) {
-					return true
-				}
-			}
-			if c.Resources.Limits != nil {
-				if cs.Resources.CPULimit != nil && !cs.Resources.CPULimit.Equal(*c.Resources.Limits.Cpu()) {
-					return true
-				}
-				if cs.Resources.MemoryLimit != nil && !cs.Resources.MemoryLimit.Equal(*c.Resources.Limits.Memory()) {
-					return true
-				}
-			}
-		}
-	}
-	return false
-}
-
 // canResizePod determines if the requested resize is currently feasible.
 // pod should hold the desired (pre-allocated) spec.
 // Returns true if the resize can proceed.
@@ -2928,6 +2904,14 @@ func (kl *Kubelet) handlePodResourcesResize(pod *v1.Pod, podStatus *kubecontaine
 			if !apiequality.Semantic.DeepEqual(container.Resources, allocatedPod.Spec.Containers[i].Resources) {
 				key := kuberuntime.GetStableKey(pod, &container)
 				kl.backOff.Reset(key)
+			}
+		}
+		for i, container := range pod.Spec.InitContainers {
+			if podutil.IsRestartableInitContainer(&container) {
+				if !apiequality.Semantic.DeepEqual(container.Resources, allocatedPod.Spec.InitContainers[i].Resources) {
+					key := kuberuntime.GetStableKey(pod, &container)
+					kl.backOff.Reset(key)
+				}
 			}
 		}
 		allocatedPod = pod

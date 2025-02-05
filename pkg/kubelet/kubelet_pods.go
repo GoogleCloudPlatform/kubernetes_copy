@@ -1764,60 +1764,75 @@ func (kl *Kubelet) determinePodResizeStatus(allocatedPod *v1.Pod, podStatus *kub
 // resources reported in the status.
 func allocatedResourcesMatchStatus(allocatedPod *v1.Pod, podStatus *kubecontainer.PodStatus) bool {
 	for _, c := range allocatedPod.Spec.Containers {
-		if cs := podStatus.FindContainerStatusByName(c.Name); cs != nil {
-			if cs.State != kubecontainer.ContainerStateRunning {
-				// If the container isn't running, it isn't resizing.
-				continue
+		if !allocatedContainerResourcesMatchStatus(allocatedPod, &c, podStatus) {
+			return false
+		}
+	}
+	if utilfeature.DefaultFeatureGate.Enabled(features.SidecarContainers) {
+		for _, c := range allocatedPod.Spec.InitContainers {
+			if podutil.IsRestartableInitContainer(&c) && !allocatedContainerResourcesMatchStatus(allocatedPod, &c, podStatus) {
+				return false
 			}
+		}
+	}
+	return true
+}
 
-			cpuReq, hasCPUReq := c.Resources.Requests[v1.ResourceCPU]
-			cpuLim, hasCPULim := c.Resources.Limits[v1.ResourceCPU]
-			memLim, hasMemLim := c.Resources.Limits[v1.ResourceMemory]
+// allocatedContainerResourcesMatchStatus returns true if the container resources matches with the container statuses resources.
+func allocatedContainerResourcesMatchStatus(allocatedPod *v1.Pod, c *v1.Container, podStatus *kubecontainer.PodStatus) bool {
+	if cs := podStatus.FindContainerStatusByName(c.Name); cs != nil {
+		if cs.State != kubecontainer.ContainerStateRunning {
+			// If the container isn't running, it isn't resizing.
+			return true
+		}
 
-			if cs.Resources == nil {
-				if hasCPUReq || hasCPULim || hasMemLim {
-					// Container status is missing Resources information, but the container does
-					// have resizable resources configured.
-					klog.ErrorS(nil, "Missing runtime resources information for resizing container",
-						"pod", format.Pod(allocatedPod), "container", c.Name)
-					return false // We don't want to clear resize status with insufficient information.
-				} else {
-					// No resizable resources configured; this might be ok.
-					continue
-				}
+		cpuReq, hasCPUReq := c.Resources.Requests[v1.ResourceCPU]
+		cpuLim, hasCPULim := c.Resources.Limits[v1.ResourceCPU]
+		memLim, hasMemLim := c.Resources.Limits[v1.ResourceMemory]
+
+		if cs.Resources == nil {
+			if hasCPUReq || hasCPULim || hasMemLim {
+				// Container status is missing Resources information, but the container does
+				// have resizable resources configured.
+				klog.ErrorS(nil, "Missing runtime resources information for resizing container",
+					"pod", format.Pod(allocatedPod), "container", c.Name)
+				return false // We don't want to clear resize status with insufficient information.
+			} else {
+				// No resizable resources configured; this might be ok.
+				return true
 			}
+		}
 
-			// Only compare resizeable resources, and only compare resources that are explicitly configured.
-			if hasCPUReq {
-				if cs.Resources.CPURequest == nil {
-					if !cpuReq.IsZero() {
-						return false
-					}
-				} else if !cpuReq.Equal(*cs.Resources.CPURequest) &&
-					(cpuReq.MilliValue() > cm.MinShares || cs.Resources.CPURequest.MilliValue() > cm.MinShares) {
-					// If both allocated & status CPU requests are at or below MinShares then they are considered equal.
+		// Only compare resizeable resources, and only compare resources that are explicitly configured.
+		if hasCPUReq {
+			if cs.Resources.CPURequest == nil {
+				if !cpuReq.IsZero() {
 					return false
 				}
+			} else if !cpuReq.Equal(*cs.Resources.CPURequest) &&
+				(cpuReq.MilliValue() > cm.MinShares || cs.Resources.CPURequest.MilliValue() > cm.MinShares) {
+				// If both allocated & status CPU requests are at or below MinShares then they are considered equal.
+				return false
 			}
-			if hasCPULim {
-				if cs.Resources.CPULimit == nil {
-					if !cpuLim.IsZero() {
-						return false
-					}
-				} else if !cpuLim.Equal(*cs.Resources.CPULimit) &&
-					(cpuLim.MilliValue() > cm.MinMilliCPULimit || cs.Resources.CPULimit.MilliValue() > cm.MinMilliCPULimit) {
-					// If both allocated & status CPU limits are at or below the minimum limit, then they are considered equal.
+		}
+		if hasCPULim {
+			if cs.Resources.CPULimit == nil {
+				if !cpuLim.IsZero() {
 					return false
 				}
+			} else if !cpuLim.Equal(*cs.Resources.CPULimit) &&
+				(cpuLim.MilliValue() > cm.MinMilliCPULimit || cs.Resources.CPULimit.MilliValue() > cm.MinMilliCPULimit) {
+				// If both allocated & status CPU limits are at or below the minimum limit, then they are considered equal.
+				return false
 			}
-			if hasMemLim {
-				if cs.Resources.MemoryLimit == nil {
-					if !memLim.IsZero() {
-						return false
-					}
-				} else if !memLim.Equal(*cs.Resources.MemoryLimit) {
+		}
+		if hasMemLim {
+			if cs.Resources.MemoryLimit == nil {
+				if !memLim.IsZero() {
 					return false
 				}
+			} else if !memLim.Equal(*cs.Resources.MemoryLimit) {
+				return false
 			}
 		}
 	}

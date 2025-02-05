@@ -144,9 +144,12 @@ func AggregateContainerRequests(pod *v1.Pod, opts PodResourcesOptions) v1.Resour
 	reqs := reuseOrClearResourceList(opts.Reuse)
 	var containerStatuses map[string]*v1.ContainerStatus
 	if opts.UseStatusResources {
-		containerStatuses = make(map[string]*v1.ContainerStatus, len(pod.Status.ContainerStatuses))
+		containerStatuses = make(map[string]*v1.ContainerStatus, len(pod.Status.ContainerStatuses)+len(pod.Status.InitContainerStatuses))
 		for i := range pod.Status.ContainerStatuses {
 			containerStatuses[pod.Status.ContainerStatuses[i].Name] = &pod.Status.ContainerStatuses[i]
+		}
+		for i := range pod.Status.InitContainerStatuses {
+			containerStatuses[pod.Status.InitContainerStatuses[i].Name] = &pod.Status.InitContainerStatuses[i]
 		}
 	}
 
@@ -155,11 +158,7 @@ func AggregateContainerRequests(pod *v1.Pod, opts PodResourcesOptions) v1.Resour
 		if opts.UseStatusResources {
 			cs, found := containerStatuses[container.Name]
 			if found && cs.Resources != nil {
-				if pod.Status.Resize == v1.PodResizeStatusInfeasible {
-					containerReqs = cs.Resources.Requests.DeepCopy()
-				} else {
-					containerReqs = max(container.Resources.Requests, cs.Resources.Requests)
-				}
+				containerReqs = determineContainerReqs(pod, &container, cs)
 			}
 		}
 
@@ -177,7 +176,6 @@ func AggregateContainerRequests(pod *v1.Pod, opts PodResourcesOptions) v1.Resour
 	restartableInitContainerReqs := v1.ResourceList{}
 	initContainerReqs := v1.ResourceList{}
 	// init containers define the minimum of any resource
-	// Note: In-place resize is not allowed for InitContainers, so no need to check for ResizeStatus value
 	//
 	// Let's say `InitContainerUse(i)` is the resource requirements when the i-th
 	// init container is initializing, then
@@ -186,6 +184,15 @@ func AggregateContainerRequests(pod *v1.Pod, opts PodResourcesOptions) v1.Resour
 	// See https://github.com/kubernetes/enhancements/tree/master/keps/sig-node/753-sidecar-containers#exposing-pod-resource-requirements for the detail.
 	for _, container := range pod.Spec.InitContainers {
 		containerReqs := container.Resources.Requests
+		if opts.UseStatusResources {
+			if container.RestartPolicy != nil && *container.RestartPolicy == v1.ContainerRestartPolicyAlways {
+				cs, found := containerStatuses[container.Name]
+				if found && cs.Resources != nil {
+					containerReqs = determineContainerReqs(pod, &container, cs)
+				}
+			}
+		}
+
 		if len(opts.NonMissingContainerRequests) > 0 {
 			containerReqs = applyNonMissing(containerReqs, opts.NonMissingContainerRequests)
 		}
@@ -212,6 +219,22 @@ func AggregateContainerRequests(pod *v1.Pod, opts PodResourcesOptions) v1.Resour
 
 	maxResourceList(reqs, initContainerReqs)
 	return reqs
+}
+
+// determineContainerReqs will return a copy of the container requests based on if resizing is feasible or not.
+func determineContainerReqs(pod *v1.Pod, container *v1.Container, cs *v1.ContainerStatus) v1.ResourceList {
+	if pod.Status.Resize == v1.PodResizeStatusInfeasible {
+		return cs.Resources.Requests.DeepCopy()
+	}
+	return max(container.Resources.Requests, cs.Resources.Requests)
+}
+
+// determineContainerLimits will return a copy of the container limits based on if resizing is feasible or not.
+func determineContainerLimits(pod *v1.Pod, container *v1.Container, cs *v1.ContainerStatus) v1.ResourceList {
+	if pod.Status.Resize == v1.PodResizeStatusInfeasible {
+		return cs.Resources.Limits.DeepCopy()
+	}
+	return max(container.Resources.Limits, cs.Resources.Limits)
 }
 
 // applyNonMissing will return a copy of the given resource list with any missing values replaced by the nonMissing values
@@ -267,9 +290,12 @@ func AggregateContainerLimits(pod *v1.Pod, opts PodResourcesOptions) v1.Resource
 	limits := reuseOrClearResourceList(opts.Reuse)
 	var containerStatuses map[string]*v1.ContainerStatus
 	if opts.UseStatusResources {
-		containerStatuses = make(map[string]*v1.ContainerStatus, len(pod.Status.ContainerStatuses))
+		containerStatuses = make(map[string]*v1.ContainerStatus, len(pod.Status.ContainerStatuses)+len(pod.Status.InitContainerStatuses))
 		for i := range pod.Status.ContainerStatuses {
 			containerStatuses[pod.Status.ContainerStatuses[i].Name] = &pod.Status.ContainerStatuses[i]
+		}
+		for i := range pod.Status.InitContainerStatuses {
+			containerStatuses[pod.Status.InitContainerStatuses[i].Name] = &pod.Status.InitContainerStatuses[i]
 		}
 	}
 
@@ -278,11 +304,7 @@ func AggregateContainerLimits(pod *v1.Pod, opts PodResourcesOptions) v1.Resource
 		if opts.UseStatusResources {
 			cs, found := containerStatuses[container.Name]
 			if found && cs.Resources != nil {
-				if pod.Status.Resize == v1.PodResizeStatusInfeasible {
-					containerLimits = cs.Resources.Limits.DeepCopy()
-				} else {
-					containerLimits = max(container.Resources.Limits, cs.Resources.Limits)
-				}
+				containerLimits = determineContainerLimits(pod, &container, cs)
 			}
 		}
 
@@ -303,6 +325,15 @@ func AggregateContainerLimits(pod *v1.Pod, opts PodResourcesOptions) v1.Resource
 	// See https://github.com/kubernetes/enhancements/tree/master/keps/sig-node/753-sidecar-containers#exposing-pod-resource-requirements for the detail.
 	for _, container := range pod.Spec.InitContainers {
 		containerLimits := container.Resources.Limits
+		if opts.UseStatusResources {
+			if container.RestartPolicy != nil && *container.RestartPolicy == v1.ContainerRestartPolicyAlways {
+				cs, found := containerStatuses[container.Name]
+				if found && cs.Resources != nil {
+					containerLimits = determineContainerLimits(pod, &container, cs)
+				}
+			}
+		}
+
 		// Is the init container marked as a restartable init container?
 		if container.RestartPolicy != nil && *container.RestartPolicy == v1.ContainerRestartPolicyAlways {
 			addResourceList(limits, containerLimits)
