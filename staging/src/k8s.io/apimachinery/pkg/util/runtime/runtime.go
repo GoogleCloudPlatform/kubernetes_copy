@@ -143,6 +143,26 @@ func logPanic(ctx context.Context, r interface{}) {
 	}
 }
 
+// FormatValueWithStack combines the string rendering of the given value
+// with a stack trace.
+func FormatValueWithStack(value any) string {
+	// Same stack printing code as in logPanic
+	const size = 64 << 10
+	stacktrace := make([]byte, size)
+	stacktrace = stacktrace[:runtime.Stack(stacktrace, false)]
+	return FormatAny(value) + "\n\n" + string(stacktrace)
+}
+
+// FormatAny simply returns the given value if it is a string,
+// otherwise it formats it with both `%v` and `%#v`.
+func FormatAny(value any) string {
+	if str, isStr := value.(string); isStr {
+		return str
+	} else {
+		return fmt.Sprintf("%v (as Go value: %#v)", value, value)
+	}
+}
+
 // ErrorHandlers is a list of functions which will be invoked when a nonreturnable
 // error occurs.
 // TODO(lavalamp): for testability, this and the below HandleError function
