@@ -1290,6 +1290,10 @@
     lockToDefault: false
     preRelease: Beta
     version: "1.30"
+  - default: true
+    lockToDefault: false
+    preRelease: Deprecated
+    version: "1.33"
 - name: StorageVersionAPI
   versionedSpecs:
   - default: false

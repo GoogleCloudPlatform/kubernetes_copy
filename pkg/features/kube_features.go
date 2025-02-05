@@ -681,6 +681,7 @@ const (
 	// owner: @ahutsunshine
 	//
 	// Allows namespace indexer for namespace scope resources in apiserver cache to accelerate list operations.
+	// Superseded by BtreeWatchCache.
 	StorageNamespaceIndex featuregate.Feature = "StorageNamespaceIndex"
 
 	// owner: @nilekhc
