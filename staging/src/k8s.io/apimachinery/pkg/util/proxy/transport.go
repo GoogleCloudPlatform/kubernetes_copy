@@ -249,7 +249,7 @@ func (t *Transport) rewriteResponse(req *http.Request, resp *http.Response) (*ht
 		// This is fine
 	default:
 		// Some encoding we don't understand-- don't try to parse this
-		klog.Errorf("Proxy encountered encoding %v for text/html; can't understand this so not fixing links.", encoding)
+		klog.FromContext(req.Context()).Error(nil, "Proxy encountered unknown encoding for text/html, can't understand this so not fixing links", "encoding", encoding)
 		return resp, nil
 	}
 
@@ -258,7 +258,7 @@ func (t *Transport) rewriteResponse(req *http.Request, resp *http.Response) (*ht
 	}
 	err := rewriteHTML(reader, writer, urlRewriter)
 	if err != nil {
-		klog.Errorf("Failed to rewrite URLs: %v", err)
+		klog.FromContext(req.Context()).Error(err, "Failed to rewrite URLs")
 		return resp, err
 	}
 

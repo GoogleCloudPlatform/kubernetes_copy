@@ -39,7 +39,7 @@ func DialURL(ctx context.Context, url *url.URL, transport http.RoundTripper) (ne
 
 	dialer, err := utilnet.DialerFor(transport)
 	if err != nil {
-		klog.V(5).Infof("Unable to unwrap transport %T to get dialer: %v", transport, err)
+		klog.FromContext(ctx).V(5).Info("Unable to unwrap transport to get dialer", "type", fmt.Sprintf("%T", transport), "err", err)
 	}
 
 	switch url.Scheme {
@@ -53,7 +53,7 @@ func DialURL(ctx context.Context, url *url.URL, transport http.RoundTripper) (ne
 		// Get the tls config from the transport if we recognize it
 		tlsConfig, err := utilnet.TLSClientConfig(transport)
 		if err != nil {
-			klog.V(5).Infof("Unable to unwrap transport %T to get at TLS config: %v", transport, err)
+			klog.FromContext(ctx).V(5).Info("Unable to unwrap transport to get at TLS config", "type", fmt.Sprintf("%T", transport), "err", err)
 		}
 
 		if dialer != nil {
@@ -65,7 +65,7 @@ func DialURL(ctx context.Context, url *url.URL, transport http.RoundTripper) (ne
 			}
 			if tlsConfig == nil {
 				// tls.Client requires non-nil config
-				klog.Warning("using custom dialer with no TLSClientConfig. Defaulting to InsecureSkipVerify")
+				klog.FromContext(ctx).Info("Warning: using custom dialer with no TLSClientConfig, defaulting to InsecureSkipVerify")
 				// tls.Handshake() requires ServerName or InsecureSkipVerify
 				tlsConfig = &tls.Config{
 					InsecureSkipVerify: true,
