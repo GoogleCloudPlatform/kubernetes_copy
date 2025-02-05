@@ -105,6 +105,7 @@ var (
 				LimitResponse: flowcontrol.LimitResponse{
 					Type: flowcontrol.LimitResponseTypeReject,
 				},
+				Weight: ptr.To(int32(10)),
 			},
 		})
 )
@@ -183,6 +184,7 @@ var (
 						QueueLengthLimit: 50,
 					},
 				},
+				Weight: ptr.To(int32(100)),
 			},
 		})
 	SuggestedPriorityLevelConfigurationNodeHigh = newPriorityLevelConfiguration(
@@ -200,6 +202,7 @@ var (
 						QueueLengthLimit: 50,
 					},
 				},
+				Weight: ptr.To(int32(100)),
 			},
 		})
 	// leader-election priority-level
@@ -218,6 +221,7 @@ var (
 						QueueLengthLimit: 50,
 					},
 				},
+				Weight: ptr.To(int32(100)),
 			},
 		})
 	// workload-high priority-level
@@ -236,6 +240,7 @@ var (
 						QueueLengthLimit: 50,
 					},
 				},
+				Weight: ptr.To(int32(60)),
 			},
 		})
 	// workload-low priority-level
@@ -254,6 +259,7 @@ var (
 						QueueLengthLimit: 50,
 					},
 				},
+				Weight: ptr.To(int32(30)),
 			},
 		})
 	// global-default priority-level
@@ -272,6 +278,7 @@ var (
 						QueueLengthLimit: 50,
 					},
 				},
+				Weight: ptr.To(int32(10)),
 			},
 		})
 )

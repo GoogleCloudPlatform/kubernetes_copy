@@ -21,6 +21,7 @@ import (
 
 	runtimeserializer "k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/kubernetes/pkg/apis/flowcontrol"
+	apiv1 "k8s.io/kubernetes/pkg/apis/flowcontrol/v1"
 	"k8s.io/utils/ptr"
 )
 
@@ -37,6 +38,9 @@ var Funcs = func(codecs runtimeserializer.CodecFactory) []interface{} {
 			}
 			if obj.LendablePercent == nil {
 				obj.LendablePercent = ptr.To(int32(0))
+			}
+			if obj.Weight == nil {
+				obj.Weight = ptr.To(apiv1.LimitedPriorityLevelConfigurationDefaultWeight)
 			}
 		},
 		func(obj *flowcontrol.ExemptPriorityLevelConfiguration, c fuzz.Continue) {

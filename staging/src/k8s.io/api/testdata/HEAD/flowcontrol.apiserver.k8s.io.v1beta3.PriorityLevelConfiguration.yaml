@@ -46,6 +46,7 @@ spec:
         queues: 1
       type: typeValue
     nominalConcurrencyShares: 1
+    weight: 5
   type: typeValue
 status:
   conditions:

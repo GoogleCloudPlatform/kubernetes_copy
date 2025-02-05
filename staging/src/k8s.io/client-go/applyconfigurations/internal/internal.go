@@ -9672,6 +9672,9 @@ var schemaYAML = typed.YAMLObject(`types:
     - name: nominalConcurrencyShares
       type:
         scalar: numeric
+    - name: weight
+      type:
+        scalar: numeric
 - name: io.k8s.api.flowcontrol.v1.NonResourcePolicyRule
   map:
     fields:
@@ -9998,6 +10001,9 @@ var schemaYAML = typed.YAMLObject(`types:
       type:
         namedType: io.k8s.api.flowcontrol.v1beta1.LimitResponse
       default: {}
+    - name: weight
+      type:
+        scalar: numeric
 - name: io.k8s.api.flowcontrol.v1beta1.NonResourcePolicyRule
   map:
     fields:
@@ -10324,6 +10330,9 @@ var schemaYAML = typed.YAMLObject(`types:
       type:
         namedType: io.k8s.api.flowcontrol.v1beta2.LimitResponse
       default: {}
+    - name: weight
+      type:
+        scalar: numeric
 - name: io.k8s.api.flowcontrol.v1beta2.NonResourcePolicyRule
   map:
     fields:
@@ -10650,6 +10659,9 @@ var schemaYAML = typed.YAMLObject(`types:
       type:
         scalar: numeric
       default: 0
+    - name: weight
+      type:
+        scalar: numeric
 - name: io.k8s.api.flowcontrol.v1beta3.NonResourcePolicyRule
   map:
     fields:
