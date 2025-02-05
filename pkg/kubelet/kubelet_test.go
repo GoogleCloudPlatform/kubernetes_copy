@@ -19,6 +19,7 @@ package kubelet
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -3006,6 +3007,116 @@ func TestSyncTerminatingPodKillPod(t *testing.T) {
 
 	// Check pod status stored in the status map.
 	checkPodStatus(t, kl, pod, v1.PodFailed)
+}
+
+func TestPullErrorReportsMissingSecrets(t *testing.T) {
+	logger, ctx := ktesting.NewTestContext(t)
+
+	expectedEvent := "Warning FailedToRetrieveImagePullSecret Unable to retrieve some image pull secrets: [missing]"
+
+	testKubelet := newTestKubelet(t, false /* controllerAttachDetachEnabled */)
+	defer testKubelet.Cleanup()
+	kubelet := testKubelet.kubelet
+
+	// Replace the recorder so we can inspect the events
+	fakeRecorder := record.NewFakeRecorder(10)
+	kubelet.recorder = fakeRecorder
+
+	// Replace the secret manager with one that will return a not found
+	kubelet.secretManager = secret.NewFakeManagerWithSecrets([]*v1.Secret{})
+
+	// Fake a runtime that will get as far as the image pull
+	recorder := record.NewFakeRecorder(20)
+	nodeRef := &v1.ObjectReference{
+		Kind:      "Node",
+		Name:      "testNode",
+		UID:       types.UID("testNode"),
+		Namespace: "",
+	}
+	kubelet.dnsConfigurer = dns.NewConfigurer(recorder, nodeRef, nil, nil, "TEST", "")
+
+	kubeCfg := &kubeletconfiginternal.KubeletConfiguration{
+		MemoryThrottlingFactor: ptr.To[float64](0),
+	}
+
+	tp := noopoteltrace.NewTracerProvider()
+	kubelet.tracer = tp.Tracer(instrumentationScope)
+
+	fakeRuntime, endpoint := createAndStartFakeRemoteRuntime(t)
+	defer func() {
+		fakeRuntime.Stop()
+	}()
+	runtimeSvc := createRemoteRuntimeService(endpoint, t, tp)
+	kubelet.runtimeService = runtimeSvc
+
+	fakeRuntime.ImageService.InjectError("PullImage", errors.New("Test pull failed"))
+	imageSvc, err := remote.NewRemoteImageService(endpoint, 15*time.Second, tp, &logger)
+	require.NoError(t, err)
+
+	kubelet.containerRuntime, err = kuberuntime.NewKubeGenericRuntimeManager(
+		kubelet.recorder,
+		kubelet.livenessManager,
+		kubelet.readinessManager,
+		kubelet.startupManager,
+		kubelet.rootDirectory,
+		kubelet.podLogsDirectory,
+		kubelet.machineInfo,
+		kubelet.podWorkers,
+		kubelet.os,
+		kubelet,
+		nil,
+		kubelet.backOff,
+		kubeCfg.SerializeImagePulls,
+		kubeCfg.MaxParallelImagePulls,
+		float32(kubeCfg.RegistryPullQPS),
+		int(kubeCfg.RegistryBurst),
+		"",
+		"",
+		nil,
+		kubeCfg.CPUCFSQuota,
+		kubeCfg.CPUCFSQuotaPeriod,
+		runtimeSvc,
+		imageSvc,
+		kubelet.containerManager,
+		kubelet.containerLogManager,
+		kubelet.runtimeClassManager,
+		false,
+		kubeCfg.MemorySwap.SwapBehavior,
+		kubelet.containerManager.GetNodeAllocatableAbsolute,
+		*kubeCfg.MemoryThrottlingFactor,
+		kubeletutil.NewPodStartupLatencyTracker(),
+		tp,
+	)
+	require.NoError(t, err)
+
+	pod := podWithUIDNameNsSpec("12345678", "foo", "new", v1.PodSpec{
+		ImagePullSecrets: []v1.LocalObjectReference{
+			{
+				Name: "missing",
+			},
+		},
+		Containers: []v1.Container{
+			{
+				Name:            "bar",
+				Image:           "missing:latest",
+				ImagePullPolicy: v1.PullAlways,
+			},
+		},
+		EnableServiceLinks: ptr.To(false),
+	})
+	_, err = kubelet.SyncPod(ctx, kubetypes.SyncPodCreate, pod, nil, &kubecontainer.PodStatus{})
+	require.ErrorContains(t, err, "ErrImagePull", "Image pull must fail for missing pull secret event to be emitted")
+
+	events := make([]string, 0, 10)
+	for done := false; !done; {
+		select {
+		case event := <-fakeRecorder.Events:
+			events = append(events, event)
+		default:
+			done = true
+		}
+	}
+	assert.Contains(t, events, expectedEvent)
 }
 
 func TestSyncLabels(t *testing.T) {

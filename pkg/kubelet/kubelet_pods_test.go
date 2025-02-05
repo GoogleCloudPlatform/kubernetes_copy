@@ -6444,13 +6444,9 @@ func testMetric(t *testing.T, metricName string, expectedMetric string) {
 
 func TestGetNonExistentImagePullSecret(t *testing.T) {
 	secrets := make([]*v1.Secret, 0)
-	fakeRecorder := record.NewFakeRecorder(1)
 	testKubelet := newTestKubelet(t, false /* controllerAttachDetachEnabled */)
-	testKubelet.kubelet.recorder = fakeRecorder
 	testKubelet.kubelet.secretManager = secret.NewFakeManagerWithSecrets(secrets)
 	defer testKubelet.Cleanup()
-
-	expectedEvent := "Warning FailedToRetrieveImagePullSecret Unable to retrieve some image pull secrets (secretFoo); attempting to pull the image may not succeed."
 
 	testPod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -6465,12 +6461,9 @@ func TestGetNonExistentImagePullSecret(t *testing.T) {
 		},
 	}
 
-	pullSecrets := testKubelet.kubelet.getPullSecretsForPod(testPod)
+	pullSecrets, failedPullSecrets := testKubelet.kubelet.getPullSecretsForPod(testPod)
 	assert.Empty(t, pullSecrets)
-
-	assert.Len(t, fakeRecorder.Events, 1)
-	event := <-fakeRecorder.Events
-	assert.Equal(t, expectedEvent, event)
+	assert.Equal(t, []string{"secretFoo"}, failedPullSecrets)
 }
 
 func TestParseGetSubIdsOutput(t *testing.T) {
