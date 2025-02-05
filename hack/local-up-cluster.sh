@@ -176,6 +176,21 @@ function usage {
             echo "           hack/local-up-cluster.sh (build a local copy of the source with full-pcpus-only CPU Management policy)"
 }
 
+function sudo {
+    if [ "$UID" = "0" ]; then
+        while [ $# -gt 0 ]; do
+            case "$1" in
+                --) shift; break;;
+                -*) shift;;
+                *) break;;
+            esac
+        done
+        "$@"
+    else
+        command sudo "$@"
+    fi
+}
+
 # This function guesses where the existing cached binary build is for the `-O`
 # flag
 function guess_built_binary_path {
@@ -382,15 +397,15 @@ cleanup()
 
   # Check if the API server is still running
   [[ -n "${APISERVER_PID-}" ]] && kube::util::read-array APISERVER_PIDS < <(pgrep -P "${APISERVER_PID}" ; ps -o pid= -p "${APISERVER_PID}")
-  [[ -n "${APISERVER_PIDS-}" ]] && sudo kill "${APISERVER_PIDS[@]}" 2>/dev/null
+  [[ -n "${APISERVER_PIDS-}" ]] && ${CONTROLPLANE_SUDO} kill "${APISERVER_PIDS[@]}" 2>/dev/null
 
   # Check if the controller-manager is still running
   [[ -n "${CTLRMGR_PID-}" ]] && kube::util::read-array CTLRMGR_PIDS < <(pgrep -P "${CTLRMGR_PID}" ; ps -o pid= -p "${CTLRMGR_PID}")
-  [[ -n "${CTLRMGR_PIDS-}" ]] && sudo kill "${CTLRMGR_PIDS[@]}" 2>/dev/null
+  [[ -n "${CTLRMGR_PIDS-}" ]] && ${CONTROLPLANE_SUDO} kill "${CTLRMGR_PIDS[@]}" 2>/dev/null
 
   # Check if the cloud-controller-manager is still running
   [[ -n "${CLOUD_CTLRMGR_PID-}" ]] && kube::util::read-array CLOUD_CTLRMGR_PIDS < <(pgrep -P "${CLOUD_CTLRMGR_PID}" ; ps -o pid= -p "${CLOUD_CTLRMGR_PID}")
-  [[ -n "${CLOUD_CTLRMGR_PIDS-}" ]] && sudo kill "${CLOUD_CTLRMGR_PIDS[@]}" 2>/dev/null
+  [[ -n "${CLOUD_CTLRMGR_PIDS-}" ]] && ${CONTROLPLANE_SUDO} kill "${CLOUD_CTLRMGR_PIDS[@]}" 2>/dev/null
 
   # Check if the kubelet is still running
   [[ -n "${KUBELET_PID-}" ]] && kube::util::read-array KUBELET_PIDS < <(pgrep -P "${KUBELET_PID}" ; ps -o pid= -p "${KUBELET_PID}")
@@ -402,7 +417,7 @@ cleanup()
 
   # Check if the scheduler is still running
   [[ -n "${SCHEDULER_PID-}" ]] && kube::util::read-array SCHEDULER_PIDS < <(pgrep -P "${SCHEDULER_PID}" ; ps -o pid= -p "${SCHEDULER_PID}")
-  [[ -n "${SCHEDULER_PIDS-}" ]] && sudo kill "${SCHEDULER_PIDS[@]}" 2>/dev/null
+  [[ -n "${SCHEDULER_PIDS-}" ]] && ${CONTROLPLANE_SUDO} kill "${SCHEDULER_PIDS[@]}" 2>/dev/null
 
   # Check if the etcd is still running
   [[ -n "${ETCD_PID-}" ]] && kube::etcd::stop
@@ -419,12 +434,12 @@ cleanup()
 # Check if all processes are still running. Prints a warning once each time
 # a process dies unexpectedly.
 function healthcheck {
-  if [[ -n "${APISERVER_PID-}" ]] && ! sudo kill -0 "${APISERVER_PID}" 2>/dev/null; then
+  if [[ -n "${APISERVER_PID-}" ]] && ! ${CONTROLPLANE_SUDO} kill -0 "${APISERVER_PID}" 2>/dev/null; then
     warning_log "API server terminated unexpectedly, see ${APISERVER_LOG}"
     APISERVER_PID=
   fi
 
-  if [[ -n "${CTLRMGR_PID-}" ]] && ! sudo kill -0 "${CTLRMGR_PID}" 2>/dev/null; then
+  if [[ -n "${CTLRMGR_PID-}" ]] && ! ${CONTROLPLANE_SUDO} kill -0 "${CTLRMGR_PID}" 2>/dev/null; then
     warning_log "kube-controller-manager terminated unexpectedly, see ${CTLRMGR_LOG}"
     CTLRMGR_PID=
   fi
@@ -439,12 +454,12 @@ function healthcheck {
     PROXY_PID=
   fi
 
-  if [[ -n "${SCHEDULER_PID-}" ]] && ! sudo kill -0 "${SCHEDULER_PID}" 2>/dev/null; then
+  if [[ -n "${SCHEDULER_PID-}" ]] && ! ${CONTROLPLANE_SUDO} kill -0 "${SCHEDULER_PID}" 2>/dev/null; then
     warning_log "scheduler terminated unexpectedly, see ${SCHEDULER_LOG}"
     SCHEDULER_PID=
   fi
 
-  if [[ -n "${ETCD_PID-}" ]] && ! sudo kill -0 "${ETCD_PID}" 2>/dev/null; then
+  if [[ -n "${ETCD_PID-}" ]] && ! ${CONTROLPLANE_SUDO} kill -0 "${ETCD_PID}" 2>/dev/null; then
     warning_log "etcd terminated unexpectedly"
     ETCD_PID=
   fi
@@ -1205,7 +1220,6 @@ function parse_eviction {
 }
 
 function update_packages {
-  apt-get update && apt-get install -y sudo
   apt-get remove -y systemd
 
   # Do not update docker / containerd / runc
