@@ -138,6 +138,7 @@ func testWebhookTimeout(t *testing.T, watchCache bool) {
 				// for the reason for triggering this scenario
 				"stream error",
 				"the server was unable to return a response in the time allotted",
+				"request did not complete within requested timeout",
 			},
 		},
 	}
