@@ -34,7 +34,7 @@ import (
 	"k8s.io/apiserver/pkg/authorization/authorizer"
 	genericapifilters "k8s.io/apiserver/pkg/endpoints/filters"
 	apirequest "k8s.io/apiserver/pkg/endpoints/request"
-	"k8s.io/apiserver/pkg/server"
+	genericapiserver "k8s.io/apiserver/pkg/server"
 	genericfilters "k8s.io/apiserver/pkg/server/filters"
 	"k8s.io/apiserver/pkg/server/healthz"
 	"k8s.io/apiserver/pkg/server/mux"
@@ -147,13 +147,7 @@ func runCommand(cmd *cobra.Command, opts *options.Options, registryOptions ...Op
 	}
 	cliflag.PrintFlags(cmd.Flags())
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go func() {
-		stopCh := server.SetupSignalHandler()
-		<-stopCh
-		cancel()
-	}()
+	ctx := genericapiserver.SetupSignalContext()
 
 	cc, sched, err := Setup(ctx, opts, registryOptions...)
 	if err != nil {

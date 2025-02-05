@@ -22,6 +22,7 @@ import (
 	"context"
 	goflag "flag"
 	"fmt"
+	genericapiserver "k8s.io/apiserver/pkg/server"
 	"net"
 	"net/http"
 	"os"
@@ -124,7 +125,7 @@ with the apiserver API to configure the proxy.`,
 			}
 			// add feature enablement metrics
 			utilfeature.DefaultMutableFeatureGate.AddMetrics()
-			if err := opts.Run(context.Background()); err != nil {
+			if err := opts.Run(cmd.Context()); err != nil {
 				opts.logger.Error(err, "Error running ProxyServer")
 				return err
 			}
@@ -141,6 +142,7 @@ with the apiserver API to configure the proxy.`,
 		},
 	}
 
+	cmd.SetContext(genericapiserver.SetupSignalContext())
 	fs := cmd.Flags()
 	opts.AddFlags(fs)
 	fs.AddGoFlagSet(goflag.CommandLine) // for --boot-id-file and --machine-id-file
