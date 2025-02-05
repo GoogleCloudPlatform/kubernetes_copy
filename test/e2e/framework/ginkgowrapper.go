@@ -570,3 +570,46 @@ func TagsEqual(a, b interface{}) bool {
 	}
 	return slices.Equal(al.parts, bl.parts)
 }
+
+// DeferCleanup is an alias for ginkgo.DeferCleanup.
+var DeferCleanup = ginkgo.DeferCleanup
+
+// IsFailed is an alias for ginkgo.GinkgoT().Failed.
+var IsFailed = ginkgo.GinkgoT().Failed
+
+// DeferConditionalCleanup wraps ginkgo.DeferCleanup, allowing conditional execution of cleanup actions.
+// The function accepts a cleanup function as the first argument, followed by any arguments to be passed to that function.
+// The cleanup function will only be executed if TestContext.CleanupOnFailure is true or the current test has not failed.
+func DeferConditionalCleanup(args ...interface{}) {
+	if len(args) == 0 {
+		Fail("DeferConditionalCleanup called with no arguments")
+		return
+	}
+
+	cleanupFunc := args[0]
+	cleanupArgs := args[1:]
+
+	funcVal := reflect.ValueOf(cleanupFunc)
+	funcType := reflect.TypeOf(cleanupFunc)
+
+	if reflect.ValueOf(cleanupFunc).Kind() != reflect.Func {
+		Fail("The first argument to DeferConditionalCleanup should be a function")
+		return
+	}
+
+	wrappedCleanupFunc := reflect.MakeFunc(funcType, func(in []reflect.Value) []reflect.Value {
+		var out []reflect.Value
+		if TestContext.CleanupOnFailure || !IsFailed() {
+			out = funcVal.Call(in)
+		} else {
+			// Create zero values for the function's return types to skip execution
+			out = make([]reflect.Value, funcType.NumOut())
+			for i := 0; i < funcType.NumOut(); i++ {
+				out[i] = reflect.Zero(funcType.Out(i))
+			}
+		}
+		return out
+	}).Interface()
+
+	DeferCleanup(append([]interface{}{wrappedCleanupFunc}, cleanupArgs...)...)
+}
