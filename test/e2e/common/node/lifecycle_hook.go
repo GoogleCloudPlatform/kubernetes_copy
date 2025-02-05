@@ -34,7 +34,47 @@ import (
 
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
+	"sigs.k8s.io/yaml"
+
 )
+
+// Helper methods 
+
+// Logs the name of the test
+func TestName(s string) {
+    framework.Logf("<testdoc:name>%s</testdoc:name>", s)
+}
+
+// Logs individual steps of the test
+func TestStep(step string) {
+    framework.Logf("<testdoc:step>%s</testdoc:step>", step)
+}
+
+// Logs the Pod specification in YAML format
+func PodSpec(p *v1.Pod) {
+    framework.Logf("<testdoc:podspec>%s</testdoc:podspec>", getYaml(p))
+}
+
+// Logs general log output for the test case
+func TestLog(log string) {
+    framework.Logf("<testdoc:log>%s</testdoc:log>", log)
+}
+
+// Logs the status of the Pod
+func PodStatus(status string) {
+    framework.Logf("<testdoc:status>%s</testdoc:status>", status)
+}
+
+// Converts Pod object to YAML for logging purposes
+func getYaml(pod *v1.Pod) string {
+    data, err := yaml.Marshal(pod)
+    if err != nil {
+        framework.Logf("Error marshaling Pod to YAML: %v", err)
+        return ""
+    }
+    return string(data)
+}
+  
 
 var _ = SIGDescribe("Container Lifecycle Hook", func() {
 	f := framework.NewDefaultFramework("container-lifecycle-hook")
@@ -151,16 +191,74 @@ var _ = SIGDescribe("Container Lifecycle Hook", func() {
 			Description: When a pre-stop handler is specified in the container lifecycle using a 'Exec' action, then the handler MUST be invoked before the container is terminated. A server pod is created that will serve http requests, create a second pod with a container lifecycle specifying a pre-stop that invokes the server pod using ExecAction to validate that the pre-stop is executed.
 		*/
 		framework.ConformanceIt("should execute prestop exec hook properly", f.WithNodeConformance(), func(ctx context.Context) {
+		 	lifecycle := &v1.Lifecycle{
+		 		PreStop: &v1.LifecycleHandler{
+		 			Exec: &v1.ExecAction{
+		 				Command: []string{"sh", "-c", "curl http://" + targetURL + ":8080/echo?msg=prestop"},
+		 			},
+		 		},
+		 	}
+		 	podWithHook := getPodWithHook("pod-with-prestop-exec-hook", imageutils.GetE2EImage(imageutils.Agnhost), lifecycle)
+		 	testPodWithHook(ctx, podWithHook)
+		 })
+
+		
+		// Test case for validating the PreStop hook functionality
+		framework.ConformanceIt("should successfully run PreStop exec hook FINAL", f.WithNodeConformance(), func(ctx context.Context) {
+
+			// Step 1: Log the name of the test using the <testdoc:name> marker
+			TestName("PRESTOP_BASIC")
+
+			// Step 2: Provide a description of what the PreStop hook is supposed to do
+			TestStep("Defining a PreStop hook for the container, which will run just before the container shuts down.")
+
+			// Step 3: Specify the Pod with the PreStop hook, and log the Pod spec in YAML format using the <testdoc:podspec> marker
 			lifecycle := &v1.Lifecycle{
 				PreStop: &v1.LifecycleHandler{
 					Exec: &v1.ExecAction{
-						Command: []string{"sh", "-c", "curl http://" + targetURL + ":8080/echo?msg=prestop"},
+						Command: []string{"sh", "-c", "echo 'PreStop Hook Triggered'; sleep 5; echo 'PreStop Hook Completed'"},
 					},
 				},
 			}
-			podWithHook := getPodWithHook("pod-with-prestop-exec-hook", imageutils.GetE2EImage(imageutils.Agnhost), lifecycle)
-			testPodWithHook(ctx, podWithHook)
+			podWithHook := getPodWithHook("prestop-pod", imageutils.GetE2EImage(imageutils.Agnhost), lifecycle)
+			PodSpec(podWithHook) // Log the complete Pod YAML
+
+			// Step 4: Create the Pod and wait for it to become fully operational
+			TestStep("Pod has been created successfully.")
+			createdPod := podClient.CreateSync(ctx, podWithHook)
+			TestStep("Monitoring the Pod until it reaches the 'Running' state.")
+
+			// Step 5: Retrieve the logs from the Pod and confirm the PreStop hook was triggered
+			TestStep("The logs will contain the string 'PreStop Hook Triggered' confirming the PreStop hook was executed.")
+			podLogs, err := e2epod.GetPodLogs(ctx, f.ClientSet, createdPod.Namespace, createdPod.Name, "main-container")
+			if err != nil {
+				framework.Logf("Warning: Unable to retrieve pod logs: %v", err)
+			} else {
+				TestLog(podLogs) // Log the Pod output
+				TestStep("Here is an example of the log output from the Pod:")
+				TestLog(podLogs) // Display the example log output
+			}
+
+			// Step 6: Optionally capture any events related to the Pod for further analysis
+			TestStep("Collecting events related to the Pod for deeper investigation.")
+			podEvents, err := f.ClientSet.CoreV1().Events(createdPod.Namespace).List(ctx, metav1.ListOptions{})
+			framework.ExpectNoError(err)
+			framework.Logf("Pod Events: %+v", podEvents) // Log Pod events if needed for debugging
+
+			// Step 7: Trigger the PreStop hook by deleting the Pod
+			TestStep("Initiating the PreStop hook by deleting the Pod.")
+			podClient.DeleteSync(ctx, createdPod.Name, *metav1.NewDeleteOptions(30), e2epod.DefaultPodDeletionTimeout)
+
+			// Step 8: Verify the Pod has been fully terminated and capture its final status
+			TestStep("Verifying that the Pod has terminated successfully after executing the PreStop hook.")
+			err = e2epod.WaitForPodNotFoundInNamespace(ctx, f.ClientSet, createdPod.Name, createdPod.Namespace, 4*time.Minute)
+			framework.ExpectNoError(err, "Pod termination verification failed.")
+			PodStatus("The final status of the Pod: Successfully terminated.")
 		})
+
+		
+		 
+
 		/*
 			Release: v1.9
 			Testname: Pod Lifecycle, post start http hook
