@@ -102,7 +102,7 @@ func (pb *prober) probe(ctx context.Context, probeType probeType, pod *v1.Pod, s
 	if err != nil {
 		// Handle probe error
 		klog.V(1).ErrorS(err, "Probe errored", "probeType", probeType, "pod", klog.KObj(pod), "podUID", pod.UID, "containerName", container.Name, "probeResult", result)
-		pb.recordContainerEvent(pod, &container, v1.EventTypeWarning, events.ContainerUnhealthy, "%s probe errored and resulted in %s state: %s", probeType, result, err)
+		pb.recordContainerEvent(pod, &container, v1.EventTypeWarning, events.ContainerUnhealthy, "Container %s %s probe errored and resulted in %s state: %s", container.Name, probeType, result, err)
 		return results.Failure, err
 	}
 
@@ -112,13 +112,13 @@ func (pb *prober) probe(ctx context.Context, probeType probeType, pod *v1.Pod, s
 		return results.Success, nil
 
 	case probe.Warning:
-		pb.recordContainerEvent(pod, &container, v1.EventTypeWarning, events.ContainerProbeWarning, "%s probe warning: %s", probeType, output)
+		pb.recordContainerEvent(pod, &container, v1.EventTypeWarning, events.ContainerProbeWarning, "Container %s %s probe warning: %s", container.Name, probeType, output)
 		klog.V(3).InfoS("Probe succeeded with a warning", "probeType", probeType, "pod", klog.KObj(pod), "podUID", pod.UID, "containerName", container.Name, "output", output)
 		return results.Success, nil
 
 	case probe.Failure:
 		klog.V(1).InfoS("Probe failed", "probeType", probeType, "pod", klog.KObj(pod), "podUID", pod.UID, "containerName", container.Name, "probeResult", result, "output", output)
-		pb.recordContainerEvent(pod, &container, v1.EventTypeWarning, events.ContainerUnhealthy, "%s probe failed: %s", probeType, output)
+		pb.recordContainerEvent(pod, &container, v1.EventTypeWarning, events.ContainerUnhealthy, "Container %s %s probe failed: %s", container.Name, probeType, output)
 		return results.Failure, nil
 
 	case probe.Unknown:
