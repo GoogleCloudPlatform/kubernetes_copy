@@ -27,15 +27,15 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-func buildUnstructuredDecodable(gvk schema.GroupVersionKind) runtime.Object {
+func buildUnstructuredDecodable(gvk schema.GroupVersionKind) *unstructured.Unstructured {
 	obj := &unstructured.Unstructured{}
 	obj.SetGroupVersionKind(gvk)
 	return obj
 }
-
-func buildUnstructuredListDecodable(gvk schema.GroupVersionKind) runtime.Object {
+func buildUnstructuredListDecodableWithItems(gvk schema.GroupVersionKind, items ...unstructured.Unstructured) runtime.Object {
 	obj := &unstructured.UnstructuredList{}
 	obj.SetGroupVersionKind(gvk)
+	obj.Items = items
 	return obj
 }
 
@@ -55,11 +55,12 @@ func TestEncodeUnstructured(t *testing.T) {
 		Version: "else",
 		Kind:    "Noxu",
 	}
-	elseUnstructuredDecodable := buildUnstructuredDecodable(elseGVK)
-	elseUnstructuredDecodableList := buildUnstructuredListDecodable(elseGVK)
 	v1UnstructuredDecodable := buildUnstructuredDecodable(v1GVK)
-	v1UnstructuredDecodableList := buildUnstructuredListDecodable(v1GVK)
+	v1UnstructuredDecodableList := buildUnstructuredListDecodableWithItems(v1GVK, *v1UnstructuredDecodable)
 	v2UnstructuredDecodable := buildUnstructuredDecodable(v2GVK)
+
+	elseUnstructuredDecodable := buildUnstructuredDecodable(elseGVK)
+	elseUnstructuredDecodableList := buildUnstructuredListDecodableWithItems(elseGVK, *v2UnstructuredDecodable)
 
 	testCases := []struct {
 		name          string
@@ -100,6 +101,7 @@ func TestEncodeUnstructured(t *testing.T) {
 			name:          "encode will fail when unstructured object's gvk and encode gvk mismatches",
 			outObj:        elseUnstructuredDecodable,
 			targetVersion: v1GVK.GroupVersion(),
+			typer:         &mockTyper{},
 			errFunc: func(err error) bool {
 				return assert.Equal(t, runtime.NewNotRegisteredGVKErrForTarget("noxu-scheme", elseGVK, v1GVK.GroupVersion()), err)
 			},
@@ -108,6 +110,12 @@ func TestEncodeUnstructured(t *testing.T) {
 			name:          "encode with unstructured list's gvk regardless of its elements' gvk",
 			outObj:        elseUnstructuredDecodableList,
 			targetVersion: elseGVK.GroupVersion(),
+			typer:         &mockTyper{},
+			convertor: &checkConvertor{
+				obj:          elseUnstructuredDecodableList,
+				groupVersion: elseGVK.GroupVersion(),
+			},
+			expectedObj: elseUnstructuredDecodableList,
 		},
 		{
 			name:          "typer fail to recognize unstructured object gvk will fail the encoding",
@@ -116,18 +124,21 @@ func TestEncodeUnstructured(t *testing.T) {
 			typer: &mockTyper{
 				err: fmt.Errorf("invalid obj gvk"),
 			},
+			errFunc: func(err error) bool {
+				return assert.Equal(t, runtime.NewNotRegisteredGVKErrForTarget("noxu-scheme", elseGVK, v1GVK.GroupVersion()), err)
+			},
 		},
 		{
-			name:          "encoding unstructured object without encode version will fallback to typer suggested version",
-			targetVersion: v1GVK.GroupVersion(),
+			name: "encoding unstructured object without encode version will fallback to typer suggested version",
 			convertor: &checkConvertor{
 				obj:          v1UnstructuredDecodableList,
 				groupVersion: v1GVK.GroupVersion(),
 			},
-			outObj: elseUnstructuredDecodable,
+			outObj: v1UnstructuredDecodableList,
 			typer: &mockTyper{
 				gvks: []schema.GroupVersionKind{v1GVK},
 			},
+			expectedObj: v1UnstructuredDecodableList,
 		},
 	}
 	for _, testCase := range testCases {
@@ -138,10 +149,14 @@ func TestEncodeUnstructured(t *testing.T) {
 			if !testCase.errFunc(err) {
 				t.Errorf("%v: failed: %v", testCase.name, err)
 			}
-			return
+			continue
+		} else {
+			if err != nil {
+				t.Errorf("%v: failed: %v", testCase.name, err)
+			} else {
+				assert.Equal(t, testCase.expectedObj, serializer.obj, testCase.name)
+			}
 		}
-		assert.NoError(t, err)
-		assert.Equal(t, testCase.expectedObj, serializer.obj)
 	}
 }
 
