@@ -287,6 +287,12 @@ func (m *manager) isContainerStarted(pod *v1.Pod, containerStatus *v1.ContainerS
 }
 
 func (m *manager) UpdatePodStatus(pod *v1.Pod, podStatus *v1.PodStatus) {
+	containersWithReadinessProbe := sets.Set[string]{}
+	for _, container := range pod.Spec.Containers {
+		if container.ReadinessProbe != nil {
+			containersWithReadinessProbe.Insert(container.Name)
+		}
+	}
 	for i, c := range podStatus.ContainerStatuses {
 		started := m.isContainerStarted(pod, &podStatus.ContainerStatuses[i])
 		podStatus.ContainerStatuses[i].Started = &started
@@ -298,24 +304,31 @@ func (m *manager) UpdatePodStatus(pod *v1.Pod, podStatus *v1.PodStatus) {
 		var ready bool
 		if c.State.Running == nil {
 			ready = false
-		} else if result, ok := m.readinessManager.Get(kubecontainer.ParseContainerID(c.ContainerID)); ok && result == results.Success {
-			ready = true
+		} else if result, ok := m.readinessManager.Get(kubecontainer.ParseContainerID(c.ContainerID)); ok {
+			ready = result == results.Success
+			if !ready {
+				m.tryTriggerWorker(pod.UID, c.Name, readiness)
+			}
 		} else {
 			// The check whether there is a probe which hasn't run yet.
-			w, exists := m.getWorker(pod.UID, c.Name, readiness)
-			ready = !exists // no readinessProbe -> always ready
-			if exists {
-				// Trigger an immediate run of the readinessProbe to update ready state
-				select {
-				case w.manualTriggerCh <- struct{}{}:
-				default: // Non-blocking.
-					klog.InfoS("Failed to trigger a manual run", "probe", w.probeType.String())
-				}
+			if containersWithReadinessProbe.Has(c.Name) {
+				m.tryTriggerWorker(pod.UID, c.Name, readiness)
+				// container with ReadinessProbe but hasn't run after kubelet started, not change the state.
+				ready = c.Ready
+			} else {
+				// container without ReadinessProbe, set to true
+				ready = true
 			}
 		}
 		podStatus.ContainerStatuses[i].Ready = ready
 	}
 
+	initContainersWithReadinessProbe := sets.Set[string]{}
+	for _, container := range pod.Spec.InitContainers {
+		if container.ReadinessProbe != nil {
+			initContainersWithReadinessProbe.Insert(container.Name)
+		}
+	}
 	for i, c := range podStatus.InitContainerStatuses {
 		started := m.isContainerStarted(pod, &podStatus.InitContainerStatuses[i])
 		podStatus.InitContainerStatuses[i].Started = &started
@@ -339,19 +352,20 @@ func (m *manager) UpdatePodStatus(pod *v1.Pod, podStatus *v1.PodStatus) {
 		var ready bool
 		if c.State.Running == nil {
 			ready = false
-		} else if result, ok := m.readinessManager.Get(kubecontainer.ParseContainerID(c.ContainerID)); ok && result == results.Success {
-			ready = true
+		} else if result, ok := m.readinessManager.Get(kubecontainer.ParseContainerID(c.ContainerID)); ok {
+			ready = result == results.Success
+			if !ready {
+				m.tryTriggerWorker(pod.UID, c.Name, readiness)
+			}
 		} else {
 			// The check whether there is a probe which hasn't run yet.
-			w, exists := m.getWorker(pod.UID, c.Name, readiness)
-			ready = !exists // no readinessProbe -> always ready
-			if exists {
-				// Trigger an immediate run of the readinessProbe to update ready state
-				select {
-				case w.manualTriggerCh <- struct{}{}:
-				default: // Non-blocking.
-					klog.InfoS("Failed to trigger a manual run", "probe", w.probeType.String())
-				}
+			if initContainersWithReadinessProbe.Has(c.Name) {
+				m.tryTriggerWorker(pod.UID, c.Name, readiness)
+				// container with ReadinessProbe but hasn't run after kubelet started, not change the state.
+				ready = c.Ready
+			} else {
+				// container without ReadinessProbe, set to true
+				ready = true
 			}
 		}
 		podStatus.InitContainerStatuses[i].Ready = ready
@@ -377,4 +391,16 @@ func (m *manager) workerCount() int {
 	m.workerLock.RLock()
 	defer m.workerLock.RUnlock()
 	return len(m.workers)
+}
+
+// Trigger an immediate run of the Probe to update state if worker exists
+func (m *manager) tryTriggerWorker(podUID types.UID, containerName string, probeType probeType) {
+	w, exists := m.getWorker(podUID, containerName, probeType)
+	if exists {
+		select {
+		case w.manualTriggerCh <- struct{}{}:
+		default: // Non-blocking.
+			klog.InfoS("Failed to trigger a manual run", "probe", w.probeType.String())
+		}
+	}
 }

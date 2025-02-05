@@ -350,10 +350,27 @@ func TestUpdatePodStatus(t *testing.T) {
 			Terminated: &v1.ContainerStateTerminated{},
 		},
 	}
+	readyProbedPending := v1.ContainerStatus{
+		Name:        "ready_container_probed_pending",
+		ContainerID: "test://ready_container_probed_pending_id",
+		State: v1.ContainerState{
+			Running: &v1.ContainerStateRunning{},
+		},
+		Ready: true,
+	}
+	unreadyNotProbed := v1.ContainerStatus{
+		Name:        "unready_container_not_probed",
+		ContainerID: "test://unready_container_not_probed",
+		State: v1.ContainerState{
+			Running: &v1.ContainerStateRunning{},
+		},
+		Ready: false,
+	}
 	podStatus := v1.PodStatus{
 		Phase: v1.PodRunning,
 		ContainerStatuses: []v1.ContainerStatus{
 			unprobed, probedReady, probedPending, probedUnready, notStartedNoReadiness, startedNoReadiness, terminated,
+			readyProbedPending, unreadyNotProbed,
 		},
 	}
 
@@ -369,6 +386,7 @@ func TestUpdatePodStatus(t *testing.T) {
 		{testPodUID, notStartedNoReadiness.Name, startup}: {},
 		{testPodUID, startedNoReadiness.Name, startup}:    {},
 		{testPodUID, terminated.Name, readiness}:          {},
+		{testPodUID, readyProbedPending.Name, readiness}:  {},
 	}
 	m.readinessManager.Set(kubecontainer.ParseContainerID(probedReady.ContainerID), results.Success, &v1.Pod{})
 	m.readinessManager.Set(kubecontainer.ParseContainerID(probedUnready.ContainerID), results.Failure, &v1.Pod{})
@@ -382,12 +400,14 @@ func TestUpdatePodStatus(t *testing.T) {
 		Spec: v1.PodSpec{
 			Containers: []v1.Container{
 				{Name: unprobed.Name},
-				{Name: probedReady.Name},
-				{Name: probedPending.Name},
-				{Name: probedUnready.Name},
+				{Name: probedReady.Name, ReadinessProbe: defaultProbe},
+				{Name: probedPending.Name, ReadinessProbe: defaultProbe},
+				{Name: probedUnready.Name, ReadinessProbe: defaultProbe},
 				{Name: notStartedNoReadiness.Name},
 				{Name: startedNoReadiness.Name},
 				{Name: terminated.Name},
+				{Name: readyProbedPending.Name, ReadinessProbe: defaultProbe},
+				{Name: unreadyNotProbed.Name, ReadinessProbe: defaultProbe},
 			},
 		},
 	}, &podStatus)
@@ -400,6 +420,8 @@ func TestUpdatePodStatus(t *testing.T) {
 		{testPodUID, notStartedNoReadiness.Name, readiness}: false,
 		{testPodUID, startedNoReadiness.Name, readiness}:    true,
 		{testPodUID, terminated.Name, readiness}:            false,
+		{testPodUID, readyProbedPending.Name, readiness}:    true,
+		{testPodUID, unreadyNotProbed.Name, readiness}:      false,
 	}
 	for _, c := range podStatus.ContainerStatuses {
 		expected, ok := expectedReadiness[probeKey{testPodUID, c.Name, readiness}]
