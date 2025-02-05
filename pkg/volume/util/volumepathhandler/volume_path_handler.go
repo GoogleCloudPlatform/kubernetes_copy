@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"syscall"
 
 	"k8s.io/klog/v2"
 	"k8s.io/mount-utils"
@@ -225,7 +226,7 @@ func (v VolumePathHandler) RemoveMapPath(mapPath string) error {
 		return fmt.Errorf("failed to remove map path. mapPath is empty")
 	}
 	klog.V(5).Infof("RemoveMapPath: mapPath %s", mapPath)
-	err := os.RemoveAll(mapPath)
+	err := syscall.Rmdir(mapPath)
 	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("failed to remove directory %s: %v", mapPath, err)
 	}
@@ -283,9 +284,6 @@ func (v VolumePathHandler) GetDeviceBindMountRefs(devPath string, mapPath string
 		return nil, err
 	}
 	for _, file := range files {
-		if file.Type()&os.ModeDevice != os.ModeDevice {
-			continue
-		}
 		filename := file.Name()
 		// TODO: Might need to check if the file is actually linked to devPath
 		refs = append(refs, filepath.Join(mapPath, filename))
