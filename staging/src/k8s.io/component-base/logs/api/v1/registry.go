@@ -24,6 +24,7 @@ import (
 
 	"github.com/go-logr/logr"
 
+	"k8s.io/apimachinery/pkg/util/version"
 	"k8s.io/component-base/featuregate"
 )
 
@@ -38,7 +39,9 @@ type logFormatRegistry struct {
 
 type logFormat struct {
 	factory LogFormatFactory
-	feature featuregate.Feature
+	// Stability by version.
+	// Guaranteed to have at least one entry.
+	versionedFeatures []featuregate.VersionedFeature
 }
 
 // +k8s:deepcopy-gen=false
@@ -69,9 +72,32 @@ type LogFormatFactory interface {
 // RegisterLogFormat registers support for a new logging format. This must be called
 // before using any of the methods in LoggingConfiguration. The feature must
 // be one of those defined in this package (typically LoggingAlphaOptions,
-// LoggingBetaOptions or LoggingStableOptions).
-func RegisterLogFormat(name string, factory LogFormatFactory, feature featuregate.Feature) error {
-	return logRegistry.register(name, logFormat{factory, feature})
+// LoggingBetaOptions or LoggingStableOptions). It represents the stability of
+// the logging format in the current Kubernetes release.
+//
+// Optionally, information about stability in previous Kubernetes releases
+// may be provided with additional parameters. This enables compatibility
+// version support (https://github.com/kubernetes/enhancements/issues/4330).
+//
+// Example:
+// RegisterLogFormat("json", ..., LoggingStableOptions,
+// VersionedFeature{Version: *version.MajorMinor(1, 19), Feature: LoggingAlphaOptions},
+// VersionedFeature{Version: *version.MajorMinor(1, 23), Feature: LoggingBetaOptions})
+func RegisterLogFormat(name string, factory LogFormatFactory, feature featuregate.Feature, versionedFeatures ...featuregate.VersionedFeature) error {
+
+	if len(versionedFeatures) == 0 {
+		versionedFeatures = append(versionedFeatures, featuregate.VersionedFeature{
+			Version: version.MajorMinor(0, 0),
+			Feature: feature,
+		})
+	}
+
+	format := logFormat{
+		factory:           factory,
+		versionedFeatures: versionedFeatures,
+	}
+
+	return logRegistry.register(name, format)
 }
 
 func newLogFormatRegistry() *logFormatRegistry {
@@ -79,7 +105,12 @@ func newLogFormatRegistry() *logFormatRegistry {
 		registry: make(map[string]logFormat),
 		frozen:   false,
 	}
-	_ = registry.register(DefaultLogFormat, logFormat{factory: textFactory{}, feature: LoggingStableOptions})
+	_ = registry.register(DefaultLogFormat, logFormat{factory: textFactory{}, versionedFeatures: []featuregate.VersionedFeature{
+		{
+			Version: version.MajorMinor(0, 0),
+			Feature: LoggingStableOptions,
+		},
+	}})
 	return registry
 }
 
@@ -93,9 +124,12 @@ func (lfr *logFormatRegistry) register(name string, format logFormat) error {
 	if _, ok := lfr.registry[name]; ok {
 		return fmt.Errorf("log format: %s already exists", name)
 	}
-	if _, ok := featureGates()[format.feature]; !ok && format.feature != LoggingStableOptions {
-		return fmt.Errorf("log format %s: unsupported feature gate %s", name, format.feature)
+	for _, f := range format.versionedFeatures {
+		if _, ok := featureGates()[f.Feature]; !ok && f.Feature != LoggingStableOptions {
+			return fmt.Errorf("log format %s: unsupported feature gate %s", name, f.Feature)
+		}
 	}
+
 	lfr.registry[name] = format
 	return nil
 }
@@ -118,10 +152,11 @@ func (lfr *logFormatRegistry) list() string {
 	formats := make([]string, 0, len(lfr.registry))
 	for name, format := range lfr.registry {
 		item := fmt.Sprintf(`"%s"`, name)
-		if format.feature != LoggingStableOptions {
-			item += fmt.Sprintf(" (gated by %s)", format.feature)
+		for _, f := range format.versionedFeatures {
+			fullItem := fmt.Sprintf("%s (gated by %s since %s)", item, f.Feature, f.Version)
+			formats = append(formats, fullItem)
 		}
-		formats = append(formats, item)
+
 	}
 	sort.Strings(formats)
 	return strings.Join(formats, ", ")

@@ -1,18 +1,1 @@
-- name: ContextualLogging
-  versionedSpecs:
-  - default: true
-    lockToDefault: false
-    preRelease: Beta
-    version: ""
-- name: LoggingAlphaOptions
-  versionedSpecs:
-  - default: false
-    lockToDefault: false
-    preRelease: Alpha
-    version: ""
-- name: LoggingBetaOptions
-  versionedSpecs:
-  - default: true
-    lockToDefault: false
-    preRelease: Beta
-    version: ""
+[]

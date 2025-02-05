@@ -35,10 +35,12 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/util/validation/field"
+	"k8s.io/apimachinery/pkg/util/version"
 	cliflag "k8s.io/component-base/cli/flag"
 	"k8s.io/component-base/featuregate"
 	"k8s.io/component-base/logs/internal/setverbositylevel"
 	"k8s.io/component-base/logs/klogflags"
+	baseversion "k8s.io/component-base/version"
 )
 
 const (
@@ -152,13 +154,20 @@ func Validate(c *LoggingConfiguration, featureGate featuregate.FeatureGate, fldP
 	if err != nil {
 		errs = append(errs, field.Invalid(fldPath.Child("format"), c.Format, "Unsupported log format"))
 	} else if format != nil {
-		if format.feature != LoggingStableOptions {
-			enabled := featureGates()[format.feature].Default
+		emulatedVersion := baseversion.DefaultBuildEffectiveVersion().BinaryVersion()
+		if featureGate != nil {
+			if fg, ok := featureGate.(featuregate.MutableVersionedFeatureGate); ok {
+				emulatedVersion = fg.EmulationVersion()
+			}
+		}
+		formatFeature := featuregate.FeatureForVersion(emulatedVersion, format.versionedFeatures, LoggingAlphaOptions)
+		if formatFeature != LoggingStableOptions {
+			enabled := true
 			if featureGate != nil {
-				enabled = featureGate.Enabled(format.feature)
+				enabled = featureGate.Enabled(formatFeature)
 			}
 			if !enabled {
-				errs = append(errs, field.Forbidden(fldPath.Child("format"), fmt.Sprintf("Log format %s is disabled, see %s feature", c.Format, format.feature)))
+				errs = append(errs, field.Forbidden(fldPath.Child("format"), fmt.Sprintf("Log format %s is disabled, see %s feature", c.Format, formatFeature)))
 			}
 		}
 	}
@@ -188,29 +197,65 @@ func Validate(c *LoggingConfiguration, featureGate featuregate.FeatureGate, fldP
 }
 
 func validateFormatOptions(c *LoggingConfiguration, featureGate featuregate.FeatureGate, fldPath *field.Path) field.ErrorList {
+	emulatedVersion := baseversion.DefaultBuildEffectiveVersion().BinaryVersion()
+	if featureGate != nil {
+		if fg, ok := featureGate.(featuregate.MutableVersionedFeatureGate); ok {
+			emulatedVersion = fg.EmulationVersion()
+		}
+	}
 	errs := field.ErrorList{}
-	errs = append(errs, validateTextOptions(c, featureGate, fldPath.Child("text"))...)
-	errs = append(errs, validateJSONOptions(c, featureGate, fldPath.Child("json"))...)
+	errs = append(errs, validateTextOptions(c, featureGate, fldPath.Child("text"), emulatedVersion)...)
+	errs = append(errs, validateJSONOptions(c, featureGate, fldPath.Child("json"), emulatedVersion)...)
 	return errs
 }
 
-func validateTextOptions(c *LoggingConfiguration, featureGate featuregate.FeatureGate, fldPath *field.Path) field.ErrorList {
+func validateTextOptions(c *LoggingConfiguration, featureGate featuregate.FeatureGate, fldPath *field.Path, emulatedVersion *version.Version) field.ErrorList {
 	errs := field.ErrorList{}
-	if gate := LoggingAlphaOptions; c.Options.Text.SplitStream && !featureEnabled(featureGate, gate) {
+	textSplitStreamVersionedFeatures := []featuregate.VersionedFeature{
+		{Version: version.MajorMinor(1, 23), Feature: LoggingAlphaOptions},
+		// Uncomment the following line to promote the feature to Beta.
+		// {Version: version.MajorMinor(1, 33), Feature: LoggingBetaOptions},
+		// Uncomment the following line to promote the feature to GA.
+		// {Version: version.MajorMinor(1, 33), Feature: LoggingStableOptions},
+	}
+	if gate := featuregate.FeatureForVersion(emulatedVersion, textSplitStreamVersionedFeatures, LoggingAlphaOptions); c.Options.Text.SplitStream && !featureEnabled(featureGate, gate) {
 		errs = append(errs, field.Forbidden(fldPath.Child("splitStream"), fmt.Sprintf("Feature %s is disabled", gate)))
 	}
-	if gate := LoggingAlphaOptions; c.Options.Text.InfoBufferSize.Value() != 0 && !featureEnabled(featureGate, gate) {
+
+	textInfoBufferSizeVersionedFeatures := []featuregate.VersionedFeature{
+		{Version: version.MajorMinor(1, 23), Feature: LoggingAlphaOptions},
+		// Uncomment the following line to promote the feature to Beta.
+		// {Version: version.MajorMinor(1, 33), Feature: LoggingBetaOptions},
+		// Uncomment the following line to promote the feature to GA.
+		// {Version: version.MajorMinor(1, 33), Feature: LoggingStableOptions},
+	}
+	if gate := featuregate.FeatureForVersion(emulatedVersion, textInfoBufferSizeVersionedFeatures, LoggingAlphaOptions); c.Options.Text.InfoBufferSize.Value() != 0 && !featureEnabled(featureGate, gate) {
 		errs = append(errs, field.Forbidden(fldPath.Child("infoBufferSize"), fmt.Sprintf("Feature %s is disabled", gate)))
 	}
 	return errs
 }
 
-func validateJSONOptions(c *LoggingConfiguration, featureGate featuregate.FeatureGate, fldPath *field.Path) field.ErrorList {
+func validateJSONOptions(c *LoggingConfiguration, featureGate featuregate.FeatureGate, fldPath *field.Path, emulatedVersion *version.Version) field.ErrorList {
 	errs := field.ErrorList{}
-	if gate := LoggingAlphaOptions; c.Options.JSON.SplitStream && !featureEnabled(featureGate, gate) {
+	jsonSplitStreamVersionedFeatures := []featuregate.VersionedFeature{
+		{Version: version.MajorMinor(1, 23), Feature: LoggingAlphaOptions},
+		// Uncomment the following line to promote the feature to Beta.
+		// {Version: version.MajorMinor(1, 33), Feature: LoggingBetaOptions},
+		// Uncomment the following line to promote the feature to GA.
+		// {Version: version.MajorMinor(1, 33), Feature: LoggingStableOptions},
+	}
+	if gate := featuregate.FeatureForVersion(emulatedVersion, jsonSplitStreamVersionedFeatures, LoggingAlphaOptions); c.Options.JSON.SplitStream && !featureEnabled(featureGate, gate) {
 		errs = append(errs, field.Forbidden(fldPath.Child("splitStream"), fmt.Sprintf("Feature %s is disabled", gate)))
 	}
-	if gate := LoggingAlphaOptions; c.Options.JSON.InfoBufferSize.Value() != 0 && !featureEnabled(featureGate, gate) {
+
+	jsonInfoBufferSizeVersionedFeatures := []featuregate.VersionedFeature{
+		{Version: version.MajorMinor(1, 23), Feature: LoggingAlphaOptions},
+		// Uncomment the following line to promote the feature to Beta.
+		// {Version: version.MajorMinor(1, 33), Feature: LoggingBetaOptions},
+		// Uncomment the following line to promote the feature to GA.
+		// {Version: version.MajorMinor(1, 33), Feature: LoggingStableOptions},
+	}
+	if gate := featuregate.FeatureForVersion(emulatedVersion, jsonInfoBufferSizeVersionedFeatures, LoggingAlphaOptions); c.Options.JSON.InfoBufferSize.Value() != 0 && !featureEnabled(featureGate, gate) {
 		errs = append(errs, field.Forbidden(fldPath.Child("infoBufferSize"), fmt.Sprintf("Feature %s is disabled", gate)))
 	}
 	return errs

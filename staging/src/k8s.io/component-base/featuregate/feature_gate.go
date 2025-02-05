@@ -28,6 +28,8 @@ import (
 
 	"github.com/spf13/pflag"
 
+	"slices"
+
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/naming"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -766,4 +768,29 @@ func (f *featureGate) ResetFeatureValueToDefault(name Feature) error {
 	f.enabled.Store(enabled)
 	f.enabledRaw.Store(enabledRaw)
 	return nil
+}
+
+// VersionedFeature defines the stability of a feature in Kubernetes releases is greater than or equal to the given one.
+type VersionedFeature struct {
+	// Version of Kubernetes since which the feature has the given stability.
+	Version *version.Version
+	// The feature being versioned.
+	Feature Feature
+}
+
+// FeatureForVersion returns the feature that should be used for the given version.
+// It iterates through the versioned features from newest to oldest, returning the
+// first feature whose version is less than or equal to the given version.
+// If no matching version is found, returns the default feature.
+func FeatureForVersion(emulatedVersion *version.Version, versionedFeatures []VersionedFeature, defaultFeature Feature) Feature {
+	sortedFeatures := slices.Clone(versionedFeatures)
+	sort.Slice(sortedFeatures, func(i, j int) bool {
+		return sortedFeatures[i].Version.LessThan(sortedFeatures[j].Version)
+	})
+	for i := len(sortedFeatures) - 1; i >= 0; i-- {
+		if emulatedVersion.AtLeast(sortedFeatures[i].Version) {
+			return sortedFeatures[i].Feature
+		}
+	}
+	return defaultFeature
 }

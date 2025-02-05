@@ -37,7 +37,9 @@ func TestJSONFlag(t *testing.T) {
 	logsapi.AddFlags(c, fs)
 	fs.SetOutput(&output)
 	fs.PrintDefaults()
-	wantSubstring := `Permitted formats: "json" (gated by LoggingBetaOptions), "text".`
+	wantSubstring := `Permitted formats: "json" (gated by LoggingBetaOptions since 1.23), "text"`
+	// Uncomment the following when promoting JSON to GA
+	// wantSubstring := `Permitted formats: "json" (gated by LoggingBetaOptions since 1.23), "json" (gated by LoggingStableOptions since 1.33), "text"`
 	if !assert.Contains(t, output.String(), wantSubstring) {
 		t.Errorf("JSON logging format flag is not available. expect to contain %q, got %q", wantSubstring, output.String())
 	}

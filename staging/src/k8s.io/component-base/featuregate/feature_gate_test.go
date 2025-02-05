@@ -1905,3 +1905,88 @@ func TestAddVersioned(t *testing.T) {
 		})
 	}
 }
+
+func TestFeatureForVersion(t *testing.T) {
+	defaultFeature := Feature("default")
+	betaFeature := Feature("beta")
+	alphaFeature := Feature("alpha")
+	stableFeature := Feature("stable")
+	tests := []struct {
+		name              string
+		versionedFeatures []VersionedFeature
+		emulatedVersion   string // format: "1.XX"
+		want              Feature
+	}{
+		{
+			name:              "empty versioned features",
+			versionedFeatures: nil,
+			emulatedVersion:   "1.25",
+			want:              defaultFeature,
+		},
+		{
+			name: "single version",
+			versionedFeatures: []VersionedFeature{
+				{Version: version.MajorMinor(1, 24), Feature: betaFeature},
+			},
+			emulatedVersion: "1.25",
+			want:            betaFeature,
+		},
+		{
+			name: "multiple versions - exact match",
+			versionedFeatures: []VersionedFeature{
+				{Version: version.MajorMinor(1, 23), Feature: alphaFeature},
+				{Version: version.MajorMinor(1, 24), Feature: betaFeature},
+				{Version: version.MajorMinor(1, 25), Feature: stableFeature},
+			},
+			emulatedVersion: "1.24",
+			want:            betaFeature,
+		},
+		{
+			name: "between versions",
+			versionedFeatures: []VersionedFeature{
+				{Version: version.MajorMinor(1, 23), Feature: alphaFeature},
+				{Version: version.MajorMinor(1, 25), Feature: betaFeature},
+			},
+			emulatedVersion: "1.24",
+			want:            alphaFeature,
+		},
+		{
+			name: "before all versions",
+			versionedFeatures: []VersionedFeature{
+				{Version: version.MajorMinor(1, 24), Feature: betaFeature},
+				{Version: version.MajorMinor(1, 25), Feature: stableFeature},
+			},
+			emulatedVersion: "1.23",
+			want:            defaultFeature,
+		},
+		{
+			name: "after all versions",
+			versionedFeatures: []VersionedFeature{
+				{Version: version.MajorMinor(1, 23), Feature: alphaFeature},
+				{Version: version.MajorMinor(1, 24), Feature: betaFeature},
+			},
+			emulatedVersion: "1.25",
+			want:            betaFeature,
+		},
+		{
+			name: "unsorted versions",
+			versionedFeatures: []VersionedFeature{
+				{Version: version.MajorMinor(1, 25), Feature: stableFeature},
+				{Version: version.MajorMinor(1, 23), Feature: alphaFeature},
+				{Version: version.MajorMinor(1, 24), Feature: betaFeature},
+			},
+			emulatedVersion: "1.24",
+			want:            betaFeature,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			emuVer := version.MustParse(tt.emulatedVersion)
+			got := FeatureForVersion(emuVer, tt.versionedFeatures, defaultFeature)
+			if got != tt.want {
+				t.Errorf("FeatureForVersion() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

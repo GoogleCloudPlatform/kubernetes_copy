@@ -17,6 +17,7 @@ limitations under the License.
 package v1
 
 import (
+	"k8s.io/apimachinery/pkg/util/version"
 	"k8s.io/component-base/featuregate"
 )
 
@@ -57,16 +58,22 @@ const (
 	LoggingStableOptions featuregate.Feature = "LoggingStableOptions"
 )
 
-func featureGates() map[featuregate.Feature]featuregate.FeatureSpec {
-	return map[featuregate.Feature]featuregate.FeatureSpec{
-		ContextualLogging: {Default: contextualLoggingDefault, PreRelease: featuregate.Beta},
-
-		LoggingAlphaOptions: {Default: false, PreRelease: featuregate.Alpha},
-		LoggingBetaOptions:  {Default: true, PreRelease: featuregate.Beta},
+func featureGates() map[featuregate.Feature]featuregate.VersionedSpecs {
+	return map[featuregate.Feature]featuregate.VersionedSpecs{
+		ContextualLogging: {
+			{Version: version.MustParse("1.24"), Default: contextualLoggingDefault, PreRelease: featuregate.Alpha},
+			{Version: version.MustParse("1.30"), Default: contextualLoggingDefault, PreRelease: featuregate.Beta},
+		},
+		LoggingAlphaOptions: {
+			{Version: version.MustParse("1.24"), Default: false, PreRelease: featuregate.Alpha},
+		},
+		LoggingBetaOptions: {
+			{Version: version.MustParse("1.24"), Default: true, PreRelease: featuregate.Beta},
+		},
 	}
 }
 
 // AddFeatureGates adds all feature gates used by this package.
-func AddFeatureGates(mutableFeatureGate featuregate.MutableFeatureGate) error {
-	return mutableFeatureGate.Add(featureGates()) //nolint:forbidigo // The logging feature gates are by design unversioned (perpetual alpha/beta).
+func AddFeatureGates(mutableFeatureGate featuregate.MutableVersionedFeatureGate) error {
+	return mutableFeatureGate.AddVersioned(featureGates())
 }
