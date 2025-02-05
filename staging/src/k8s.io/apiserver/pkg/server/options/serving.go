@@ -301,7 +301,8 @@ func (s *SecureServingOptions) ApplyTo(config **server.SecureServingInfo) error 
 
 	if len(serverCertFile) != 0 || len(serverKeyFile) != 0 {
 		var err error
-		c.Cert, err = dynamiccertificates.NewDynamicServingContentFromFiles("serving-cert", serverCertFile, serverKeyFile)
+		// get context from caller for proper contextual logging
+		c.Cert, err = dynamiccertificates.NewDynamicServingContentFromFiles(context.TODO(), "serving-cert", serverCertFile, serverKeyFile)
 		if err != nil {
 			return err
 		}
@@ -326,7 +327,8 @@ func (s *SecureServingOptions) ApplyTo(config **server.SecureServingInfo) error 
 	// load SNI certs
 	namedTLSCerts := make([]dynamiccertificates.SNICertKeyContentProvider, 0, len(s.SNICertKeys))
 	for _, nck := range s.SNICertKeys {
-		tlsCert, err := dynamiccertificates.NewDynamicSNIContentFromFiles("sni-serving-cert", nck.CertFile, nck.KeyFile, nck.Names...)
+		// get context from caller for proper contextual logging
+		tlsCert, err := dynamiccertificates.NewDynamicSNIContentFromFiles(context.TODO(), "sni-serving-cert", nck.CertFile, nck.KeyFile, nck.Names...)
 		namedTLSCerts = append(namedTLSCerts, tlsCert)
 		if err != nil {
 			return fmt.Errorf("failed to load SNI cert and key: %v", err)

@@ -79,7 +79,7 @@ Security Standards.`,
 }
 
 func runServer(ctx context.Context, opts *options.Options) error {
-	config, err := LoadConfig(opts)
+	config, err := LoadConfig(ctx, opts)
 	if err != nil {
 		return err
 	}
@@ -236,7 +236,7 @@ type Config struct {
 }
 
 // LoadConfig loads the Config from the Options.
-func LoadConfig(opts *options.Options) (*Config, error) {
+func LoadConfig(ctx context.Context, opts *options.Options) (*Config, error) {
 	if errs := opts.Validate(); len(errs) > 0 {
 		return nil, utilerrors.NewAggregate(errs)
 	}

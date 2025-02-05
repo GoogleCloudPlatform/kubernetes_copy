@@ -213,7 +213,7 @@ func TestPodLogsKubeletClientCertReload(t *testing.T) {
 	// create a CA to sign the API server's kubelet client cert
 	startingCerts := generateClientCert(t)
 
-	dynamicCAContentFromFile, err := dynamiccertificates.NewDynamicCAContentFromFile("client-ca-bundle", startingCerts.caFile)
+	dynamicCAContentFromFile, err := dynamiccertificates.NewDynamicCAContentFromFile(ctx, "client-ca-bundle", startingCerts.caFile)
 	if err != nil {
 		t.Fatal(err)
 	}

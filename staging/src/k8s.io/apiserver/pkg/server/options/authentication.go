@@ -154,14 +154,20 @@ func (s *RequestHeaderAuthenticationOptions) AddFlags(fs *pflag.FlagSet) {
 		"by the authorities in --requestheader-client-ca-file is allowed.")
 }
 
-// ToAuthenticationRequestHeaderConfig returns a RequestHeaderConfig config object for these options
-// if necessary, nil otherwise.
+// Contextual logging: ToAuthenticationRequestHeaderConfigWithContext should be used instead of ToAuthenticationRequestHeaderConfig in code which supports contextual logging.
 func (s *RequestHeaderAuthenticationOptions) ToAuthenticationRequestHeaderConfig() (*authenticatorfactory.RequestHeaderConfig, error) {
+	// Call the new function ToAuthenticationRequestHeaderConfigWithContext
+	return s.ToAuthenticationRequestHeaderConfigWithContext(context.Background())
+}
+
+// ToAuthenticationRequestHeaderConfigWithContext returns a RequestHeaderConfig config object for these options
+// if necessary, nil otherwise.
+func (s *RequestHeaderAuthenticationOptions) ToAuthenticationRequestHeaderConfigWithContext(ctx context.Context) (*authenticatorfactory.RequestHeaderConfig, error) {
 	if len(s.ClientCAFile) == 0 {
 		return nil, nil
 	}
 
-	caBundleProvider, err := dynamiccertificates.NewDynamicCAContentFromFile("request-header", s.ClientCAFile)
+	caBundleProvider, err := dynamiccertificates.NewDynamicCAContentFromFile(ctx, "request-header", s.ClientCAFile)
 	if err != nil {
 		return nil, err
 	}
@@ -198,7 +204,7 @@ func (s *ClientCertAuthenticationOptions) GetClientCAContentProvider() (dynamicc
 		return nil, nil
 	}
 
-	return dynamiccertificates.NewDynamicCAContentFromFile("client-ca-bundle", s.ClientCA)
+	return dynamiccertificates.NewDynamicCAContentFromFile(context.Background(), "client-ca-bundle", s.ClientCA)
 }
 
 func (s *ClientCertAuthenticationOptions) AddFlags(fs *pflag.FlagSet) {

@@ -17,6 +17,7 @@ limitations under the License.
 package dynamiccertificates
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
@@ -156,7 +157,8 @@ func (c *DynamicServingCertificateController) newTLSContent() (*dynamicCertifica
 
 // syncCerts gets newTLSContent, if it has changed from the existing, the content is parsed and stored for usage in
 // GetConfigForClient.
-func (c *DynamicServingCertificateController) syncCerts() error {
+func (c *DynamicServingCertificateController) syncCerts(ctx context.Context) error {
+	logger := klog.FromContext(ctx)
 	newContent, err := c.newTLSContent()
 	if err != nil {
 		return err
@@ -178,7 +180,7 @@ func (c *DynamicServingCertificateController) syncCerts() error {
 			return fmt.Errorf("unable to load client CA file %q: %v", string(newContent.clientCA.caBundle), err)
 		}
 		for i, cert := range newClientCAs {
-			klog.V(2).InfoS("Loaded client CA", "index", i, "certName", c.clientCA.Name(), "certDetail", GetHumanCertDetail(cert))
+			logger.V(2).Info("Loaded client CA", "index", i, "certName", c.clientCA.Name(), "certDetail", GetHumanCertDetail(cert))
 			if c.eventRecorder != nil {
 				c.eventRecorder.Eventf(&corev1.ObjectReference{Name: c.clientCA.Name()}, nil, corev1.EventTypeWarning, "TLSConfigChanged", "CACertificateReload", "loaded client CA [%d/%q]: %s", i, c.clientCA.Name(), GetHumanCertDetail(cert))
 			}
@@ -200,7 +202,7 @@ func (c *DynamicServingCertificateController) syncCerts() error {
 			return fmt.Errorf("invalid serving cert: %v", err)
 		}
 
-		klog.V(2).InfoS("Loaded serving cert", "certName", c.servingCert.Name(), "certDetail", GetHumanCertDetail(x509Cert))
+		logger.V(2).Info("Loaded serving cert", "certName", c.servingCert.Name(), "certDetail", GetHumanCertDetail(x509Cert))
 		if c.eventRecorder != nil {
 			c.eventRecorder.Eventf(&corev1.ObjectReference{Name: c.servingCert.Name()}, nil, corev1.EventTypeWarning, "TLSConfigChanged", "ServingCertificateReload", "loaded serving cert [%q]: %s", c.servingCert.Name(), GetHumanCertDetail(x509Cert))
 		}
@@ -209,7 +211,7 @@ func (c *DynamicServingCertificateController) syncCerts() error {
 	}
 
 	if len(newContent.sniCerts) > 0 {
-		newTLSConfigCopy.NameToCertificate, err = c.BuildNamedCertificates(newContent.sniCerts)
+		newTLSConfigCopy.NameToCertificate, err = c.BuildNamedCertificates(ctx, newContent.sniCerts)
 		if err != nil {
 			return fmt.Errorf("unable to build named certificate map: %v", err)
 		}
@@ -231,23 +233,26 @@ func (c *DynamicServingCertificateController) syncCerts() error {
 }
 
 // RunOnce runs a single sync step to ensure that we have a valid starting configuration.
-func (c *DynamicServingCertificateController) RunOnce() error {
-	return c.syncCerts()
+func (c *DynamicServingCertificateController) RunOnce(ctx context.Context) error {
+	return c.syncCerts(ctx)
 }
 
 // Run starts the kube-apiserver and blocks until stopCh is closed.
-func (c *DynamicServingCertificateController) Run(workers int, stopCh <-chan struct{}) {
+func (c *DynamicServingCertificateController) Run(ctx context.Context, workers int, stopCh <-chan struct{}) {
 	defer utilruntime.HandleCrash()
 	defer c.queue.ShutDown()
 
-	klog.InfoS("Starting DynamicServingCertificateController")
-	defer klog.InfoS("Shutting down DynamicServingCertificateController")
+	logger := klog.FromContext(ctx)
+	logger.Info("Starting DynamicServingCertificateController")
+	defer logger.Info("Shutting down DynamicServingCertificateController")
 
 	// synchronously load once.  We will trigger again, so ignoring any error is fine
-	_ = c.RunOnce()
+	_ = c.RunOnce(ctx)
 
 	// doesn't matter what workers say, only start one.
-	go wait.Until(c.runWorker, time.Second, stopCh)
+	go wait.UntilWithContext(ctx, func(ctx context.Context) {
+		c.runWorker(ctx)
+	}, time.Second)
 
 	// start timer that rechecks every minute, just in case.  this also serves to prime the controller quickly.
 	go wait.Until(func() {
@@ -257,19 +262,19 @@ func (c *DynamicServingCertificateController) Run(workers int, stopCh <-chan str
 	<-stopCh
 }
 
-func (c *DynamicServingCertificateController) runWorker() {
-	for c.processNextWorkItem() {
+func (c *DynamicServingCertificateController) runWorker(ctx context.Context) {
+	for c.processNextWorkItem(ctx) {
 	}
 }
 
-func (c *DynamicServingCertificateController) processNextWorkItem() bool {
+func (c *DynamicServingCertificateController) processNextWorkItem(ctx context.Context) bool {
 	dsKey, quit := c.queue.Get()
 	if quit {
 		return false
 	}
 	defer c.queue.Done(dsKey)
 
-	err := c.syncCerts()
+	err := c.syncCerts(ctx)
 	if err == nil {
 		c.queue.Forget(dsKey)
 		return true

@@ -17,6 +17,7 @@ limitations under the License.
 package dynamiccertificates
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
@@ -31,9 +32,10 @@ import (
 // BuildNamedCertificates returns a map of *tls.Certificate by name. It's
 // suitable for use in tls.Config#NamedCertificates. Returns an error if any of the certs
 // is invalid. Returns nil if len(certs) == 0
-func (c *DynamicServingCertificateController) BuildNamedCertificates(sniCerts []sniCertKeyContent) (map[string]*tls.Certificate, error) {
+func (c *DynamicServingCertificateController) BuildNamedCertificates(ctx context.Context, sniCerts []sniCertKeyContent) (map[string]*tls.Certificate, error) {
 	nameToCertificate := map[string]*tls.Certificate{}
 	byNameExplicit := map[string]*tls.Certificate{}
+	logger := klog.FromContext(ctx)
 
 	// Iterate backwards so that earlier certs take precedence in the names map
 	for i := len(sniCerts) - 1; i >= 0; i-- {
@@ -50,7 +52,7 @@ func (c *DynamicServingCertificateController) BuildNamedCertificates(sniCerts []
 			byNameExplicit[name] = &cert
 		}
 
-		klog.V(2).InfoS("Loaded SNI cert", "index", i, "certName", c.sniCerts[i].Name(), "certDetail", GetHumanCertDetail(x509Cert))
+		logger.V(2).Info("Loaded SNI cert", "index", i, "certName", c.sniCerts[i].Name(), "certDetail", GetHumanCertDetail(x509Cert))
 		if c.eventRecorder != nil {
 			c.eventRecorder.Eventf(&corev1.ObjectReference{Name: c.sniCerts[i].Name()}, nil, corev1.EventTypeWarning, "TLSConfigChanged", "SNICertificateReload", "loaded SNI cert [%d/%q]: %s with explicit names %v", i, c.sniCerts[i].Name(), GetHumanCertDetail(x509Cert), names)
 		}

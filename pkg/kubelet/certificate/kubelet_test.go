@@ -36,6 +36,7 @@ import (
 	"k8s.io/client-go/util/cert"
 	featuregatetesting "k8s.io/component-base/featuregate/testing"
 	"k8s.io/kubernetes/pkg/features"
+	"k8s.io/kubernetes/test/utils/ktesting"
 	netutils "k8s.io/utils/net"
 )
 
@@ -212,8 +213,8 @@ func TestKubeletServerCertificateFromFiles(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Unable to setup cert files: %v", err)
 			}
-
-			m, err := NewKubeletServerCertificateDynamicFileManager(certPath, keyPath)
+			_, ctx := ktesting.NewTestContext(t)
+			m, err := NewKubeletServerCertificateDynamicFileManager(ctx, certPath, keyPath)
 			if err != nil {
 				t.Fatalf("Unable to create certificte provider: %v", err)
 			}

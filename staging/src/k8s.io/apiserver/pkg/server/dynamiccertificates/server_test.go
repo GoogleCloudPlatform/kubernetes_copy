@@ -18,6 +18,7 @@ package dynamiccertificates
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
@@ -85,7 +86,8 @@ func TestServingCert(t *testing.T) {
 		sniCerts,
 		nil, // TODO see how to plumb an event recorder down in here. For now this results in simply klog messages.
 	)
-	if err := dynamicCertificateController.RunOnce(); err != nil {
+	ctx := context.TODO()
+	if err := dynamicCertificateController.RunOnce(ctx); err != nil {
 		t.Fatal(err)
 	}
 	tlsConfig.GetConfigForClient = dynamicCertificateController.GetConfigForClient

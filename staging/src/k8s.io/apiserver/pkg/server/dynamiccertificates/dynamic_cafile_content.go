@@ -74,7 +74,7 @@ type caBundleAndVerifier struct {
 }
 
 // NewDynamicCAContentFromFile returns a CAContentProvider based on a filename that automatically reloads content
-func NewDynamicCAContentFromFile(purpose, filename string) (*DynamicFileCAContent, error) {
+func NewDynamicCAContentFromFile(ctx context.Context, purpose, filename string) (*DynamicFileCAContent, error) {
 	if len(filename) == 0 {
 		return nil, fmt.Errorf("missing filename for ca bundle")
 	}
@@ -88,7 +88,7 @@ func NewDynamicCAContentFromFile(purpose, filename string) (*DynamicFileCAConten
 			workqueue.TypedRateLimitingQueueConfig[string]{Name: fmt.Sprintf("DynamicCABundle-%s", purpose)},
 		),
 	}
-	if err := ret.loadCABundle(); err != nil {
+	if err := ret.loadCABundle(ctx); err != nil {
 		return nil, err
 	}
 
@@ -101,7 +101,7 @@ func (c *DynamicFileCAContent) AddListener(listener Listener) {
 }
 
 // loadCABundle determines the next set of content for the file.
-func (c *DynamicFileCAContent) loadCABundle() error {
+func (c *DynamicFileCAContent) loadCABundle(ctx context.Context) error {
 	caBundle, err := os.ReadFile(c.filename)
 	if err != nil {
 		return err
@@ -120,7 +120,8 @@ func (c *DynamicFileCAContent) loadCABundle() error {
 		return err
 	}
 	c.caBundle.Store(caBundleAndVerifier)
-	klog.V(2).InfoS("Loaded a new CA Bundle and Verifier", "name", c.Name())
+	logger := klog.FromContext(ctx)
+	logger.V(2).Info("Loaded a new CA Bundle and Verifier", "name", c.Name())
 
 	for _, listener := range c.listeners {
 		listener.Enqueue()
@@ -150,7 +151,7 @@ func (c *DynamicFileCAContent) hasCAChanged(caBundle []byte) bool {
 
 // RunOnce runs a single sync loop
 func (c *DynamicFileCAContent) RunOnce(ctx context.Context) error {
-	return c.loadCABundle()
+	return c.loadCABundle(ctx)
 }
 
 // Run starts the controller and blocks until stopCh is closed.
@@ -158,23 +159,26 @@ func (c *DynamicFileCAContent) Run(ctx context.Context, workers int) {
 	defer utilruntime.HandleCrash()
 	defer c.queue.ShutDown()
 
-	klog.InfoS("Starting controller", "name", c.name)
-	defer klog.InfoS("Shutting down controller", "name", c.name)
+	logger := klog.FromContext(ctx)
+	logger.Info("Starting controller", "name", c.name)
+	defer logger.Info("Shutting down controller", "name", c.name)
 
 	// doesn't matter what workers say, only start one.
-	go wait.Until(c.runWorker, time.Second, ctx.Done())
+	go wait.UntilWithContext(ctx, func(ctx context.Context) {
+		c.runWorker(ctx)
+	}, time.Second)
 
 	// start the loop that watches the CA file until stopCh is closed.
 	go wait.Until(func() {
-		if err := c.watchCAFile(ctx.Done()); err != nil {
-			klog.ErrorS(err, "Failed to watch CA file, will retry later")
+		if err := c.watchCAFile(ctx); err != nil {
+			logger.Error(err, "Failed to watch CA file, will retry later")
 		}
 	}, time.Minute, ctx.Done())
 
 	<-ctx.Done()
 }
 
-func (c *DynamicFileCAContent) watchCAFile(stopCh <-chan struct{}) error {
+func (c *DynamicFileCAContent) watchCAFile(ctx context.Context) error {
 	// Trigger a check here to ensure the content will be checked periodically even if the following watch fails.
 	c.queue.Add(workItemKey)
 
@@ -193,26 +197,27 @@ func (c *DynamicFileCAContent) watchCAFile(stopCh <-chan struct{}) error {
 	for {
 		select {
 		case e := <-w.Events:
-			if err := c.handleWatchEvent(e, w); err != nil {
+			if err := c.handleWatchEvent(ctx, e, w); err != nil {
 				return err
 			}
 		case err := <-w.Errors:
 			return fmt.Errorf("received fsnotify error: %v", err)
-		case <-stopCh:
+		case <-ctx.Done():
 			return nil
 		}
 	}
 }
 
 // handleWatchEvent triggers reloading the CA file, and restarts a new watch if it's a Remove or Rename event.
-func (c *DynamicFileCAContent) handleWatchEvent(e fsnotify.Event, w *fsnotify.Watcher) error {
+func (c *DynamicFileCAContent) handleWatchEvent(ctx context.Context, e fsnotify.Event, w *fsnotify.Watcher) error {
 	// This should be executed after restarting the watch (if applicable) to ensure no file event will be missing.
 	defer c.queue.Add(workItemKey)
 	if !e.Has(fsnotify.Remove) && !e.Has(fsnotify.Rename) {
 		return nil
 	}
 	if err := w.Remove(c.filename); err != nil && !errors.Is(err, fsnotify.ErrNonExistentWatch) {
-		klog.InfoS("Failed to remove file watch, it may have been deleted", "file", c.filename, "err", err)
+		logger := klog.FromContext(ctx)
+		logger.Info("Failed to remove file watch, it may have been deleted", "file", c.filename, "err", err)
 	}
 	if err := w.Add(c.filename); err != nil {
 		return fmt.Errorf("error adding watch for file %s: %v", c.filename, err)
@@ -220,19 +225,19 @@ func (c *DynamicFileCAContent) handleWatchEvent(e fsnotify.Event, w *fsnotify.Wa
 	return nil
 }
 
-func (c *DynamicFileCAContent) runWorker() {
-	for c.processNextWorkItem() {
+func (c *DynamicFileCAContent) runWorker(ctx context.Context) {
+	for c.processNextWorkItem(ctx) {
 	}
 }
 
-func (c *DynamicFileCAContent) processNextWorkItem() bool {
+func (c *DynamicFileCAContent) processNextWorkItem(ctx context.Context) bool {
 	dsKey, quit := c.queue.Get()
 	if quit {
 		return false
 	}
 	defer c.queue.Done(dsKey)
 
-	err := c.loadCABundle()
+	err := c.loadCABundle(ctx)
 	if err == nil {
 		c.queue.Forget(dsKey)
 		return true

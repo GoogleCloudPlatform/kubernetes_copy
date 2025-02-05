@@ -54,7 +54,7 @@ var _ CertKeyContentProvider = &DynamicCertKeyPairContent{}
 var _ ControllerRunner = &DynamicCertKeyPairContent{}
 
 // NewDynamicServingContentFromFiles returns a dynamic CertKeyContentProvider based on a cert and key filename
-func NewDynamicServingContentFromFiles(purpose, certFile, keyFile string) (*DynamicCertKeyPairContent, error) {
+func NewDynamicServingContentFromFiles(ctx context.Context, purpose, certFile, keyFile string) (*DynamicCertKeyPairContent, error) {
 	if len(certFile) == 0 || len(keyFile) == 0 {
 		return nil, fmt.Errorf("missing filename for serving cert")
 	}
@@ -69,7 +69,8 @@ func NewDynamicServingContentFromFiles(purpose, certFile, keyFile string) (*Dyna
 			workqueue.TypedRateLimitingQueueConfig[string]{Name: fmt.Sprintf("DynamicCABundle-%s", purpose)},
 		),
 	}
-	if err := ret.loadCertKeyPair(); err != nil {
+
+	if err := ret.loadCertKeyPair(ctx); err != nil {
 		return nil, err
 	}
 
@@ -82,7 +83,7 @@ func (c *DynamicCertKeyPairContent) AddListener(listener Listener) {
 }
 
 // loadCertKeyPair determines the next set of content for the file.
-func (c *DynamicCertKeyPairContent) loadCertKeyPair() error {
+func (c *DynamicCertKeyPairContent) loadCertKeyPair(ctx context.Context) error {
 	cert, err := os.ReadFile(c.certFile)
 	if err != nil {
 		return err
@@ -113,7 +114,8 @@ func (c *DynamicCertKeyPairContent) loadCertKeyPair() error {
 	}
 
 	c.certKeyPair.Store(newCertKey)
-	klog.V(2).InfoS("Loaded a new cert/key pair", "name", c.Name())
+	logger := klog.FromContext(ctx)
+	logger.V(2).Info("Loaded a new cert/key pair", "name", c.Name())
 
 	for _, listener := range c.listeners {
 		listener.Enqueue()
@@ -124,31 +126,34 @@ func (c *DynamicCertKeyPairContent) loadCertKeyPair() error {
 
 // RunOnce runs a single sync loop
 func (c *DynamicCertKeyPairContent) RunOnce(ctx context.Context) error {
-	return c.loadCertKeyPair()
+	return c.loadCertKeyPair(ctx)
 }
 
 // Run starts the controller and blocks until context is killed.
 func (c *DynamicCertKeyPairContent) Run(ctx context.Context, workers int) {
-	defer utilruntime.HandleCrash()
+	defer utilruntime.HandleCrashWithContext(ctx)
 	defer c.queue.ShutDown()
 
-	klog.InfoS("Starting controller", "name", c.name)
-	defer klog.InfoS("Shutting down controller", "name", c.name)
+	logger := klog.FromContext(ctx)
+	logger.Info("Starting controller", "name", c.name)
+	defer logger.Info("Shutting down controller", "name", c.name)
 
 	// doesn't matter what workers say, only start one.
-	go wait.Until(c.runWorker, time.Second, ctx.Done())
+	go wait.UntilWithContext(ctx, func(ctx context.Context) {
+		c.runWorker(ctx)
+	}, time.Second)
 
 	// start the loop that watches the cert and key files until stopCh is closed.
-	go wait.Until(func() {
-		if err := c.watchCertKeyFile(ctx.Done()); err != nil {
-			klog.ErrorS(err, "Failed to watch cert and key file, will retry later")
+	go wait.UntilWithContext(ctx, func(ctx context.Context) {
+		if err := c.watchCertKeyFile(ctx); err != nil {
+			logger.Error(err, "Failed to watch cert and key file, will retry later")
 		}
-	}, time.Minute, ctx.Done())
+	}, time.Minute)
 
 	<-ctx.Done()
 }
 
-func (c *DynamicCertKeyPairContent) watchCertKeyFile(stopCh <-chan struct{}) error {
+func (c *DynamicCertKeyPairContent) watchCertKeyFile(ctx context.Context) error {
 	// Trigger a check here to ensure the content will be checked periodically even if the following watch fails.
 	c.queue.Add(workItemKey)
 
@@ -170,12 +175,12 @@ func (c *DynamicCertKeyPairContent) watchCertKeyFile(stopCh <-chan struct{}) err
 	for {
 		select {
 		case e := <-w.Events:
-			if err := c.handleWatchEvent(e, w); err != nil {
+			if err := c.handleWatchEvent(ctx, e, w); err != nil {
 				return err
 			}
 		case err := <-w.Errors:
 			return fmt.Errorf("received fsnotify error: %v", err)
-		case <-stopCh:
+		case <-ctx.Done():
 			return nil
 		}
 	}
@@ -185,14 +190,15 @@ func (c *DynamicCertKeyPairContent) watchCertKeyFile(stopCh <-chan struct{}) err
 // If one file is updated before the other, the loadCertKeyPair method will catch the mismatch and will not apply the
 // change. When an event of the other file is received, it will trigger reloading the files again and the new content
 // will be loaded and used.
-func (c *DynamicCertKeyPairContent) handleWatchEvent(e fsnotify.Event, w *fsnotify.Watcher) error {
+func (c *DynamicCertKeyPairContent) handleWatchEvent(ctx context.Context, e fsnotify.Event, w *fsnotify.Watcher) error {
 	// This should be executed after restarting the watch (if applicable) to ensure no file event will be missing.
 	defer c.queue.Add(workItemKey)
 	if !e.Has(fsnotify.Remove) && !e.Has(fsnotify.Rename) {
 		return nil
 	}
 	if err := w.Remove(e.Name); err != nil {
-		klog.InfoS("Failed to remove file watch, it may have been deleted", "file", e.Name, "err", err)
+		logger := klog.FromContext(ctx)
+		logger.Info("Failed to remove file watch, it may have been deleted", "file", e.Name, "err", err)
 	}
 	if err := w.Add(e.Name); err != nil {
 		return fmt.Errorf("error adding watch for file %s: %v", e.Name, err)
@@ -200,19 +206,19 @@ func (c *DynamicCertKeyPairContent) handleWatchEvent(e fsnotify.Event, w *fsnoti
 	return nil
 }
 
-func (c *DynamicCertKeyPairContent) runWorker() {
-	for c.processNextWorkItem() {
+func (c *DynamicCertKeyPairContent) runWorker(ctx context.Context) {
+	for c.processNextWorkItem(ctx) {
 	}
 }
 
-func (c *DynamicCertKeyPairContent) processNextWorkItem() bool {
+func (c *DynamicCertKeyPairContent) processNextWorkItem(ctx context.Context) bool {
 	dsKey, quit := c.queue.Get()
 	if quit {
 		return false
 	}
 	defer c.queue.Done(dsKey)
 
-	err := c.loadCertKeyPair()
+	err := c.loadCertKeyPair(ctx)
 	if err == nil {
 		c.queue.Forget(dsKey)
 		return true

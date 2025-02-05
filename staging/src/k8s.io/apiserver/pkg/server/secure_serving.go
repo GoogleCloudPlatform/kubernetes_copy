@@ -137,10 +137,10 @@ func (s *SecureServingInfo) tlsConfig(stopCh <-chan struct{}) (*tls.Config, erro
 
 		// runonce to try to prime data.  If this fails, it's ok because we fail closed.
 		// Files are required to be populated already, so this is for convenience.
-		if err := dynamicCertificateController.RunOnce(); err != nil {
+		if err := dynamicCertificateController.RunOnce(ctx); err != nil {
 			klog.Warningf("Initial population of dynamic certificates failed: %v", err)
 		}
-		go dynamicCertificateController.Run(1, stopCh)
+		go dynamicCertificateController.Run(ctx, 1, stopCh)
 
 		tlsConfig.GetConfigForClient = dynamicCertificateController.GetConfigForClient
 	}

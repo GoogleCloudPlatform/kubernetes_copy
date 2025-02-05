@@ -168,7 +168,7 @@ func (o AggregatorOptions) RunAggregator(ctx context.Context) error {
 	config.ExtraConfig.ProxyClientCertFile = o.ProxyClientCertFile
 	config.ExtraConfig.ProxyClientKeyFile = o.ProxyClientKeyFile
 
-	server, err := config.Complete().NewWithDelegate(genericapiserver.NewEmptyDelegate())
+	server, err := config.Complete().NewWithDelegate(ctx, genericapiserver.NewEmptyDelegate())
 	if err != nil {
 		return err
 	}

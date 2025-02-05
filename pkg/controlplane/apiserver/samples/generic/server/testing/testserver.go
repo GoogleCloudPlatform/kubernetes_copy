@@ -184,7 +184,7 @@ func StartTestServer(t ktesting.TB, instanceOptions *TestServerInstanceOptions, 
 	if err != nil {
 		return result, err
 	}
-	s, err := server.CreateServerChain(completed)
+	s, err := server.CreateServerChain(tCtx, completed)
 	if err != nil {
 		return result, fmt.Errorf("failed to create server chain: %w", err)
 	}

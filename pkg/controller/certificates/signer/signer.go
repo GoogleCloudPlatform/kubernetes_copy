@@ -92,7 +92,7 @@ func NewCSRSigningController(
 	caFile, caKeyFile string,
 	certTTL time.Duration,
 ) (*CSRSigningController, error) {
-	signer, err := newSigner(signerName, caFile, caKeyFile, client, certTTL)
+	signer, err := newSigner(ctx, signerName, caFile, caKeyFile, client, certTTL)
 	if err != nil {
 		return nil, err
 	}
@@ -128,12 +128,12 @@ type signer struct {
 	isRequestForSignerFn isRequestForSignerFunc
 }
 
-func newSigner(signerName, caFile, caKeyFile string, client clientset.Interface, certificateDuration time.Duration) (*signer, error) {
+func newSigner(ctx context.Context, signerName, caFile, caKeyFile string, client clientset.Interface, certificateDuration time.Duration) (*signer, error) {
 	isRequestForSignerFn, err := getCSRVerificationFuncForSignerName(signerName)
 	if err != nil {
 		return nil, err
 	}
-	caProvider, err := newCAProvider(caFile, caKeyFile)
+	caProvider, err := newCAProvider(ctx, caFile, caKeyFile)
 	if err != nil {
 		return nil, err
 	}

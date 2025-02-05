@@ -199,11 +199,12 @@ func (c *ConfigMapCAController) RunOnce(ctx context.Context) error {
 
 // Run starts the kube-apiserver and blocks until stopCh is closed.
 func (c *ConfigMapCAController) Run(ctx context.Context, workers int) {
-	defer utilruntime.HandleCrash()
+	logger := klog.FromContext(ctx)
+	defer utilruntime.HandleCrashWithContext(ctx)
 	defer c.queue.ShutDown()
 
-	klog.InfoS("Starting controller", "name", c.name)
-	defer klog.InfoS("Shutting down controller", "name", c.name)
+	logger.Info("Starting controller", "name", c.name)
+	defer logger.Info("Shutting down controller", "name", c.name)
 
 	// we have a personal informer that is narrowly scoped, start it.
 	go c.configMapInformer.Run(ctx.Done())

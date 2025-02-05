@@ -256,8 +256,8 @@ func NewKubeletClientCertificateManager(
 // NewKubeletServerCertificateDynamicFileManager creates a certificate manager based on reading and watching certificate and key files.
 // The returned struct implements certificate.Manager interface, enabling using it like other CertificateManager in this package.
 // But the struct doesn't communicate with API server to perform certificate request at all.
-func NewKubeletServerCertificateDynamicFileManager(certFile, keyFile string) (certificate.Manager, error) {
-	c, err := dynamiccertificates.NewDynamicServingContentFromFiles("kubelet-server-cert-files", certFile, keyFile)
+func NewKubeletServerCertificateDynamicFileManager(ctx context.Context, certFile, keyFile string) (certificate.Manager, error) {
+	c, err := dynamiccertificates.NewDynamicServingContentFromFiles(ctx, "kubelet-server-cert-files", certFile, keyFile)
 	if err != nil {
 		return nil, fmt.Errorf("unable to set up dynamic certificate manager for kubelet server cert files: %w", err)
 	}

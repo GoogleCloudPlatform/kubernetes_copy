@@ -18,6 +18,7 @@ package signer
 
 import (
 	"bytes"
+	"context"
 	"crypto"
 	"fmt"
 	"sync/atomic"
@@ -28,8 +29,8 @@ import (
 	"k8s.io/kubernetes/pkg/controller/certificates/authority"
 )
 
-func newCAProvider(caFile, caKeyFile string) (*caProvider, error) {
-	caLoader, err := dynamiccertificates.NewDynamicServingContentFromFiles("csr-controller", caFile, caKeyFile)
+func newCAProvider(ctx context.Context, caFile, caKeyFile string) (*caProvider, error) {
+	caLoader, err := dynamiccertificates.NewDynamicServingContentFromFiles(ctx, "csr-controller", caFile, caKeyFile)
 	if err != nil {
 		return nil, fmt.Errorf("error reading CA cert file %q: %v", caFile, err)
 	}

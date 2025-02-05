@@ -31,6 +31,7 @@ import (
 	"testing"
 	"time"
 
+	"k8s.io/klog/v2/ktesting"
 	netutils "k8s.io/utils/net"
 
 	"github.com/stretchr/testify/assert"
@@ -225,8 +226,8 @@ NextTest:
 		c := DynamicServingCertificateController{sniCerts: sniCerts}
 		content, err := c.newTLSContent()
 		assert.NoError(t, err)
-
-		certMap, err := c.BuildNamedCertificates(content.sniCerts)
+		_, ctx := ktesting.NewTestContext(t)
+		certMap, err := c.BuildNamedCertificates(ctx, content.sniCerts)
 		if err == nil && len(test.errorString) != 0 {
 			t.Errorf("%d - expected no error, got: %v", i, err)
 		} else if err != nil && err.Error() != test.errorString {

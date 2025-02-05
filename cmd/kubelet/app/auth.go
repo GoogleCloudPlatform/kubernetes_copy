@@ -71,7 +71,7 @@ func BuildAuthn(client authenticationclient.AuthenticationV1Interface, authn kub
 	var dynamicCAContentFromFile *dynamiccertificates.DynamicFileCAContent
 	var err error
 	if len(authn.X509.ClientCAFile) > 0 {
-		dynamicCAContentFromFile, err = dynamiccertificates.NewDynamicCAContentFromFile("client-ca-bundle", authn.X509.ClientCAFile)
+		dynamicCAContentFromFile, err = dynamiccertificates.NewDynamicCAContentFromFile(context.Background(), "client-ca-bundle", authn.X509.ClientCAFile)
 		if err != nil {
 			return nil, nil, err
 		}

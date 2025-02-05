@@ -152,7 +152,7 @@ func Run(ctx context.Context, opts options.CompletedOptions) error {
 	if err != nil {
 		return err
 	}
-	server, err := CreateServerChain(completed)
+	server, err := CreateServerChain(ctx, completed)
 	if err != nil {
 		return err
 	}
@@ -166,7 +166,7 @@ func Run(ctx context.Context, opts options.CompletedOptions) error {
 }
 
 // CreateServerChain creates the apiservers connected via delegation.
-func CreateServerChain(config CompletedConfig) (*aggregatorapiserver.APIAggregator, error) {
+func CreateServerChain(ctx context.Context, config CompletedConfig) (*aggregatorapiserver.APIAggregator, error) {
 	notFoundHandler := notfoundhandler.New(config.KubeAPIs.ControlPlane.Generic.Serializer, genericapifilters.NoMuxAndDiscoveryIncompleteKey)
 	apiExtensionsServer, err := config.ApiExtensions.New(genericapiserver.NewEmptyDelegateWithCustomHandler(notFoundHandler))
 	if err != nil {
@@ -180,7 +180,7 @@ func CreateServerChain(config CompletedConfig) (*aggregatorapiserver.APIAggregat
 	}
 
 	// aggregator comes last in the chain
-	aggregatorServer, err := controlplaneapiserver.CreateAggregatorServer(config.Aggregator, kubeAPIServer.ControlPlane.GenericAPIServer, apiExtensionsServer.Informers.Apiextensions().V1().CustomResourceDefinitions(), crdAPIEnabled, apiVersionPriorities)
+	aggregatorServer, err := controlplaneapiserver.CreateAggregatorServer(ctx, config.Aggregator, kubeAPIServer.ControlPlane.GenericAPIServer, apiExtensionsServer.Informers.Apiextensions().V1().CustomResourceDefinitions(), crdAPIEnabled, apiVersionPriorities)
 	if err != nil {
 		// we don't need special handling for innerStopCh because the aggregator server doesn't create any go routines
 		return nil, err
