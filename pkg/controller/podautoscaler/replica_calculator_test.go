@@ -499,6 +499,26 @@ func TestReplicaCalcScaleUpUnreadyLessScale(t *testing.T) {
 	tc.runTest(t)
 }
 
+func TestReplicaCalcScaleUpOverflow(t *testing.T) {
+	tc := replicaCalcTestCase{
+		currentReplicas:  3,
+		expectedReplicas: math.MaxInt32,
+		metric: &metricInfo{
+			name:          "qps",
+			levels:        []int64{math.MaxInt64}, // Use MaxInt64 to ensure a very large value
+			targetUsage:   1,                      // Set a very low target to force high scaling
+			metricType:    objectMetric,
+			expectedUsage: math.MaxInt64,
+			singleObject: &autoscalingv2.CrossVersionObjectReference{
+				Kind:       "Deployment",
+				APIVersion: "apps/v1",
+				Name:       "some-deployment",
+			},
+		},
+	}
+	tc.runTest(t)
+}
+
 func TestReplicaCalcScaleUpContainerHotCpuLessScale(t *testing.T) {
 	tc := replicaCalcTestCase{
 		currentReplicas:  3,

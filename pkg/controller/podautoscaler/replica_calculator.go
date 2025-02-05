@@ -275,7 +275,14 @@ func (c *ReplicaCalculator) getUsageRatioReplicaCount(currentReplicas int32, usa
 		if err != nil {
 			return 0, time.Time{}, fmt.Errorf("unable to calculate ready pods: %s", err)
 		}
-		replicaCount = int32(math.Ceil(usageRatio * float64(readyPodCount)))
+		// Calculate replicaCount as float64 first
+		replicaCountFloat := usageRatio * float64(readyPodCount)
+		// Check if replicaCount exceeds max int32
+		if replicaCountFloat > math.MaxInt32 {
+			replicaCount = math.MaxInt32
+		} else {
+			replicaCount = int32(math.Ceil(replicaCountFloat))
+		}
 	} else {
 		// Scale to zero or n pods depending on usageRatio
 		replicaCount = int32(math.Ceil(usageRatio))
