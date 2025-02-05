@@ -40,7 +40,7 @@ var _ = SIGDescribe("Networking", func() {
 			// First time, we'll quickly try all pods, breadth first.
 			for _, endpointPod := range config.EndpointPods {
 				framework.Logf("Breadth first check of %v on host %v...", endpointPod.Status.PodIP, endpointPod.Status.HostIP)
-				if err := config.DialFromTestContainer(ctx, protocol, endpointPod.Status.PodIP, port, 1, 0, sets.NewString(endpointPod.Name)); err != nil {
+				if err := config.DialFromTestContainer(ctx, protocol, endpointPod.Status.PodIP, port, 1, 0, sets.New(endpointPod.Name)); err != nil {
 					if _, ok := failedPodsByHost[endpointPod.Status.HostIP]; !ok {
 						failedPodsByHost[endpointPod.Status.HostIP] = []*v1.Pod{}
 					}
@@ -55,7 +55,7 @@ var _ = SIGDescribe("Networking", func() {
 				framework.Logf("Doublechecking %v pods in host %v which weren't seen the first time.", len(failedPods), host)
 				for _, endpointPod := range failedPods {
 					framework.Logf("Now attempting to probe pod [[[ %v ]]]", endpointPod.Status.PodIP)
-					if err := config.DialFromTestContainer(ctx, protocol, endpointPod.Status.PodIP, port, config.MaxTries, 0, sets.NewString(endpointPod.Name)); err != nil {
+					if err := config.DialFromTestContainer(ctx, protocol, endpointPod.Status.PodIP, port, config.MaxTries, 0, sets.New(endpointPod.Name)); err != nil {
 						errors = append(errors, err)
 					} else {
 						framework.Logf("Was able to reach %v on %v ", endpointPod.Status.PodIP, endpointPod.Status.HostIP)
@@ -108,7 +108,7 @@ var _ = SIGDescribe("Networking", func() {
 		framework.ConformanceIt("should function for node-pod communication: http [LinuxOnly]", f.WithNodeConformance(), func(ctx context.Context) {
 			config := e2enetwork.NewCoreNetworkingTestConfig(ctx, f, true)
 			for _, endpointPod := range config.EndpointPods {
-				err := config.DialFromNode(ctx, "http", endpointPod.Status.PodIP, e2enetwork.EndpointHTTPPort, config.MaxTries, 0, sets.NewString(endpointPod.Name))
+				err := config.DialFromNode(ctx, "http", endpointPod.Status.PodIP, e2enetwork.EndpointHTTPPort, config.MaxTries, 0, sets.New(endpointPod.Name))
 				if err != nil {
 					framework.Failf("Error dialing HTTP node to pod %v", err)
 				}
@@ -125,7 +125,7 @@ var _ = SIGDescribe("Networking", func() {
 		framework.ConformanceIt("should function for node-pod communication: udp [LinuxOnly]", f.WithNodeConformance(), func(ctx context.Context) {
 			config := e2enetwork.NewCoreNetworkingTestConfig(ctx, f, true)
 			for _, endpointPod := range config.EndpointPods {
-				err := config.DialFromNode(ctx, "udp", endpointPod.Status.PodIP, e2enetwork.EndpointUDPPort, config.MaxTries, 0, sets.NewString(endpointPod.Name))
+				err := config.DialFromNode(ctx, "udp", endpointPod.Status.PodIP, e2enetwork.EndpointUDPPort, config.MaxTries, 0, sets.New(endpointPod.Name))
 				if err != nil {
 					framework.Failf("Error dialing UDP from node to pod: %v", err)
 				}
@@ -141,7 +141,7 @@ var _ = SIGDescribe("Networking", func() {
 			ginkgo.Skip("Skipping SCTP node to pod test until DialFromNode supports SCTP #96482")
 			config := e2enetwork.NewNetworkingTestConfig(ctx, f, e2enetwork.EnableSCTP)
 			for _, endpointPod := range config.EndpointPods {
-				err := config.DialFromNode(ctx, "sctp", endpointPod.Status.PodIP, e2enetwork.EndpointSCTPPort, config.MaxTries, 0, sets.NewString(endpointPod.Name))
+				err := config.DialFromNode(ctx, "sctp", endpointPod.Status.PodIP, e2enetwork.EndpointSCTPPort, config.MaxTries, 0, sets.New(endpointPod.Name))
 				if err != nil {
 					framework.Failf("Error dialing SCTP from node to pod: %v", err)
 				}

@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// A small utility to just serve the hostname on TCP and/or UDP.
+// A small utility to just serve the hostname on HTTP / TCP / UDP.
 
 package servehostname
 
@@ -58,7 +58,7 @@ func init() {
 
 func main(cmd *cobra.Command, args []string) {
 	if doHTTP && (doTCP || doUDP) {
-		log.Fatalf("Can't server TCP/UDP mode and HTTP mode at the same time")
+		log.Fatalf("Can't serve TCP/UDP mode and HTTP mode at the same time")
 	}
 
 	hostname, err := os.Hostname()

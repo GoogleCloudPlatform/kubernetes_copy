@@ -99,6 +99,7 @@ var CmdNetexec = &cobra.Command{
   server is healthy (don't kill it), but the it should not be sent traffic (remove from endpoints).
 - "/hostname": Returns the server's hostname.
 - "/hostName": Returns the server's hostname.
+- "/nodename": Returns the server's node-name (sourced from the NODE_NAME env var).
 - "/redirect": Returns a redirect response to the given "location", with the optional status "code"
   ("/redirect?location=/echo%3Fmsg=foobar&code=307").
 - "/shell": Executes the given "shellCommand" or "cmd" ("/shell?cmd=some-command") and
@@ -119,6 +120,7 @@ ignoring the request URL.
 It will also start a UDP server on the indicated UDP port and addresses that responds to the following commands:
 
 - "hostname": Returns the server's hostname
+- "nodename": Returns the server's node name (sourced from the NODE_NAME env var)
 - "echo <msg>": Returns the given <msg>
 - "clientip": Returns the request's IP address
 
@@ -235,6 +237,7 @@ func addRoutes(mux *http.ServeMux, sigTermReceived chan struct{}, exitCh chan sh
 	mux.HandleFunc("/healthz", healthzHandler)
 	mux.HandleFunc("/readyz", readyzHandler(sigTermReceived))
 	mux.HandleFunc("/hostname", hostnameHandler)
+	mux.HandleFunc("/nodename", nodenameHandler)
 	mux.HandleFunc("/redirect", redirectHandler)
 	mux.HandleFunc("/shell", shellHandler)
 	mux.HandleFunc("/upload", uploadHandler)
@@ -339,6 +342,11 @@ func exitHandler(w http.ResponseWriter, r *http.Request, exitCh chan<- shutdownR
 func hostnameHandler(w http.ResponseWriter, r *http.Request) {
 	log.Printf("GET /hostname")
 	fmt.Fprint(w, getHostName())
+}
+
+func nodenameHandler(w http.ResponseWriter, r *http.Request) {
+	log.Printf("GET /nodename")
+	fmt.Fprint(w, getNodeName())
 }
 
 // healthHandler response with a 200 if the UDP server is ready. It also serves
@@ -655,6 +663,10 @@ func startUDPServer(address string, udpPort int) {
 			log.Println("Sending udp hostName response")
 			_, err = serverConn.WriteToUDP([]byte(getHostName()), clientAddress)
 			assertNoError(err, fmt.Sprintf("failed to write hostname to UDP client %s", clientAddress))
+		} else if receivedText == "nodename" {
+			log.Println("Sending udp nodename response")
+			_, err = serverConn.WriteToUDP([]byte(getNodeName()), clientAddress)
+			assertNoError(err, fmt.Sprintf("failed to write nodename to UDP client %s", clientAddress))
 		} else if strings.HasPrefix(receivedText, "echo ") {
 			parts := strings.SplitN(receivedText, " ", 2)
 			resp := ""
@@ -729,6 +741,14 @@ func getHostName() string {
 	hostName, err := os.Hostname()
 	assertNoError(err, "failed to get hostname")
 	return hostName
+}
+
+func getNodeName() string {
+	nodeName := os.Getenv("NODE_NAME")
+	if nodeName == "" {
+		log.Fatalf("env var NODE_NAME was empty; must be set to use nodename endpoints")
+	}
+	return nodeName
 }
 
 func assertNoError(err error, detail string) {

@@ -371,7 +371,7 @@ var _ = common.SIGDescribe("Networking", func() {
 			// #106770 MaxTries can be very large on large clusters, with the risk that a new NodePort is created by another test and start to answer traffic.
 			// Since we only want to assert that traffic is not being forwarded anymore and the retry timeout is 2 seconds, consider the test is correct
 			// if the service doesn't answer after 10 tries.
-			err = config.DialFromNode(ctx, "http", config.NodeIP, config.NodeHTTPPort, 10, 10, sets.NewString())
+			err = config.DialFromNode(ctx, "http", config.NodeIP, config.NodeHTTPPort, 10, 10, sets.New[string]())
 			if err != nil {
 				framework.Failf("Failure validating that node port service STOPPED removed properly: %v", err)
 			}
@@ -403,7 +403,7 @@ var _ = common.SIGDescribe("Networking", func() {
 			// #106770 MaxTries can be very large on large clusters, with the risk that a new NodePort is created by another test and start to answer traffic.
 			// Since we only want to assert that traffic is not being forwarded anymore and the retry timeout is 2 seconds, consider the test is correct
 			// if the service doesn't answer after 10 tries.
-			err = config.DialFromNode(ctx, "udp", config.NodeIP, config.NodeUDPPort, 10, 10, sets.NewString())
+			err = config.DialFromNode(ctx, "udp", config.NodeIP, config.NodeUDPPort, 10, 10, sets.New[string]())
 			if err != nil {
 				framework.Failf("Failure validating that node port service STOPPED removed properly: %v", err)
 			}
@@ -469,17 +469,17 @@ var _ = common.SIGDescribe("Networking", func() {
 		// because the pods will try to acquire the same port in the host.
 		// We run the test in serial, to avoid port conflicts.
 		ginkgo.It("should function for service endpoints using hostNetwork", func(ctx context.Context) {
-			config := e2enetwork.NewNetworkingTestConfig(ctx, f, e2enetwork.UseHostNetwork, e2enetwork.EndpointsUseHostNetwork)
+			config := e2enetwork.NewNetworkingTestConfig(ctx, f, e2enetwork.UseHostNetwork, e2enetwork.EndpointsUseHostNetwork, e2enetwork.EchoNodeName)
 
 			ginkgo.By("pod-Service(hostNetwork): http")
 
 			ginkgo.By(fmt.Sprintf("dialing(http) %v --> %v:%v (config.clusterIP)", config.TestContainerPod.Name, config.ClusterIP, e2enetwork.ClusterHTTPPort))
-			err := config.DialFromTestContainer(ctx, "http", config.ClusterIP, e2enetwork.ClusterHTTPPort, config.MaxTries, 0, config.EndpointHostnames())
+			err := config.DialFromTestContainer(ctx, "http", config.ClusterIP, e2enetwork.ClusterHTTPPort, config.MaxTries, 0, config.EndpointNodeNames())
 			if err != nil {
 				framework.Failf("failed dialing endpoint, %v", err)
 			}
 			ginkgo.By(fmt.Sprintf("dialing(http) %v --> %v:%v (nodeIP)", config.TestContainerPod.Name, config.NodeIP, config.NodeHTTPPort))
-			err = config.DialFromTestContainer(ctx, "http", config.NodeIP, config.NodeHTTPPort, config.MaxTries, 0, config.EndpointHostnames())
+			err = config.DialFromTestContainer(ctx, "http", config.NodeIP, config.NodeHTTPPort, config.MaxTries, 0, config.EndpointNodeNames())
 			if err != nil {
 				framework.Failf("failed dialing endpoint, %v", err)
 			}
@@ -487,13 +487,13 @@ var _ = common.SIGDescribe("Networking", func() {
 			ginkgo.By("pod-Service(hostNetwork): udp")
 
 			ginkgo.By(fmt.Sprintf("dialing(udp) %v --> %v:%v (config.clusterIP)", config.TestContainerPod.Name, config.ClusterIP, e2enetwork.ClusterUDPPort))
-			err = config.DialFromTestContainer(ctx, "udp", config.ClusterIP, e2enetwork.ClusterUDPPort, config.MaxTries, 0, config.EndpointHostnames())
+			err = config.DialFromTestContainer(ctx, "udp", config.ClusterIP, e2enetwork.ClusterUDPPort, config.MaxTries, 0, config.EndpointNodeNames())
 			if err != nil {
 				framework.Failf("failed dialing endpoint, %v", err)
 			}
 
 			ginkgo.By(fmt.Sprintf("dialing(udp) %v --> %v:%v (nodeIP)", config.TestContainerPod.Name, config.NodeIP, config.NodeUDPPort))
-			err = config.DialFromTestContainer(ctx, "udp", config.NodeIP, config.NodeUDPPort, config.MaxTries, 0, config.EndpointHostnames())
+			err = config.DialFromTestContainer(ctx, "udp", config.NodeIP, config.NodeUDPPort, config.MaxTries, 0, config.EndpointNodeNames())
 			if err != nil {
 				framework.Failf("failed dialing endpoint, %v", err)
 			}
@@ -501,24 +501,24 @@ var _ = common.SIGDescribe("Networking", func() {
 			ginkgo.By("node-Service(hostNetwork): http")
 
 			ginkgo.By(fmt.Sprintf("dialing(http) %v (node) --> %v:%v (config.clusterIP)", config.NodeIP, config.ClusterIP, e2enetwork.ClusterHTTPPort))
-			err = config.DialFromNode(ctx, "http", config.ClusterIP, e2enetwork.ClusterHTTPPort, config.MaxTries, 0, config.EndpointHostnames())
+			err = config.DialFromNode(ctx, "http", config.ClusterIP, e2enetwork.ClusterHTTPPort, config.MaxTries, 0, config.EndpointNodeNames())
 			if err != nil {
 				framework.Failf("failed dialing endpoint, %v", err)
 			}
 			ginkgo.By(fmt.Sprintf("dialing(http) %v (node) --> %v:%v (nodeIP)", config.NodeIP, config.NodeIP, config.NodeHTTPPort))
-			err = config.DialFromNode(ctx, "http", config.NodeIP, config.NodeHTTPPort, config.MaxTries, 0, config.EndpointHostnames())
+			err = config.DialFromNode(ctx, "http", config.NodeIP, config.NodeHTTPPort, config.MaxTries, 0, config.EndpointNodeNames())
 			if err != nil {
 				framework.Failf("failed dialing endpoint, %v", err)
 			}
 			ginkgo.By("node-Service(hostNetwork): udp")
 
 			ginkgo.By(fmt.Sprintf("dialing(udp) %v (node) --> %v:%v (config.clusterIP)", config.NodeIP, config.ClusterIP, e2enetwork.ClusterUDPPort))
-			err = config.DialFromNode(ctx, "udp", config.ClusterIP, e2enetwork.ClusterUDPPort, config.MaxTries, 0, config.EndpointHostnames())
+			err = config.DialFromNode(ctx, "udp", config.ClusterIP, e2enetwork.ClusterUDPPort, config.MaxTries, 0, config.EndpointNodeNames())
 			if err != nil {
 				framework.Failf("failed dialing endpoint, %v", err)
 			}
 			ginkgo.By(fmt.Sprintf("dialing(udp) %v (node) --> %v:%v (nodeIP)", config.NodeIP, config.NodeIP, config.NodeUDPPort))
-			err = config.DialFromNode(ctx, "udp", config.NodeIP, config.NodeUDPPort, config.MaxTries, 0, config.EndpointHostnames())
+			err = config.DialFromNode(ctx, "udp", config.NodeIP, config.NodeUDPPort, config.MaxTries, 0, config.EndpointNodeNames())
 			if err != nil {
 				framework.Failf("failed dialing endpoint, %v", err)
 			}
