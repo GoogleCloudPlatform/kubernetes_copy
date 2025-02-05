@@ -20,6 +20,8 @@ limitations under the License.
 package stats
 
 import (
+	"context"
+
 	cadvisorapiv2 "github.com/google/cadvisor/info/v2"
 	runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1"
 	statsapi "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
@@ -31,7 +33,7 @@ func (p *criStatsProvider) listContainerNetworkStats() (map[string]*statsapi.Net
 	return nil, nil
 }
 
-func (p *criStatsProvider) addCRIPodContainerStats(criSandboxStat *runtimeapi.PodSandboxStats,
+func (p *criStatsProvider) addCRIPodContainerStats(ctx context.Context, criSandboxStat *runtimeapi.PodSandboxStats,
 	ps *statsapi.PodStats, fsIDtoInfo map[runtimeapi.FilesystemIdentifier]*cadvisorapiv2.FsInfo,
 	containerMap map[string]*runtimeapi.Container,
 	podSandbox *runtimeapi.PodSandbox,

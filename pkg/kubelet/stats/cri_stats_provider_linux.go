@@ -20,6 +20,7 @@ limitations under the License.
 package stats
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -29,7 +30,7 @@ import (
 	statsapi "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 )
 
-func (p *criStatsProvider) addCRIPodContainerStats(criSandboxStat *runtimeapi.PodSandboxStats,
+func (p *criStatsProvider) addCRIPodContainerStats(ctx context.Context, criSandboxStat *runtimeapi.PodSandboxStats,
 	ps *statsapi.PodStats, fsIDtoInfo map[runtimeapi.FilesystemIdentifier]*cadvisorapiv2.FsInfo,
 	containerMap map[string]*runtimeapi.Container,
 	podSandbox *runtimeapi.PodSandbox,
@@ -40,7 +41,7 @@ func (p *criStatsProvider) addCRIPodContainerStats(criSandboxStat *runtimeapi.Po
 			continue
 		}
 		// Fill available stats for full set of required pod stats
-		cs, err := p.makeContainerStats(criContainerStat, container, rootFsInfo, fsIDtoInfo, podSandbox.GetMetadata(),
+		cs, err := p.makeContainerStats(ctx, criContainerStat, container, rootFsInfo, fsIDtoInfo, podSandbox.GetMetadata(),
 			updateCPUNanoCoreUsage)
 		if err != nil {
 			return fmt.Errorf("make container stats: %w", err)

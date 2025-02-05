@@ -77,6 +77,10 @@ func (f *fakeHostStatsProvider) getPodEtcHostsStats(podUID types.UID, rootFsInfo
 	return nil, fmt.Errorf("not implemented")
 }
 
+func (f *fakeHostStatsProvider) getTerminationMessagePathStats(path string, rootFsInfo *cadvisorapiv2.FsInfo) (*statsapi.FsStats, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
 func fakeMetricsProvidersToStats(metricsProviders []volume.MetricsProvider, rootFsInfo *cadvisorapiv2.FsInfo) (*statsapi.FsStats, error) {
 	result := rootFsInfoToFsStats(rootFsInfo)
 	for i, metricsProvider := range metricsProviders {

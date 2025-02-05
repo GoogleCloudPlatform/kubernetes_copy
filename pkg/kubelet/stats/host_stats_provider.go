@@ -44,6 +44,8 @@ type HostStatsProvider interface {
 	getPodContainerLogStats(podNamespace, podName string, podUID types.UID, containerName string, rootFsInfo *cadvisorapiv2.FsInfo) (*statsapi.FsStats, error)
 	// getPodEtcHostsStats gets stats associated with pod etc-hosts usage
 	getPodEtcHostsStats(podUID types.UID, rootFsInfo *cadvisorapiv2.FsInfo) (*statsapi.FsStats, error)
+	// getTerminationMessagePathStats gets stats associated with container termination log usage
+	getTerminationMessagePathStats(path string, rootFsInfo *cadvisorapiv2.FsInfo) (*statsapi.FsStats, error)
 }
 
 type hostStatsProvider struct {
@@ -79,6 +81,26 @@ func (h hostStatsProvider) getPodContainerLogStats(podNamespace, podName string,
 		return nil, err
 	}
 	return metricsByPathToFsStats(metricsByPath, rootFsInfo)
+}
+
+// getTerminationMessagePathStats gets stats for container termination message usage
+func (h hostStatsProvider) getTerminationMessagePathStats(path string, rootFsInfo *cadvisorapiv2.FsInfo) (*statsapi.FsStats, error) {
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		return nil, nil
+	}
+
+	metrics := volume.NewMetricsDu(path)
+	hostMetrics, err := metrics.GetMetrics()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get stats %w", err)
+	}
+	result := rootFsInfoToFsStats(rootFsInfo)
+	usedBytes := uint64(hostMetrics.Used.Value())
+	inodesUsed := uint64(hostMetrics.InodesUsed.Value())
+	result.UsedBytes = addUsage(result.UsedBytes, &usedBytes)
+	result.InodesUsed = addUsage(result.InodesUsed, &inodesUsed)
+	result.Time = maxUpdateTime(&result.Time, &hostMetrics.Time)
+	return result, nil
 }
 
 // getPodEtcHostsStats gets status for pod etc hosts usage

@@ -35,6 +35,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	internalapi "k8s.io/cri-api/pkg/apis"
 	runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1"
+	crierror "k8s.io/cri-api/pkg/errors"
 	"k8s.io/klog/v2"
 	statsapi "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 	kubetypes "k8s.io/kubelet/pkg/types"
@@ -204,7 +205,7 @@ func (p *criStatsProvider) listPodStatsPartiallyFromCRI(ctx context.Context, upd
 		}
 
 		// Fill available stats for full set of required pod stats
-		cs, err := p.makeContainerStats(stats, container, rootFsInfo, fsIDtoInfo, podSandbox.GetMetadata(), updateCPUNanoCoreUsage)
+		cs, err := p.makeContainerStats(ctx, stats, container, rootFsInfo, fsIDtoInfo, podSandbox.GetMetadata(), updateCPUNanoCoreUsage)
 		if err != nil {
 			return nil, fmt.Errorf("make container stats: %w", err)
 		}
@@ -253,7 +254,7 @@ func (p *criStatsProvider) listPodStatsStrictlyFromCRI(ctx context.Context, upda
 			continue
 		}
 		ps := buildPodStats(podSandbox)
-		if err := p.addCRIPodContainerStats(criSandboxStat, ps, fsIDtoInfo, containerMap, podSandbox, rootFsInfo, updateCPUNanoCoreUsage); err != nil {
+		if err := p.addCRIPodContainerStats(ctx, criSandboxStat, ps, fsIDtoInfo, containerMap, podSandbox, rootFsInfo, updateCPUNanoCoreUsage); err != nil {
 			return nil, fmt.Errorf("add CRI pod container stats: %w", err)
 		}
 		addCRIPodNetworkStats(ps, criSandboxStat)
@@ -593,6 +594,7 @@ func (p *criStatsProvider) addProcessStats(
 }
 
 func (p *criStatsProvider) makeContainerStats(
+	ctx context.Context,
 	stats *runtimeapi.ContainerStats,
 	container *runtimeapi.Container,
 	rootFsInfo *cadvisorapiv2.FsInfo,
@@ -682,14 +684,58 @@ func (p *criStatsProvider) makeContainerStats(
 			result.Rootfs.Inodes = imageFsInfo.Inodes
 		}
 	}
+
+	// Iterate over the mount points in the container state to get the path of the termination message on the host.
+	var terminationMessagePath string
+	resp, err := p.runtimeService.ContainerStatus(ctx, container.Id, false)
+	if !crierror.IsNotFound(err) {
+		for _, mount := range resp.Status.Mounts {
+			// The termination message does not have a fixed name, it is randomly generated,
+			// so we can only get its path on the host through annotations.
+			if mount.ContainerPath == resp.Status.Annotations["io.kubernetes.container.terminationMessagePath"] {
+				terminationMessagePath = mount.HostPath
+			}
+		}
+	}
+
+	terminationMessageStats, err := p.hostStatsProvider.getTerminationMessagePathStats(terminationMessagePath, rootFsInfo)
+	if err != nil {
+		klog.ErrorS(err, "Unable to fetch container termination message stats", "containerName", container.GetMetadata().GetName())
+	}
+
 	// NOTE: This doesn't support the old pod log path, `/var/log/pods/UID`. For containers
 	// using old log path, empty log stats are returned. This is fine, because we don't
 	// officially support in-place upgrade anyway.
-	result.Logs, err = p.hostStatsProvider.getPodContainerLogStats(meta.GetNamespace(), meta.GetName(), types.UID(meta.GetUid()), container.GetMetadata().GetName(), rootFsInfo)
+	logsStats, err := p.hostStatsProvider.getPodContainerLogStats(meta.GetNamespace(), meta.GetName(), types.UID(meta.GetUid()), container.GetMetadata().GetName(), rootFsInfo)
 	if err != nil {
 		klog.ErrorS(err, "Unable to fetch container log stats", "containerName", container.GetMetadata().GetName())
 	}
+
+	result.Logs = mergeLogStats(rootFsInfo, logsStats, terminationMessageStats)
+
 	return result, nil
+}
+
+func mergeLogStats(rootFsInfo *cadvisorapiv2.FsInfo, podLogStats *statsapi.FsStats, terminationMessageStats *statsapi.FsStats) *statsapi.FsStats {
+	result := &statsapi.FsStats{
+		Time:           metav1.NewTime(rootFsInfo.Timestamp),
+		AvailableBytes: &rootFsInfo.Available,
+		CapacityBytes:  &rootFsInfo.Capacity,
+		InodesFree:     rootFsInfo.InodesFree,
+		Inodes:         rootFsInfo.Inodes,
+	}
+
+	if podLogStats != nil {
+		result.UsedBytes = addUsage(result.UsedBytes, podLogStats.UsedBytes)
+		result.InodesUsed = addUsage(result.InodesUsed, podLogStats.InodesUsed)
+		result.Time = maxUpdateTime(&result.Time, &podLogStats.Time)
+	}
+	if terminationMessageStats != nil {
+		result.UsedBytes = addUsage(result.UsedBytes, terminationMessageStats.UsedBytes)
+		result.InodesUsed = addUsage(result.InodesUsed, terminationMessageStats.InodesUsed)
+		result.Time = maxUpdateTime(&result.Time, &terminationMessageStats.Time)
+	}
+	return result
 }
 
 func (p *criStatsProvider) makeContainerCPUAndMemoryStats(
