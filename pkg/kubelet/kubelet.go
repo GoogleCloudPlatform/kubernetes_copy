@@ -1747,11 +1747,11 @@ func (kl *Kubelet) Run(updates <-chan kubetypes.PodUpdate) {
 		go func() {
 			// Call updateRuntimeUp once before syncNodeStatus to make sure kubelet had already checked runtime state
 			// otherwise when restart kubelet, syncNodeStatus will report node notReady in first report period
-			kl.updateRuntimeUp()
-			wait.JitterUntil(kl.syncNodeStatus, kl.nodeStatusUpdateFrequency, 0.04, true, wait.NeverStop)
+			kl.updateRuntimeUp(ctx)
+			wait.JitterUntilWithContext(ctx, kl.syncNodeStatus, kl.nodeStatusUpdateFrequency, 0.04, true)
 		}()
 
-		go kl.fastStatusUpdateOnce()
+		go kl.fastStatusUpdateOnce(ctx)
 
 		// start syncing lease
 		go kl.nodeLeaseController.Run(context.Background())
@@ -1763,7 +1763,7 @@ func (kl *Kubelet) Run(updates <-chan kubetypes.PodUpdate) {
 		// mirror pods are created as soon as the node registers.
 		go kl.fastStaticPodsRegistration(ctx)
 	}
-	go wait.Until(kl.updateRuntimeUp, 5*time.Second, wait.NeverStop)
+	go wait.UntilWithContext(ctx, kl.updateRuntimeUp, 5*time.Second)
 
 	// Set up iptables util rules
 	if kl.makeIPTablesUtilChains {
@@ -2983,10 +2983,9 @@ func (kl *Kubelet) SyncLoopHealthCheck(req *http.Request) error {
 // the runtime dependent modules when the container runtime first comes up,
 // and returns an error if the status check fails.  If the status check is OK,
 // update the container runtime uptime in the kubelet runtimeState.
-func (kl *Kubelet) updateRuntimeUp() {
+func (kl *Kubelet) updateRuntimeUp(ctx context.Context) {
 	kl.updateRuntimeMux.Lock()
 	defer kl.updateRuntimeMux.Unlock()
-	ctx := context.Background()
 
 	s, err := kl.containerRuntime.Status(ctx)
 	if err != nil {
@@ -3082,11 +3081,11 @@ func (kl *Kubelet) cleanUpContainersInPod(podID types.UID, exitedContainerID str
 // Function returns after the node status update after such event, or when the node is already ready.
 // Function is executed only during Kubelet start which improves latency to ready node by updating
 // kubelet state, runtime status and node statuses ASAP.
-func (kl *Kubelet) fastStatusUpdateOnce() {
-	ctx := context.Background()
+func (kl *Kubelet) fastStatusUpdateOnce(ctx context.Context) {
 	start := kl.clock.Now()
 	stopCh := make(chan struct{})
-
+	ctx, cancel := context.WithTimeout(ctx, nodeReadyGracePeriod)
+	defer cancel()
 	// Keep trying to make fast node status update until either timeout is reached or an update is successful.
 	wait.Until(func() {
 		// fastNodeStatusUpdate returns true when it succeeds or when the grace period has expired

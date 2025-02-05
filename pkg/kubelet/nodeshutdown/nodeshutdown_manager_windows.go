@@ -21,6 +21,7 @@ limitations under the License.
 package nodeshutdown
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -59,7 +60,7 @@ type managerImpl struct {
 	probeManager prober.Manager
 
 	getPods        eviction.ActivePodsFunc
-	syncNodeStatus func()
+	syncNodeStatus func(ctx context.Context)
 
 	nodeShuttingDownMutex sync.Mutex
 	nodeShuttingDownNow   bool
@@ -251,7 +252,7 @@ func (m *managerImpl) ProcessShutdownEvent() error {
 	m.nodeShuttingDownNow = true
 	m.nodeShuttingDownMutex.Unlock()
 
-	go m.syncNodeStatus()
+	go m.syncNodeStatus(context.Background())
 
 	m.logger.V(1).Info("Shutdown manager processing preshutdown event")
 	activePods := m.getPods()

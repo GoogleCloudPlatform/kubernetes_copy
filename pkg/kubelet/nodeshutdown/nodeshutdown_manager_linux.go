@@ -21,6 +21,7 @@ limitations under the License.
 package nodeshutdown
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"sync"
@@ -64,7 +65,7 @@ type managerImpl struct {
 	probeManager prober.Manager
 
 	getPods        eviction.ActivePodsFunc
-	syncNodeStatus func()
+	syncNodeStatus func(ctx context.Context)
 
 	dbusCon     dbusInhibiter
 	inhibitLock systemd.InhibitLock
@@ -254,7 +255,7 @@ func (m *managerImpl) start() (chan struct{}, error) {
 
 				if isShuttingDown {
 					// Update node status and ready condition
-					go m.syncNodeStatus()
+					go m.syncNodeStatus(context.Background())
 
 					m.processShutdownEvent()
 				} else {

@@ -20,6 +20,7 @@ limitations under the License.
 package nodeshutdown
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -95,7 +96,7 @@ func TestFeatureEnabled(t *testing.T) {
 				NodeRef:                         nodeRef,
 				GetPodsFunc:                     activePodsFunc,
 				KillPodFunc:                     killPodsFunc,
-				SyncNodeStatusFunc:              func() {},
+				SyncNodeStatusFunc:              func(ctx context.Context) {},
 				ShutdownGracePeriodRequested:    tc.shutdownGracePeriodRequested,
 				ShutdownGracePeriodCriticalPods: 0,
 				StateDirectory:                  os.TempDir(),
@@ -110,7 +111,7 @@ func Test_managerImpl_ProcessShutdownEvent(t *testing.T) {
 		probeManager      = probetest.FakeManager{}
 		fakeRecorder      = &record.FakeRecorder{}
 		fakeVolumeManager = volumemanager.NewFakeVolumeManager([]v1.UniqueVolumeName{}, 0, nil)
-		syncNodeStatus    = func() {}
+		syncNodeStatus    = func(ctx context.Context) {}
 		nodeRef           = &v1.ObjectReference{Kind: "Node", Name: "test", UID: types.UID("test"), Namespace: ""}
 		fakeclock         = testingclock.NewFakeClock(time.Now())
 	)
@@ -123,7 +124,7 @@ func Test_managerImpl_ProcessShutdownEvent(t *testing.T) {
 		shutdownGracePeriodByPodPriority []kubeletconfig.ShutdownGracePeriodByPodPriority
 		getPods                          eviction.ActivePodsFunc
 		killPodFunc                      eviction.KillPodFunc
-		syncNodeStatus                   func()
+		syncNodeStatus                   func(ctx context.Context)
 		nodeShuttingDownNow              bool
 		clock                            clock.Clock
 	}

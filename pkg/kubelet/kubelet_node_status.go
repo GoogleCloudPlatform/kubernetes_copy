@@ -480,7 +480,7 @@ func (kl *Kubelet) fastNodeStatusUpdate(ctx context.Context, timeout bool) (comp
 
 	// This is in addition to the regular syncNodeStatus logic so we can get the container runtime status earlier.
 	// This function itself has a mutex and it doesn't recursively call fastNodeStatusUpdate or syncNodeStatus.
-	kl.updateRuntimeUp()
+	kl.updateRuntimeUp(ctx)
 
 	node, changed := kl.updateNode(ctx, originalNode)
 
@@ -507,7 +507,7 @@ func (kl *Kubelet) fastNodeStatusUpdate(ctx context.Context, timeout bool) (comp
 
 		// The reversed kl.syncNodeStatusMux.Unlock/Lock() below to allow kl.syncNodeStatus() execution.
 		kl.syncNodeStatusMux.Unlock()
-		kl.syncNodeStatus()
+		kl.syncNodeStatus(ctx)
 		// This lock action is unnecessary if we add a flag to check in the defer before unlocking it,
 		// but having it here makes the logic a bit easier to read.
 		kl.syncNodeStatusMux.Lock()
@@ -520,10 +520,9 @@ func (kl *Kubelet) fastNodeStatusUpdate(ctx context.Context, timeout bool) (comp
 // syncNodeStatus should be called periodically from a goroutine.
 // It synchronizes node status to master if there is any change or enough time
 // passed from the last sync, registering the kubelet first if necessary.
-func (kl *Kubelet) syncNodeStatus() {
+func (kl *Kubelet) syncNodeStatus(ctx context.Context) {
 	kl.syncNodeStatusMux.Lock()
 	defer kl.syncNodeStatusMux.Unlock()
-	ctx := context.Background()
 
 	if kl.kubeClient == nil || kl.heartbeatClient == nil {
 		return
