@@ -211,6 +211,25 @@ var _ = utils.SIGDescribe("PersistentVolumes", func() {
 				completeTest(ctx, f, c, ns, pv, pvc)
 			})
 
+			// The same as above, but with multiple volumes reference the same PVC in the pod.
+			ginkgo.It("create a PVC and use it multiple times in a single pod", func(ctx context.Context) {
+				pv, pvc, err = e2epv.CreatePVPVC(ctx, c, f.Timeouts, pvConfig, pvcConfig, ns, true)
+				framework.ExpectNoError(err)
+
+				framework.Logf("Creating nfs test pod")
+				pod := e2epod.MakePod(ns, nil, []*v1.PersistentVolumeClaim{pvc, pvc}, admissionapi.LevelPrivileged,
+					"touch /mnt/volume1/SUCCESS && cat /mnt/volume2/SUCCESS")
+				runPod, err := c.CoreV1().Pods(ns).Create(ctx, pod, metav1.CreateOptions{})
+				framework.ExpectNoError(err)
+				defer func() {
+					err := e2epod.DeletePodWithWait(ctx, c, runPod)
+					framework.ExpectNoError(err)
+				}()
+
+				err = testPodSuccessOrFail(ctx, c, f.Timeouts, ns, runPod)
+				framework.ExpectNoError(err)
+			})
+
 			// Create new PV without claim, verify it's in Available state and LastPhaseTransitionTime is set.
 			f.It("create a PV: test phase transition timestamp is set and phase is Available", func(ctx context.Context) {
 				pvObj := e2epv.MakePersistentVolume(pvConfig)

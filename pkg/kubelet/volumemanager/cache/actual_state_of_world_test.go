@@ -232,13 +232,12 @@ func Test_AddPodToVolume_Positive_ExistingVolumeNewNode(t *testing.T) {
 
 	// Act
 	markVolumeOpts := operationexecutor.MarkVolumeOpts{
-		PodName:             podName,
-		PodUID:              pod.UID,
-		VolumeName:          generatedVolumeName,
-		Mounter:             mounter,
-		BlockVolumeMapper:   mapper,
-		OuterVolumeSpecName: volumeSpec.Name(),
-		VolumeSpec:          volumeSpec,
+		PodName:           podName,
+		PodUID:            pod.UID,
+		VolumeName:        generatedVolumeName,
+		Mounter:           mounter,
+		BlockVolumeMapper: mapper,
+		VolumeSpec:        volumeSpec,
 	}
 	err = asw.AddPodToVolume(markVolumeOpts)
 	// Assert
@@ -307,13 +306,12 @@ func Test_AddPodToVolume_Positive_ExistingVolumeExistingNode(t *testing.T) {
 	}
 
 	markVolumeOpts := operationexecutor.MarkVolumeOpts{
-		PodName:             podName,
-		PodUID:              pod.UID,
-		VolumeName:          generatedVolumeName,
-		Mounter:             mounter,
-		BlockVolumeMapper:   mapper,
-		OuterVolumeSpecName: volumeSpec.Name(),
-		VolumeSpec:          volumeSpec,
+		PodName:           podName,
+		PodUID:            pod.UID,
+		VolumeName:        generatedVolumeName,
+		Mounter:           mounter,
+		BlockVolumeMapper: mapper,
+		VolumeSpec:        volumeSpec,
 	}
 	err = asw.AddPodToVolume(markVolumeOpts)
 	if err != nil {
@@ -415,13 +413,12 @@ func Test_AddTwoPodsToVolume_Positive(t *testing.T) {
 	}
 
 	markVolumeOpts1 := operationexecutor.MarkVolumeOpts{
-		PodName:             podName1,
-		PodUID:              pod1.UID,
-		VolumeName:          generatedVolumeName1,
-		Mounter:             mounter1,
-		BlockVolumeMapper:   mapper1,
-		OuterVolumeSpecName: volumeSpec1.Name(),
-		VolumeSpec:          volumeSpec1,
+		PodName:           podName1,
+		PodUID:            pod1.UID,
+		VolumeName:        generatedVolumeName1,
+		Mounter:           mounter1,
+		BlockVolumeMapper: mapper1,
+		VolumeSpec:        volumeSpec1,
 	}
 	err = asw.AddPodToVolume(markVolumeOpts1)
 	if err != nil {
@@ -441,13 +438,12 @@ func Test_AddTwoPodsToVolume_Positive(t *testing.T) {
 	}
 
 	markVolumeOpts2 := operationexecutor.MarkVolumeOpts{
-		PodName:             podName2,
-		PodUID:              pod2.UID,
-		VolumeName:          generatedVolumeName1,
-		Mounter:             mounter2,
-		BlockVolumeMapper:   mapper2,
-		OuterVolumeSpecName: volumeSpec2.Name(),
-		VolumeSpec:          volumeSpec2,
+		PodName:           podName2,
+		PodUID:            pod2.UID,
+		VolumeName:        generatedVolumeName1,
+		Mounter:           mounter2,
+		BlockVolumeMapper: mapper2,
+		VolumeSpec:        volumeSpec2,
 	}
 	err = asw.AddPodToVolume(markVolumeOpts2)
 	if err != nil {
@@ -602,14 +598,13 @@ func TestActualStateOfWorld_FoundDuringReconstruction(t *testing.T) {
 			}
 
 			markVolumeOpts1 := operationexecutor.MarkVolumeOpts{
-				PodName:             podName1,
-				PodUID:              pod1.UID,
-				VolumeName:          generatedVolumeName1,
-				Mounter:             mounter1,
-				BlockVolumeMapper:   mapper1,
-				OuterVolumeSpecName: volumeSpec1.Name(),
-				VolumeSpec:          volumeSpec1,
-				VolumeMountState:    operationexecutor.VolumeMountUncertain,
+				PodName:           podName1,
+				PodUID:            pod1.UID,
+				VolumeName:        generatedVolumeName1,
+				Mounter:           mounter1,
+				BlockVolumeMapper: mapper1,
+				VolumeSpec:        volumeSpec1,
+				VolumeMountState:  operationexecutor.VolumeMountUncertain,
 			}
 			_, err = asw.CheckAndMarkVolumeAsUncertainViaReconstruction(markVolumeOpts1)
 			if err != nil {
@@ -686,13 +681,12 @@ func Test_MarkVolumeAsDetached_Negative_PodInVolume(t *testing.T) {
 	}
 
 	markVolumeOpts := operationexecutor.MarkVolumeOpts{
-		PodName:             podName,
-		PodUID:              pod.UID,
-		VolumeName:          generatedVolumeName,
-		Mounter:             mounter,
-		BlockVolumeMapper:   mapper,
-		OuterVolumeSpecName: volumeSpec.Name(),
-		VolumeSpec:          volumeSpec,
+		PodName:           podName,
+		PodUID:            pod.UID,
+		VolumeName:        generatedVolumeName,
+		Mounter:           mounter,
+		BlockVolumeMapper: mapper,
+		VolumeSpec:        volumeSpec,
 	}
 	err = asw.AddPodToVolume(markVolumeOpts)
 	if err != nil {
@@ -793,13 +787,12 @@ func Test_AddPodToVolume_Negative_VolumeDoesntExist(t *testing.T) {
 
 	// Act
 	markVolumeOpts := operationexecutor.MarkVolumeOpts{
-		PodName:             podName,
-		PodUID:              pod.UID,
-		VolumeName:          volumeName,
-		Mounter:             mounter,
-		BlockVolumeMapper:   mapper,
-		OuterVolumeSpecName: volumeSpec.Name(),
-		VolumeSpec:          volumeSpec,
+		PodName:           podName,
+		PodUID:            pod.UID,
+		VolumeName:        volumeName,
+		Mounter:           mounter,
+		BlockVolumeMapper: mapper,
+		VolumeSpec:        volumeSpec,
 	}
 	err = asw.AddPodToVolume(markVolumeOpts)
 	// Assert
@@ -929,7 +922,6 @@ func Test_AddPodToVolume_Positive_SELinux(t *testing.T) {
 		VolumeName:          generatedVolumeName,
 		Mounter:             mounter,
 		BlockVolumeMapper:   mapper,
-		OuterVolumeSpecName: volumeSpec.Name(),
 		VolumeSpec:          volumeSpec,
 		SELinuxMountContext: "system_u:object_r:container_file_t:s0:c0,c1",
 		VolumeMountState:    operationexecutor.VolumeMounted,
@@ -1043,13 +1035,12 @@ func TestUncertainVolumeMounts(t *testing.T) {
 	}
 
 	markVolumeOpts1 := operationexecutor.MarkVolumeOpts{
-		PodName:             podName1,
-		PodUID:              pod1.UID,
-		VolumeName:          generatedVolumeName1,
-		Mounter:             mounter1,
-		OuterVolumeSpecName: volumeSpec1.Name(),
-		VolumeSpec:          volumeSpec1,
-		VolumeMountState:    operationexecutor.VolumeMountUncertain,
+		PodName:          podName1,
+		PodUID:           pod1.UID,
+		VolumeName:       generatedVolumeName1,
+		Mounter:          mounter1,
+		VolumeSpec:       volumeSpec1,
+		VolumeMountState: operationexecutor.VolumeMountUncertain,
 	}
 	err = asw.AddPodToVolume(markVolumeOpts1)
 	if err != nil {

@@ -115,19 +115,17 @@ type VolumeManager interface {
 	WaitForAllPodsUnmount(ctx context.Context, pods []*v1.Pod) error
 
 	// GetMountedVolumesForPod returns a VolumeMap containing the volumes
-	// referenced by the specified pod that are successfully attached and
+	// referenced by the specified pod that are desired and actually attached and
 	// mounted. The key in the map is the OuterVolumeSpecName (i.e.
 	// pod.Spec.Volumes[x].Name). It returns an empty VolumeMap if pod has no
 	// volumes.
 	GetMountedVolumesForPod(podName types.UniquePodName) container.VolumeMap
 
-	// GetPossiblyMountedVolumesForPod returns a VolumeMap containing the volumes
-	// referenced by the specified pod that are either successfully attached
+	// HasPossiblyMountedVolumesForPod returns whether the pod has
+	// any volumes that are either successfully attached
 	// and mounted or are "uncertain", i.e. a volume plugin may be mounting
-	// them right now. The key in the map is the OuterVolumeSpecName (i.e.
-	// pod.Spec.Volumes[x].Name). It returns an empty VolumeMap if pod has no
-	// volumes.
-	GetPossiblyMountedVolumesForPod(podName types.UniquePodName) container.VolumeMap
+	// them right now.
+	HasPossiblyMountedVolumesForPod(podName types.UniquePodName) bool
 
 	// GetExtraSupplementalGroupsForPod returns a list of the extra
 	// supplemental groups for the Pod. These extra supplemental groups come
@@ -305,8 +303,8 @@ func (vm *volumeManager) Run(ctx context.Context, sourcesReady config.SourcesRea
 
 func (vm *volumeManager) GetMountedVolumesForPod(podName types.UniquePodName) container.VolumeMap {
 	podVolumes := make(container.VolumeMap)
-	for _, mountedVolume := range vm.actualStateOfWorld.GetMountedVolumesForPod(podName) {
-		podVolumes[mountedVolume.OuterVolumeSpecName] = container.VolumeInfo{
+	for name, mountedVolume := range vm.getMountedVolumes(podName) {
+		podVolumes[name] = container.VolumeInfo{
 			Mounter:             mountedVolume.Mounter,
 			BlockVolumeMapper:   mountedVolume.BlockVolumeMapper,
 			ReadOnly:            mountedVolume.VolumeSpec.ReadOnly,
@@ -316,17 +314,8 @@ func (vm *volumeManager) GetMountedVolumesForPod(podName types.UniquePodName) co
 	return podVolumes
 }
 
-func (vm *volumeManager) GetPossiblyMountedVolumesForPod(podName types.UniquePodName) container.VolumeMap {
-	podVolumes := make(container.VolumeMap)
-	for _, mountedVolume := range vm.actualStateOfWorld.GetPossiblyMountedVolumesForPod(podName) {
-		podVolumes[mountedVolume.OuterVolumeSpecName] = container.VolumeInfo{
-			Mounter:             mountedVolume.Mounter,
-			BlockVolumeMapper:   mountedVolume.BlockVolumeMapper,
-			ReadOnly:            mountedVolume.VolumeSpec.ReadOnly,
-			InnerVolumeSpecName: mountedVolume.InnerVolumeSpecName,
-		}
-	}
-	return podVolumes
+func (vm *volumeManager) HasPossiblyMountedVolumesForPod(podName types.UniquePodName) bool {
+	return len(vm.actualStateOfWorld.GetPossiblyMountedVolumesForPod(podName)) > 0
 }
 
 func (vm *volumeManager) GetExtraSupplementalGroupsForPod(pod *v1.Pod) []int64 {
@@ -459,9 +448,9 @@ func (vm *volumeManager) WaitForUnmount(ctx context.Context, pod *v1.Pod) error 
 		vm.verifyVolumesUnmountedFunc(uniquePodName))
 
 	if err != nil {
-		var mountedVolumes []string
+		var mountedVolumes []v1.UniqueVolumeName
 		for _, v := range vm.actualStateOfWorld.GetMountedVolumesForPod(uniquePodName) {
-			mountedVolumes = append(mountedVolumes, v.OuterVolumeSpecName)
+			mountedVolumes = append(mountedVolumes, v.VolumeName)
 		}
 		if len(mountedVolumes) == 0 {
 			return nil
@@ -501,7 +490,7 @@ func (vm *volumeManager) getVolumesNotInDSW(uniquePodName types.UniquePodName, e
 
 	for _, volumeToMount := range vm.desiredStateOfWorld.GetVolumesToMount() {
 		if volumeToMount.PodName == uniquePodName {
-			volumesNotInDSW.Delete(volumeToMount.OuterVolumeSpecName)
+			volumesNotInDSW.Delete(volumeToMount.OuterVolumeSpecNames...)
 		}
 	}
 
@@ -516,7 +505,7 @@ func (vm *volumeManager) getUnattachedVolumes(uniquePodName types.UniquePodName)
 		if volumeToMount.PodName == uniquePodName &&
 			volumeToMount.PluginIsAttachable &&
 			!vm.actualStateOfWorld.VolumeExists(volumeToMount.VolumeName) {
-			unattachedVolumes = append(unattachedVolumes, volumeToMount.OuterVolumeSpecName)
+			unattachedVolumes = append(unattachedVolumes, volumeToMount.OuterVolumeSpecNames...)
 		}
 	}
 	slices.Sort(unattachedVolumes)
@@ -531,13 +520,7 @@ func (vm *volumeManager) verifyVolumesMountedFunc(podName types.UniquePodName, e
 		if errs := vm.desiredStateOfWorld.PopPodErrors(podName); len(errs) > 0 {
 			return true, errors.New(strings.Join(errs, "; "))
 		}
-		for _, expectedVolume := range expectedVolumes {
-			_, found := vm.actualStateOfWorld.GetMountedVolumeForPodByOuterVolumeSpecName(podName, expectedVolume)
-			if !found {
-				return false, nil
-			}
-		}
-		return true, nil
+		return len(vm.getUnmountedVolumes(podName, expectedVolumes)) == 0, nil
 	}
 }
 
@@ -552,25 +535,42 @@ func (vm *volumeManager) verifyVolumesUnmountedFunc(podName types.UniquePodName)
 	}
 }
 
-// getUnmountedVolumes fetches the current list of mounted volumes from
-// the actual state of the world, and uses it to process the list of
-// expectedVolumes. It returns a list of unmounted volumes.
-// The list also includes volume that may be mounted in uncertain state.
-func (vm *volumeManager) getUnmountedVolumes(podName types.UniquePodName, expectedVolumes []string) []string {
-	mountedVolumes := sets.New[string]()
-	for _, mountedVolume := range vm.actualStateOfWorld.GetMountedVolumesForPod(podName) {
-		mountedVolumes.Insert(mountedVolume.OuterVolumeSpecName)
+// getMountedVolumes returns volumes that are desired and actually mounted,
+// indexed by the outer volume spec name.
+func (vm *volumeManager) getMountedVolumes(podName types.UniquePodName) map[string]*cache.MountedVolume {
+	volumes := vm.actualStateOfWorld.GetMountedVolumesForPod(podName)
+	volumesByName := make(map[v1.UniqueVolumeName]*cache.MountedVolume, len(volumes))
+	for i, mountedVolume := range volumes {
+		volumesByName[mountedVolume.VolumeName] = &volumes[i]
 	}
-	return filterUnmountedVolumes(mountedVolumes, expectedVolumes)
+
+	volumeNames := vm.desiredStateOfWorld.GetVolumeNamesForPod(podName)
+	volumesByOuterName := make(map[string]*cache.MountedVolume, len(volumeNames))
+	for outerName, volumeName := range volumeNames {
+		mountedVolume, ok := volumesByName[volumeName]
+		if ok {
+			volumesByOuterName[outerName] = mountedVolume
+		}
+	}
+
+	return volumesByOuterName
 }
 
-// filterUnmountedVolumes adds each element of expectedVolumes that is not in
-// mountedVolumes to a list of unmountedVolumes and returns it.
-func filterUnmountedVolumes(mountedVolumes sets.Set[string], expectedVolumes []string) []string {
+// getUnmountedVolumes returns a list of unmounted volumes.
+// This includes the volumes in expectedVolumes, but not in one of DSW/ASW.
+// The list also includes volume that may be mounted in uncertain state.
+func (vm *volumeManager) getUnmountedVolumes(podName types.UniquePodName, expectedVolumes []string) []string {
 	unmountedVolumes := []string{}
-	for _, expectedVolume := range expectedVolumes {
-		if !mountedVolumes.Has(expectedVolume) {
-			unmountedVolumes = append(unmountedVolumes, expectedVolume)
+	volumeNames := vm.desiredStateOfWorld.GetVolumeNamesForPod(podName)
+	for _, outerName := range expectedVolumes {
+		volumeName, ok := volumeNames[outerName]
+		if !ok {
+			unmountedVolumes = append(unmountedVolumes, outerName)
+			continue
+		}
+		_, ok = vm.actualStateOfWorld.GetMountedVolumeForPod(podName, volumeName)
+		if !ok {
+			unmountedVolumes = append(unmountedVolumes, outerName)
 		}
 	}
 	slices.Sort(unmountedVolumes)

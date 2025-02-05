@@ -78,9 +78,9 @@ func (f *FakeVolumeManager) GetMountedVolumesForPod(podName types.UniquePodName)
 	return nil
 }
 
-// GetPossiblyMountedVolumesForPod is not implemented
-func (f *FakeVolumeManager) GetPossiblyMountedVolumesForPod(podName types.UniquePodName) container.VolumeMap {
-	return nil
+// HasPossiblyMountedVolumesForPod is not implemented
+func (f *FakeVolumeManager) HasPossiblyMountedVolumesForPod(podName types.UniquePodName) bool {
+	return false
 }
 
 // GetExtraSupplementalGroupsForPod is not implemented

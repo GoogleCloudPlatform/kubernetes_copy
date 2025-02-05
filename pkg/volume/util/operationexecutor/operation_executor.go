@@ -169,7 +169,6 @@ type MarkVolumeOpts struct {
 	VolumeName          v1.UniqueVolumeName
 	Mounter             volume.Mounter
 	BlockVolumeMapper   volume.BlockVolumeMapper
-	OuterVolumeSpecName string
 	VolumeGIDVolume     string
 	VolumeSpec          *volume.Spec
 	VolumeMountState    VolumeMountState
@@ -422,10 +421,8 @@ type VolumeToMount struct {
 	// InnerVolumeSpecName.
 	VolumeSpec *volume.Spec
 
-	// outerVolumeSpecName is the podSpec.Volume[x].Name of the volume. If the
-	// volume was referenced through a persistent volume claim, this contains
-	// the podSpec.Volume[x].Name of the persistent volume claim.
-	OuterVolumeSpecName string
+	// outerVolumeSpecNames are the podSpec.Volume[x].Name of the volume.
+	OuterVolumeSpecNames []string
 
 	// Pod to mount the volume to. Used to create NewMounter.
 	Pod *v1.Pod
@@ -679,44 +676,6 @@ type MountedVolume struct {
 	//     	   fsType: ext4
 	InnerVolumeSpecName string
 
-	// outerVolumeSpecName is the podSpec.Volume[x].Name of the volume. If the
-	// volume was referenced through a persistent volume claim, this contains
-	// the podSpec.Volume[x].Name of the persistent volume claim.
-	// PVC example:
-	//   kind: Pod
-	//   apiVersion: v1
-	//   metadata:
-	//     name: mypod
-	//   spec:
-	//     containers:
-	//       - name: myfrontend
-	//         image: dockerfile/nginx
-	//         volumeMounts:
-	//         - mountPath: "/var/www/html"
-	//           name: mypd
-	//     volumes:
-	//       - name: mypd				<- OuterVolumeSpecName
-	//         persistentVolumeClaim:
-	//           claimName: myclaim
-	// Non-PVC example:
-	//   apiVersion: v1
-	//   kind: Pod
-	//   metadata:
-	//     name: test-pd
-	//   spec:
-	//     containers:
-	//     - image: registry.k8s.io/test-webserver
-	//     	 name: test-container
-	//     	 volumeMounts:
-	//     	 - mountPath: /test-pd
-	//     	   name: test-volume
-	//     volumes:
-	//     - name: test-volume			<- OuterVolumeSpecName
-	//     	 gcePersistentDisk:
-	//     	   pdName: my-data-disk
-	//     	   fsType: ext4
-	OuterVolumeSpecName string
-
 	// PluginName is the "Unescaped Qualified" name of the volume plugin used to
 	// mount and unmount this volume. It can be used to fetch the volume plugin
 	// to unmount with, on demand. It is also the name that plugins use, though
@@ -758,13 +717,13 @@ type MountedVolume struct {
 // GenerateMsgDetailed returns detailed msgs for mounted volumes
 func (volume *MountedVolume) GenerateMsgDetailed(prefixMsg, suffixMsg string) (detailedMsg string) {
 	detailedStr := fmt.Sprintf("(UniqueName: %q) pod %q (UID: %q)", volume.VolumeName, volume.PodName, volume.PodUID)
-	return generateVolumeMsgDetailed(prefixMsg, suffixMsg, volume.OuterVolumeSpecName, detailedStr)
+	return generateVolumeMsgDetailed(prefixMsg, suffixMsg, string(volume.VolumeName), detailedStr)
 }
 
 // GenerateMsg returns simple and detailed msgs for mounted volumes
 func (volume *MountedVolume) GenerateMsg(prefixMsg, suffixMsg string) (simpleMsg, detailedMsg string) {
 	detailedStr := fmt.Sprintf("(UniqueName: %q) pod %q (UID: %q)", volume.VolumeName, volume.PodName, volume.PodUID)
-	return generateVolumeMsg(prefixMsg, suffixMsg, volume.OuterVolumeSpecName, detailedStr)
+	return generateVolumeMsg(prefixMsg, suffixMsg, string(volume.VolumeName), detailedStr)
 }
 
 // GenerateErrorDetailed returns simple and detailed errors for mounted volumes

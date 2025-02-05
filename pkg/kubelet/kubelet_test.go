@@ -3110,25 +3110,19 @@ func TestSyncLabels(t *testing.T) {
 func waitForVolumeUnmount(
 	volumeManager kubeletvolume.VolumeManager,
 	pod *v1.Pod) error {
-	var podVolumes kubecontainer.VolumeMap
 	err := retryWithExponentialBackOff(
 		time.Duration(50*time.Millisecond),
 		func() (bool, error) {
 			// Verify volumes detached
-			podVolumes = volumeManager.GetMountedVolumesForPod(
+			hasVolumes := volumeManager.HasPossiblyMountedVolumesForPod(
 				util.GetUniquePodName(pod))
-
-			if len(podVolumes) != 0 {
-				return false, nil
-			}
-
-			return true, nil
+			return !hasVolumes, nil
 		},
 	)
 
 	if err != nil {
 		return fmt.Errorf(
-			"Expected volumes to be unmounted. But some volumes are still mounted: %#v", podVolumes)
+			"Expected volumes to be unmounted. But some volumes are still mounted")
 	}
 
 	return nil

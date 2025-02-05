@@ -17,6 +17,8 @@ limitations under the License.
 package cache
 
 import (
+	"maps"
+	"slices"
 	"testing"
 
 	v1 "k8s.io/api/core/v1"
@@ -74,7 +76,7 @@ func Test_AddPodToVolume_Positive_NewPodNewVolume(t *testing.T) {
 
 	verifyVolumeExistsDsw(t, generatedVolumeName, "" /* SELinuxContext */, dsw)
 	verifyVolumeExistsInVolumesToMount(
-		t, generatedVolumeName, false /* expectReportedInUse */, dsw)
+		t, generatedVolumeName, []string{"volume-name"}, false /* expectReportedInUse */, dsw)
 	verifyPodExistsInVolumeDsw(t, podName, generatedVolumeName, "" /* SELinuxContext */, dsw)
 	verifyVolumeExistsWithSpecNameInVolumeDsw(t, podName, volumeSpec.Name(), dsw)
 }
@@ -127,14 +129,14 @@ func Test_AddPodToVolume_Positive_ExistingPodExistingVolume(t *testing.T) {
 	}
 	verifyVolumeExistsDsw(t, generatedVolumeName, "" /* SELinuxContext */, dsw)
 	verifyVolumeExistsInVolumesToMount(
-		t, generatedVolumeName, false /* expectReportedInUse */, dsw)
+		t, generatedVolumeName, []string{"volume-name"}, false /* expectReportedInUse */, dsw)
 	verifyPodExistsInVolumeDsw(t, podName, generatedVolumeName, "" /* SELinuxContext */, dsw)
 	verifyVolumeExistsWithSpecNameInVolumeDsw(t, podName, volumeSpec.Name(), dsw)
 }
 
 // Call AddPodToVolume() on different pods for different kinds of volumes
-// Verities generated names are same for different pods if volume is device mountable or attachable
-// Verities generated names are different for different pods if volume is not device mountble and attachable
+// Verifies generated names are same for different pods if volume is device mountable or attachable
+// Verifies generated names are different for different pods if volume is not device mountble and attachable
 func Test_AddPodToVolume_Positive_NamesForDifferentPodsAndDifferentVolumes(t *testing.T) {
 	// Arrange
 	fakeVolumeHost := volumetesting.NewFakeVolumeHost(t,
@@ -295,6 +297,58 @@ func Test_AddPodToVolume_Positive_NamesForDifferentPodsAndDifferentVolumes(t *te
 
 }
 
+func Test_AddPodToVolume_Positive_MultiOuterNames(t *testing.T) {
+	// Arrange
+	volumePluginMgr, _ := volumetesting.GetTestKubeletVolumePluginMgr(t)
+	seLinuxTranslator := util.NewFakeSELinuxLabelTranslator()
+	dsw := NewDesiredStateOfWorld(volumePluginMgr, seLinuxTranslator)
+	pod := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "pod5",
+			UID:  "pod5uid",
+		},
+		Spec: v1.PodSpec{
+			Volumes: []v1.Volume{
+				{
+					Name: "volume-name-1",
+					VolumeSource: v1.VolumeSource{
+						GCEPersistentDisk: &v1.GCEPersistentDiskVolumeSource{
+							PDName: "fake-device1",
+						},
+					},
+				}, {
+					Name: "volume-name-2",
+					VolumeSource: v1.VolumeSource{
+						GCEPersistentDisk: &v1.GCEPersistentDiskVolumeSource{
+							PDName: "fake-device1",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	volumeSpec1 := &volume.Spec{Volume: &pod.Spec.Volumes[0]}
+	volumeSpec2 := &volume.Spec{Volume: &pod.Spec.Volumes[1]}
+	podName := util.GetUniquePodName(pod)
+
+	// Act
+	_, err := dsw.AddPodToVolume(
+		podName, pod, volumeSpec1, volumeSpec1.Name(), "" /* volumeGIDValue */, nil /* seLinuxContainerContexts */)
+	if err != nil {
+		t.Fatalf("AddPodToVolume failed. Expected: <no error> Actual: <%v>", err)
+	}
+	generatedVolumeName, err := dsw.AddPodToVolume(
+		podName, pod, volumeSpec2, volumeSpec2.Name(), "" /* volumeGIDValue */, nil /* seLinuxContainerContexts */)
+	if err != nil {
+		t.Fatalf("AddPodToVolume failed. Expected: <no error> Actual: <%v>", err)
+	}
+
+	// Assert
+	verifyVolumeExistsInVolumesToMount(
+		t, generatedVolumeName, []string{"volume-name-1", "volume-name-2"}, false /* expectReportedInUse */, dsw)
+}
+
 // Populates data struct with a new volume/pod
 // Calls DeletePodFromVolume() to removes the pod
 // Verifies newly added pod/volume are deleted
@@ -331,7 +385,7 @@ func Test_DeletePodFromVolume_Positive_PodExistsVolumeExists(t *testing.T) {
 	}
 	verifyVolumeExistsDsw(t, generatedVolumeName, "" /* SELinuxContext */, dsw)
 	verifyVolumeExistsInVolumesToMount(
-		t, generatedVolumeName, false /* expectReportedInUse */, dsw)
+		t, generatedVolumeName, []string{"volume-name"}, false /* expectReportedInUse */, dsw)
 	verifyPodExistsInVolumeDsw(t, podName, generatedVolumeName, "" /* SELinuxContext */, dsw)
 
 	// Act
@@ -448,15 +502,15 @@ func Test_MarkVolumesReportedInUse_Positive_NewPodNewVolume(t *testing.T) {
 	// Assert
 	verifyVolumeExistsDsw(t, generatedVolume1Name, "" /* SELinuxContext */, dsw)
 	verifyVolumeExistsInVolumesToMount(
-		t, generatedVolume1Name, false /* expectReportedInUse */, dsw)
+		t, generatedVolume1Name, []string{"volume1-name"}, false /* expectReportedInUse */, dsw)
 	verifyPodExistsInVolumeDsw(t, pod1Name, generatedVolume1Name, "" /* SELinuxContext */, dsw)
 	verifyVolumeExistsDsw(t, generatedVolume2Name, "" /* SELinuxContext */, dsw)
 	verifyVolumeExistsInVolumesToMount(
-		t, generatedVolume2Name, true /* expectReportedInUse */, dsw)
+		t, generatedVolume2Name, []string{"volume2-name"}, true /* expectReportedInUse */, dsw)
 	verifyPodExistsInVolumeDsw(t, pod2Name, generatedVolume2Name, "" /* SELinuxContext */, dsw)
 	verifyVolumeExistsDsw(t, generatedVolume3Name, "" /* SELinuxContext */, dsw)
 	verifyVolumeExistsInVolumesToMount(
-		t, generatedVolume3Name, false /* expectReportedInUse */, dsw)
+		t, generatedVolume3Name, []string{"volume3-name"}, false /* expectReportedInUse */, dsw)
 	verifyPodExistsInVolumeDsw(t, pod3Name, generatedVolume3Name, "" /* SELinuxContext */, dsw)
 
 	// Act
@@ -466,15 +520,15 @@ func Test_MarkVolumesReportedInUse_Positive_NewPodNewVolume(t *testing.T) {
 	// Assert
 	verifyVolumeExistsDsw(t, generatedVolume1Name, "" /* SELinuxContext */, dsw)
 	verifyVolumeExistsInVolumesToMount(
-		t, generatedVolume1Name, false /* expectReportedInUse */, dsw)
+		t, generatedVolume1Name, []string{"volume1-name"}, false /* expectReportedInUse */, dsw)
 	verifyPodExistsInVolumeDsw(t, pod1Name, generatedVolume1Name, "" /* SELinuxContext */, dsw)
 	verifyVolumeExistsDsw(t, generatedVolume2Name, "" /* SELinuxContext */, dsw)
 	verifyVolumeExistsInVolumesToMount(
-		t, generatedVolume2Name, false /* expectReportedInUse */, dsw)
+		t, generatedVolume2Name, []string{"volume2-name"}, false /* expectReportedInUse */, dsw)
 	verifyPodExistsInVolumeDsw(t, pod2Name, generatedVolume2Name, "" /* SELinuxContext */, dsw)
 	verifyVolumeExistsDsw(t, generatedVolume3Name, "" /* SELinuxContext */, dsw)
 	verifyVolumeExistsInVolumesToMount(
-		t, generatedVolume3Name, true /* expectReportedInUse */, dsw)
+		t, generatedVolume3Name, []string{"volume3-name"}, true /* expectReportedInUse */, dsw)
 	verifyPodExistsInVolumeDsw(t, pod3Name, generatedVolume3Name, "" /* SELinuxContext */, dsw)
 }
 
@@ -872,7 +926,7 @@ func Test_AddPodToVolume_SELinuxSinglePod(t *testing.T) {
 
 			// Act
 			generatedVolumeName, err := dsw.AddPodToVolume(
-				podName, pod, volumeSpec, volumeSpec.Name(), "" /* volumeGIDValue */, seLinuxContainerContexts)
+				podName, pod, volumeSpec, pod.Spec.Volumes[0].Name, "" /* volumeGIDValue */, seLinuxContainerContexts)
 
 			// Assert
 			if tc.expectError {
@@ -887,7 +941,7 @@ func Test_AddPodToVolume_SELinuxSinglePod(t *testing.T) {
 
 			verifyVolumeExistsDsw(t, generatedVolumeName, tc.expectedSELinuxLabel, dsw)
 			verifyVolumeExistsInVolumesToMount(
-				t, generatedVolumeName, false /* expectReportedInUse */, dsw)
+				t, generatedVolumeName, []string{"volume-name"}, false /* expectReportedInUse */, dsw)
 			verifyPodExistsInVolumeDsw(t, podName, generatedVolumeName, tc.expectedSELinuxLabel, dsw)
 			verifyVolumeExistsWithSpecNameInVolumeDsw(t, podName, volumeSpec.Name(), dsw)
 		})
@@ -1221,7 +1275,7 @@ func Test_AddPodToVolume_SELinux_MultiplePods(t *testing.T) {
 
 			// Act
 			generatedVolumeName, err := dsw.AddPodToVolume(
-				podName, pod, volumeSpec, volumeSpec.Name(), "" /* volumeGIDValue */, seLinuxContainerContexts)
+				podName, pod, volumeSpec, pod.Spec.Volumes[0].Name, "" /* volumeGIDValue */, seLinuxContainerContexts)
 
 			// Assert
 			if err != nil {
@@ -1230,7 +1284,7 @@ func Test_AddPodToVolume_SELinux_MultiplePods(t *testing.T) {
 
 			verifyVolumeExistsDsw(t, generatedVolumeName, tc.expectedSELinuxLabel, dsw)
 			verifyVolumeExistsInVolumesToMount(
-				t, generatedVolumeName, false /* expectReportedInUse */, dsw)
+				t, generatedVolumeName, []string{"volume-name"}, false /* expectReportedInUse */, dsw)
 			verifyPodExistsInVolumeDsw(t, podName, generatedVolumeName, tc.expectedSELinuxLabel, dsw)
 			verifyVolumeExistsWithSpecNameInVolumeDsw(t, podName, volumeSpec.Name(), dsw)
 
@@ -1245,7 +1299,7 @@ func Test_AddPodToVolume_SELinux_MultiplePods(t *testing.T) {
 
 			// Act
 			generatedVolumeName2, err := dsw.AddPodToVolume(
-				pod2Name, pod2, volumeSpec, volumeSpec.Name(), "" /* volumeGIDValue */, seLinuxContainerContexts)
+				pod2Name, pod2, volumeSpec, pod2.Spec.Volumes[0].Name, "" /* volumeGIDValue */, seLinuxContainerContexts)
 			// Assert
 			if tc.expectError {
 				if err == nil {
@@ -1264,6 +1318,101 @@ func Test_AddPodToVolume_SELinux_MultiplePods(t *testing.T) {
 			verifyPodExistsInVolumeDsw(t, pod2Name, generatedVolumeName, tc.expectedSELinuxLabel, dsw)
 		})
 	}
+}
+
+func TestGetVolumeNamesForPod(t *testing.T) {
+	volumePluginMgr, _ := volumetesting.GetTestKubeletVolumePluginMgr(t)
+	seLinuxTranslator := util.NewFakeSELinuxLabelTranslator()
+	dsw := NewDesiredStateOfWorld(volumePluginMgr, seLinuxTranslator)
+
+	pod1 := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "pod1",
+			UID:  "pod1-uid",
+		},
+		Spec: v1.PodSpec{
+			Volumes: []v1.Volume{
+				{
+					Name: "volume1-name",
+					VolumeSource: v1.VolumeSource{
+						GCEPersistentDisk: &v1.GCEPersistentDiskVolumeSource{
+							PDName: "fake-device1",
+						},
+					},
+				},
+				{
+					Name: "volume1-dup",
+					VolumeSource: v1.VolumeSource{
+						GCEPersistentDisk: &v1.GCEPersistentDiskVolumeSource{
+							PDName: "fake-device1",
+						},
+					},
+				},
+				{
+					Name: "volume3-name",
+					VolumeSource: v1.VolumeSource{
+						GCEPersistentDisk: &v1.GCEPersistentDiskVolumeSource{
+							PDName: "fake-device3",
+						},
+					},
+				},
+			},
+		},
+	}
+	pod2 := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "pod2",
+			UID:  "pod2-uid",
+		},
+		Spec: v1.PodSpec{
+			Volumes: []v1.Volume{
+				{
+					Name: "volume2-name",
+					VolumeSource: v1.VolumeSource{
+						GCEPersistentDisk: &v1.GCEPersistentDiskVolumeSource{
+							PDName: "fake-device2",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	addVolume := func(pod *v1.Pod, index int) {
+		volumeSpec := &volume.Spec{
+			Volume: &pod.Spec.Volumes[index],
+		}
+		podName := util.GetUniquePodName(pod)
+		_, err := dsw.AddPodToVolume(
+			podName, pod, volumeSpec, volumeSpec.Name(), "" /* volumeGIDValue */, nil /* seLinuxContainerContexts */)
+		if err != nil {
+			t.Fatalf("AddPodToVolume failed. Expected: <no error> Actual: <%v>", err)
+		}
+	}
+
+	addVolume(pod1, 0)
+	addVolume(pod1, 1)
+	addVolume(pod1, 2)
+	addVolume(pod2, 0)
+
+	verifyVolumeNames := func(pod *v1.Pod, expectedVolumeNames map[string]v1.UniqueVolumeName) {
+		t.Run(pod.Name, func(t *testing.T) {
+			podName := util.GetUniquePodName(pod)
+			actualVolumeNames := dsw.GetVolumeNamesForPod(podName)
+			if !maps.Equal(expectedVolumeNames, actualVolumeNames) {
+				t.Errorf("GetVolumeNamesForPod returned incorrect value. Expected: <%v> Actual: <%v>",
+					expectedVolumeNames, actualVolumeNames)
+			}
+		})
+	}
+	verifyVolumeNames(pod1, map[string]v1.UniqueVolumeName{
+		"volume1-name": "fake-plugin/fake-device1",
+		"volume1-dup":  "fake-plugin/fake-device1",
+		"volume3-name": "fake-plugin/fake-device3",
+	})
+	verifyVolumeNames(pod2, map[string]v1.UniqueVolumeName{
+		"volume2-name": "fake-plugin/fake-device2",
+	})
 }
 
 func verifyVolumeExistsDsw(
@@ -1291,6 +1440,7 @@ func verifyVolumeDoesntExist(
 func verifyVolumeExistsInVolumesToMount(
 	t *testing.T,
 	expectedVolumeName v1.UniqueVolumeName,
+	expectedOuterNames []string,
 	expectReportedInUse bool,
 	dsw DesiredStateOfWorld) {
 	volumesToMount := dsw.GetVolumesToMount()
@@ -1302,6 +1452,12 @@ func verifyVolumeExistsInVolumesToMount(
 					expectedVolumeName,
 					expectReportedInUse,
 					volume.ReportedInUse)
+			}
+
+			names := volume.OuterVolumeSpecNames
+			slices.Sort(names)
+			if !slices.Equal(names, expectedOuterNames) {
+				t.Fatalf("Expected outer volume spec names to be %v, got %v", expectedOuterNames, names)
 			}
 
 			return

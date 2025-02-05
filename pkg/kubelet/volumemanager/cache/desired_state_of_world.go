@@ -22,6 +22,7 @@ package cache
 
 import (
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
@@ -98,6 +99,9 @@ type DesiredStateOfWorld interface {
 	// If a volume with the name volumeName does not exist in the list of
 	// attached volumes, false is returned.
 	PodExistsInVolume(podName types.UniquePodName, volumeName v1.UniqueVolumeName, seLinuxMountContext string) bool
+
+	// GetVolumeName returns the UniqueVolumeName for the given pod, indexed by outerVolumeSpecName.
+	GetVolumeNamesForPod(podName types.UniquePodName) map[string]v1.UniqueVolumeName
 
 	// GetVolumesToMount generates and returns a list of volumes that should be
 	// attached to this node and the pods they should be mounted to based on the
@@ -242,11 +246,8 @@ type podToMount struct {
 	// PVC volumes it is from the dereferenced PV object.
 	volumeSpec *volume.Spec
 
-	// outerVolumeSpecName is the volume.Spec.Name() of the volume as referenced
-	// directly in the pod. If the volume was referenced through a persistent
-	// volume claim, this contains the volume.Spec.Name() of the persistent
-	// volume claim
-	outerVolumeSpecName string
+	// outerVolumeSpecNames are the podSpec.Volume[x].Name of the volume.
+	outerVolumeSpecNames []string
 	// mountRequestTime stores time at which mount was requested
 	mountRequestTime time.Time
 }
@@ -355,8 +356,15 @@ func (dsw *desiredStateOfWorld) AddPodToVolume(
 
 	oldPodMount, ok := dsw.volumesToMount[volumeName].podsToMount[podName]
 	mountRequestTime := time.Now()
-	if ok && !volumePlugin.RequiresRemount(volumeSpec) {
-		mountRequestTime = oldPodMount.mountRequestTime
+	var outerVolumeSpecNames []string
+	if ok {
+		if !volumePlugin.RequiresRemount(volumeSpec) {
+			mountRequestTime = oldPodMount.mountRequestTime
+		}
+		outerVolumeSpecNames = oldPodMount.outerVolumeSpecNames
+	}
+	if !slices.Contains(outerVolumeSpecNames, outerVolumeSpecName) {
+		outerVolumeSpecNames = append(outerVolumeSpecNames, outerVolumeSpecName)
 	}
 
 	if !ok {
@@ -383,11 +391,11 @@ func (dsw *desiredStateOfWorld) AddPodToVolume(
 	// updated values (this is required for volumes that require remounting on
 	// pod update, like Downward API volumes).
 	dsw.volumesToMount[volumeName].podsToMount[podName] = podToMount{
-		podName:             podName,
-		pod:                 pod,
-		volumeSpec:          volumeSpec,
-		outerVolumeSpecName: outerVolumeSpecName,
-		mountRequestTime:    mountRequestTime,
+		podName:              podName,
+		pod:                  pod,
+		volumeSpec:           volumeSpec,
+		outerVolumeSpecNames: outerVolumeSpecNames,
+		mountRequestTime:     mountRequestTime,
 	}
 	return volumeName, nil
 }
@@ -558,6 +566,19 @@ func (dsw *desiredStateOfWorld) GetPods() map[types.UniquePodName]bool {
 	return podList
 }
 
+func (dsw *desiredStateOfWorld) GetVolumeNamesForPod(podName types.UniquePodName) map[string]v1.UniqueVolumeName {
+	dsw.RLock()
+	defer dsw.RUnlock()
+
+	volumeNames := make(map[string]v1.UniqueVolumeName)
+	for volumeName, volumeObj := range dsw.volumesToMount {
+		for _, outerVolumeSpecName := range volumeObj.podsToMount[podName].outerVolumeSpecNames {
+			volumeNames[outerVolumeSpecName] = volumeName
+		}
+	}
+	return volumeNames
+}
+
 func (dsw *desiredStateOfWorld) GetVolumesToMount() []VolumeToMount {
 	dsw.RLock()
 	defer dsw.RUnlock()
@@ -573,7 +594,7 @@ func (dsw *desiredStateOfWorld) GetVolumesToMount() []VolumeToMount {
 					VolumeSpec:              podObj.volumeSpec,
 					PluginIsAttachable:      volumeObj.pluginIsAttachable,
 					PluginIsDeviceMountable: volumeObj.pluginIsDeviceMountable,
-					OuterVolumeSpecName:     podObj.outerVolumeSpecName,
+					OuterVolumeSpecNames:    podObj.outerVolumeSpecNames,
 					VolumeGIDValue:          volumeObj.volumeGIDValue,
 					ReportedInUse:           volumeObj.reportedInUse,
 					MountRequestTime:        podObj.mountRequestTime,

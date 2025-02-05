@@ -83,14 +83,13 @@ func TestMetricCollection(t *testing.T) {
 	}
 
 	markVolumeOpts := operationexecutor.MarkVolumeOpts{
-		PodName:             podName,
-		PodUID:              pod.UID,
-		VolumeName:          generatedVolumeName,
-		Mounter:             mounter,
-		BlockVolumeMapper:   mapper,
-		OuterVolumeSpecName: volumeSpec.Name(),
-		VolumeSpec:          volumeSpec,
-		VolumeMountState:    operationexecutor.VolumeMounted,
+		PodName:           podName,
+		PodUID:            pod.UID,
+		VolumeName:        generatedVolumeName,
+		Mounter:           mounter,
+		BlockVolumeMapper: mapper,
+		VolumeSpec:        volumeSpec,
+		VolumeMountState:  operationexecutor.VolumeMounted,
 	}
 	err = asw.AddPodToVolume(markVolumeOpts)
 	if err != nil {

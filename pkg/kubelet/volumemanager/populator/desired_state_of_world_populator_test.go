@@ -402,13 +402,12 @@ func TestFindAndRemoveDeletedPodsWithUncertain(t *testing.T) {
 
 	// Mark the volume as uncertain
 	opts := operationexecutor.MarkVolumeOpts{
-		PodName:             util.GetUniquePodName(pod),
-		PodUID:              pod.UID,
-		VolumeName:          expectedVolumeName,
-		OuterVolumeSpecName: "dswp-test-volume-name",
-		VolumeGIDVolume:     "",
-		VolumeSpec:          volume.NewSpecFromPersistentVolume(pv, false),
-		VolumeMountState:    operationexecutor.VolumeMountUncertain,
+		PodName:          util.GetUniquePodName(pod),
+		PodUID:           pod.UID,
+		VolumeName:       expectedVolumeName,
+		VolumeGIDVolume:  "",
+		VolumeSpec:       volume.NewSpecFromPersistentVolume(pv, false),
+		VolumeMountState: operationexecutor.VolumeMountUncertain,
 	}
 	err := dswp.actualStateOfWorld.MarkVolumeMountAsUncertain(opts)
 	if err != nil {
@@ -1388,13 +1387,12 @@ func reconcileASW(asw cache.ActualStateOfWorld, dsw cache.DesiredStateOfWorld, t
 			t.Fatalf("Unexpected error when MarkVolumeAsAttached: %v", err)
 		}
 		markVolumeOpts := operationexecutor.MarkVolumeOpts{
-			PodName:             volumeToMount.PodName,
-			PodUID:              volumeToMount.Pod.UID,
-			VolumeName:          volumeToMount.VolumeName,
-			OuterVolumeSpecName: volumeToMount.OuterVolumeSpecName,
-			VolumeGIDVolume:     volumeToMount.VolumeGIDValue,
-			VolumeSpec:          volumeToMount.VolumeSpec,
-			VolumeMountState:    operationexecutor.VolumeMounted,
+			PodName:          volumeToMount.PodName,
+			PodUID:           volumeToMount.Pod.UID,
+			VolumeName:       volumeToMount.VolumeName,
+			VolumeGIDVolume:  volumeToMount.VolumeGIDValue,
+			VolumeSpec:       volumeToMount.VolumeSpec,
+			VolumeMountState: operationexecutor.VolumeMounted,
 		}
 		err = asw.MarkVolumeAsMounted(markVolumeOpts)
 		if err != nil {
