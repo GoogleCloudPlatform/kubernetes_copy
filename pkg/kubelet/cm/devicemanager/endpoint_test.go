@@ -78,8 +78,7 @@ func TestNewEndpoint(t *testing.T) {
 		{ID: "ADeviceId", Health: pluginapi.Healthy},
 	}
 
-	p, e := esetup(t, devs, socket, "mock", func(n string, d []pluginapi.Device) {})
-	defer ecleanup(t, p, e)
+	esetup(t, devs, socket, "mock", func(n string, d []pluginapi.Device) {})
 }
 
 func TestRun(t *testing.T) {
@@ -133,7 +132,6 @@ func TestRun(t *testing.T) {
 	}
 
 	p, e := esetup(t, devs, socket, "mock", callback)
-	defer ecleanup(t, p, e)
 
 	go e.client.Run()
 	// Wait for the first callback to be issued.
@@ -158,7 +156,6 @@ func TestAllocate(t *testing.T) {
 		callbackCount++
 		callbackChan <- callbackCount
 	})
-	defer ecleanup(t, p, e)
 
 	resp := new(pluginapi.AllocateResponse)
 	contResp := new(pluginapi.ContainerAllocateResponse)
@@ -208,7 +205,6 @@ func TestGetPreferredAllocation(t *testing.T) {
 		callbackCount++
 		callbackChan <- callbackCount
 	})
-	defer ecleanup(t, p, e)
 
 	resp := &pluginapi.PreferredAllocationResponse{
 		ContainerResponses: []*pluginapi.ContainerPreferredAllocationResponse{
@@ -257,6 +253,10 @@ func esetup(t *testing.T, devs []*pluginapi.Device, socket, resourceName string,
 	p := plugin.NewDevicePluginStub(devs, socket, resourceName, false, false)
 	err := p.Start()
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		err := p.Stop()
+		require.NoError(t, err)
+	})
 
 	c := plugin.NewPluginClient(resourceName, socket, m)
 	err = c.Connect()
@@ -266,15 +266,14 @@ func esetup(t *testing.T, devs []*pluginapi.Device, socket, resourceName string,
 
 	e := newEndpointImpl(dp)
 	e.client = c
+	t.Cleanup(func() {
+		err := e.client.Disconnect()
+		require.NoError(t, err)
+	})
 
 	m.pluginDisconnected = func(r string) {
 		e.setStopTime(time.Now())
 	}
 
 	return p, e
-}
-
-func ecleanup(t *testing.T, p *plugin.Stub, e *endpointImpl) {
-	p.Stop()
-	e.client.Disconnect()
 }
