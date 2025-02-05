@@ -84,6 +84,12 @@ func (m *linuxMemoryThresholdNotifier) UpdateThreshold(summary *statsapi.Summary
 	// since we want to be notified when working_set = capacity - eviction_hard
 	inactiveFile := resource.NewQuantity(int64(*memoryStats.UsageBytes-*memoryStats.WorkingSetBytes), resource.BinarySI)
 	capacity := resource.NewQuantity(int64(*memoryStats.AvailableBytes+*memoryStats.WorkingSetBytes), resource.BinarySI)
+	// usage_in_bytes is invalid if capacity is less than memory.usage_in_bytes. It indicts an OS bug.
+	// See https://github.com/kubernetes/kubernetes/issues/114332 for more details.
+	if capacity.Cmp(*resource.NewQuantity(int64(*memoryStats.UsageBytes), resource.BinarySI)) < 0 {
+		return fmt.Errorf("capacity %s must be greater than usage in bytes %d", capacity, memoryStats.UsageBytes)
+	}
+
 	evictionThresholdQuantity := evictionapi.GetThresholdQuantity(m.threshold.Value, capacity)
 	memcgThreshold := capacity.DeepCopy()
 	memcgThreshold.Sub(*evictionThresholdQuantity)
