@@ -25,7 +25,7 @@ import (
 	"k8s.io/apimachinery/pkg/conversion"
 	"k8s.io/kubernetes/pkg/apis/autoscaling"
 	api "k8s.io/kubernetes/pkg/apis/core"
-	utilpointer "k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 )
 
 // Test for #101370
@@ -46,7 +46,7 @@ func TestConvert_autoscaling_HorizontalPodAutoscalerSpec_To_v1_HorizontalPodAuto
 			"TestConversionWithCPUAverageValueAndUtilizationBoth1",
 			args{
 				in: &autoscaling.HorizontalPodAutoscalerSpec{
-					MinReplicas: utilpointer.Int32(1),
+					MinReplicas: ptr.To(int32(1)),
 					MaxReplicas: 3,
 					Metrics: []autoscaling.MetricSpec{
 						{
@@ -65,7 +65,7 @@ func TestConvert_autoscaling_HorizontalPodAutoscalerSpec_To_v1_HorizontalPodAuto
 								Name: api.ResourceCPU,
 								Target: autoscaling.MetricTarget{
 									Type:               autoscaling.UtilizationMetricType,
-									AverageUtilization: utilpointer.Int32(70),
+									AverageUtilization: ptr.To(int32(70)),
 								},
 							},
 						},
@@ -73,9 +73,9 @@ func TestConvert_autoscaling_HorizontalPodAutoscalerSpec_To_v1_HorizontalPodAuto
 				},
 				out: &autoscalingv1.HorizontalPodAutoscalerSpec{},
 				expectOut: &autoscalingv1.HorizontalPodAutoscalerSpec{
-					MinReplicas:                    utilpointer.Int32(1),
+					MinReplicas:                    ptr.To(int32(1)),
 					MaxReplicas:                    3,
-					TargetCPUUtilizationPercentage: utilpointer.Int32(70),
+					TargetCPUUtilizationPercentage: ptr.To(int32(70)),
 				},
 				s: nil,
 			},
@@ -85,7 +85,7 @@ func TestConvert_autoscaling_HorizontalPodAutoscalerSpec_To_v1_HorizontalPodAuto
 			"TestConversionWithCPUAverageValueAndUtilizationBoth2",
 			args{
 				in: &autoscaling.HorizontalPodAutoscalerSpec{
-					MinReplicas: utilpointer.Int32(1),
+					MinReplicas: ptr.To(int32(1)),
 					MaxReplicas: 3,
 					Metrics: []autoscaling.MetricSpec{
 						{
@@ -104,21 +104,21 @@ func TestConvert_autoscaling_HorizontalPodAutoscalerSpec_To_v1_HorizontalPodAuto
 								Name: api.ResourceCPU,
 								Target: autoscaling.MetricTarget{
 									Type:               autoscaling.UtilizationMetricType,
-									AverageUtilization: utilpointer.Int32(70),
+									AverageUtilization: ptr.To(int32(70)),
 								},
 							},
 						},
 					},
 				},
 				out: &autoscalingv1.HorizontalPodAutoscalerSpec{
-					MinReplicas:                    utilpointer.Int32(2),
+					MinReplicas:                    ptr.To(int32(2)),
 					MaxReplicas:                    4,
-					TargetCPUUtilizationPercentage: utilpointer.Int32(60),
+					TargetCPUUtilizationPercentage: ptr.To(int32(60)),
 				},
 				expectOut: &autoscalingv1.HorizontalPodAutoscalerSpec{
-					MinReplicas:                    utilpointer.Int32(1),
+					MinReplicas:                    ptr.To(int32(1)),
 					MaxReplicas:                    3,
-					TargetCPUUtilizationPercentage: utilpointer.Int32(70),
+					TargetCPUUtilizationPercentage: ptr.To(int32(70)),
 				},
 				s: nil,
 			},
@@ -128,19 +128,19 @@ func TestConvert_autoscaling_HorizontalPodAutoscalerSpec_To_v1_HorizontalPodAuto
 			"TestConversionWithoutMetrics",
 			args{
 				in: &autoscaling.HorizontalPodAutoscalerSpec{
-					MinReplicas: utilpointer.Int32(1),
+					MinReplicas: ptr.To(int32(1)),
 					MaxReplicas: 3,
 					Metrics:     []autoscaling.MetricSpec{},
 				},
 				out: &autoscalingv1.HorizontalPodAutoscalerSpec{
-					MinReplicas:                    utilpointer.Int32(1),
+					MinReplicas:                    ptr.To(int32(1)),
 					MaxReplicas:                    4,
-					TargetCPUUtilizationPercentage: utilpointer.Int32(60),
+					TargetCPUUtilizationPercentage: ptr.To(int32(60)),
 				},
 				expectOut: &autoscalingv1.HorizontalPodAutoscalerSpec{
-					MinReplicas:                    utilpointer.Int32(1),
+					MinReplicas:                    ptr.To(int32(1)),
 					MaxReplicas:                    3,
-					TargetCPUUtilizationPercentage: utilpointer.Int32(60),
+					TargetCPUUtilizationPercentage: ptr.To(int32(60)),
 				},
 				s: nil,
 			},
@@ -150,7 +150,7 @@ func TestConvert_autoscaling_HorizontalPodAutoscalerSpec_To_v1_HorizontalPodAuto
 			"TestConversionWithCPUUtilizationOnly",
 			args{
 				in: &autoscaling.HorizontalPodAutoscalerSpec{
-					MinReplicas: utilpointer.Int32(1),
+					MinReplicas: ptr.To(int32(1)),
 					MaxReplicas: 3,
 					Metrics: []autoscaling.MetricSpec{
 						{
@@ -159,7 +159,7 @@ func TestConvert_autoscaling_HorizontalPodAutoscalerSpec_To_v1_HorizontalPodAuto
 								Name: api.ResourceCPU,
 								Target: autoscaling.MetricTarget{
 									Type:               autoscaling.UtilizationMetricType,
-									AverageUtilization: utilpointer.Int32(60),
+									AverageUtilization: ptr.To(int32(60)),
 								},
 							},
 						},
@@ -167,9 +167,9 @@ func TestConvert_autoscaling_HorizontalPodAutoscalerSpec_To_v1_HorizontalPodAuto
 				},
 				out: &autoscalingv1.HorizontalPodAutoscalerSpec{},
 				expectOut: &autoscalingv1.HorizontalPodAutoscalerSpec{
-					MinReplicas:                    utilpointer.Int32(1),
+					MinReplicas:                    ptr.To(int32(1)),
 					MaxReplicas:                    3,
-					TargetCPUUtilizationPercentage: utilpointer.Int32(60),
+					TargetCPUUtilizationPercentage: ptr.To(int32(60)),
 				},
 				s: nil,
 			},

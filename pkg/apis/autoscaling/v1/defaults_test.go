@@ -29,7 +29,7 @@ import (
 	_ "k8s.io/kubernetes/pkg/apis/autoscaling/install"
 	. "k8s.io/kubernetes/pkg/apis/autoscaling/v1"
 	_ "k8s.io/kubernetes/pkg/apis/core/install"
-	utilpointer "k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 )
 
 func TestSetDefaultHPA(t *testing.T) {
@@ -46,7 +46,7 @@ func TestSetDefaultHPA(t *testing.T) {
 		{
 			hpa: autoscalingv1.HorizontalPodAutoscaler{
 				Spec: autoscalingv1.HorizontalPodAutoscalerSpec{
-					MinReplicas: utilpointer.Int32(3),
+					MinReplicas: ptr.To(int32(3)),
 				},
 			},
 			expectReplicas: 3,

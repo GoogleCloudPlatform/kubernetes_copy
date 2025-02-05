@@ -19,7 +19,7 @@ package v1
 import (
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 )
 
 func addDefaultingFuncs(scheme *runtime.Scheme) error {
@@ -28,7 +28,7 @@ func addDefaultingFuncs(scheme *runtime.Scheme) error {
 
 func SetDefaults_HorizontalPodAutoscaler(obj *autoscalingv1.HorizontalPodAutoscaler) {
 	if obj.Spec.MinReplicas == nil {
-		obj.Spec.MinReplicas = pointer.Int32(1)
+		obj.Spec.MinReplicas = ptr.To(int32(1))
 	}
 
 	// NB: we apply a default for CPU utilization in conversion because

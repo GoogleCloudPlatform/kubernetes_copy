@@ -24,7 +24,7 @@ import (
 	runtimeserializer "k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/kubernetes/pkg/apis/autoscaling"
 	api "k8s.io/kubernetes/pkg/apis/core"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 )
 
 // Funcs returns the fuzzer functions for the autoscaling api group.
@@ -41,7 +41,7 @@ var Funcs = func(codecs runtimeserializer.CodecFactory) []interface{} {
 		},
 		func(s *autoscaling.HorizontalPodAutoscalerSpec, c fuzz.Continue) {
 			c.FuzzNoCustom(s) // fuzz self without calling this function again
-			s.MinReplicas = pointer.Int32(c.Rand.Int31())
+			s.MinReplicas = ptr.To(c.Rand.Int31())
 
 			randomQuantity := func() resource.Quantity {
 				var q resource.Quantity
