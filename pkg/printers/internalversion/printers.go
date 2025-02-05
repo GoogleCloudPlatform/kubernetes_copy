@@ -429,6 +429,7 @@ func AddHandlers(h printers.PrintHandler) {
 		{Name: "Name", Type: "string", Format: "name", Description: metav1.ObjectMeta{}.SwaggerDoc()["name"]},
 		{Name: "Holder", Type: "string", Description: coordinationv1.LeaseSpec{}.SwaggerDoc()["holderIdentity"]},
 		{Name: "Age", Type: "string", Description: metav1.ObjectMeta{}.SwaggerDoc()["creationTimestamp"]},
+		{Name: "RenewTime", Type: "string", Description: coordinationv1.LeaseSpec{}.SwaggerDoc()["renewTime"]},
 	}
 	_ = h.TableHandler(leaseColumnDefinitions, printLease)
 	_ = h.TableHandler(leaseColumnDefinitions, printLeaseList)
@@ -2634,6 +2635,11 @@ func printLease(obj *coordination.Lease, options printers.GenerateOptions) ([]me
 		holderIdentity = *obj.Spec.HolderIdentity
 	}
 	row.Cells = append(row.Cells, obj.Name, holderIdentity, translateTimestampSince(obj.CreationTimestamp))
+	if options.Wide {
+		if obj.Spec.RenewTime != nil {
+			row.Cells = append(row.Cells, obj.Spec.RenewTime.Time.Format(time.DateTime))
+		}
+	}
 	return []metav1.TableRow{row}, nil
 }
 

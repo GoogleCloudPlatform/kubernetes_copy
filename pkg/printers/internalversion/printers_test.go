@@ -5714,7 +5714,10 @@ func TestPrintVolumeAttributesClass(t *testing.T) {
 func TestPrintLease(t *testing.T) {
 	holder1 := "holder1"
 	holder2 := "holder2"
+	fixedTimeStrAndLayout := "2006-01-02 15:04:05"
+	fixedTime, _ := time.Parse(fixedTimeStrAndLayout, fixedTimeStrAndLayout)
 	tests := []struct {
+		options  printers.GenerateOptions
 		lease    coordination.Lease
 		expected []metav1.TableRow
 	}{
@@ -5742,10 +5745,24 @@ func TestPrintLease(t *testing.T) {
 			},
 			expected: []metav1.TableRow{{Cells: []interface{}{"lease2", "holder2", "5m"}}},
 		},
+		{
+			options: printers.GenerateOptions{Wide: true},
+			lease: coordination.Lease{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:              "lease3",
+					CreationTimestamp: metav1.Time{Time: time.Now().Add(-3e11)},
+				},
+				Spec: coordination.LeaseSpec{
+					HolderIdentity: &holder2,
+					RenewTime:      &metav1.MicroTime{Time: fixedTime},
+				},
+			},
+			expected: []metav1.TableRow{{Cells: []interface{}{"lease3", "holder2", "5m", "2006-01-02 15:04:05"}}},
+		},
 	}
 
 	for i, test := range tests {
-		rows, err := printLease(&test.lease, printers.GenerateOptions{})
+		rows, err := printLease(&test.lease, test.options)
 		if err != nil {
 			t.Fatal(err)
 		}
