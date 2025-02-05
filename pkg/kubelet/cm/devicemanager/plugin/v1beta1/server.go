@@ -1,5 +1,5 @@
 /*
-Copyright 2022 The Kubernetes Authors.
+Copyright 2024 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"github.com/opencontainers/selinux/go-selinux"
 	"google.golang.org/grpc"
@@ -59,10 +60,30 @@ type server struct {
 
 	// isStarted indicates whether the service has started successfully.
 	isStarted bool
+	ctx        context.Context
+	cancel     context.CancelFunc
+	listenFunc func(network, address string) (net.Listener, error)
+	serveFunc  func(s *grpc.Server, lis net.Listener) error
 }
 
+type notifyListener struct {
+	net.Listener
+	readyCh chan struct{}
+	once    sync.Once
+}
+
+func (nl *notifyListener) Accept() (net.Conn, error) {
+	// Signal that the server is ready upon the first Accept call
+	nl.once.Do(func() {
+		close(nl.readyCh)
+	})
+	return nl.Listener.Accept()
+}
+
+type ServerOption func(*server)
+
 // NewServer returns an initialized device plugin registration server.
-func NewServer(socketPath string, rh RegistrationHandler, ch ClientHandler) (Server, error) {
+func NewServer(socketPath string, rh RegistrationHandler, ch ClientHandler, opts ...ServerOption) (Server, error) {
 	if socketPath == "" || !filepath.IsAbs(socketPath) {
 		return nil, fmt.Errorf(errBadSocket+" %s", socketPath)
 	}
@@ -76,9 +97,28 @@ func NewServer(socketPath string, rh RegistrationHandler, ch ClientHandler) (Ser
 		rhandler:   rh,
 		chandler:   ch,
 		clients:    make(map[string]Client),
+		listenFunc: net.Listen,
+		serveFunc:  func(srv *grpc.Server, lis net.Listener) error { return srv.Serve(lis) },
+	}
+
+	// Apply all the options passed
+	for _, opt := range opts {
+		opt(s)
 	}
 
 	return s, nil
+}
+
+func WithListenFunc(listenFunc func(network, address string) (net.Listener, error)) ServerOption {
+	return func(s *server) {
+		s.listenFunc = listenFunc
+	}
+}
+
+func WithServeFunc(serveFunc func(s *grpc.Server, lis net.Listener) error) ServerOption {
+	return func(s *server) {
+		s.serveFunc = serveFunc
+	}
 }
 
 func (s *server) Start() error {
@@ -103,29 +143,94 @@ func (s *server) Start() error {
 		return err
 	}
 
-	ln, err := net.Listen("unix", s.SocketPath())
-	if err != nil {
-		klog.ErrorS(err, "Failed to listen to socket while starting device plugin registry")
-		return err
-	}
-
 	s.wg.Add(1)
-	s.grpc = grpc.NewServer([]grpc.ServerOption{}...)
+	s.ctx, s.cancel = context.WithCancel(context.Background())
 
-	api.RegisterRegistrationServer(s.grpc, s)
-	go func() {
+	// Create a channel to receive the start error
+	startErrCh := make(chan error, 1)
+
+	go func(ctx context.Context) {
 		defer s.wg.Done()
 		s.setHealthy()
-		if err = s.grpc.Serve(ln); err != nil {
-			s.setUnhealthy()
-			klog.ErrorS(err, "Error while serving device plugin registration grpc server")
-		}
-	}()
+		err := s.createAndServe()
+		startErrCh <- err
+	}(s.ctx)
 
+	err := <-startErrCh
+	return err
+}
+
+func (s *server) createAndServe() error {
+	var retries int
+	for {
+		klog.Infof("Attempt %d to create and serve gRPC server", retries+1)
+
+		if err := s.cleanupSocket(); err != nil {
+			klog.ErrorS(err, "Failed to remove existing socket, retrying...")
+			time.Sleep(100 * time.Millisecond)
+			continue
+		}
+
+		ln, err := s.listenFunc("unix", s.SocketPath())
+		if err != nil {
+			s.setUnhealthy()
+			klog.ErrorS(err, "Failed to listen on socket, retrying...")
+			time.Sleep(100 * time.Millisecond)
+			continue
+		}
+
+		s.grpc = grpc.NewServer()
+		api.RegisterRegistrationServer(s.grpc, s)
+
+		serveErrCh := make(chan error, 1)
+		readyCh := make(chan struct{})
+
+		nl := &notifyListener{Listener: ln, readyCh: readyCh}
+
+		// Start the gRPC server in a new goroutine
+		go func() {
+			err := s.serveFunc(s.grpc, nl)
+			serveErrCh <- err
+		}()
+
+		// Wait for the server to be ready, encounter an error, or timeout
+		select {
+		case <-readyCh:
+			// Server is ready
+			klog.InfoS("Server is ready to accept connections")
+			return nil
+		case err := <-serveErrCh:
+			// Serve exited with an error before becoming ready
+			klog.ErrorS(err, "Error serving device plugin gRPC server, retrying...")
+			s.grpc.Stop()
+			nl.Close()
+			time.Sleep(100 * time.Millisecond)
+			continue
+		case <-time.After(5 * time.Second):
+			// Timeout waiting for server to be ready
+			klog.ErrorS(fmt.Errorf("timeout"), "Server did not become ready, retrying...")
+			s.grpc.Stop()
+			nl.Close()
+			continue
+		}
+	}
+}
+
+func (s *server) cleanupSocket() error {
+	if _, err := os.Stat(s.SocketPath()); err == nil {
+		if err := os.Remove(s.SocketPath()); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
 func (s *server) Stop() error {
+	// Cancel the context to stop the goroutine
+	if s.cancel != nil {
+		s.cancel()
+	}
+
 	s.visitClients(func(r string, c Client) {
 		if err := s.disconnectClient(r, c); err != nil {
 			klog.InfoS("Error disconnecting device plugin client", "resourceName", r, "err", err)
