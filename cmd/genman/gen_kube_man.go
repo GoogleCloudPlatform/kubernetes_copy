@@ -18,6 +18,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -38,6 +39,7 @@ import (
 )
 
 func main() {
+	ctx := context.Background()
 	// use os.Args instead of "flags" because "flags" will mess up the man pages!
 	path := "docs/man/man1"
 	module := ""
@@ -90,7 +92,7 @@ func main() {
 		}
 	case "kubelet":
 		// generate manpage for kubelet
-		kubelet := kubeletapp.NewKubeletCommand()
+		kubelet := kubeletapp.NewKubeletCommand(ctx)
 		genMarkdown(kubelet, "", outDir)
 		for _, c := range kubelet.Commands() {
 			genMarkdown(c, "kubelet", outDir)

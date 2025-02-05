@@ -18,6 +18,8 @@ package app
 
 // This file exists to force the desired plugin implementations to be linked.
 import (
+	"context"
+
 	"k8s.io/component-base/featuregate"
 	"k8s.io/utils/exec"
 
@@ -41,7 +43,7 @@ import (
 )
 
 // ProbeVolumePlugins collects all volume plugins into an easy to use list.
-func ProbeVolumePlugins(featureGate featuregate.FeatureGate) ([]volume.VolumePlugin, error) {
+func ProbeVolumePlugins(ctx context.Context, featureGate featuregate.FeatureGate) ([]volume.VolumePlugin, error) {
 	allPlugins := []volume.VolumePlugin{}
 
 	// The list of plugins to probe is decided by the kubelet binary, not
@@ -51,7 +53,7 @@ func ProbeVolumePlugins(featureGate featuregate.FeatureGate) ([]volume.VolumePlu
 	// Kubelet does not currently need to configure volume plugins.
 	// If/when it does, see kube-controller-manager/app/plugins.go for example of using volume.VolumeConfig
 	var err error
-	allPlugins, err = appendLegacyProviderVolumes(allPlugins, featureGate)
+	allPlugins, err = appendLegacyProviderVolumes(ctx, allPlugins, featureGate)
 	if err != nil {
 		return allPlugins, err
 	}

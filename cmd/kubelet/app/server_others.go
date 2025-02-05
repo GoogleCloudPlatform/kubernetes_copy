@@ -20,11 +20,12 @@ limitations under the License.
 package app
 
 import (
+	"context"
 	"fmt"
 	"os"
 )
 
-func checkPermissions() error {
+func checkPermissions(ctx context.Context) error {
 	if uid := os.Getuid(); uid != 0 {
 		return fmt.Errorf("kubelet needs to run as uid `0`. It is being run as %d", uid)
 	}

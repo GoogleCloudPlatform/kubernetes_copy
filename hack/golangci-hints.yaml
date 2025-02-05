@@ -137,7 +137,6 @@ linters-settings: # please keep this alphabetized
           -structured .*
           
           # Now enable it again for migrated packages.
-          structured k8s.io/kubernetes/cmd/kubelet/.*
           structured k8s.io/kubernetes/pkg/kubelet/.*
           structured k8s.io/kubernetes/pkg/proxy/.*
           structured k8s.io/kms/.*
@@ -169,6 +168,7 @@ linters-settings: # please keep this alphabetized
           contextual k8s.io/sample-controller/.*
           contextual k8s.io/kubernetes/cmd/kube-proxy/.*
           contextual k8s.io/kubernetes/cmd/kube-scheduler/.*
+          contextual k8s.io/kubernetes/cmd/kubelet/.*
           contextual k8s.io/kubernetes/pkg/controller/.*
           contextual k8s.io/kubernetes/pkg/scheduler/.*
           contextual k8s.io/kubernetes/test/e2e/dra/.*

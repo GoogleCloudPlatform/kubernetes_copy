@@ -22,6 +22,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"os"
 
 	"k8s.io/component-base/cli"
@@ -32,7 +33,8 @@ import (
 )
 
 func main() {
-	command := app.NewKubeletCommand()
+	ctx := context.Background()
+	command := app.NewKubeletCommand(ctx)
 	code := cli.Run(command)
 	os.Exit(code)
 }

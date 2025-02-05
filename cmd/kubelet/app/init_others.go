@@ -19,6 +19,8 @@ limitations under the License.
 
 package app
 
-func initForOS(service bool, priorityClass string) error {
+import "context"
+
+func initForOS(ctx context.Context, service bool, priorityClass string) error {
 	return nil
 }
