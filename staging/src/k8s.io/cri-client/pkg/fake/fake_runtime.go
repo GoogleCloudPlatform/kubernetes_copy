@@ -35,6 +35,8 @@ type RemoteRuntime struct {
 	RuntimeService *apitest.FakeRuntimeService
 	// Fake image service.
 	ImageService *apitest.FakeImageService
+	kubeapi.UnimplementedImageServiceServer
+	kubeapi.UnimplementedRuntimeServiceServer
 }
 
 // NewFakeRemoteRuntime creates a new RemoteRuntime.

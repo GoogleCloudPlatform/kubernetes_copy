@@ -105,7 +105,7 @@ func (m *kubeGenericRuntimeManager) GetImageSize(ctx context.Context, image kube
 	if resp.Image == nil {
 		return 0, nil
 	}
-	return resp.Image.Size_, nil
+	return resp.Image.GetSize(), nil
 }
 
 // ListImages gets all images currently on the machine.
@@ -132,7 +132,7 @@ func (m *kubeGenericRuntimeManager) ListImages(ctx context.Context) ([]kubeconta
 
 		images = append(images, kubecontainer.Image{
 			ID:          img.Id,
-			Size:        int64(img.Size_),
+			Size:        int64(img.GetSize()),
 			RepoTags:    img.RepoTags,
 			RepoDigests: img.RepoDigests,
 			Spec:        toKubeContainerImageSpec(img),
@@ -166,7 +166,7 @@ func (m *kubeGenericRuntimeManager) ImageStats(ctx context.Context) (*kubecontai
 	}
 	stats := &kubecontainer.ImageStats{}
 	for _, img := range allImages {
-		stats.TotalStorageBytes += img.Size_
+		stats.TotalStorageBytes += img.GetSize()
 	}
 	return stats, nil
 }

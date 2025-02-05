@@ -160,7 +160,7 @@ func (p *criStatsProvider) listPodStatsPartiallyFromCRI(ctx context.Context, upd
 	// fsIDtoInfo is a map from filesystem id to its stats. This will be used
 	// as a cache to avoid querying cAdvisor for the filesystem stats with the
 	// same filesystem id many times.
-	fsIDtoInfo := make(map[runtimeapi.FilesystemIdentifier]*cadvisorapiv2.FsInfo)
+	fsIDtoInfo := make(map[*runtimeapi.FilesystemIdentifier]*cadvisorapiv2.FsInfo)
 
 	// sandboxIDToPodStats is a temporary map from sandbox ID to its pod stats.
 	sandboxIDToPodStats := make(map[string]*statsapi.PodStats)
@@ -241,7 +241,7 @@ func (p *criStatsProvider) listPodStatsStrictlyFromCRI(ctx context.Context, upda
 		return nil, err
 	}
 
-	fsIDtoInfo := make(map[runtimeapi.FilesystemIdentifier]*cadvisorapiv2.FsInfo)
+	fsIDtoInfo := make(map[*runtimeapi.FilesystemIdentifier]*cadvisorapiv2.FsInfo)
 	summarySandboxStats := make([]statsapi.PodStats, 0, len(podSandboxMap))
 	for _, criSandboxStat := range criSandboxStats {
 		if criSandboxStat == nil || criSandboxStat.Attributes == nil {
@@ -596,7 +596,7 @@ func (p *criStatsProvider) makeContainerStats(
 	stats *runtimeapi.ContainerStats,
 	container *runtimeapi.Container,
 	rootFsInfo *cadvisorapiv2.FsInfo,
-	fsIDtoInfo map[runtimeapi.FilesystemIdentifier]*cadvisorapiv2.FsInfo,
+	fsIDtoInfo map[*runtimeapi.FilesystemIdentifier]*cadvisorapiv2.FsInfo,
 	meta *runtimeapi.PodSandboxMetadata,
 	updateCPUNanoCoreUsage bool,
 ) (*statsapi.ContainerStats, error) {
@@ -663,13 +663,13 @@ func (p *criStatsProvider) makeContainerStats(
 	fsID := stats.GetWritableLayer().GetFsId()
 	var err error
 	if fsID != nil {
-		imageFsInfo, found := fsIDtoInfo[*fsID]
+		imageFsInfo, found := fsIDtoInfo[fsID]
 		if !found {
 			imageFsInfo, err = p.getFsInfo(fsID)
 			if err != nil {
 				return nil, fmt.Errorf("get filesystem info: %w", err)
 			}
-			fsIDtoInfo[*fsID] = imageFsInfo
+			fsIDtoInfo[fsID] = imageFsInfo
 		}
 		if imageFsInfo != nil {
 			// The image filesystem id is unknown to the local node or there's

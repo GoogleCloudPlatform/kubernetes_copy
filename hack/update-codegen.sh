@@ -771,9 +771,7 @@ function codegen::subprojects() {
 function codegen::protobindings() {
     # Each element of this array is a directory containing subdirectories which
     # eventually contain a file named "api.proto".
-    local apis=(
-        "staging/src/k8s.io/cri-api/pkg/apis/runtime"
-
+    local apis_using_gogo=(
         "staging/src/k8s.io/kubelet/pkg/apis/podresources"
 
         "staging/src/k8s.io/kubelet/pkg/apis/deviceplugin"
@@ -788,6 +786,10 @@ function codegen::protobindings() {
 
         "staging/src/k8s.io/externaljwt/apis"
     )
+    local apis_using_protoc=(
+        "staging/src/k8s.io/cri-api/pkg/apis/runtime"
+    )
+    local apis=("${apis_using_gogo[@]}" "${apis_using_protoc[@]}")
 
     kube::log::status "Generating protobuf bindings for ${#apis[@]} targets"
     if [[ "${DBG_CODEGEN}" == 1 ]]; then
@@ -798,18 +800,20 @@ function codegen::protobindings() {
     fi
 
     for api in "${apis[@]}"; do
-        git_find -z ":(glob)${api}"/'**/api.pb.go' \
+        git_find -z ":(glob)${api}"/'**/api*.pb.go' \
             | xargs -0 rm -f
     done
 
     if kube::protoc::check_protoc >/dev/null; then
-      hack/_update-generated-proto-bindings-dockerized.sh "${apis[@]}"
+      hack/_update-generated-proto-bindings-gogo-dockerized.sh "${apis_using_gogo[@]}"
+      hack/_update-generated-proto-bindings-dockerized.sh "${apis_using_protoc[@]}"
     else
       kube::log::status "protoc ${PROTOC_VERSION} not found (can install with hack/install-protoc.sh); generating containerized..."
       # NOTE: All output from this script needs to be copied back to the calling
       # source tree.  This is managed in kube::build::copy_output in build/common.sh.
       # If the output set is changed update that function.
-      build/run.sh hack/_update-generated-proto-bindings-dockerized.sh "${apis[@]}"
+      build/run.sh hack/_update-generated-proto-bindings-gogo-dockerized.sh "${apis_using_gogo[@]}"
+      build/run.sh hack/_update-generated-proto-bindings-dockerized.sh "${apis_using_protoc[@]}"
     fi
 }
 

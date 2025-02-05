@@ -152,7 +152,6 @@
         "k8s.io/apiserver",
         "k8s.io/client-go",
         "k8s.io/code-generator",
-        "k8s.io/cri-api",
         "k8s.io/externaljwt",
         "k8s.io/kms",
         "k8s.io/kube-aggregator",

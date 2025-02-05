@@ -40,4 +40,8 @@ import (
 	// for publishing bot
 	_ "golang.org/x/mod/modfile"
 	_ "k8s.io/publishing-bot/cmd/publishing-bot/config"
+
+	// protobuf generation
+	_ "google.golang.org/grpc/cmd/protoc-gen-go-grpc"
+	_ "google.golang.org/protobuf/cmd/protoc-gen-go"
 )
