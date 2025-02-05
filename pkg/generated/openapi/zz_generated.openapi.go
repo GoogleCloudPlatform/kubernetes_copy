@@ -25618,7 +25618,12 @@ func schema_k8sio_api_core_v1_NodeSpec(ref common.ReferenceCallback) common.Open
 					"taints": {
 						VendorExtensible: spec.VendorExtensible{
 							Extensions: spec.Extensions{
-								"x-kubernetes-list-type": "atomic",
+								"x-kubernetes-list-map-keys": []interface{}{
+									"key",
+									"effect",
+								},
+								"x-kubernetes-list-type": "map",
+								"x-kubernetes-map-type":  "granular",
 							},
 						},
 						SchemaProps: spec.SchemaProps{

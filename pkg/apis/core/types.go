@@ -5055,6 +5055,10 @@ type NodeSpec struct {
 
 	// If specified, the node's taints.
 	// +optional
+	// +listType=map
+	// +listMapKey=key
+	// +listMapKey=effect
+	// +mapType=granular
 	Taints []Taint
 
 	// Deprecated: Previously used to specify the source of the node's configuration for the DynamicKubeletConfig feature. This feature is removed.

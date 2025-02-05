@@ -8489,7 +8489,12 @@
             "$ref": "#/definitions/io.k8s.api.core.v1.Taint"
           },
           "type": "array",
-          "x-kubernetes-list-type": "atomic"
+          "x-kubernetes-list-map-keys": [
+            "key",
+            "effect"
+          ],
+          "x-kubernetes-list-type": "map",
+          "x-kubernetes-map-type": "granular"
         },
         "unschedulable": {
           "description": "Unschedulable controls node schedulability of new pods. By default, node is schedulable. More info: https://kubernetes.io/docs/concepts/nodes/node/#manual-node-administration",
