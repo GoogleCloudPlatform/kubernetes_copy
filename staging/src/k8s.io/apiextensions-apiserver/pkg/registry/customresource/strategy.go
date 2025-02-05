@@ -405,7 +405,9 @@ func (a customResourceStrategy) MatchCustomResourceDefinitionStorage(label label
 func hasBlockingErr(errs field.ErrorList) (bool, *field.Error) {
 	for _, err := range errs {
 		if err.Type == field.ErrorTypeNotSupported || err.Type == field.ErrorTypeRequired || err.Type == field.ErrorTypeTooLong || err.Type == field.ErrorTypeTooMany || err.Type == field.ErrorTypeTypeInvalid {
-			return true, field.Invalid(nil, nil, "some validation rules were not checked because the object was invalid; correct the existing errors to complete validation")
+			berr := *err
+			berr.Detail = "some validation rules were not checked because the object was invalid; correct the existing errors to complete validation"
+			return true, &berr
 		}
 	}
 	return false, nil

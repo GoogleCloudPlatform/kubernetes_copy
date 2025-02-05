@@ -516,8 +516,8 @@ func TestCustomResourceValidatorsWithBlockingErrors(t *testing.T) {
 			}}
 
 			_, err := crClient.Create(context.TODO(), cr, metav1.CreateOptions{})
-			if err == nil || !strings.Contains(err.Error(), "some validation rules were not checked because the object was invalid; correct the existing errors to complete validation") {
-				t.Fatalf("expect error to contain \"some validation rules were not checked because the object was invalid; correct the existing errors to complete validation\" but get: %v", err)
+			if err == nil || !strings.Contains(err.Error(), "spec.extra: Too long: some validation rules were not checked because the object was invalid; correct the existing errors to complete validation") {
+				t.Fatalf("expect error to contain \"spec.extra: Too long: some validation rules were not checked because the object was invalid; correct the existing errors to complete validation\" but get: %v", err)
 			}
 		})
 		t.Run("custom resource create and update MUST NOT allow data if there is blocking error of MaxItems", func(t *testing.T) {
@@ -550,8 +550,8 @@ func TestCustomResourceValidatorsWithBlockingErrors(t *testing.T) {
 			cr.Object["spec"].(map[string]interface{})["assocList"] = assocList
 
 			_, err = crClient.Create(context.TODO(), cr, metav1.CreateOptions{})
-			if err == nil || !strings.Contains(err.Error(), "some validation rules were not checked because the object was invalid; correct the existing errors to complete validation") {
-				t.Fatalf("expect error to contain \"some validation rules were not checked because the object was invalid; correct the existing errors to complete validation\" but get: %v", err)
+			if err == nil || !strings.Contains(err.Error(), "spec.assocList: Too many: 101: some validation rules were not checked because the object was invalid; correct the existing errors to complete validation") {
+				t.Fatalf("expect error to contain \"spec.assocList: Too many: 101: some validation rules were not checked because the object was invalid; correct the existing errors to complete validation\" but get: %v", err)
 			}
 		})
 		t.Run("custom resource create and update MUST NOT allow data if there is blocking error of MaxProperties", func(t *testing.T) {
@@ -582,8 +582,8 @@ func TestCustomResourceValidatorsWithBlockingErrors(t *testing.T) {
 			}
 
 			_, err = crClient.Create(context.TODO(), cr, metav1.CreateOptions{})
-			if err == nil || !strings.Contains(err.Error(), "some validation rules were not checked because the object was invalid; correct the existing errors to complete validation") {
-				t.Fatalf("expect error to contain \"some validation rules were not checked because the object was invalid; correct the existing errors to complete validation\" but get: %v", err)
+			if err == nil || !strings.Contains(err.Error(), "spec.floatMap: Too many: 101: some validation rules were not checked because the object was invalid; correct the existing errors to complete validation") {
+				t.Fatalf("expect error to contain \"spec.floatMap: Too many: 101: some validation rules were not checked because the object was invalid; correct the existing errors to complete validation\" but get: %v", err)
 			}
 		})
 		t.Run("custom resource create and update MUST NOT allow data if there is blocking error of missing required field", func(t *testing.T) {
@@ -612,8 +612,8 @@ func TestCustomResourceValidatorsWithBlockingErrors(t *testing.T) {
 			}}
 
 			_, err = crClient.Create(context.TODO(), cr, metav1.CreateOptions{})
-			if err == nil || !strings.Contains(err.Error(), "some validation rules were not checked because the object was invalid; correct the existing errors to complete validation") {
-				t.Fatalf("expect error to contain \"some validation rules were not checked because the object was invalid; correct the existing errors to complete validation\" but get: %v", err)
+			if err == nil || !strings.Contains(err.Error(), "spec.assocList[0].v: Required value: some validation rules were not checked because the object was invalid; correct the existing errors to complete validation") {
+				t.Fatalf("expect error to contain \"spec.assocList[0].v: Required value: some validation rules were not checked because the object was invalid; correct the existing errors to complete validation\" but get: %v", err)
 			}
 		})
 		t.Run("custom resource create and update MUST NOT allow data if there is blocking error of type", func(t *testing.T) {
@@ -643,8 +643,8 @@ func TestCustomResourceValidatorsWithBlockingErrors(t *testing.T) {
 			}}
 
 			_, err = crClient.Create(context.TODO(), cr, metav1.CreateOptions{})
-			if err == nil || !strings.Contains(err.Error(), "some validation rules were not checked because the object was invalid; correct the existing errors to complete validation") {
-				t.Fatalf("expect error to contain \"some validation rules were not checked because the object was invalid; correct the existing errors to complete validation\" but get: %v", err)
+			if err == nil || !strings.Contains(err.Error(), "Invalid value: \"boolean\": some validation rules were not checked because the object was invalid; correct the existing errors to complete validation") {
+				t.Fatalf("expect error to contain \"Invalid value: \"boolean\": some validation rules were not checked because the object was invalid; correct the existing errors to complete validation\" but get: %v", err)
 			}
 		})
 	})
