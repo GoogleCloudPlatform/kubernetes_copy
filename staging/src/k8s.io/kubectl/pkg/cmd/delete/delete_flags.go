@@ -49,6 +49,7 @@ type DeleteFlags struct {
 	Output            *string
 	Raw               *string
 	Interactive       *bool
+	Concurrent        *bool
 }
 
 func (f *DeleteFlags) ToOptions(dynamicClient dynamic.Interface, streams genericiooptions.IOStreams) (*DeleteOptions, error) {
@@ -110,6 +111,9 @@ func (f *DeleteFlags) ToOptions(dynamicClient dynamic.Interface, streams generic
 	if f.Interactive != nil {
 		options.Interactive = *f.Interactive
 	}
+	if f.Concurrent != nil {
+		options.Concurrent = *f.Concurrent
+	}
 
 	return options, nil
 }
@@ -163,6 +167,9 @@ func (f *DeleteFlags) AddFlags(cmd *cobra.Command) {
 	if f.Interactive != nil {
 		cmd.Flags().BoolVarP(f.Interactive, "interactive", "i", *f.Interactive, "If true, delete resource only when user confirms.")
 	}
+	if f.Concurrent != nil {
+		cmd.Flags().BoolVar(f.Concurrent, "concurrent", *f.Concurrent, "If true, delete resources in parallel.")
+	}
 }
 
 // NewDeleteCommandFlags provides default flags and values for use with the "delete" command
@@ -187,6 +194,7 @@ func NewDeleteCommandFlags(usage string) *DeleteFlags {
 	filenames := []string{}
 	recursive := false
 	kustomize := ""
+	concurrent := false
 
 	return &DeleteFlags{
 		// Not using helpers.go since it provides function to add '-k' for FileNameOptions, but not FileNameFlags
@@ -207,6 +215,7 @@ func NewDeleteCommandFlags(usage string) *DeleteFlags {
 		Output:         &output,
 		Raw:            &raw,
 		Interactive:    &interactive,
+		Concurrent:     &concurrent,
 	}
 }
 

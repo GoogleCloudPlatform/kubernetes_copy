@@ -65,6 +65,14 @@ func TestDeleteFlagValidation(t *testing.T) {
 			},
 			expectedErr: "--interactive can not be used with --raw",
 		},
+		{
+			flags: DeleteFlags{
+				All:         ptr.To(true),
+				Concurrent:  ptr.To(true),
+				Interactive: ptr.To(true),
+			},
+			expectedErr: "cannot set --concurrent and --interactive at the same time",
+		},
 	}
 
 	for _, test := range tests {

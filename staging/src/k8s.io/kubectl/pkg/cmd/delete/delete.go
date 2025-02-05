@@ -17,15 +17,17 @@ limitations under the License.
 package delete
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/spf13/cobra"
 	"k8s.io/klog/v2"
 
-	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -125,6 +127,7 @@ type DeleteOptions struct {
 	WarnClusterScope    bool
 	Raw                 string
 	Interactive         bool
+	Concurrent          bool
 
 	GracePeriod int
 	Timeout     time.Duration
@@ -281,6 +284,9 @@ func (o *DeleteOptions) Validate() error {
 	if o.WarningPrinter == nil {
 		return fmt.Errorf("WarningPrinter can not be used without initialization")
 	}
+	if o.Concurrent && o.Interactive {
+		return fmt.Errorf("cannot set --concurrent and --interactive at the same time")
+	}
 
 	switch {
 	case o.GracePeriod == 0 && o.ForceDeletion:
@@ -313,7 +319,6 @@ func (o *DeleteOptions) Validate() error {
 	if _, err := url.ParseRequestURI(o.Raw); err != nil {
 		return fmt.Errorf("--raw must be a valid URL path: %v", err)
 	}
-
 	return nil
 }
 
@@ -332,7 +337,7 @@ func (o *DeleteOptions) RunDelete(f cmdutil.Factory) error {
 	if o.Interactive {
 		previewInfos := []*resource.Info{}
 		if o.IgnoreNotFound {
-			o.PreviewResult = o.PreviewResult.IgnoreErrors(errors.IsNotFound)
+			o.PreviewResult = o.PreviewResult.IgnoreErrors(apierrors.IsNotFound)
 		}
 		err := o.PreviewResult.Visit(func(info *resource.Info, err error) error {
 			if err != nil {
@@ -367,70 +372,47 @@ func (o *DeleteOptions) RunDelete(f cmdutil.Factory) error {
 func (o *DeleteOptions) DeleteResult(r *resource.Result) error {
 	found := 0
 	if o.IgnoreNotFound {
-		r = r.IgnoreErrors(errors.IsNotFound)
+		r = r.IgnoreErrors(apierrors.IsNotFound)
+	}
+	if o.Concurrent {
+		o.WarningPrinter.Print("concurrent deletion of resources, not guaranteed to be in order")
 	}
 	warnClusterScope := o.WarnClusterScope
 	deletedInfos := []*resource.Info{}
 	uidMap := cmdwait.UIDMap{}
-	err := r.Visit(func(info *resource.Info, err error) error {
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	var errMutex sync.Mutex
+	var errorList []error
+	visitFunc := func(info *resource.Info, err error) error {
 		if err != nil {
 			return err
 		}
-
-		if o.Interactive {
-			if _, ok := o.previewResourceMap[cmdwait.ResourceLocation{
-				GroupResource: info.Mapping.Resource.GroupResource(),
-				Namespace:     info.Namespace,
-				Name:          info.Name,
-			}]; !ok {
-				// resource not in the list of previewed resources based on resourceLocation
-				return nil
+		if o.Concurrent {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				if err := o.processResource(info, &mu, &deletedInfos, &found, &warnClusterScope, uidMap); err != nil {
+					errMutex.Lock()
+					errorList = append(errorList, err)
+					errMutex.Unlock()
+				}
+			}()
+		} else {
+			if err := o.processResource(info, &mu, &deletedInfos, &found, &warnClusterScope, uidMap); err != nil {
+				return err
 			}
 		}
-
-		deletedInfos = append(deletedInfos, info)
-		found++
-
-		options := &metav1.DeleteOptions{}
-		if o.GracePeriod >= 0 {
-			options = metav1.NewDeleteOptions(int64(o.GracePeriod))
-		}
-		options.PropagationPolicy = &o.CascadingStrategy
-
-		if warnClusterScope && info.Mapping.Scope.Name() == meta.RESTScopeNameRoot {
-			o.WarningPrinter.Print("deleting cluster-scoped resources, not scoped to the provided namespace")
-			warnClusterScope = false
-		}
-
-		if o.DryRunStrategy == cmdutil.DryRunClient {
-			if !o.Quiet {
-				o.PrintObj(info)
-			}
-			return nil
-		}
-		response, err := o.deleteResource(info, options)
-		if err != nil {
-			return err
-		}
-		resourceLocation := cmdwait.ResourceLocation{
-			GroupResource: info.Mapping.Resource.GroupResource(),
-			Namespace:     info.Namespace,
-			Name:          info.Name,
-		}
-		if status, ok := response.(*metav1.Status); ok && status.Details != nil {
-			uidMap[resourceLocation] = status.Details.UID
-			return nil
-		}
-		responseMetadata, err := meta.Accessor(response)
-		if err != nil {
-			// we don't have UID, but we didn't fail the delete, next best thing is just skipping the UID
-			klog.V(1).Info(err)
-			return nil
-		}
-		uidMap[resourceLocation] = responseMetadata.GetUID()
-
 		return nil
-	})
+	}
+	err := r.Visit(visitFunc)
+	if o.Concurrent {
+		wg.Wait()
+		if len(errorList) > 0 {
+			mergedError := errors.Join(errorList...)
+			return mergedError
+		}
+	}
 	if err != nil {
 		return err
 	}
@@ -468,13 +450,68 @@ func (o *DeleteOptions) DeleteResult(r *resource.Result) error {
 		IOStreams:   o.IOStreams,
 	}
 	err = waitOptions.RunWait()
-	if errors.IsForbidden(err) || errors.IsMethodNotSupported(err) {
+	if apierrors.IsForbidden(err) || apierrors.IsMethodNotSupported(err) {
 		// if we're forbidden from waiting, we shouldn't fail.
 		// if the resource doesn't support a verb we need, we shouldn't fail.
 		klog.V(1).Info(err)
 		return nil
 	}
 	return err
+}
+
+func (o *DeleteOptions) processResource(info *resource.Info, mu *sync.Mutex, deletedInfos *[]*resource.Info, found *int, warnClusterScope *bool, uidMap cmdwait.UIDMap) error {
+	if o.Interactive {
+		if _, ok := o.previewResourceMap[cmdwait.ResourceLocation{
+			GroupResource: info.Mapping.Resource.GroupResource(),
+			Namespace:     info.Namespace,
+			Name:          info.Name,
+		}]; !ok {
+			// resource not in the list of previewed resources based on resourceLocation
+			return nil
+		}
+	}
+	mu.Lock()
+	*deletedInfos = append(*deletedInfos, info)
+	*found++
+	mu.Unlock()
+	options := &metav1.DeleteOptions{}
+	if o.GracePeriod >= 0 {
+		options = metav1.NewDeleteOptions(int64(o.GracePeriod))
+	}
+	options.PropagationPolicy = &o.CascadingStrategy
+
+	if *warnClusterScope && info.Mapping.Scope.Name() == meta.RESTScopeNameRoot {
+		o.WarningPrinter.Print("deleting cluster-scoped resources, not scoped to the provided namespace")
+		*warnClusterScope = false
+	}
+	if o.DryRunStrategy == cmdutil.DryRunClient {
+		if !o.Quiet {
+			o.PrintObj(info)
+		}
+		return nil
+	}
+	response, err := o.deleteResource(info, options)
+	if err != nil {
+		return err
+	}
+	resourceLocation := cmdwait.ResourceLocation{
+		GroupResource: info.Mapping.Resource.GroupResource(),
+		Namespace:     info.Namespace,
+		Name:          info.Name,
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if status, ok := response.(*metav1.Status); ok && status.Details != nil {
+		uidMap[resourceLocation] = status.Details.UID
+	} else {
+		responseMetadata, err := meta.Accessor(response)
+		if err != nil {
+			return err
+		} else {
+			uidMap[resourceLocation] = responseMetadata.GetUID()
+		}
+	}
+	return nil
 }
 
 func (o *DeleteOptions) deleteResource(info *resource.Info, deleteOptions *metav1.DeleteOptions) (runtime.Object, error) {
