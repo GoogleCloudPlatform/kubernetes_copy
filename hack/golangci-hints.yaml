@@ -164,6 +164,7 @@ linters-settings: # please keep this alphabetized
           contextual k8s.io/kube-controller-manager/.*
           contextual k8s.io/kube-proxy/.*
           contextual k8s.io/kube-scheduler/.*
+          contextual k8s.io/pod-security-admission/.*
           contextual k8s.io/sample-apiserver/.*
           contextual k8s.io/sample-cli-plugin/.*
           contextual k8s.io/sample-controller/.*

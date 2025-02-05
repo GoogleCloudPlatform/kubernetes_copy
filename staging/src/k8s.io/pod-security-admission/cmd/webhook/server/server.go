@@ -224,7 +224,7 @@ func (s *Server) HandleValidate(w http.ResponseWriter, r *http.Request) {
 	response := s.delegate.Validate(ctx, attributes)
 	response.UID = review.Request.UID // Response UID must match request UID
 	review.Response = response
-	writeResponse(w, review)
+	writeResponse(logger, w, review)
 }
 
 // Config holds the loaded options.Options used to set up the webhook server.
@@ -308,11 +308,11 @@ func Setup(c *Config) (*Server, error) {
 	return s, nil
 }
 
-func writeResponse(w http.ResponseWriter, review *admissionv1.AdmissionReview) {
+func writeResponse(logger klog.Logger, w http.ResponseWriter, review *admissionv1.AdmissionReview) {
 	// Webhooks should always respond with a 200 HTTP status code when an AdmissionResponse can be sent.
 	// In an error case, the true status code is captured in the response.result.code
 	if err := json.NewEncoder(w).Encode(review); err != nil {
-		klog.ErrorS(err, "Failed to encode response")
+		logger.Error(err, "Failed to encode response")
 		// Unable to send an AdmissionResponse, fall back to an HTTP error.
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
