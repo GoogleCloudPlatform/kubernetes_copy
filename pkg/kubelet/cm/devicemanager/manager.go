@@ -351,7 +351,7 @@ func (m *ManagerImpl) Start(activePods ActivePodsFunc, sourcesReady config.Sourc
 	// Loads in allocatedDevices information from disk.
 	err := m.readCheckpoint()
 	if err != nil {
-		klog.InfoS("Continue after failing to read checkpoint file. Device allocation info may NOT be up-to-date", "err", err)
+		klog.ErrorS(err, "Continue after failing to read checkpoint file. Device allocation info may NOT be up-to-date")
 	}
 
 	return m.server.Start()
@@ -453,7 +453,7 @@ func (m *ManagerImpl) GetCapacity() (v1.ResourceList, v1.ResourceList, []string)
 			// should always be consistent. Otherwise, we run with the risk
 			// of failing to garbage collect non-existing resources or devices.
 			if !ok {
-				klog.ErrorS(nil, "Unexpected: healthyDevices and endpoints are out of sync")
+				klog.InfoS("Unexpected: healthyDevices and endpoints are out of sync")
 			}
 			delete(m.endpoints, resourceName)
 			delete(m.healthyDevices, resourceName)
@@ -468,7 +468,7 @@ func (m *ManagerImpl) GetCapacity() (v1.ResourceList, v1.ResourceList, []string)
 		eI, ok := m.endpoints[resourceName]
 		if (ok && eI.e.stopGracePeriodExpired()) || !ok {
 			if !ok {
-				klog.ErrorS(nil, "Unexpected: unhealthyDevices and endpoints are out of sync")
+				klog.InfoS("Unexpected: unhealthyDevices and endpoints are out of sync")
 			}
 			delete(m.endpoints, resourceName)
 			delete(m.unhealthyDevices, resourceName)
@@ -503,9 +503,10 @@ func (m *ManagerImpl) writeCheckpoint() error {
 	err := m.checkpointManager.CreateCheckpoint(kubeletDeviceManagerCheckpoint, data)
 	if err != nil {
 		err2 := fmt.Errorf("failed to write checkpoint file %q: %v", kubeletDeviceManagerCheckpoint, err)
-		klog.InfoS("Failed to write checkpoint file", "err", err)
+		klog.ErrorS(err, "Failed to write checkpoint file")
 		return err2
 	}
+	klog.V(4).InfoS("checkpoint file written", "checkpoint", kubeletDeviceManagerCheckpoint)
 	return nil
 }
 
@@ -516,7 +517,7 @@ func (m *ManagerImpl) readCheckpoint() error {
 	if err != nil {
 		if err == errors.ErrCheckpointNotFound {
 			// no point in trying anything else
-			klog.InfoS("Failed to read data from checkpoint", "checkpoint", kubeletDeviceManagerCheckpoint, "err", err)
+			klog.ErrorS(err, "Failed to read data from checkpoint", "checkpoint", kubeletDeviceManagerCheckpoint)
 			return nil
 		}
 		return err
@@ -534,6 +535,8 @@ func (m *ManagerImpl) readCheckpoint() error {
 		m.unhealthyDevices[resource] = sets.New[string]()
 		m.endpoints[resource] = endpointInfo{e: newStoppedEndpointImpl(resource), opts: nil}
 	}
+
+	klog.V(4).InfoS("read data from checkpoint file", "checkpoint", kubeletDeviceManagerCheckpoint)
 	return nil
 }
 
@@ -836,7 +839,7 @@ func (m *ManagerImpl) allocateContainerResources(pod *v1.Pod, container *v1.Cont
 	for k, v := range container.Resources.Limits {
 		resource := string(k)
 		needed := int(v.Value())
-		klog.V(3).InfoS("Looking for needed resources", "needed", needed, "resourceName", resource)
+		klog.V(3).InfoS("Looking for needed resources", "resourceName", resource, "pod", klog.KObj(pod), "podUID", pod.UID, "containerName", container.Name, "needed", needed)
 		if !m.isDevicePluginResource(resource) {
 			continue
 		}
@@ -882,7 +885,7 @@ func (m *ManagerImpl) allocateContainerResources(pod *v1.Pod, container *v1.Cont
 		devs := allocDevices.UnsortedList()
 		// TODO: refactor this part of code to just append a ContainerAllocationRequest
 		// in a passed in AllocateRequest pointer, and issues a single Allocate call per pod.
-		klog.V(3).InfoS("Making allocation request for device plugin", "devices", devs, "resourceName", resource)
+		klog.V(4).InfoS("Making allocation request for device plugin", "devices", devs, "resourceName", resource, "pod", klog.KObj(pod), "podUID", pod.UID, "containerName", container.Name)
 		resp, err := eI.e.allocate(devs)
 		metrics.DevicePluginAllocationDuration.WithLabelValues(resource).Observe(metrics.SinceInSeconds(startRPCTime))
 		if err != nil {
@@ -952,7 +955,7 @@ func (m *ManagerImpl) GetDeviceRunContainerOptions(pod *v1.Pod, container *v1.Co
 		}
 
 		if !m.checkPodActive(pod) {
-			klog.ErrorS(nil, "pod deleted from activePods, skip to reAllocate", "podUID", podUID)
+			klog.V(5).InfoS("pod deleted from activePods, skip to reAllocate", "pod", klog.KObj(pod), "podUID", podUID, "containerName", container.Name)
 			continue
 		}
 
@@ -964,7 +967,7 @@ func (m *ManagerImpl) GetDeviceRunContainerOptions(pod *v1.Pod, container *v1.Co
 		}
 	}
 	if needsReAllocate {
-		klog.V(2).InfoS("Needs to re-allocate device plugin resources for pod", "pod", klog.KObj(pod), "containerName", container.Name)
+		klog.V(2).InfoS("Needs to re-allocate device plugin resources for pod", "pod", klog.KObj(pod), "podUID", podUID, "containerName", container.Name)
 		if err := m.Allocate(pod, container); err != nil {
 			return nil, err
 		}
@@ -984,7 +987,7 @@ func (m *ManagerImpl) callPreStartContainerIfNeeded(podUID, contName, resource s
 
 	if eI.opts == nil || !eI.opts.PreStartRequired {
 		m.mutex.Unlock()
-		klog.V(4).InfoS("Plugin options indicate to skip PreStartContainer for resource", "resourceName", resource)
+		klog.V(5).InfoS("Plugin options indicate to skip PreStartContainer for resource", "podUID", podUID, "resourceName", resource, "containerName", contName)
 		return nil
 	}
 
@@ -1014,12 +1017,12 @@ func (m *ManagerImpl) callGetPreferredAllocationIfAvailable(podUID, contName, re
 	}
 
 	if eI.opts == nil || !eI.opts.GetPreferredAllocationAvailable {
-		klog.V(4).InfoS("Plugin options indicate to skip GetPreferredAllocation for resource", "resourceName", resource)
+		klog.V(5).InfoS("Plugin options indicate to skip GetPreferredAllocation for resource", "resourceName", resource, "podUID", podUID, "containerName", contName)
 		return nil, nil
 	}
 
 	m.mutex.Unlock()
-	klog.V(4).InfoS("Issuing a GetPreferredAllocation call for container", "containerName", contName, "podUID", podUID)
+	klog.V(4).InfoS("Issuing a GetPreferredAllocation call for container", "resourceName", resource, "containerName", contName, "podUID", podUID)
 	resp, err := eI.e.getPreferredAllocation(available.UnsortedList(), mustInclude.UnsortedList(), size)
 	m.mutex.Lock()
 	if err != nil {
@@ -1167,7 +1170,7 @@ func (m *ManagerImpl) ShouldResetExtendedResourceCapacity() bool {
 func (m *ManagerImpl) isContainerAlreadyRunning(podUID, cntName string) bool {
 	cntID, err := m.containerMap.GetContainerID(podUID, cntName)
 	if err != nil {
-		klog.V(4).InfoS("container not found in the initial map, assumed NOT running", "podUID", podUID, "containerName", cntName, "err", err)
+		klog.ErrorS(err, "container not found in the initial map, assumed NOT running", "podUID", podUID, "containerName", cntName)
 		return false
 	}
 
