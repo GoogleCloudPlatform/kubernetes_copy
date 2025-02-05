@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  generateName: unschedulable-pod-taint-toleration-
+  labels:
+    type: unsched
+spec:
+  tolerations:
+  - key: "non-existing-taint"
+    operator: "Exists"
+    effect: "NoSchedule"
+  containers:
+  - name: pause
+    image: registry.k8s.io/pause:3.10
