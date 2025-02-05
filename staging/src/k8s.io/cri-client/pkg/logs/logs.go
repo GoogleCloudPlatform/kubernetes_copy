@@ -306,7 +306,10 @@ func ReadLogs(ctx context.Context, logger *klog.Logger, path, containerID string
 	if err != nil {
 		return fmt.Errorf("failed to open log file %q: %v", path, err)
 	}
-	defer f.Close()
+	defer func() {
+		//nolint:errcheck
+		f.Close()
+	}()
 
 	// Search start point based on tail line.
 	start, err := findTailLineStartIndex(f, opts.tail)
@@ -331,6 +334,7 @@ func ReadLogs(ctx context.Context, logger *klog.Logger, path, containerID string
 	msg := &logMessage{}
 	baseName := filepath.Base(path)
 	dir := filepath.Dir(path)
+	var de *dedupWriteEvents
 	for {
 		if stop || (limitedMode && limitedNum == 0) {
 			internal.Log(logger, 2, "Finished parsing log file", "path", path)
@@ -356,17 +360,22 @@ func ReadLogs(ctx context.Context, logger *klog.Logger, path, containerID string
 					if watcher, err = fsnotify.NewWatcher(); err != nil {
 						return fmt.Errorf("failed to create fsnotify watcher: %v", err)
 					}
-					defer watcher.Close()
 					if err := watcher.Add(dir); err != nil {
 						return fmt.Errorf("failed to watch directory %q: %w", dir, err)
 					}
+
+					de = newDedupWriteEvents(watcher, baseName, logger)
+					de.dedupEvents(ctx)
+					defer de.Cleanup()
+					//nolint:errcheck
+					defer watcher.Close()
 					// If we just created the watcher, try again to read as we might have missed
 					// the event.
 					continue
 				}
 				var recreated bool
 				// Wait until the next log change.
-				found, recreated, err = waitLogs(ctx, logger, containerID, baseName, watcher, runtimeService)
+				found, recreated, err = de.waitLogs(ctx, containerID, runtimeService)
 				if err != nil {
 					return err
 				}
@@ -378,7 +387,6 @@ func ReadLogs(ctx context.Context, logger *klog.Logger, path, containerID string
 						}
 						return fmt.Errorf("failed to open log file %q: %v", path, err)
 					}
-					defer newF.Close()
 					f.Close()
 					f = newF
 					r = bufio.NewReader(f)
@@ -432,8 +440,12 @@ func isContainerRunning(ctx context.Context, logger *klog.Logger, id string, r i
 		// Assume that the container is still running when the runtime is
 		// unavailable. Most runtimes support that containers can be in running
 		// state even if their CRI server is not available right now.
-		if status.Code(err) == codes.Unavailable {
+		code := status.Code(err)
+		if code == codes.Unavailable {
 			return true, nil
+		} else if code == codes.NotFound {
+			internal.Log(logger, 5, "Container not found", "containerId", id)
+			return false, nil
 		}
 
 		return false, err
@@ -455,33 +467,122 @@ func isContainerRunning(ctx context.Context, logger *klog.Logger, id string, r i
 // waitLogs wait for the next log write. It returns two booleans and an error. The first boolean
 // indicates whether a new log is found; the second boolean if the log file was recreated;
 // the error is error happens during waiting new logs.
-func waitLogs(ctx context.Context, logger *klog.Logger, id string, logName string, w *fsnotify.Watcher, runtimeService internalapi.RuntimeService) (bool, bool, error) {
+func (de *dedupWriteEvents) waitLogs(ctx context.Context, id string, runtimeService internalapi.RuntimeService) (bool, bool, error) {
 	// no need to wait if the pod is not running
-	if running, err := isContainerRunning(ctx, logger, id, runtimeService); !running {
+	if running, err := isContainerRunning(ctx, de.logger, id, runtimeService); !running {
 		return false, false, err
 	}
-	errRetry := 5
+
 	for {
 		select {
 		case <-ctx.Done():
 			return false, false, fmt.Errorf("context cancelled")
-		case e := <-w.Events:
-			switch e.Op {
-			case fsnotify.Write, fsnotify.Rename, fsnotify.Remove, fsnotify.Chmod:
-				return true, false, nil
-			case fsnotify.Create:
-				return true, filepath.Base(e.Name) == logName, nil
-			default:
-				internal.LogErr(logger, nil, "Received unexpected fsnotify event, retrying", "event", e)
+		case e, ok := <-de.events:
+			if !ok {
+				return false, false, nil
+			} else {
+				if e.Err != nil {
+					return false, false, e.Err
+				}
+				return true, e.Event.Op == fsnotify.Create, nil
 			}
-		case err := <-w.Errors:
-			internal.LogErr(logger, err, "Received fsnotify watch error, retrying unless no more retries left", "retries", errRetry)
-			if errRetry == 0 {
-				return false, false, err
-			}
-			errRetry--
+
 		case <-time.After(logForceCheckPeriod):
 			return true, false, nil
 		}
 	}
+}
+
+func newDedupWriteEvents(w *fsnotify.Watcher, logfileName string, logger *klog.Logger) *dedupWriteEvents {
+	return &dedupWriteEvents{
+		w:           w,
+		logger:      logger,
+		logFileName: logfileName,
+		events:      make(chan fileEvent, 4),
+	}
+}
+
+type dedupWriteEvents struct {
+	w           *fsnotify.Watcher
+	logger      *klog.Logger
+	logFileName string
+	events      chan fileEvent
+}
+
+type fileEvent struct {
+	Event fsnotify.Event
+	Err   error
+}
+
+func (de *dedupWriteEvents) Cleanup() {
+	// clean all events in channel
+	for range de.events {
+	}
+}
+
+// dedupEvents deduplicate Write events.
+func (de *dedupWriteEvents) dedupEvents(ctx context.Context) {
+	go func() {
+		waitDuration := 150 * time.Millisecond
+		ticker := time.NewTicker(waitDuration)
+
+		var lastAdd time.Time
+		defer func() {
+			close(de.events)
+			ticker.Stop()
+			<-ticker.C
+		}()
+
+		errRetry := 2
+		for {
+			select {
+			case <-ctx.Done():
+				return
+
+			case err := <-de.w.Errors:
+				internal.LogErr(de.logger, err, "Received fsnotify watch error, retrying unless no more retries left", "retries", errRetry)
+				if errRetry == 0 {
+					de.events <- fileEvent{Err: err}
+					return
+				}
+				errRetry--
+			case <-ticker.C:
+				errRetry = 2
+
+			case e, ok := <-de.w.Events:
+				if !ok { // Channel was closed (i.e. Watcher.Close() was called).
+					return
+				}
+
+				if filepath.Base(e.Name) != de.logFileName {
+					continue
+				}
+
+				switch e.Op {
+				case fsnotify.Write:
+					// If there is one Write event in the channel, we can discard this one.
+					// If there is one Create event in the channel, we will reopen the log file, and read from the
+					// start. It's OK to discard the new Write event.
+					if len(de.events) > 0 ||
+						time.Since(lastAdd) < waitDuration {
+						continue
+					}
+					lastAdd = time.Now()
+				case fsnotify.Create:
+					// Always add a write event before create event. In case lost some log lines.
+					de.events <- fileEvent{
+						Event: fsnotify.Event{
+							Name: e.Name,
+							Op:   fsnotify.Write,
+						},
+					}
+					lastAdd = time.Now()
+				default:
+					continue
+				}
+
+				de.events <- fileEvent{Event: e}
+			}
+		}
+	}()
 }

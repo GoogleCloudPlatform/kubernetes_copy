@@ -28,6 +28,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fsnotify/fsnotify"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -193,7 +194,6 @@ func TestReadLogs(t *testing.T) {
 			if tc.podLogOptions.Follow {
 				fakeRuntimeService.Containers[containerID].State = runtimeapi.ContainerState_CONTAINER_EXITED
 			}
-
 			opts := NewLogOptions(&tc.podLogOptions, time.Now())
 			stdoutBuf := bytes.NewBuffer(nil)
 			stderrBuf := bytes.NewBuffer(nil)
@@ -289,7 +289,7 @@ func TestReadRotatedLog(t *testing.T) {
 	err = file.Close()
 	assert.NoErrorf(t, err, "could not close file.")
 
-	time.Sleep(20 * time.Millisecond)
+	time.Sleep(1 * time.Second)
 	// Make the function ReadLogs end.
 	fakeRuntimeService.Lock()
 	fakeRuntimeService.Containers[containerID].State = runtimeapi.ContainerState_CONTAINER_EXITED
@@ -593,6 +593,64 @@ func TestOnlyStdoutStream(t *testing.T) {
 				require.NoError(t, err)
 			}
 			assert.EqualValues(t, tc.expectedStdout, stdoutBuf.String())
+		})
+	}
+}
+
+func TestDedupEvents(t *testing.T) {
+	testCases := []struct {
+		name     string
+		input    []interface{}
+		expected []interface{}
+	}{
+		{
+			name: "events without error",
+			input: []interface{}{fsnotify.Write, fsnotify.Write, fsnotify.Write, fsnotify.Create,
+				fsnotify.Write, fsnotify.Write, fsnotify.Write, fsnotify.Write, fsnotify.Write, fsnotify.Write, fsnotify.Create,
+				fsnotify.Write, fsnotify.Write, fsnotify.Create},
+			expected: []interface{}{fsnotify.Write, fsnotify.Write, fsnotify.Create,
+				fsnotify.Write, fsnotify.Create,
+				fsnotify.Write, fsnotify.Create},
+		},
+		{
+			name:     "event with error",
+			input:    []interface{}{fsnotify.Write, fsnotify.Write, fsnotify.Write, fsnotify.Create, fsnotify.ErrEventOverflow, fsnotify.ErrEventOverflow},
+			expected: []interface{}{fsnotify.Write, fsnotify.Write, fsnotify.Create},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+
+			w := &fsnotify.Watcher{Events: make(chan fsnotify.Event), Errors: make(chan error)}
+			dedup := newDedupWriteEvents(w, "0.log", nil)
+			dedup.dedupEvents(context.Background())
+
+			go func() {
+				for _, val := range tc.input {
+					switch v := val.(type) {
+					case error:
+						dedup.w.Errors <- v
+					case fsnotify.Op:
+						ev := fsnotify.Event{
+							Op:   v,
+							Name: "0.log",
+						}
+						dedup.w.Events <- ev
+					}
+				}
+				close(dedup.w.Events)
+			}()
+
+			time.Sleep(10 * time.Millisecond)
+
+			received := make([]interface{}, 0, 10)
+			for op := range dedup.events {
+				// Mimic read logs
+				time.Sleep(10 * time.Millisecond)
+				received = append(received, op.Event.Op)
+			}
+			assert.Equal(t, tc.expected, received)
 		})
 	}
 }
