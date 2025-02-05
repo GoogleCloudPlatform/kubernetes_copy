@@ -25,7 +25,6 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/record"
 	runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1"
@@ -792,6 +791,7 @@ func (p *podWorkers) UpdatePod(options UpdatePodOptions) {
 						finished:           false,
 						fullname:           kubecontainer.BuildPodFullName(name, ns),
 					}
+					status.ctx, status.cancelFn = context.WithCancel(context.Background())
 				}
 			}
 		}
@@ -943,11 +943,7 @@ func (p *podWorkers) UpdatePod(options UpdatePodOptions) {
 
 		// spawn a pod worker
 		go func() {
-			// TODO: this should be a wait.Until with backoff to handle panics, and
-			// accept a context for shutdown
-			defer runtime.HandleCrash()
-			defer klog.V(3).InfoS("Pod worker has stopped", "podUID", uid)
-			p.podWorkerLoop(uid, outCh)
+			p.startPodWorker(status.ctx, uid, outCh)
 		}()
 	}
 
@@ -971,6 +967,14 @@ func (p *podWorkers) UpdatePod(options UpdatePodOptions) {
 		status.cancelFn()
 		return
 	}
+}
+
+func (p *podWorkers) startPodWorker(ctx context.Context, uid types.UID, outCh <-chan struct{}) {
+	wait.Until(func() {
+		klog.V(3).InfoS("Pod worker has started", "podUID", uid)
+		p.podWorkerLoop(uid, outCh)
+		klog.V(3).InfoS("Pod worker has stopped", "podUID", uid)
+	}, 500*time.Millisecond, ctx.Done())
 }
 
 // calculateEffectiveGracePeriod sets the initial grace period for a newly terminating pod or allows a
