@@ -37,6 +37,7 @@ import (
 	clientset "k8s.io/client-go/kubernetes"
 	admissionapi "k8s.io/pod-security-admission/api"
 
+	"k8s.io/kubernetes/pkg/features"
 	"k8s.io/kubernetes/test/e2e/feature"
 	"k8s.io/kubernetes/test/e2e/framework"
 	e2ekubectl "k8s.io/kubernetes/test/e2e/framework/kubectl"
@@ -442,7 +443,7 @@ var _ = SIGDescribe("kubelet", func() {
 	})
 
 	// Tests for NodeLogQuery feature
-	f.Describe("kubectl get --raw \"/api/v1/nodes/<insert-node-name-here>/proxy/logs/?query=/<insert-log-file-name-here>", feature.NodeLogQuery, func() {
+	f.Describe("kubectl get --raw \"/api/v1/nodes/<insert-node-name-here>/proxy/logs/?query=/<insert-log-file-name-here>", feature.NodeLogQuery, framework.WithFeatureGate(features.NodeLogQuery), func() {
 		var linuxNodeName string
 		var windowsNodeName string
 
@@ -642,7 +643,7 @@ var _ = SIGDescribe("kubelet", func() {
 	})
 })
 
-var _ = SIGDescribe("specific log stream", feature.PodLogsQuerySplitStreams, func() {
+var _ = SIGDescribe("specific log stream", feature.PodLogsQuerySplitStreams, framework.WithFeatureGate(features.PodLogsQuerySplitStreams), func() {
 	var (
 		c  clientset.Interface
 		ns string
