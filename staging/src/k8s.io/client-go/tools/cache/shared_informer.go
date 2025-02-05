@@ -741,18 +741,18 @@ func (s *sharedIndexInformer) OnAdd(obj interface{}, isInInitialList bool) {
 }
 
 // Conforms to ResourceEventHandler
-func (s *sharedIndexInformer) OnUpdate(old, new interface{}) {
-	isSync := false
-
+func (s *sharedIndexInformer) OnUpdate(old, new interface{}, isSync bool) {
 	// If is a Sync event, isSync should be true
 	// If is a Replaced event, isSync is true if resource version is unchanged.
 	// If RV is unchanged: this is a Sync/Replaced event, so isSync is true
 
-	if accessor, err := meta.Accessor(new); err == nil {
-		if oldAccessor, err := meta.Accessor(old); err == nil {
-			// Events that didn't change resourceVersion are treated as resync events
-			// and only propagated to listeners that requested resync
-			isSync = accessor.GetResourceVersion() == oldAccessor.GetResourceVersion()
+	if !isSync {
+		if accessor, err := meta.Accessor(new); err == nil {
+			if oldAccessor, err := meta.Accessor(old); err == nil {
+				// Events that didn't change resourceVersion are treated as resync events
+				// and only propagated to listeners that requested resync
+				isSync = accessor.GetResourceVersion() == oldAccessor.GetResourceVersion()
+			}
 		}
 	}
 

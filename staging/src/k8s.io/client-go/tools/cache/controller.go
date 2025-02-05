@@ -547,11 +547,35 @@ func NewTransformingIndexerInformer(
 	return clientState, newInformer(clientState, options)
 }
 
+// DeltaHandler can handle deltas emitted by processDeltas
+type DeltaHandler interface {
+	OnAdd(obj interface{}, isInInitialList bool)
+	OnUpdate(oldObj, newObj interface{}, isSync bool)
+	OnDelete(obj interface{})
+}
+
+// DeltaHandlerAdapter adapts a DeltaHandler to a ResourceEventHandler
+type DeltaHandlerToResourceEventHandlerAdapter struct {
+	handler ResourceEventHandler
+}
+
+func (a *DeltaHandlerToResourceEventHandlerAdapter) OnAdd(obj interface{}, isInInitialList bool) {
+	a.handler.OnAdd(obj, isInInitialList)
+}
+
+func (a *DeltaHandlerToResourceEventHandlerAdapter) OnUpdate(oldObj, newObj interface{}, isSync bool) {
+	a.handler.OnUpdate(oldObj, newObj)
+}
+
+func (a *DeltaHandlerToResourceEventHandlerAdapter) OnDelete(obj interface{}) {
+	a.handler.OnDelete(obj)
+}
+
 // Multiplexes updates in the form of a list of Deltas into a Store, and informs
 // a given handler of events OnUpdate, OnAdd, OnDelete
 func processDeltas(
 	// Object which receives event notifications from the given deltas
-	handler ResourceEventHandler,
+	handler DeltaHandler,
 	clientState Store,
 	deltas Deltas,
 	isInInitialList bool,
@@ -566,7 +590,7 @@ func processDeltas(
 				if err := clientState.Update(obj); err != nil {
 					return err
 				}
-				handler.OnUpdate(old, obj)
+				handler.OnUpdate(old, obj, d.Type == Sync)
 			} else {
 				if err := clientState.Add(obj); err != nil {
 					return err
@@ -614,7 +638,10 @@ func newInformer(clientState Store, options InformerOptions) Controller {
 
 		Process: func(obj interface{}, isInInitialList bool) error {
 			if deltas, ok := obj.(Deltas); ok {
-				return processDeltas(options.Handler, clientState, deltas, isInInitialList)
+				handlerAdapter := &DeltaHandlerToResourceEventHandlerAdapter{
+					handler: options.Handler,
+				}
+				return processDeltas(handlerAdapter, clientState, deltas, isInInitialList)
 			}
 			return errors.New("object given as Process argument is not Deltas")
 		},
