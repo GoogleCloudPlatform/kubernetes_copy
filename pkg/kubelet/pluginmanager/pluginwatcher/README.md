@@ -1,9 +1,13 @@
 # Plugin Registration Service
 
 This folder contains a utility, pluginwatcher, for Kubelet to register
-different types of node-level plugins such as device plugins or CSI plugins.
-It discovers plugins by monitoring inotify events under the directory returned by
-kubelet.getPluginsDir(). We will refer to this directory as PluginsDir.
+different types of node-level plugins such as Device plugins, DRA plugins or
+CSI plugins. It discovers plugins by monitoring inotify events under the
+directory returned by kubelet.getPluginsDir(). We will refer to this directory
+as PluginsDir.
+
+Additionally, it periodically sends Registration.GetInfo gRPC requests to the
+Unix sockets found in this directory to monitor plugin health.
 
 Plugins are expected to implement the gRPC registration service specified in
 pkg/kubelet/apis/pluginregistration/v*/api.proto.
@@ -35,6 +39,15 @@ During plugin initialization phase, Kubelet will issue Plugin specific calls
 Once Kubelet determines that it is ready to use your plugin it will issue a
 Registration.NotifyRegistrationStatus gRPC call.
 
+After a plugin is registered, the pluginwatcher periodically sends
+Registration.GetInfo requests to it to check its functionality. If it stops
+responding to these requests, it is automatically unregistered.
+
+The pluginwatcher also attempts to connect and send Registration.GetInfo
+requests to sockets in the PluginsDir that do not belong to registered
+plugins. If a plugin responds to the requests it will be automatically
+re-registered.
+
 If the plugin removes its socket from the PluginDir this will be interpreted
 as a plugin Deregistration. If any of the following steps in deregistration fails,
 on retry deregistration will start from scratch:
@@ -49,7 +62,7 @@ Here are the general rules that Kubelet plugin developers should follow:
   directory, requires plugin process to be running as 'root'.
 
 - The plugin name sent during Registration.GetInfo grpc should be unique
-  for the given plugin type (CSIPlugin or DevicePlugin).
+  for the given plugin type (DRAPlugin, CSIPlugin or DevicePlugin).
 
 - The socket path needs to be unique within one directory, in normal case,
   each plugin type has its own sub directory, but the design does support socket file

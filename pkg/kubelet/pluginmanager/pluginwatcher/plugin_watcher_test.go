@@ -79,7 +79,7 @@ func waitForUnregistration(
 	socketPath string,
 	dsw cache.DesiredStateOfWorld) {
 	err := retryWithExponentialBackOff(
-		time.Duration(500*time.Millisecond),
+		time.Duration(2000*time.Millisecond),
 		func() (bool, error) {
 			if !dsw.PluginExists(socketPath) {
 				return true, nil
@@ -108,7 +108,8 @@ func TestPluginRegistration(t *testing.T) {
 	defer os.RemoveAll(socketDir)
 
 	dsw := cache.NewDesiredStateOfWorld()
-	newWatcher(t, socketDir, dsw, wait.NeverStop)
+	asw := cache.NewActualStateOfWorld()
+	newWatcher(t, socketDir, dsw, asw, wait.NeverStop)
 
 	for i := 0; i < 10; i++ {
 		socketPath := filepath.Join(socketDir, fmt.Sprintf("plugin-%d.sock", i))
@@ -142,7 +143,8 @@ func TestPluginRegistrationSameName(t *testing.T) {
 	defer os.RemoveAll(socketDir)
 
 	dsw := cache.NewDesiredStateOfWorld()
-	newWatcher(t, socketDir, dsw, wait.NeverStop)
+	asw := cache.NewActualStateOfWorld()
+	newWatcher(t, socketDir, dsw, asw, wait.NeverStop)
 
 	// Make 10 plugins with the same name and same type but different socket path;
 	// all 10 should be in desired state of world cache
@@ -168,7 +170,8 @@ func TestPluginReRegistration(t *testing.T) {
 	defer os.RemoveAll(socketDir)
 
 	dsw := cache.NewDesiredStateOfWorld()
-	newWatcher(t, socketDir, dsw, wait.NeverStop)
+	asw := cache.NewActualStateOfWorld()
+	newWatcher(t, socketDir, dsw, asw, wait.NeverStop)
 
 	// Create a plugin first, we are then going to remove the plugin, update the plugin with a different name
 	// and recreate it.
@@ -226,7 +229,8 @@ func TestPluginRegistrationAtKubeletStart(t *testing.T) {
 	}
 
 	dsw := cache.NewDesiredStateOfWorld()
-	newWatcher(t, socketDir, dsw, wait.NeverStop)
+	asw := cache.NewActualStateOfWorld()
+	newWatcher(t, socketDir, dsw, asw, wait.NeverStop)
 
 	var wg sync.WaitGroup
 	for i := 0; i < len(plugins); i++ {
@@ -254,8 +258,104 @@ func TestPluginRegistrationAtKubeletStart(t *testing.T) {
 	}
 }
 
-func newWatcher(t *testing.T, socketDir string, desiredStateOfWorldCache cache.DesiredStateOfWorld, stopCh <-chan struct{}) *Watcher {
-	w := NewWatcher(socketDir, desiredStateOfWorldCache)
+// TestPluginDisconnect tests the following scenarios of plugin disconnects:
+//  1. Plugin stops and removes the socket file.
+//     The Watcher reacts on the REMOVE fsnotify event and unregisters the plugin.
+//  2. Plugin stops but keeps the socket file around. This emulates plugin crash with
+//     a stale socket left on the file system.
+//     The PluginConnectionMonitor detects the disconnect and unregisters the plugin.
+func TestPluginDisconnect(t *testing.T) {
+	for name, test := range map[string]struct {
+		unlinkSocket bool
+	}{
+		"plugin-stops-and-unlinks-socket": {
+			unlinkSocket: true,
+		},
+		"plugin-stops-and-keeps-socket": {
+			unlinkSocket: false,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			// Create new watcher
+			socketDir := t.TempDir()
+			dsw := cache.NewDesiredStateOfWorld()
+			asw := cache.NewActualStateOfWorld()
+			newWatcher(t, socketDir, dsw, asw, wait.NeverStop)
+
+			// Create a plugin
+			pluginName := "test-plugin-disconnect"
+			socketPath := filepath.Join(socketDir, fmt.Sprintf("%s.sock", pluginName))
+			plugin := NewTestExamplePlugin(pluginName, registerapi.DevicePlugin, socketPath, supportedVersions...)
+			defer func() {
+				require.NoError(t, plugin.Stop())
+			}()
+			plugin.SetUnlinkSocket(test.unlinkSocket)
+
+			// Run and register it
+			require.NoError(t, plugin.Serve(supportedVersions...))
+			pluginInfo := GetPluginInfo(plugin)
+			require.Equal(t, socketPath, pluginInfo.SocketPath)
+			waitForRegistration(t, socketPath, dsw)
+
+			// Add plugin to asw to simulate a registered plugin
+			require.NoError(t, asw.AddPlugin(pluginInfo))
+
+			// Stop the plugin
+			require.NoError(t, plugin.Stop())
+
+			if !test.unlinkSocket {
+				// Ensure that the stalled socket exists after stopping the plugin
+				require.FileExists(t, socketPath)
+			}
+
+			// Wait for the plugin to be deregistered due to disconnect
+			waitForUnregistration(t, socketPath, dsw)
+		})
+	}
+}
+
+func TestPluginStuckThenUnstuck(t *testing.T) {
+	// Create new watcher
+	socketDir := t.TempDir()
+	dsw := cache.NewDesiredStateOfWorld()
+	asw := cache.NewActualStateOfWorld()
+	newWatcher(t, socketDir, dsw, asw, wait.NeverStop)
+
+	// Create a plugin
+	pluginName := "test-plugin-stuck-unstuck"
+	socketPath := filepath.Join(socketDir, fmt.Sprintf("%s.sock", pluginName))
+	plugin := NewTestExamplePlugin(pluginName, registerapi.DevicePlugin, socketPath, supportedVersions...)
+	defer func() {
+		require.NoError(t, plugin.Stop())
+	}()
+
+	// Run and register it
+	require.NoError(t, plugin.Serve(supportedVersions...))
+	pluginInfo := GetPluginInfo(plugin)
+	require.Equal(t, socketPath, pluginInfo.SocketPath)
+	waitForRegistration(t, socketPath, dsw)
+
+	// Add plugin to asw to simulate a registered plugin
+	require.NoError(t, asw.AddPlugin(pluginInfo))
+
+	// Stuck GetInfo RPC
+	plugin.StuckGetInfo()
+
+	// Wait for the plugin to be deregistered due to being stuck
+	waitForUnregistration(t, socketPath, dsw)
+
+	// Remove plugin from asw to simulate an unregistered plugin
+	asw.RemovePlugin(socketPath)
+
+	// Unstuck GetInfo RPC
+	plugin.UnstuckGetInfo()
+
+	// Wait for the plugin to be registered again
+	waitForRegistration(t, socketPath, dsw)
+}
+
+func newWatcher(t *testing.T, socketDir string, desiredStateOfWorldCache cache.DesiredStateOfWorld, actualStateOfWorldCache cache.ActualStateOfWorld, stopCh <-chan struct{}) *Watcher {
+	w := NewWatcher(socketDir, desiredStateOfWorldCache, actualStateOfWorldCache)
 	require.NoError(t, w.Start(stopCh))
 
 	return w

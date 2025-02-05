@@ -35,14 +35,16 @@ type Watcher struct {
 	fs                  utilfs.Filesystem
 	fsWatcher           *fsnotify.Watcher
 	desiredStateOfWorld cache.DesiredStateOfWorld
+	actualStateOfWorld  cache.ActualStateOfWorld
 }
 
 // NewWatcher provides a new watcher for socket registration
-func NewWatcher(sockDir string, desiredStateOfWorld cache.DesiredStateOfWorld) *Watcher {
+func NewWatcher(sockDir string, desiredStateOfWorld cache.DesiredStateOfWorld, actualStateOfWorld cache.ActualStateOfWorld) *Watcher {
 	return &Watcher{
 		path:                sockDir,
 		fs:                  &utilfs.DefaultFs{},
 		desiredStateOfWorld: desiredStateOfWorld,
+		actualStateOfWorld:  actualStateOfWorld,
 	}
 }
 
@@ -67,6 +69,9 @@ func (w *Watcher) Start(stopCh <-chan struct{}) error {
 		klog.ErrorS(err, "Failed to traverse plugin socket path", "path", w.path)
 	}
 
+	monitor := newPluginConnectionMonitor(w.path, w.desiredStateOfWorld, w.actualStateOfWorld)
+	monitor.start()
+
 	go func(fsWatcher *fsnotify.Watcher) {
 		for {
 			select {
@@ -88,6 +93,7 @@ func (w *Watcher) Start(stopCh <-chan struct{}) error {
 				continue
 			case <-stopCh:
 				w.fsWatcher.Close()
+				monitor.stop()
 				return
 			}
 		}

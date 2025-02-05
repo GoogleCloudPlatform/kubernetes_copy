@@ -63,6 +63,10 @@ type ActualStateOfWorld interface {
 	// PluginExistsWithCorrectUUID checks if the given plugin exists in the current actual
 	// state of world cache with the correct UUID
 	PluginExistsWithCorrectUUID(pluginInfo PluginInfo) bool
+
+	// PluginExists checks if the given socket path exists in the current actual
+	// state of world cache
+	PluginExists(socketPath string) bool
 }
 
 // NewActualStateOfWorld returns a new instance of ActualStateOfWorld
@@ -84,11 +88,13 @@ var _ ActualStateOfWorld = &actualStateOfWorld{}
 
 // PluginInfo holds information of a plugin
 type PluginInfo struct {
-	SocketPath string
-	Timestamp  time.Time
-	UUID       types.UID
-	Handler    PluginHandler
-	Name       string
+	SocketPath        string
+	Timestamp         time.Time
+	UUID              types.UID
+	Handler           PluginHandler
+	Name              string
+	Endpoint          string
+	SupportedVersions []string
 }
 
 func (asw *actualStateOfWorld) AddPlugin(pluginInfo PluginInfo) error {
@@ -131,6 +137,14 @@ func (asw *actualStateOfWorld) PluginExistsWithCorrectTimestamp(pluginInfo Plugi
 	// matches the given plugin (from the desired state cache) timestamp
 	actualStatePlugin, exists := asw.socketFileToInfo[pluginInfo.SocketPath]
 	return exists && (actualStatePlugin.Timestamp == pluginInfo.Timestamp)
+}
+
+func (asw *actualStateOfWorld) PluginExists(socketPath string) bool {
+	asw.RLock()
+	defer asw.RUnlock()
+
+	_, exists := asw.socketFileToInfo[socketPath]
+	return exists
 }
 
 func (asw *actualStateOfWorld) PluginExistsWithCorrectUUID(pluginInfo PluginInfo) bool {

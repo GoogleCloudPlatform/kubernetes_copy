@@ -71,6 +71,7 @@ func NewPluginManager(
 		desiredStateOfWorldPopulator: pluginwatcher.NewWatcher(
 			sockDir,
 			dsw,
+			asw,
 		),
 		reconciler:          reconciler,
 		desiredStateOfWorld: dsw,
