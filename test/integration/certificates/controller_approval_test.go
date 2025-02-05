@@ -32,12 +32,12 @@ import (
 	"k8s.io/client-go/informers"
 	clientset "k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
-	"k8s.io/klog/v2/ktesting"
 	kubeapiservertesting "k8s.io/kubernetes/cmd/kube-apiserver/app/testing"
 	"k8s.io/kubernetes/pkg/controller/certificates"
 	"k8s.io/kubernetes/pkg/controller/certificates/approver"
 	"k8s.io/kubernetes/test/integration/authutil"
 	"k8s.io/kubernetes/test/integration/framework"
+	"k8s.io/kubernetes/test/utils/ktesting"
 )
 
 // Integration tests that verify the behaviour of the CSR auto-approving controller.
@@ -89,20 +89,19 @@ func TestController_AutoApproval(t *testing.T) {
 	}
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			_, ctx := ktesting.NewTestContext(t)
-			ctx, cancel := context.WithCancel(ctx)
-			defer cancel()
+			tCtx := ktesting.Init(t)
 			// Run an apiserver with the default configuration options.
 			s := kubeapiservertesting.StartTestServerOrDie(t, kubeapiservertesting.NewDefaultTestServerOptions(), []string{""}, framework.SharedEtcd())
 			defer s.TearDownFn()
+			defer tCtx.Cancel("test has completed")
 			client := clientset.NewForConfigOrDie(s.ClientConfig)
 			informers := informers.NewSharedInformerFactory(clientset.NewForConfigOrDie(restclient.AddUserAgent(s.ClientConfig, "certificatesigningrequest-informers")), time.Second)
 
 			// Register the controller
-			c := approver.NewCSRApprovingController(ctx, client, informers.Certificates().V1().CertificateSigningRequests())
+			c := approver.NewCSRApprovingController(tCtx, client, informers.Certificates().V1().CertificateSigningRequests())
 			// Start the controller & informers
-			informers.Start(ctx.Done())
-			go c.Run(ctx, 1)
+			informers.Start(tCtx.Done())
+			go c.Run(tCtx, 1)
 
 			// Configure appropriate permissions
 			if test.grantNodeClient {
@@ -130,7 +129,7 @@ func TestController_AutoApproval(t *testing.T) {
 					SignerName: test.signerName,
 				},
 			}
-			_, err = impersonationClient.CertificatesV1().CertificateSigningRequests().Create(context.TODO(), csr, metav1.CreateOptions{})
+			_, err = impersonationClient.CertificatesV1().CertificateSigningRequests().Create(tCtx, csr, metav1.CreateOptions{})
 			if err != nil {
 				t.Fatalf("failed to create testing CSR: %v", err)
 			}
