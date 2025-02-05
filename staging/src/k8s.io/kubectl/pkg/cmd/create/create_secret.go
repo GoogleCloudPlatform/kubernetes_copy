@@ -69,6 +69,8 @@ var (
 
 	secretForGenericLong = templates.LongDesc(i18n.T(`
 		Create a secret based on a file, directory, or specified literal value.
+	
+		The default type for a secret is Opaque unless otherwise specified by the --type flag.
 
 		A single secret may package one or more key/value pairs.
 
@@ -81,6 +83,9 @@ var (
 		symlinks, devices, pipes, etc).`))
 
 	secretForGenericExample = templates.Examples(i18n.T(`
+	  # Create an empty secret my-secret of type Opaque
+	  kubectl create secret generic empty-secret
+
 	  # Create a new secret named my-secret with keys for each file in folder bar
 	  kubectl create secret generic my-secret --from-file=path/to/bar
 
@@ -143,7 +148,7 @@ func NewCmdCreateSecretGeneric(f cmdutil.Factory, ioStreams genericiooptions.IOS
 	cmd := &cobra.Command{
 		Use:                   "generic NAME [--type=string] [--from-file=[key=]source] [--from-literal=key1=value1] [--dry-run=server|client|none]",
 		DisableFlagsInUseLine: true,
-		Short:                 i18n.T("Create a secret from a local file, directory, or literal value"),
+		Short:                 i18n.T("Create a secret from a local file, directory, or literal value. The default type for a secret is Opaque unless otherwise specified by the --type flag."),
 		Long:                  secretForGenericLong,
 		Example:               secretForGenericExample,
 		Run: func(cmd *cobra.Command, args []string) {
@@ -161,7 +166,7 @@ func NewCmdCreateSecretGeneric(f cmdutil.Factory, ioStreams genericiooptions.IOS
 	cmd.Flags().StringSliceVar(&o.FileSources, "from-file", o.FileSources, "Key files can be specified using their file path, in which case a default name will be given to them, or optionally with a name and file path, in which case the given name will be used.  Specifying a directory will iterate each named file in the directory that is a valid secret key.")
 	cmd.Flags().StringArrayVar(&o.LiteralSources, "from-literal", o.LiteralSources, "Specify a key and literal value to insert in secret (i.e. mykey=somevalue)")
 	cmd.Flags().StringSliceVar(&o.EnvFileSources, "from-env-file", o.EnvFileSources, "Specify the path to a file to read lines of key=val pairs to create a secret.")
-	cmd.Flags().StringVar(&o.Type, "type", o.Type, i18n.T("The type of secret to create"))
+	cmd.Flags().StringVar(&o.Type, "type", o.Type, i18n.T("The string value indicate type of secret which is used to facilitate programmatic handling of secret data. Type can be built-in or user defined and vary in terms of validations performed and constraints kubernetes imposed on them. Empty type value indicate Opaque secret. Learn more about built-in types and usage here : https://kubernetes.io/docs/concepts/configuration/secret/#secret-types "))
 	cmd.Flags().BoolVar(&o.AppendHash, "append-hash", o.AppendHash, "Append a hash of the secret to its name.")
 
 	cmdutil.AddFieldManagerFlagVar(cmd, &o.FieldManager, "kubectl-create")
