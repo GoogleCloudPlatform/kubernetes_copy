@@ -24,6 +24,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8stypes "k8s.io/apimachinery/pkg/types"
+	"k8s.io/klog/v2/ktesting"
 	"k8s.io/kubernetes/pkg/kubelet/volumemanager/cache"
 	"k8s.io/kubernetes/pkg/volume"
 
@@ -125,5 +126,12 @@ func TestMetricCollection(t *testing.T) {
 	if fakePluginCount != 1 {
 		t.Errorf("getVolumeCount failed. Expected <1> fake-plugin volume in ActualStateOfWorld, got <%d>",
 			fakePluginCount)
+	}
+
+	// detach volume from the node and ensure metric collector is correctly updated
+	dsw.DeletePodFromVolume(podName, generatedVolumeName)
+	asw.MarkVolumeAsDetached(generatedVolumeName, k8stypes.NodeName("node-name"))
+	if count := metricCollector.getVolumeCount(); len(count) != 1 {
+		t.Errorf("getVolumeCount failed. Expected <1> state, got <%d>", len(count))
 	}
 }

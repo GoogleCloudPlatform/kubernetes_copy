@@ -242,6 +242,68 @@ func TestWaitForAttachAndMountError(t *testing.T) {
 	}
 }
 
+func TestWaitForAttachAndMountWithoutVolumeMounts(t *testing.T) {
+	tmpDir, err := utiltesting.MkTmpdir("volumeManagerTest")
+	if err != nil {
+		t.Fatalf("can't make a temp dir: %v", err)
+	}
+	defer func() {
+		_ = os.RemoveAll(tmpDir)
+	}()
+	podManager := kubepod.NewBasicPodManager()
+	pod := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "abc",
+			Namespace: "nsA",
+			UID:       "1234",
+		},
+		Spec: v1.PodSpec{
+			Containers: []v1.Container{
+				{
+					Name: "container1",
+				},
+			},
+			Volumes: []v1.Volume{
+				{
+					Name: "vol1",
+					VolumeSource: v1.VolumeSource{
+						ConfigMap: &v1.ConfigMapVolumeSource{},
+					},
+				},
+				{
+					Name: "vol2",
+					VolumeSource: v1.VolumeSource{
+						RBD: &v1.RBDVolumeSource{},
+					},
+				},
+				{
+					Name: "vol3",
+					VolumeSource: v1.VolumeSource{
+						AzureDisk: &v1.AzureDiskVolumeSource{},
+					},
+				},
+			},
+		},
+	}
+
+	kubeClient := fake.NewSimpleClientset(pod)
+
+	manager := newTestVolumeManager(t, tmpDir, podManager, kubeClient, nil)
+
+	stopCh := runVolumeManager(manager)
+	defer close(stopCh)
+
+	podManager.SetPods([]*v1.Pod{pod})
+	// no volume mounts specified shouldn't return an error
+	if err := manager.WaitForAttachAndMount(context.Background(), pod); err != nil {
+		t.Fatal(err)
+	}
+	// processing volumes of a nil pod shouldn't return an error
+	if err := manager.WaitForAttachAndMount(context.Background(), nil); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestInitialPendingVolumesForPodAndGetVolumesInUse(t *testing.T) {
 	tmpDir, err := utiltesting.MkTmpdir("volumeManagerTest")
 	if err != nil {

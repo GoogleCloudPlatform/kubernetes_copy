@@ -17,6 +17,7 @@ limitations under the License.
 package cache
 
 import (
+	"slices"
 	"testing"
 
 	v1 "k8s.io/api/core/v1"
@@ -1263,6 +1264,66 @@ func Test_AddPodToVolume_SELinux_MultiplePods(t *testing.T) {
 			}
 			verifyPodExistsInVolumeDsw(t, pod2Name, generatedVolumeName, tc.expectedSELinuxLabel, dsw)
 		})
+	}
+}
+
+func Test_GetPods_with_and_without_errors(t *testing.T) {
+	volumePluginMgr, _ := volumetesting.GetTestKubeletVolumePluginMgr(t)
+	seLinuxTranslator := util.NewFakeSELinuxLabelTranslator()
+	dsw := NewDesiredStateOfWorld(volumePluginMgr, seLinuxTranslator)
+	pod := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "pod3",
+			UID:  "pod3uid",
+		},
+		Spec: v1.PodSpec{
+			Volumes: []v1.Volume{
+				{
+					Name: "volume-name",
+					VolumeSource: v1.VolumeSource{
+						GCEPersistentDisk: &v1.GCEPersistentDiskVolumeSource{
+							PDName: "fake-device1",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	volumeSpec := &volume.Spec{Volume: &pod.Spec.Volumes[0]}
+	podName := util.GetUniquePodName(pod)
+
+	generatedVolumeName, err := dsw.AddPodToVolume(
+		podName, pod, volumeSpec, volumeSpec.Name(), "" /* volumeGidValue */, nil /* seLinuxContainerContexts */)
+	if err != nil {
+		t.Fatalf("AddPodToVolume failed. Expected: <no error> Actual: <%v>", err)
+	}
+
+	verifyVolumeExistsDsw(t, generatedVolumeName, "" /* SELinuxContext */, dsw)
+	verifyVolumeExistsInVolumesToMount(t, generatedVolumeName, false /* expectReportedInUse */, dsw)
+	verifyPodExistsInVolumeDsw(t, podName, generatedVolumeName, "" /* SELinuxContext */, dsw)
+	verifyVolumeExistsWithSpecNameInVolumeDsw(t, podName, volumeSpec.Name(), dsw)
+
+	m := dsw.GetPods()
+	if len(m) != 1 {
+		t.Errorf("GetPods failed. Expected: <1> in desired state of world, Actual: <%d> in desired state of world", len(m))
+	}
+
+	dsw.AddErrorToPod(podName, "fake-error")
+	podsWithErrors := dsw.GetPodsWithErrors()
+	if len(podsWithErrors) != 1 {
+		t.Fatalf("GetPodsWithErrors failed. Expected <1> pod with error in desired state of world, Actual <%d>", len(podsWithErrors))
+	}
+	if podsWithErrors[0] != podName {
+		t.Errorf("expected pod errored %s but got %s", podName, podsWithErrors[0])
+	}
+	accumulatedErrors := dsw.PopPodErrors(podName)
+	if !slices.Equal(accumulatedErrors, []string{"fake-error"}) {
+		t.Errorf("expected accumulated errors %v on pod %s but got %v", []string{"fake-error"}, podName, accumulatedErrors)
+	}
+	podsWithErrors = dsw.GetPodsWithErrors()
+	if len(podsWithErrors) > 0 {
+		t.Errorf("GetPodsWithErrors failed. Expected <0> pod with error in desired state of world, Actual <%d>", len(podsWithErrors))
 	}
 }
 

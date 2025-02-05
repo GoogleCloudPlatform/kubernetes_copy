@@ -25,6 +25,7 @@ import (
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	featuregatetesting "k8s.io/component-base/featuregate/testing"
 
+	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -518,8 +519,7 @@ func TestActualStateOfWorld_FoundDuringReconstruction(t *testing.T) {
 					return fmt.Errorf("found unexpected volume in reconstructed volume list")
 				}
 				aswInstance, _ := asw.(*actualStateOfWorld)
-				_, found := aswInstance.foundDuringReconstruction[volumeOpts.VolumeName]
-				if found {
+				if aswInstance.IsVolumeDeviceReconstructed(volumeOpts.VolumeName) {
 					return fmt.Errorf("found unexpected volume in reconstructed map")
 				}
 				return nil
@@ -544,6 +544,17 @@ func TestActualStateOfWorld_FoundDuringReconstruction(t *testing.T) {
 			},
 			verifyCallback: func(asw ActualStateOfWorld, volumeOpts operationexecutor.MarkVolumeOpts) error {
 				verifyVolumeAttachability(t, volumeOpts.VolumeName, asw, volumeAttachabilityFalse)
+				return nil
+			},
+		},
+		{
+			name: "uncertain attachability is resolved to uncertain",
+			opCallback: func(asw ActualStateOfWorld, volumeOpts operationexecutor.MarkVolumeOpts) error {
+				volumeOpts.VolumeMountState = operationexecutor.VolumeMountUncertain
+				return asw.MarkVolumeAsUncertain(logr.New(nil), volumeOpts.VolumeName, volumeOpts.VolumeSpec, "mynode")
+			},
+			verifyCallback: func(asw ActualStateOfWorld, volumeOpts operationexecutor.MarkVolumeOpts) error {
+				verifyVolumeAttachability(t, volumeOpts.VolumeName, asw, volumeAttachabilityUncertain)
 				return nil
 			},
 		},

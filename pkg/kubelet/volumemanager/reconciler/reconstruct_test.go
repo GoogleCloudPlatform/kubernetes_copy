@@ -252,6 +252,7 @@ func TestReconstructVolumesMount(t *testing.T) {
 		expectMount     bool
 		volumeMode      v1.PersistentVolumeMode
 		deviceMountPath string
+		podNotAdded     bool
 	}{
 		{
 			name:       "reconstructed volume is mounted",
@@ -272,6 +273,13 @@ func TestReconstructVolumesMount(t *testing.T) {
 			volumePath:      filepath.Join("pod1uid", "volumeDevices", "fake-plugin", volumetesting.FailMountDeviceVolumeName),
 			volumeMode:      v1.PersistentVolumeBlock,
 			deviceMountPath: filepath.Join("plugins", "fake-plugin", "volumeDevices", "pluginDependentPath"),
+		},
+		{
+			name:            "reconstructed volume, pod hasn't been added",
+			volumePath:      filepath.Join("pod1uid", "volumeDevices", "fake-plugin", volumetesting.FailMountDeviceVolumeName),
+			volumeMode:      v1.PersistentVolumeBlock,
+			deviceMountPath: filepath.Join("plugins", "fake-plugin", "volumeDevices", "pluginDependentPath"),
+			podNotAdded:     true,
 		},
 	}
 	for _, tc := range tests {
@@ -327,7 +335,7 @@ func TestReconstructVolumesMount(t *testing.T) {
 
 			rcInstance.populatorHasAddedPods = func() bool {
 				// Mark DSW populated to allow unmounting of volumes.
-				return true
+				return !tc.podNotAdded
 			}
 			// Mark devices paths as reconciled to allow unmounting of volumes.
 			rcInstance.volumesNeedUpdateFromNodeStatus = nil
