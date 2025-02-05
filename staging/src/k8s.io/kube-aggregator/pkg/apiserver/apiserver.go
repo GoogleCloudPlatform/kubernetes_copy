@@ -366,10 +366,15 @@ func (c completedConfig) NewWithDelegate(delegationTarget genericapiserver.Deleg
 	})
 
 	if utilfeature.DefaultFeatureGate.Enabled(genericfeatures.AggregatedDiscoveryEndpoint) {
-		s.discoveryAggregationController = NewDiscoveryManager(
+		var legacyDiscoveryManager aggregated.ResourceManager
+		if s.GenericAPIServer.AggregatedLegacyDiscoveryGroupManager != nil {
+			legacyDiscoveryManager = s.GenericAPIServer.AggregatedLegacyDiscoveryGroupManager.WithSource(aggregated.AggregatorSource)
+		}
+		s.discoveryAggregationController = NewLegacyDiscoveryManager(
 			// Use aggregator as the source name to avoid overwriting native/CRD
 			// groups
 			s.GenericAPIServer.AggregatedDiscoveryGroupManager.WithSource(aggregated.AggregatorSource),
+			legacyDiscoveryManager,
 		)
 
 		// Setup discovery endpoint

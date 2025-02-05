@@ -109,6 +109,9 @@ type discoveryManager struct {
 	// Merged handler which stores all known groupversions
 	mergedDiscoveryHandler discoveryendpoint.ResourceManager
 
+	// Used to register the core API group into discovery
+	legacyDiscoveryHandler discoveryendpoint.ResourceManager
+
 	// Codecs is the serializer used for decoding aggregated apiserver responses
 	codecs serializer.CodecFactory
 }
@@ -187,6 +190,15 @@ var _ DiscoveryAggregationController = &discoveryManager{}
 func NewDiscoveryManager(
 	target discoveryendpoint.ResourceManager,
 ) DiscoveryAggregationController {
+	return NewLegacyDiscoveryManager(target, nil)
+}
+
+// NewLegacyDiscoveryManager creates a new DiscoveryAggregationController that
+// supports registering the core API group into a separate legacy ResourceManager.
+func NewLegacyDiscoveryManager(
+	target discoveryendpoint.ResourceManager,
+	legacy discoveryendpoint.ResourceManager,
+) DiscoveryAggregationController {
 	discoveryScheme := runtime.NewScheme()
 	utilruntime.Must(apidiscoveryv2.AddToScheme(discoveryScheme))
 	utilruntime.Must(apidiscoveryv2beta1.AddToScheme(discoveryScheme))
@@ -196,6 +208,7 @@ func NewDiscoveryManager(
 
 	return &discoveryManager{
 		mergedDiscoveryHandler: target,
+		legacyDiscoveryHandler: legacy,
 		apiServices:            make(map[string]groupVersionInfo),
 		cachedResults:          make(map[serviceKey]cachedResult),
 		dirtyAPIServiceQueue: workqueue.NewTypedRateLimitingQueueWithConfig(
@@ -384,10 +397,13 @@ func (dm *discoveryManager) syncAPIService(apiServiceName string) error {
 
 	gv := helper.APIServiceNameToGroupVersion(apiServiceName)
 	mgv := metav1.GroupVersion{Group: gv.Group, Version: gv.Version}
-
+	discoveryHandler := dm.mergedDiscoveryHandler
+	if dm.legacyDiscoveryHandler != nil && gv.Group == "" {
+		discoveryHandler = dm.legacyDiscoveryHandler
+	}
 	if !exists {
-		// apiservice was removed. remove it from merged discovery
-		dm.mergedDiscoveryHandler.RemoveGroupVersion(mgv)
+		// apiservice was removed. remove it from discovery
+		discoveryHandler.RemoveGroupVersion(mgv)
 		return nil
 	}
 
@@ -430,8 +446,9 @@ func (dm *discoveryManager) syncAPIService(apiServiceName string) error {
 		entry.Freshness = apidiscoveryv2.DiscoveryFreshnessStale
 	}
 
-	dm.mergedDiscoveryHandler.AddGroupVersion(gv.Group, entry)
-	dm.mergedDiscoveryHandler.SetGroupVersionPriority(metav1.GroupVersion(gv), info.groupPriority, info.versionPriority)
+	discoveryHandler.AddGroupVersion(gv.Group, entry)
+	discoveryHandler.SetGroupVersionPriority(metav1.GroupVersion(gv), info.groupPriority, info.versionPriority)
+
 	return nil
 }
 
