@@ -29,6 +29,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/uuid"
+	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/kubelet/config"
 	"k8s.io/kubernetes/pkg/volume"
 	"k8s.io/kubernetes/pkg/volume/util"
@@ -36,6 +37,7 @@ import (
 	"k8s.io/kubernetes/pkg/volume/util/recyclerclient"
 	"k8s.io/kubernetes/pkg/volume/validation"
 	"k8s.io/mount-utils"
+	"k8s.io/utils/ptr"
 )
 
 // ProbeVolumePlugins is the primary entrypoint for volume plugins.
@@ -370,131 +372,50 @@ func getVolumeSource(spec *volume.Spec) (*v1.HostPathVolumeSource, bool, error) 
 	return nil, false, fmt.Errorf("spec does not reference an HostPath volume type")
 }
 
-type hostPathTypeChecker interface {
-	Exists() bool
-	IsFile() bool
-	MakeFile() error
-	IsDir() bool
-	MakeDir() error
-	IsBlock() bool
-	IsChar() bool
-	IsSocket() bool
-	GetPath() string
-}
-
-type fileTypeChecker struct {
-	path string
-	hu   hostutil.HostUtils
-}
-
-func (ftc *fileTypeChecker) Exists() bool {
-	exists, err := ftc.hu.PathExists(ftc.path)
+func exists(path string, hu hostutil.HostUtils) bool {
+	exists, err := hu.PathExists(path)
 	return exists && err == nil
-}
-
-func (ftc *fileTypeChecker) IsFile() bool {
-	if !ftc.Exists() {
-		return false
-	}
-	pathType, err := ftc.hu.GetFileType(ftc.path)
-	if err != nil {
-		return false
-	}
-	return string(pathType) == string(v1.HostPathFile)
-}
-
-func (ftc *fileTypeChecker) MakeFile() error {
-	return makeFile(ftc.path)
-}
-
-func (ftc *fileTypeChecker) IsDir() bool {
-	if !ftc.Exists() {
-		return false
-	}
-	pathType, err := ftc.hu.GetFileType(ftc.path)
-	if err != nil {
-		return false
-	}
-	return string(pathType) == string(v1.HostPathDirectory)
-}
-
-func (ftc *fileTypeChecker) MakeDir() error {
-	return makeDir(ftc.path)
-}
-
-func (ftc *fileTypeChecker) IsBlock() bool {
-	blkDevType, err := ftc.hu.GetFileType(ftc.path)
-	if err != nil {
-		return false
-	}
-	return string(blkDevType) == string(v1.HostPathBlockDev)
-}
-
-func (ftc *fileTypeChecker) IsChar() bool {
-	charDevType, err := ftc.hu.GetFileType(ftc.path)
-	if err != nil {
-		return false
-	}
-	return string(charDevType) == string(v1.HostPathCharDev)
-}
-
-func (ftc *fileTypeChecker) IsSocket() bool {
-	socketType, err := ftc.hu.GetFileType(ftc.path)
-	if err != nil {
-		return false
-	}
-	return string(socketType) == string(v1.HostPathSocket)
-}
-
-func (ftc *fileTypeChecker) GetPath() string {
-	return ftc.path
-}
-
-func newFileTypeChecker(path string, hu hostutil.HostUtils) hostPathTypeChecker {
-	return &fileTypeChecker{path: path, hu: hu}
 }
 
 // checkType checks whether the given path is the exact pathType
 func checkType(path string, pathType *v1.HostPathType, hu hostutil.HostUtils) error {
-	return checkTypeInternal(newFileTypeChecker(path, hu), pathType)
-}
-
-func checkTypeInternal(ftc hostPathTypeChecker, pathType *v1.HostPathType) error {
 	switch *pathType {
 	case v1.HostPathDirectoryOrCreate:
-		if !ftc.Exists() {
-			return ftc.MakeDir()
+		if !exists(path, hu) {
+			return makeDir(path)
 		}
 		fallthrough
 	case v1.HostPathDirectory:
-		if !ftc.IsDir() {
-			return fmt.Errorf("hostPath type check failed: %s is not a directory", ftc.GetPath())
-		}
+		return typeMatchedOrError(path, hu, ptr.To(v1.HostPathDirectory), "directory")
 	case v1.HostPathFileOrCreate:
-		if !ftc.Exists() {
-			return ftc.MakeFile()
+		if !exists(path, hu) {
+			return makeFile(path)
 		}
 		fallthrough
 	case v1.HostPathFile:
-		if !ftc.IsFile() {
-			return fmt.Errorf("hostPath type check failed: %s is not a file", ftc.GetPath())
-		}
+		return typeMatchedOrError(path, hu, ptr.To(v1.HostPathFile), "file")
 	case v1.HostPathSocket:
-		if !ftc.IsSocket() {
-			return fmt.Errorf("hostPath type check failed: %s is not a socket file", ftc.GetPath())
-		}
+		return typeMatchedOrError(path, hu, ptr.To(v1.HostPathSocket), "socket file")
 	case v1.HostPathCharDev:
-		if !ftc.IsChar() {
-			return fmt.Errorf("hostPath type check failed: %s is not a character device", ftc.GetPath())
-		}
+		return typeMatchedOrError(path, hu, ptr.To(v1.HostPathCharDev), "character device")
 	case v1.HostPathBlockDev:
-		if !ftc.IsBlock() {
-			return fmt.Errorf("hostPath type check failed: %s is not a block device", ftc.GetPath())
-		}
+		return typeMatchedOrError(path, hu, ptr.To(v1.HostPathBlockDev), "block device")
 	default:
 		return fmt.Errorf("%s is an invalid volume type", *pathType)
 	}
+}
 
+func typeMatchedOrError(path string, hu hostutil.HostUtils, expectedType *v1.HostPathType, expectedDescription string) error {
+	if !exists(path, hu) {
+		return fmt.Errorf("hostPath %s doesn't exist", path)
+	}
+	pathType, err := hu.GetFileType(path)
+	if err != nil {
+		return fmt.Errorf("hostPath type check failed, %s is not a %s, unable to determine its type: %w", path, expectedDescription, err)
+	}
+	if string(pathType) != string(*expectedType) {
+		return fmt.Errorf("hostPath type check failed: %s is not a %s, it's a %s", path, expectedDescription, pathType)
+	}
 	return nil
 }
 

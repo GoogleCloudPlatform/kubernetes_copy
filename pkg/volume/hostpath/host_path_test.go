@@ -17,8 +17,10 @@ limitations under the License.
 package hostpath
 
 import (
+	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"testing"
 
 	v1 "k8s.io/api/core/v1"
@@ -32,22 +34,8 @@ import (
 	volumetest "k8s.io/kubernetes/pkg/volume/testing"
 	"k8s.io/kubernetes/pkg/volume/util/hostutil"
 	utilpath "k8s.io/utils/path"
+	"k8s.io/utils/ptr"
 )
-
-func newHostPathType(pathType string) *v1.HostPathType {
-	hostPathType := new(v1.HostPathType)
-	*hostPathType = v1.HostPathType(pathType)
-	return hostPathType
-}
-
-func newHostPathTypeList(pathType ...string) []*v1.HostPathType {
-	typeList := []*v1.HostPathType{}
-	for _, ele := range pathType {
-		typeList = append(typeList, newHostPathType(ele))
-	}
-
-	return typeList
-}
 
 func TestCanSupport(t *testing.T) {
 	plugMgr := volume.VolumePluginMgr{}
@@ -239,7 +227,7 @@ func TestPlugin(t *testing.T) {
 	volPath := "/tmp/vol1"
 	spec := &v1.Volume{
 		Name:         "vol1",
-		VolumeSource: v1.VolumeSource{HostPath: &v1.HostPathVolumeSource{Path: volPath, Type: newHostPathType(string(v1.HostPathDirectoryOrCreate))}},
+		VolumeSource: v1.VolumeSource{HostPath: &v1.HostPathVolumeSource{Path: volPath, Type: ptr.To(v1.HostPathDirectoryOrCreate)}},
 	}
 	pod := &v1.Pod{ObjectMeta: metav1.ObjectMeta{UID: types.UID("poduid")}}
 	defer os.RemoveAll(volPath)
@@ -280,7 +268,7 @@ func TestPersistentClaimReadOnlyFlag(t *testing.T) {
 		},
 		Spec: v1.PersistentVolumeSpec{
 			PersistentVolumeSource: v1.PersistentVolumeSource{
-				HostPath: &v1.HostPathVolumeSource{Path: "foo", Type: newHostPathType(string(v1.HostPathDirectoryOrCreate))},
+				HostPath: &v1.HostPathVolumeSource{Path: "foo", Type: ptr.To(v1.HostPathDirectoryOrCreate)},
 			},
 			ClaimRef: &v1.ObjectReference{
 				Name: "claimA",
@@ -321,290 +309,125 @@ func TestPersistentClaimReadOnlyFlag(t *testing.T) {
 	}
 }
 
-func setUp() error {
-	err := os.MkdirAll("/tmp/ExistingFolder", os.FileMode(0755))
-	if err != nil {
-		return err
-	}
-
-	f, err := os.OpenFile("/tmp/ExistingFolder/foo", os.O_CREATE, os.FileMode(0644))
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	return nil
-}
-
-func tearDown() {
-	os.RemoveAll("/tmp/ExistingFolder")
-}
-
 func TestOSFileTypeChecker(t *testing.T) {
-	err := setUp()
+	tempDir, err := os.MkdirTemp("", "hostpathtest")
 	if err != nil {
 		t.Error(err)
 	}
-	defer tearDown()
+	defer os.RemoveAll(tempDir)
 	testCases := []struct {
-		name        string
-		path        string
-		desiredType string
-		isDir       bool
-		isFile      bool
-		isSocket    bool
-		isBlock     bool
-		isChar      bool
+		name           string
+		path           string
+		pathType       *v1.HostPathType
+		simulatedType  *hostutil.FileType
+		expectError    bool
+		checkExistence bool
+		checkDirectory bool
 	}{
+		// The order of these test cases is significant, some of them create files or directories
 		{
-			name:        "Existing Folder",
-			path:        "/tmp/ExistingFolder",
-			desiredType: string(hostutil.FileTypeDirectory),
-			isDir:       true,
+			name:        "Missing file",
+			path:        filepath.Join(tempDir, "nosuchfile"),
+			pathType:    ptr.To(v1.HostPathFile),
+			expectError: true,
 		},
 		{
-			name:        "Existing File",
-			path:        "/tmp/ExistingFolder/foo",
-			desiredType: string(hostutil.FileTypeFile),
-			isFile:      true,
+			name:           "File to create",
+			path:           filepath.Join(tempDir, "newfile"),
+			pathType:       ptr.To(v1.HostPathFileOrCreate),
+			checkExistence: true,
 		},
 		{
-			name:        "Existing Socket File",
-			path:        "/tmp/ExistingFolder/foo",
-			desiredType: string(v1.HostPathSocket),
-			isSocket:    true,
+			name:           "Created file",
+			path:           filepath.Join(tempDir, "newfile"),
+			pathType:       ptr.To(v1.HostPathFile),
+			checkExistence: true,
 		},
 		{
-			name:        "Existing Character Device",
-			path:        "/tmp/ExistingFolder/foo",
-			desiredType: string(v1.HostPathCharDev),
-			isChar:      true,
+			name:           "Created file (mounted with OrCreate)",
+			path:           filepath.Join(tempDir, "newfile"),
+			pathType:       ptr.To(v1.HostPathFileOrCreate),
+			checkExistence: true,
 		},
 		{
-			name:        "Existing Block Device",
-			path:        "/tmp/ExistingFolder/foo",
-			desiredType: string(v1.HostPathBlockDev),
-			isBlock:     true,
-		},
-	}
-
-	for i, tc := range testCases {
-		fakeFTC := hostutil.NewFakeHostUtil(
-			map[string]hostutil.FileType{
-				tc.path: hostutil.FileType(tc.desiredType),
-			})
-		oftc := newFileTypeChecker(tc.path, fakeFTC)
-
-		path := oftc.GetPath()
-		if path != tc.path {
-			t.Errorf("[%d: %q] got unexpected path: %s", i, tc.name, path)
-		}
-
-		exist := oftc.Exists()
-		if !exist {
-			t.Errorf("[%d: %q] path: %s does not exist", i, tc.name, path)
-		}
-
-		if tc.isDir {
-			if !oftc.IsDir() {
-				t.Errorf("[%d: %q] expected folder, got unexpected: %s", i, tc.name, path)
-			}
-			if oftc.IsFile() {
-				t.Errorf("[%d: %q] expected folder, got unexpected file: %s", i, tc.name, path)
-			}
-			if oftc.IsSocket() {
-				t.Errorf("[%d: %q] expected folder, got unexpected socket file: %s", i, tc.name, path)
-			}
-			if oftc.IsBlock() {
-				t.Errorf("[%d: %q] expected folder, got unexpected block device: %s", i, tc.name, path)
-			}
-			if oftc.IsChar() {
-				t.Errorf("[%d: %q] expected folder, got unexpected character device: %s", i, tc.name, path)
-			}
-		}
-
-		if tc.isFile {
-			if !oftc.IsFile() {
-				t.Errorf("[%d: %q] expected file, got unexpected: %s", i, tc.name, path)
-			}
-			if oftc.IsDir() {
-				t.Errorf("[%d: %q] expected file, got unexpected folder: %s", i, tc.name, path)
-			}
-			if oftc.IsSocket() {
-				t.Errorf("[%d: %q] expected file, got unexpected socket file: %s", i, tc.name, path)
-			}
-			if oftc.IsBlock() {
-				t.Errorf("[%d: %q] expected file, got unexpected block device: %s", i, tc.name, path)
-			}
-			if oftc.IsChar() {
-				t.Errorf("[%d: %q] expected file, got unexpected character device: %s", i, tc.name, path)
-			}
-		}
-
-		if tc.isSocket {
-			if !oftc.IsSocket() {
-				t.Errorf("[%d: %q] expected socket file, got unexpected: %s", i, tc.name, path)
-			}
-			if oftc.IsDir() {
-				t.Errorf("[%d: %q] expected socket file, got unexpected folder: %s", i, tc.name, path)
-			}
-			if oftc.IsFile() {
-				t.Errorf("[%d: %q] expected socket file, got unexpected file: %s", i, tc.name, path)
-			}
-			if oftc.IsBlock() {
-				t.Errorf("[%d: %q] expected socket file, got unexpected block device: %s", i, tc.name, path)
-			}
-			if oftc.IsChar() {
-				t.Errorf("[%d: %q] expected socket file, got unexpected character device: %s", i, tc.name, path)
-			}
-		}
-
-		if tc.isChar {
-			if !oftc.IsChar() {
-				t.Errorf("[%d: %q] expected character device, got unexpected: %s", i, tc.name, path)
-			}
-			if oftc.IsDir() {
-				t.Errorf("[%d: %q] expected character device, got unexpected folder: %s", i, tc.name, path)
-			}
-			if oftc.IsFile() {
-				t.Errorf("[%d: %q] expected character device, got unexpected file: %s", i, tc.name, path)
-			}
-			if oftc.IsSocket() {
-				t.Errorf("[%d: %q] expected character device, got unexpected socket file: %s", i, tc.name, path)
-			}
-			if oftc.IsBlock() {
-				t.Errorf("[%d: %q] expected character device, got unexpected block device: %s", i, tc.name, path)
-			}
-		}
-
-		if tc.isBlock {
-			if !oftc.IsBlock() {
-				t.Errorf("[%d: %q] expected block device, got unexpected: %s", i, tc.name, path)
-			}
-			if oftc.IsDir() {
-				t.Errorf("[%d: %q] expected block device, got unexpected folder: %s", i, tc.name, path)
-			}
-			if oftc.IsFile() {
-				t.Errorf("[%d: %q] expected block device, got unexpected file: %s", i, tc.name, path)
-			}
-			if oftc.IsSocket() {
-				t.Errorf("[%d: %q] expected block device, got unexpected socket file: %s", i, tc.name, path)
-			}
-			if oftc.IsChar() {
-				t.Errorf("[%d: %q] expected block device, got unexpected character device: %s", i, tc.name, path)
-			}
-		}
-	}
-
-}
-
-type fakeHostPathTypeChecker struct {
-	name            string
-	path            string
-	exists          bool
-	isDir           bool
-	isFile          bool
-	isSocket        bool
-	isBlock         bool
-	isChar          bool
-	validpathType   []*v1.HostPathType
-	invalidpathType []*v1.HostPathType
-}
-
-func (ftc *fakeHostPathTypeChecker) MakeFile() error { return nil }
-func (ftc *fakeHostPathTypeChecker) MakeDir() error  { return nil }
-func (ftc *fakeHostPathTypeChecker) Exists() bool    { return ftc.exists }
-func (ftc *fakeHostPathTypeChecker) IsFile() bool    { return ftc.isFile }
-func (ftc *fakeHostPathTypeChecker) IsDir() bool     { return ftc.isDir }
-func (ftc *fakeHostPathTypeChecker) IsBlock() bool   { return ftc.isBlock }
-func (ftc *fakeHostPathTypeChecker) IsChar() bool    { return ftc.isChar }
-func (ftc *fakeHostPathTypeChecker) IsSocket() bool  { return ftc.isSocket }
-func (ftc *fakeHostPathTypeChecker) GetPath() string { return ftc.path }
-
-func TestHostPathTypeCheckerInternal(t *testing.T) {
-	testCases := []fakeHostPathTypeChecker{
-		{
-			name:          "Existing Folder",
-			path:          "/existingFolder",
-			isDir:         true,
-			exists:        true,
-			validpathType: newHostPathTypeList(string(v1.HostPathDirectoryOrCreate), string(v1.HostPathDirectory)),
-			invalidpathType: newHostPathTypeList(string(v1.HostPathFileOrCreate), string(v1.HostPathFile),
-				string(v1.HostPathSocket), string(v1.HostPathCharDev), string(v1.HostPathBlockDev)),
+			name:        "Directory conflicting with a file",
+			path:        filepath.Join(tempDir, "newfile"),
+			pathType:    ptr.To(v1.HostPathDirectory),
+			expectError: true,
 		},
 		{
-			name:          "New Folder",
-			path:          "/newFolder",
-			isDir:         false,
-			exists:        false,
-			validpathType: newHostPathTypeList(string(v1.HostPathDirectoryOrCreate)),
-			invalidpathType: newHostPathTypeList(string(v1.HostPathDirectory), string(v1.HostPathFile),
-				string(v1.HostPathSocket), string(v1.HostPathCharDev), string(v1.HostPathBlockDev)),
+			name:        "Missing directory",
+			path:        filepath.Join(tempDir, "nosuchdirectory"),
+			pathType:    ptr.To(v1.HostPathDirectory),
+			expectError: true,
 		},
 		{
-			name:          "Existing File",
-			path:          "/existingFile",
-			isFile:        true,
-			exists:        true,
-			validpathType: newHostPathTypeList(string(v1.HostPathFileOrCreate), string(v1.HostPathFile)),
-			invalidpathType: newHostPathTypeList(string(v1.HostPathDirectoryOrCreate), string(v1.HostPathDirectory),
-				string(v1.HostPathSocket), string(v1.HostPathCharDev), string(v1.HostPathBlockDev)),
+			name:           "Directory to create",
+			path:           filepath.Join(tempDir, "newdirectory"),
+			pathType:       ptr.To(v1.HostPathDirectoryOrCreate),
+			checkExistence: true,
+			checkDirectory: true,
 		},
 		{
-			name:          "New File",
-			path:          "/newFile",
-			isFile:        false,
-			exists:        false,
-			validpathType: newHostPathTypeList(string(v1.HostPathFileOrCreate)),
-			invalidpathType: newHostPathTypeList(string(v1.HostPathDirectory),
-				string(v1.HostPathSocket), string(v1.HostPathCharDev), string(v1.HostPathBlockDev)),
+			name:           "Created directory",
+			path:           filepath.Join(tempDir, "newdirectory"),
+			pathType:       ptr.To(v1.HostPathDirectory),
+			checkExistence: true,
+			checkDirectory: true,
 		},
 		{
-			name:          "Existing Socket",
-			path:          "/existing.socket",
-			isSocket:      true,
-			isFile:        true,
-			exists:        true,
-			validpathType: newHostPathTypeList(string(v1.HostPathSocket), string(v1.HostPathFileOrCreate), string(v1.HostPathFile)),
-			invalidpathType: newHostPathTypeList(string(v1.HostPathDirectoryOrCreate), string(v1.HostPathDirectory),
-				string(v1.HostPathCharDev), string(v1.HostPathBlockDev)),
+			name:           "Created directory (mounted with OrCreate)",
+			path:           filepath.Join(tempDir, "newdirectory"),
+			pathType:       ptr.To(v1.HostPathDirectoryOrCreate),
+			checkExistence: true,
+			checkDirectory: true,
 		},
 		{
-			name:          "Existing Character Device",
-			path:          "/existing.char",
-			isChar:        true,
-			isFile:        true,
-			exists:        true,
-			validpathType: newHostPathTypeList(string(v1.HostPathCharDev), string(v1.HostPathFileOrCreate), string(v1.HostPathFile)),
-			invalidpathType: newHostPathTypeList(string(v1.HostPathDirectoryOrCreate), string(v1.HostPathDirectory),
-				string(v1.HostPathSocket), string(v1.HostPathBlockDev)),
+			name:          "Simulated Socket File",
+			path:          filepath.Join(tempDir, "socket"),
+			pathType:      ptr.To(v1.HostPathSocket),
+			simulatedType: ptr.To(hostutil.FileTypeSocket),
 		},
 		{
-			name:          "Existing Block Device",
-			path:          "/existing.block",
-			isBlock:       true,
-			isFile:        true,
-			exists:        true,
-			validpathType: newHostPathTypeList(string(v1.HostPathBlockDev), string(v1.HostPathFileOrCreate), string(v1.HostPathFile)),
-			invalidpathType: newHostPathTypeList(string(v1.HostPathDirectoryOrCreate), string(v1.HostPathDirectory),
-				string(v1.HostPathSocket), string(v1.HostPathCharDev)),
+			name:          "Simulated Character Device",
+			path:          filepath.Join(tempDir, "chardev"),
+			pathType:      ptr.To(v1.HostPathCharDev),
+			simulatedType: ptr.To(hostutil.FileTypeCharDev),
+		},
+		{
+			name:          "Simulated Block Device",
+			path:          filepath.Join(tempDir, "blockdev"),
+			pathType:      ptr.To(v1.HostPathBlockDev),
+			simulatedType: ptr.To(hostutil.FileTypeBlockDev),
 		},
 	}
 
 	for i, tc := range testCases {
-		for _, pathType := range tc.validpathType {
-			err := checkTypeInternal(&tc, pathType)
-			if err != nil {
-				t.Errorf("[%d: %q] [%q] expected nil, got %v", i, tc.name, string(*pathType), err)
-			}
+		var hu hostutil.HostUtils
+		if tc.simulatedType != nil {
+			hu = hostutil.NewFakeHostUtil(
+				map[string]hostutil.FileType{
+					tc.path: hostutil.FileType(*tc.simulatedType),
+				})
+		} else {
+			hu = hostutil.NewHostUtil()
 		}
 
-		for _, pathType := range tc.invalidpathType {
-			checkResult := checkTypeInternal(&tc, pathType)
-			if checkResult == nil {
-				t.Errorf("[%d: %q] [%q] expected error, got nil", i, tc.name, string(*pathType))
+		err := checkType(tc.path, tc.pathType, hu)
+		if tc.expectError && err == nil {
+			t.Errorf("[%d: %s] expected an error but didn't get one", i, tc.name)
+		}
+		if !tc.expectError && err != nil {
+			t.Errorf("[%d: %s] didn't expect an error but got one: %v", i, tc.name, err)
+		}
+		if tc.checkExistence {
+			fi, err := os.Stat(tc.path)
+			if errors.Is(err, os.ErrNotExist) {
+				t.Errorf("[%d: %q] path %q does not exist", i, tc.name, tc.path)
+			}
+			if tc.checkDirectory && !fi.IsDir() {
+				t.Errorf("[%d: %q] path %q is not a directory", i, tc.name, tc.path)
 			}
 		}
 	}
-
 }
