@@ -25,6 +25,7 @@ import (
 
 func init() {
 	if err := rest.RegisterAuthProviderPlugin("gcp", newGCPAuthProvider); err != nil {
+		//nolint:logcheck // Should not happen.
 		klog.Fatalf("Failed to register gcp auth plugin: %v", err)
 	}
 }
