@@ -187,7 +187,7 @@ func (l *leaderElection) Run() error {
 		EventRecorder: eventRecorder,
 	}
 
-	lock, err := resourcelock.New(l.resourceLock, l.namespace, sanitizeName(l.lockName), l.clientset.CoreV1(), l.clientset.CoordinationV1(), rlConfig)
+	lock, err := resourcelock.NewFromKubeclient(l.resourceLock, l.namespace, sanitizeName(l.lockName), l.clientset, rlConfig)
 	if err != nil {
 		return err
 	}

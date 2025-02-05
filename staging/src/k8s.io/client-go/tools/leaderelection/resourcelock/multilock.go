@@ -60,6 +60,12 @@ func (ml *MultiLock) Get(ctx context.Context) (*LeaderElectionRecord, []byte, er
 	return primary, ConcatRawRecord(primaryRaw, secondaryRaw), nil
 }
 
+// TODO(linxiulei): support MultiLock
+// GetFromCache returns the older election record of the lock
+func (ml *MultiLock) GetFromCache(ctx context.Context) (*LeaderElectionRecord, []byte, error) {
+	return ml.Get(ctx)
+}
+
 // Create attempts to create both primary lock and secondary lock
 func (ml *MultiLock) Create(ctx context.Context, ler LeaderElectionRecord) error {
 	err := ml.Primary.Create(ctx, ler)
@@ -97,6 +103,11 @@ func (ml *MultiLock) Describe() string {
 // Identity returns the Identity of the lock
 func (ml *MultiLock) Identity() string {
 	return ml.Primary.Identity()
+}
+
+// TODO(linxiulei): support MultiLock
+// StartSync
+func (ml *MultiLock) StartSync(_ context.Context) {
 }
 
 func ConcatRawRecord(primaryRaw, secondaryRaw []byte) []byte {

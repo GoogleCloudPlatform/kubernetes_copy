@@ -33,6 +33,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes/fake"
 	fakeclient "k8s.io/client-go/testing"
 	rl "k8s.io/client-go/tools/leaderelection/resourcelock"
@@ -1112,6 +1113,188 @@ func TestFastPathLeaderElection(t *testing.T) {
 			cancelFunc = cancel
 
 			elector.Run(ctx)
+			assert.Equal(t, test.expectedLockOps, lockOps, "Expected lock ops %q, got %q", test.expectedLockOps, lockOps)
+		})
+	}
+}
+
+func TestNonLeaderUsingWatch(t *testing.T) {
+	objectType, name, ns, identity := "leases", "bar", "foo", "baz"
+	lec := LeaderElectionConfig{
+		LeaseDuration: 3 * time.Second,
+		RenewDeadline: 2 * time.Second,
+		RetryPeriod:   1 * time.Second,
+
+		Callbacks: LeaderCallbacks{
+			OnNewLeader:      func(identity string) {},
+			OnStoppedLeading: func() {},
+			OnStartedLeading: func(context.Context) {
+			},
+		},
+	}
+
+	tests := []struct {
+		name             string
+		reactors         []Reactor
+		lockHeld         bool
+		lockInvalid      bool
+		lockBeingRenewed bool
+		noWatch          bool
+		expectedLockOps  []string
+	}{
+		{
+			name:            "lock non-exist, to create and become leader",
+			expectedLockOps: []string{"list", "watch", "get", "create", "update", "update"},
+		},
+		{
+			name:            "lock held, to renew and become leader",
+			lockHeld:        true,
+			expectedLockOps: []string{"list", "watch", "update", "update"},
+		},
+		{
+			name:            "lock stale, to fallback and become leader",
+			lockInvalid:     true,
+			expectedLockOps: []string{"list", "watch", "get", "update", "update"},
+		},
+		{
+			name:             "lock being renewed by a leader",
+			lockBeingRenewed: true,
+			expectedLockOps:  []string{"list", "watch"},
+		},
+		{
+			name:            "informer not initialized, fallback to slow path",
+			noWatch:         true,
+			expectedLockOps: []string{"get", "create", "update", "update"},
+		},
+	}
+
+	for i := range tests {
+		test := &tests[i]
+		t.Run(test.name, func(t *testing.T) {
+			var (
+				lockObj     runtime.Object
+				lockObjList runtime.Object
+				updates     int
+				lockOps     []string
+			)
+			fakeWatch := watch.NewFake()
+			watchStarted := false
+
+			recorder := record.NewFakeRecorder(100)
+			resourceLockConfig := rl.ResourceLockConfig{
+				Identity:      identity,
+				EventRecorder: recorder,
+			}
+
+			if test.lockHeld {
+				l := createLockObject(t, objectType, ns, name, &rl.LeaderElectionRecord{HolderIdentity: identity, LeaseDurationSeconds: 3}).(*coordinationv1.Lease)
+				lockObj = l
+				lockObjList = &coordinationv1.LeaseList{Items: []coordinationv1.Lease{*l}}
+			}
+			if test.lockInvalid {
+				l := createLockObject(t, objectType, ns, name, &rl.LeaderElectionRecord{HolderIdentity: "baz1", LeaseDurationSeconds: 3}).(*coordinationv1.Lease)
+				lockObj = l
+				lockObjList = &coordinationv1.LeaseList{Items: []coordinationv1.Lease{*l}}
+			}
+
+			// renewing must stop before canceling context to avoid data race.
+			stopRenewing := func() {}
+			if test.lockBeingRenewed {
+				l := createLockObject(t, objectType, ns, name, &rl.LeaderElectionRecord{HolderIdentity: "baz1", LeaseDurationSeconds: 3}).(*coordinationv1.Lease)
+				lockObj = l
+				lockObjList = &coordinationv1.LeaseList{Items: []coordinationv1.Lease{*l}}
+				closeCh := make(chan struct{})
+				go func() {
+					ticker := time.NewTicker(time.Second)
+					for {
+						select {
+						case <-closeCh:
+							ticker.Stop()
+							close(closeCh)
+							return
+						case <-ticker.C:
+							l := createLockObject(t, objectType, ns, name, &rl.LeaderElectionRecord{HolderIdentity: "baz1", LeaseDurationSeconds: 3, RenewTime: metav1.NewTime(time.Now())}).(*coordinationv1.Lease)
+							fakeWatch.Add(l)
+						}
+					}
+				}()
+				stopRenewing = func() {
+					closeCh <- struct{}{}
+					<-closeCh
+				}
+			}
+
+			// test only runs 10s at max to stop cases where non-leader client renews infinitely.
+			ctx, cancel := context.WithCancel(context.Background())
+			go func() {
+				time.Sleep(10 * time.Second)
+				stopRenewing()
+				cancel()
+			}()
+
+			c := &fake.Clientset{}
+			c.AddReactor("create", objectType, func(action fakeclient.Action) (handled bool, ret runtime.Object, err error) {
+				lockOps = append(lockOps, "create")
+				lockObj = action.(fakeclient.CreateAction).GetObject()
+				return true, lockObj, nil
+			})
+			c.AddReactor("get", objectType, func(action fakeclient.Action) (handled bool, ret runtime.Object, err error) {
+				lockOps = append(lockOps, "get")
+				if lockObj != nil {
+					return true, lockObj, nil
+				}
+				return true, nil, errors.NewNotFound(action.(fakeclient.GetAction).GetResource().GroupResource(), action.(fakeclient.GetAction).GetName())
+			})
+			c.AddReactor("list", objectType, func(action fakeclient.Action) (handled bool, ret runtime.Object, err error) {
+				lockOps = append(lockOps, "list")
+				if lockObjList != nil {
+					return true, lockObjList, nil
+				}
+				return true, &coordinationv1.LeaseList{}, nil
+			})
+			c.AddReactor("update", objectType, func(action fakeclient.Action) (handled bool, ret runtime.Object, err error) {
+				updates++
+				lockOps = append(lockOps, "update")
+				lockObj = action.(fakeclient.UpdateAction).GetObject()
+				if watchStarted {
+					fakeWatch.Add(lockObj.DeepCopyObject())
+				}
+				if updates == 2 {
+					cancel()
+				}
+				return true, lockObj, nil
+			})
+			c.AddWatchReactor("*", func(action fakeclient.Action) (handled bool, ret watch.Interface, err error) {
+				lockOps = append(lockOps, "watch")
+				watchStarted = true
+				return true, fakeWatch, nil
+			})
+			c.AddReactor("*", "*", func(action fakeclient.Action) (bool, runtime.Object, error) {
+				t.Errorf("unreachable action. testclient called too many times: %+v", action)
+				return true, nil, fmt.Errorf("unreachable action")
+			})
+
+			lock, err := rl.NewFromKubeclient(objectType, ns, name, c, resourceLockConfig)
+			if err != nil {
+				t.Fatal("resourcelock.NewFromKubeclient() = ", err)
+			}
+			if test.noWatch {
+				lock, err = rl.New(objectType, ns, name, c.CoreV1(), c.CoordinationV1(), resourceLockConfig)
+				if err != nil {
+					t.Fatal("resourcelock.NewFromKubeclient() = ", err)
+				}
+			}
+
+			lock.StartSync(ctx.Done())
+			time.Sleep(time.Second)
+
+			lec.Lock = lock
+			elector, err := NewLeaderElector(lec)
+			if err != nil {
+				t.Fatal("Failed to create leader elector: ", err)
+			}
+			elector.Run(ctx)
+			fakeWatch.Stop()
 			assert.Equal(t, test.expectedLockOps, lockOps, "Expected lock ops %q, got %q", test.expectedLockOps, lockOps)
 		})
 	}

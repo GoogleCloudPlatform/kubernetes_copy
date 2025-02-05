@@ -37,6 +37,11 @@ func (fl *fakeLock) Get(ctx context.Context) (ler *rl.LeaderElectionRecord, rawR
 	return nil, nil, nil
 }
 
+// GetFromCache is a dummy to allow us to have a fakeLock for testing.
+func (fl *fakeLock) GetFromCache(ctx context.Context) (ler *rl.LeaderElectionRecord, rawRecord []byte, err error) {
+	return nil, nil, nil
+}
+
 // Create is a dummy to allow us to have a fakeLock for testing.
 func (fl *fakeLock) Create(ctx context.Context, ler rl.LeaderElectionRecord) error {
 	return nil
@@ -46,6 +51,9 @@ func (fl *fakeLock) Create(ctx context.Context, ler rl.LeaderElectionRecord) err
 func (fl *fakeLock) Update(ctx context.Context, ler rl.LeaderElectionRecord) error {
 	return nil
 }
+
+// StartSync is a dummy to allow us to have a fakeLock for testing.
+func (fl *fakeLock) StartSync(_ <-chan struct{}) {}
 
 // RecordEvent is a dummy to allow us to have a fakeLock for testing.
 func (fl *fakeLock) RecordEvent(string) {}

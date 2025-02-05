@@ -211,12 +211,13 @@ type LeaderElector struct {
 func (le *LeaderElector) Run(ctx context.Context) {
 	defer runtime.HandleCrash()
 	defer le.config.Callbacks.OnStoppedLeading()
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	le.config.Lock.StartSync(ctx.Done())
 
 	if !le.acquire(ctx) {
 		return // ctx signalled done
 	}
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
 	go le.config.Callbacks.OnStartedLeading(ctx)
 	le.renew(ctx)
 }
@@ -430,7 +431,31 @@ func (le *LeaderElector) tryAcquireOrRenew(ctx context.Context) bool {
 	}
 
 	// 2. obtain or create the ElectionRecord
-	oldLeaderElectionRecord, oldLeaderElectionRawRecord, err := le.config.Lock.Get(ctx)
+	var (
+		oldLeaderElectionRecord    *rl.LeaderElectionRecord
+		oldLeaderElectionRawRecord []byte
+		err                        error
+	)
+	// Losing the leader lock is costly so let's not risk it using cache.
+	if le.IsLeader() {
+		oldLeaderElectionRecord, oldLeaderElectionRawRecord, err = le.config.Lock.Get(ctx)
+	} else {
+		oldLeaderElectionRecord, oldLeaderElectionRawRecord, err = le.config.Lock.GetFromCache(ctx)
+		// Fallback to retriving the lock from APIServer
+		if err != nil {
+			// local cache is is unavailable
+			klog.Errorf("error retrieving resource lock %v from cache: %v", le.config.Lock.Describe(), err)
+			oldLeaderElectionRecord, oldLeaderElectionRawRecord, err = le.config.Lock.Get(ctx)
+		} else if oldLeaderElectionRecord == nil {
+			// local cache has not fully sync'ed
+			klog.Errorf("resource lock %v is currently unavailable from cache", le.config.Lock.Describe())
+			oldLeaderElectionRecord, oldLeaderElectionRawRecord, err = le.config.Lock.Get(ctx)
+		} else if bytes.Equal(le.observedRawRecord, oldLeaderElectionRawRecord) && !le.isLeaseValid(now.Time) {
+			// local cache has not updated for lease duration, suspecting stale
+			klog.Errorf("resource lock %v may have been stale", le.config.Lock.Describe())
+			oldLeaderElectionRecord, oldLeaderElectionRawRecord, err = le.config.Lock.Get(ctx)
+		}
+	}
 	if err != nil {
 		if !errors.IsNotFound(err) {
 			klog.Errorf("error retrieving resource lock %v: %v", le.config.Lock.Describe(), err)

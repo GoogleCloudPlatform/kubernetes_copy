@@ -25,16 +25,20 @@ import (
 	coordinationv1 "k8s.io/api/coordination/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	informerv1 "k8s.io/client-go/informers/coordination/v1"
 	coordinationv1client "k8s.io/client-go/kubernetes/typed/coordination/v1"
+	"k8s.io/utils/clock"
 )
 
 type LeaseLock struct {
 	// LeaseMeta should contain a Name and a Namespace of a
 	// LeaseMeta object that the LeaderElector will attempt to lead.
-	LeaseMeta  metav1.ObjectMeta
-	Client     coordinationv1client.LeasesGetter
-	LockConfig ResourceLockConfig
-	lease      *coordinationv1.Lease
+	LeaseMeta     metav1.ObjectMeta
+	Client        coordinationv1client.LeasesGetter
+	LockConfig    ResourceLockConfig
+	lease         *coordinationv1.Lease
+	clock         clock.Clock
+	leaseInformer informerv1.LeaseInformer
 }
 
 // Get returns the election record from a Lease spec
@@ -43,6 +47,27 @@ func (ll *LeaseLock) Get(ctx context.Context) (*LeaderElectionRecord, []byte, er
 	if err != nil {
 		return nil, nil, err
 	}
+	ll.lease = lease
+	record := LeaseSpecToLeaderElectionRecord(&ll.lease.Spec)
+	recordByte, err := json.Marshal(*record)
+	if err != nil {
+		return nil, nil, err
+	}
+	return record, recordByte, nil
+}
+
+func (ll *LeaseLock) GetFromCache(ctx context.Context) (*LeaderElectionRecord, []byte, error) {
+	if ll.leaseInformer == nil || !ll.leaseInformer.Informer().HasSynced() {
+		return nil, nil, fmt.Errorf("lease informer is not available")
+	}
+
+	cachedLease, err := ll.leaseInformer.Lister().Leases(ll.LeaseMeta.Namespace).Get(ll.LeaseMeta.Name)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Avoid data race
+	lease := cachedLease.DeepCopy()
 	ll.lease = lease
 	record := LeaseSpecToLeaderElectionRecord(&ll.lease.Spec)
 	recordByte, err := json.Marshal(*record)
@@ -103,6 +128,13 @@ func (ll *LeaseLock) Describe() string {
 // Identity returns the Identity of the lock
 func (ll *LeaseLock) Identity() string {
 	return ll.LockConfig.Identity
+}
+
+// StartSync starts the synchornization of local cache
+func (ll *LeaseLock) StartSync(stopCh <-chan struct{}) {
+	if ll.leaseInformer != nil {
+		go ll.leaseInformer.Informer().Run(stopCh)
+	}
 }
 
 func LeaseSpecToLeaderElectionRecord(spec *coordinationv1.LeaseSpec) *LeaderElectionRecord {
