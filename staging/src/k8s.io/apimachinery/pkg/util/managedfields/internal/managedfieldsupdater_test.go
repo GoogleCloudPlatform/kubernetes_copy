@@ -335,7 +335,7 @@ func TestTakingOverManagedFieldsDuringUpdateDoesNotModifyPreviousManagerTime(t *
 		},
 		"data": {
 			"key_a": "value",
-			"key_b": value"
+			"key_b": "value"
 		}
 	}`))
 	if err != nil {
@@ -386,7 +386,7 @@ func TestTakingOverManagedFieldsDuringApplyDoesNotModifyPreviousManagerTime(t *t
 		},
 		"data": {
 			"key_a": "value",
-			"key_b": value"
+			"key_b": "value"
 		}
 	}`))
 	if err != nil {
@@ -422,6 +422,73 @@ func TestTakingOverManagedFieldsDuringApplyDoesNotModifyPreviousManagerTime(t *t
 	if !previousEntries["fieldmanager_a_test"].Time.Equal(newEntries["fieldmanager_a_test"].Time) {
 		t.Errorf("FieldManager A ManagedFields time has been updated:\nBefore:\n%v\nAfter:\n%v",
 			previousEntries["fieldmanager_a_test"], newEntries["fieldmanager_a_test"])
+	}
+}
+
+func TestCoOwningManagedFieldsByApplyingSameObjResultsInNewManagerTime(t *testing.T) {
+	var err error
+	f := managedfieldstest.NewTestFieldManager(fakeTypeConverter, schema.FromAPIVersionAndKind("v1", "ConfigMap"))
+
+	err = applyObject(f, "fieldmanager_a_test", []byte(`{
+		"apiVersion": "v1",
+		"kind": "ConfigMap",
+		"metadata": {
+			"name": "configmap"
+		},
+		"data": {
+			"key_a": "value",
+			"key_b": "value"
+		}
+	}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	previousManagedFields := f.ManagedFields()
+	previousEntries := map[string]v1.ManagedFieldsEntry{}
+	for _, entry := range previousManagedFields {
+		previousEntries[entry.Manager] = entry
+	}
+
+	time.Sleep(time.Second)
+
+	err = applyObject(f, "fieldmanager_b_test", []byte(`{
+		"apiVersion": "v1",
+		"kind": "ConfigMap",
+		"metadata": {
+			"name": "configmap"
+		},
+		"data": {
+			"key_a": "value",
+			"key_b": "value"
+		}
+	}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	newManagedFields := f.ManagedFields()
+	newEntries := map[string]v1.ManagedFieldsEntry{}
+	for _, entry := range newManagedFields {
+		newEntries[entry.Manager] = entry
+	}
+
+	if !reflect.DeepEqual(previousEntries["fieldmanager_a_test"].FieldsV1, newEntries["fieldmanager_a_test"].FieldsV1) {
+		t.Errorf("FieldManager A's ManagedFields were changed':\nPrevious:\n%v\nNew:\n%v",
+			previousEntries["fieldmanager_a_test"], newEntries["fieldmanager_a_test"])
+	}
+
+	if !reflect.DeepEqual(newEntries["fieldmanager_a_test"].FieldsV1, newEntries["fieldmanager_b_test"].FieldsV1) {
+		t.Errorf("FieldManagers A and B do not co-own all the ManagedFields:\nFieldManager A:\n%v\nFieldManager B:\n%v",
+			newEntries["fieldmanager_a_test"], newEntries["fieldmanager_b_test"])
+	}
+
+	if newEntries["fieldmanager_b_test"].Time == nil {
+		t.Errorf("FieldManager B's ManagedFields time is missing:\nFieldManager A:\n%v\nFieldManager B:\n%v",
+			newEntries["fieldmanager_a_test"], newEntries["fieldmanager_b_test"])
+	}
+
+	if newEntries["fieldmanager_a_test"].Time.Equal(newEntries["fieldmanager_b_test"].Time) {
+		t.Errorf("FieldManager A and B have the same ManagedFields time:\nFieldManager A:\n%v\nFieldManager B:\n%v",
+			newEntries["fieldmanager_a_test"], newEntries["fieldmanager_b_test"])
 	}
 }
 

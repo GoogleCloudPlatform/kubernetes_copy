@@ -45,7 +45,7 @@ type Manager interface {
 	// Apply is used when server-side apply is called, as it merges the
 	// object and updates the managed fields.
 	//  * `liveObj` is not mutated by this function
-	//  * `newObj` may be mutated by this function
+	//  * `appliedObj` may be mutated by this function
 	// Returns the new object with managedFields removed, and the object's new
 	// proposed managedFields separately.
 	Apply(liveObj, appliedObj runtime.Object, managed Managed, fieldManager string, force bool) (runtime.Object, Managed, error)

@@ -72,11 +72,23 @@ func (f *managedFieldsUpdater) Apply(liveObj, appliedObj runtime.Object, managed
 	if err != nil {
 		return object, managed, err
 	}
+
 	if object != nil {
+		// non-nil object means the apply operation modified the object, so update the manager's timestamp
 		managed.Times()[fieldManager] = &metav1.Time{Time: time.Now().UTC()}
 	} else {
+		// nil object means the apply operation did not modify the input object
+		// clone the input object and return it without managed fields
 		object = liveObj.DeepCopyObject()
 		RemoveObjectManagedFields(object)
+
+		if _, managerInFields := managed.Fields()[fieldManager]; managerInFields {
+			if _, managerInTimes := managed.Times()[fieldManager]; !managerInTimes {
+				// if the manager owns fields, ensure it has an associated time.
+				// a no-op apply can add co-ownership of existing field values, so record the time that occurred.
+				managed.Times()[fieldManager] = &metav1.Time{Time: time.Now().UTC()}
+			}
+		}
 	}
 	return object, managed, nil
 }
