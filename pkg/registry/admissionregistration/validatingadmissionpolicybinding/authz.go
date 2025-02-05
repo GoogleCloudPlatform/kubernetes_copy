@@ -22,10 +22,11 @@ import (
 
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/sets"
+	userpkg "k8s.io/apiserver/pkg/authentication/user"
 	"k8s.io/apiserver/pkg/authorization/authorizer"
 	genericapirequest "k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/kubernetes/pkg/apis/admissionregistration"
-	rbacregistry "k8s.io/kubernetes/pkg/registry/rbac"
 )
 
 func (v *validatingAdmissionPolicyBindingStrategy) authorizeCreate(ctx context.Context, obj runtime.Object) error {
@@ -62,14 +63,15 @@ func (v *validatingAdmissionPolicyBindingStrategy) authorize(ctx context.Context
 		return nil
 	}
 
-	// for superuser, skip all checks
-	if rbacregistry.EscalationAllowed(ctx) {
-		return nil
-	}
-
 	user, ok := genericapirequest.UserFrom(ctx)
 	if !ok {
 		return fmt.Errorf("cannot identify user to authorize read access to paramRef object")
+	}
+
+	// for superuser, skip all checks
+	isSystemAdmin := sets.New(user.GetGroups()...).Has(userpkg.SystemPrivilegedGroup)
+	if isSystemAdmin {
+		return nil
 	}
 
 	// default to requiring permissions on all group/version/resources
