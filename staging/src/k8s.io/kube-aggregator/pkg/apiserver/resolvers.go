@@ -21,6 +21,7 @@ import (
 
 	"k8s.io/apiserver/pkg/util/proxy"
 	listersv1 "k8s.io/client-go/listers/core/v1"
+	discoveryv1listers "k8s.io/client-go/listers/discovery/v1"
 )
 
 // A ServiceResolver knows how to get a URL given a service.
@@ -30,20 +31,20 @@ type ServiceResolver interface {
 
 // NewEndpointServiceResolver returns a ServiceResolver that chooses one of the
 // service's endpoints.
-func NewEndpointServiceResolver(services listersv1.ServiceLister, endpoints listersv1.EndpointsLister) ServiceResolver {
+func NewEndpointServiceResolver(services listersv1.ServiceLister, endpointSlices discoveryv1listers.EndpointSliceLister) ServiceResolver {
 	return &aggregatorEndpointRouting{
-		services:  services,
-		endpoints: endpoints,
+		services:       services,
+		endpointSlices: endpointSlices,
 	}
 }
 
 type aggregatorEndpointRouting struct {
-	services  listersv1.ServiceLister
-	endpoints listersv1.EndpointsLister
+	services       listersv1.ServiceLister
+	endpointSlices discoveryv1listers.EndpointSliceLister
 }
 
 func (r *aggregatorEndpointRouting) ResolveEndpoint(namespace, name string, port int32) (*url.URL, error) {
-	return proxy.ResolveEndpoint(r.services, r.endpoints, namespace, name, port)
+	return proxy.ResolveEndpoint(r.services, r.endpointSlices, namespace, name, port)
 }
 
 // NewClusterIPServiceResolver returns a ServiceResolver that directly calls the

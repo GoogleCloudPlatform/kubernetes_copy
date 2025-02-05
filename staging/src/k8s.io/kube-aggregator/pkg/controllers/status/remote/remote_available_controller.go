@@ -26,16 +26,17 @@ import (
 	"time"
 
 	v1 "k8s.io/api/core/v1"
+	discoveryv1 "k8s.io/api/discovery/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	v1informers "k8s.io/client-go/informers/core/v1"
+	discoveryv1informers "k8s.io/client-go/informers/discovery/v1"
 	v1listers "k8s.io/client-go/listers/core/v1"
+	discoveryv1listers "k8s.io/client-go/listers/discovery/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/transport"
 	"k8s.io/client-go/util/workqueue"
@@ -67,8 +68,8 @@ type AvailableConditionController struct {
 	serviceLister  v1listers.ServiceLister
 	servicesSynced cache.InformerSynced
 
-	endpointsLister v1listers.EndpointsLister
-	endpointsSynced cache.InformerSynced
+	endpointSliceLister  discoveryv1listers.EndpointSliceLister
+	endpointSlicesSynced cache.InformerSynced
 
 	// proxyTransportDial specifies the dial function for creating unencrypted TCP connections.
 	proxyTransportDial         *transport.DialHolder
@@ -92,7 +93,7 @@ type AvailableConditionController struct {
 func New(
 	apiServiceInformer informers.APIServiceInformer,
 	serviceInformer v1informers.ServiceInformer,
-	endpointsInformer v1informers.EndpointsInformer,
+	endpointSliceInformer discoveryv1informers.EndpointSliceInformer,
 	apiServiceClient apiregistrationclient.APIServicesGetter,
 	proxyTransportDial *transport.DialHolder,
 	proxyCurrentCertKeyContent certKeyFunc,
@@ -100,11 +101,11 @@ func New(
 	metrics *availabilitymetrics.Metrics,
 ) (*AvailableConditionController, error) {
 	c := &AvailableConditionController{
-		apiServiceClient: apiServiceClient,
-		apiServiceLister: apiServiceInformer.Lister(),
-		serviceLister:    serviceInformer.Lister(),
-		endpointsLister:  endpointsInformer.Lister(),
-		serviceResolver:  serviceResolver,
+		apiServiceClient:    apiServiceClient,
+		apiServiceLister:    apiServiceInformer.Lister(),
+		serviceLister:       serviceInformer.Lister(),
+		endpointSliceLister: endpointSliceInformer.Lister(),
+		serviceResolver:     serviceResolver,
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
 			// We want a fairly tight requeue time.  The controller listens to the API, but because it relies on the routability of the
 			// service network, it is possible for an external, non-watchable factor to affect availability.  This keeps
@@ -137,12 +138,12 @@ func New(
 	})
 	c.servicesSynced = serviceHandler.HasSynced
 
-	endpointsHandler, _ := endpointsInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    c.addEndpoints,
-		UpdateFunc: c.updateEndpoints,
-		DeleteFunc: c.deleteEndpoints,
+	endpointSliceHandler, _ := endpointSliceInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc:    c.addEndpointSlice,
+		UpdateFunc: c.updateEndpointSlice,
+		DeleteFunc: c.deleteEndpointSlice,
 	})
-	c.endpointsSynced = endpointsHandler.HasSynced
+	c.endpointSlicesSynced = endpointSliceHandler.HasSynced
 
 	c.syncFn = c.sync
 
@@ -239,30 +240,38 @@ func (c *AvailableConditionController) sync(key string) error {
 			return err
 		}
 
-		endpoints, err := c.endpointsLister.Endpoints(apiService.Spec.Service.Namespace).Get(apiService.Spec.Service.Name)
-		if apierrors.IsNotFound(err) {
-			availableCondition.Status = apiregistrationv1.ConditionFalse
-			availableCondition.Reason = "EndpointsNotFound"
-			availableCondition.Message = fmt.Sprintf("cannot find endpoints for service/%s in %q", apiService.Spec.Service.Name, apiService.Spec.Service.Namespace)
-			apiregistrationv1apihelper.SetAPIServiceCondition(apiService, availableCondition)
-			_, err := c.updateAPIServiceStatus(originalAPIService, apiService)
-			return err
-		} else if err != nil {
+		endpointSliceSelector := labels.SelectorFromSet(labels.Set{discoveryv1.LabelServiceName: apiService.Spec.Service.Name})
+		endpointSlices, err := c.endpointSliceLister.EndpointSlices(apiService.Spec.Service.Namespace).List(endpointSliceSelector)
+		if err != nil {
 			availableCondition.Status = apiregistrationv1.ConditionUnknown
 			availableCondition.Reason = "EndpointsAccessError"
 			availableCondition.Message = fmt.Sprintf("service/%s in %q cannot be checked due to: %v", apiService.Spec.Service.Name, apiService.Spec.Service.Namespace, err)
 			apiregistrationv1apihelper.SetAPIServiceCondition(apiService, availableCondition)
 			_, err := c.updateAPIServiceStatus(originalAPIService, apiService)
 			return err
+		} else if len(endpointSlices) == 0 {
+			availableCondition.Status = apiregistrationv1.ConditionFalse
+			availableCondition.Reason = "EndpointsNotFound"
+			availableCondition.Message = fmt.Sprintf("cannot find endpointslices for service/%s in %q", apiService.Spec.Service.Name, apiService.Spec.Service.Namespace)
+			apiregistrationv1apihelper.SetAPIServiceCondition(apiService, availableCondition)
+			_, err := c.updateAPIServiceStatus(originalAPIService, apiService)
+			return err
 		}
 		hasActiveEndpoints := false
 	outer:
-		for _, subset := range endpoints.Subsets {
-			if len(subset.Addresses) == 0 {
+		for _, slice := range endpointSlices {
+			ready := false
+			for _, endpoint := range slice.Endpoints {
+				if endpoint.Conditions.Ready == nil || *endpoint.Conditions.Ready {
+					ready = true
+					break
+				}
+			}
+			if !ready {
 				continue
 			}
-			for _, endpointPort := range subset.Ports {
-				if endpointPort.Name == portName {
+			for _, endpointPort := range slice.Ports {
+				if endpointPort.Name != nil && *endpointPort.Name == portName && endpointPort.Port != nil {
 					hasActiveEndpoints = true
 					break outer
 				}
@@ -271,7 +280,7 @@ func (c *AvailableConditionController) sync(key string) error {
 		if !hasActiveEndpoints {
 			availableCondition.Status = apiregistrationv1.ConditionFalse
 			availableCondition.Reason = "MissingEndpoints"
-			availableCondition.Message = fmt.Sprintf("endpoints for service/%s in %q have no addresses with port name %q", apiService.Spec.Service.Name, apiService.Spec.Service.Namespace, portName)
+			availableCondition.Message = fmt.Sprintf("endpointslices for service/%s in %q have no addresses with port name %q", apiService.Spec.Service.Name, apiService.Spec.Service.Namespace, portName)
 			apiregistrationv1apihelper.SetAPIServiceCondition(apiService, availableCondition)
 			_, err := c.updateAPIServiceStatus(originalAPIService, apiService)
 			return err
@@ -415,7 +424,7 @@ func (c *AvailableConditionController) Run(workers int, stopCh <-chan struct{}) 
 	// to be called; since the handlers are three different ways of
 	// enqueueing the same thing, waiting for this permits the queue to
 	// maximally de-duplicate the entries.
-	if !controllers.WaitForCacheSync("RemoteAvailability", stopCh, c.apiServiceSynced, c.servicesSynced, c.endpointsSynced) {
+	if !controllers.WaitForCacheSync("RemoteAvailability", stopCh, c.apiServiceSynced, c.servicesSynced, c.endpointSlicesSynced) {
 		return
 	}
 
@@ -491,18 +500,13 @@ func (c *AvailableConditionController) deleteAPIService(obj interface{}) {
 	c.queue.Add(castObj.Name)
 }
 
-func (c *AvailableConditionController) getAPIServicesFor(obj runtime.Object) []string {
-	metadata, err := meta.Accessor(obj)
-	if err != nil {
-		utilruntime.HandleError(err)
-		return nil
-	}
+func (c *AvailableConditionController) getAPIServicesFor(namespace, name string) []string {
 	c.cacheLock.RLock()
 	defer c.cacheLock.RUnlock()
-	return c.cache[metadata.GetNamespace()][metadata.GetName()]
+	return c.cache[namespace][name]
 }
 
-// if the service/endpoint handler wins the race against the cache rebuilding, it may queue a no-longer-relevant apiservice
+// if the service/endpointslice handler wins the race against the cache rebuilding, it may queue a no-longer-relevant apiservice
 // (which will get processed an extra time - this doesn't matter),
 // and miss a newly relevant apiservice (which will get queued by the apiservice handler)
 func (c *AvailableConditionController) rebuildAPIServiceCache() {
@@ -526,13 +530,15 @@ func (c *AvailableConditionController) rebuildAPIServiceCache() {
 // TODO, think of a way to avoid checking on every service manipulation
 
 func (c *AvailableConditionController) addService(obj interface{}) {
-	for _, apiService := range c.getAPIServicesFor(obj.(*v1.Service)) {
+	service := obj.(*v1.Service)
+	for _, apiService := range c.getAPIServicesFor(service.Namespace, service.Name) {
 		c.queue.Add(apiService)
 	}
 }
 
 func (c *AvailableConditionController) updateService(obj, _ interface{}) {
-	for _, apiService := range c.getAPIServicesFor(obj.(*v1.Service)) {
+	service := obj.(*v1.Service)
+	for _, apiService := range c.getAPIServicesFor(service.Namespace, service.Name) {
 		c.queue.Add(apiService)
 	}
 }
@@ -551,38 +557,40 @@ func (c *AvailableConditionController) deleteService(obj interface{}) {
 			return
 		}
 	}
-	for _, apiService := range c.getAPIServicesFor(castObj) {
+	for _, apiService := range c.getAPIServicesFor(castObj.Namespace, castObj.Name) {
 		c.queue.Add(apiService)
 	}
 }
 
-func (c *AvailableConditionController) addEndpoints(obj interface{}) {
-	for _, apiService := range c.getAPIServicesFor(obj.(*v1.Endpoints)) {
+func (c *AvailableConditionController) addEndpointSlice(obj interface{}) {
+	slice := obj.(*discoveryv1.EndpointSlice)
+	for _, apiService := range c.getAPIServicesFor(slice.Namespace, slice.Labels[discoveryv1.LabelServiceName]) {
 		c.queue.Add(apiService)
 	}
 }
 
-func (c *AvailableConditionController) updateEndpoints(obj, _ interface{}) {
-	for _, apiService := range c.getAPIServicesFor(obj.(*v1.Endpoints)) {
+func (c *AvailableConditionController) updateEndpointSlice(obj, _ interface{}) {
+	slice := obj.(*discoveryv1.EndpointSlice)
+	for _, apiService := range c.getAPIServicesFor(slice.Namespace, slice.Labels[discoveryv1.LabelServiceName]) {
 		c.queue.Add(apiService)
 	}
 }
 
-func (c *AvailableConditionController) deleteEndpoints(obj interface{}) {
-	castObj, ok := obj.(*v1.Endpoints)
+func (c *AvailableConditionController) deleteEndpointSlice(obj interface{}) {
+	castObj, ok := obj.(*discoveryv1.EndpointSlice)
 	if !ok {
 		tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
 			klog.Errorf("Couldn't get object from tombstone %#v", obj)
 			return
 		}
-		castObj, ok = tombstone.Obj.(*v1.Endpoints)
+		castObj, ok = tombstone.Obj.(*discoveryv1.EndpointSlice)
 		if !ok {
 			klog.Errorf("Tombstone contained object that is not expected %#v", obj)
 			return
 		}
 	}
-	for _, apiService := range c.getAPIServicesFor(castObj) {
+	for _, apiService := range c.getAPIServicesFor(castObj.Namespace, castObj.Labels[discoveryv1.LabelServiceName]) {
 		c.queue.Add(apiService)
 	}
 }

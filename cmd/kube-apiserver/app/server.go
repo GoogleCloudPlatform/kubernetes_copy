@@ -281,7 +281,7 @@ func buildServiceResolver(enabledAggregatorRouting bool, hostname string, inform
 	if enabledAggregatorRouting {
 		serviceResolver = aggregatorapiserver.NewEndpointServiceResolver(
 			informer.Core().V1().Services().Lister(),
-			informer.Core().V1().Endpoints().Lister(),
+			informer.Discovery().V1().EndpointSlices().Lister(),
 		)
 	} else {
 		serviceResolver = aggregatorapiserver.NewClusterIPServiceResolver(

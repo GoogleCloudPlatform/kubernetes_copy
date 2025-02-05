@@ -26,10 +26,12 @@ import (
 	"time"
 
 	v1 "k8s.io/api/core/v1"
+	discoveryv1 "k8s.io/api/discovery/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/dump"
 	v1listers "k8s.io/client-go/listers/core/v1"
+	discoveryv1listers "k8s.io/client-go/listers/discovery/v1"
 	clienttesting "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
@@ -46,31 +48,43 @@ const (
 	testServicePortName       = "testPort"
 )
 
-func newEndpoints(namespace, name string) *v1.Endpoints {
-	return &v1.Endpoints{
-		ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: name},
-	}
-}
-
-func newEndpointsWithAddress(namespace, name string, port int32, portName string) *v1.Endpoints {
-	return &v1.Endpoints{
-		ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: name},
-		Subsets: []v1.EndpointSubset{
-			{
-				Addresses: []v1.EndpointAddress{
-					{
-						IP: "val",
-					},
-				},
-				Ports: []v1.EndpointPort{
-					{
-						Name: portName,
-						Port: port,
-					},
-				},
+func newEndpointSlice(namespace, serviceName string) *discoveryv1.EndpointSlice {
+	return &discoveryv1.EndpointSlice{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: namespace,
+			Name:      serviceName + "-xxx",
+			Labels: map[string]string{
+				discoveryv1.LabelServiceName: serviceName,
 			},
 		},
 	}
+}
+
+func newEndpointSliceWithAddress(namespace, serviceName string, port int32, portName string) *discoveryv1.EndpointSlice {
+	slice := newEndpointSlice(namespace, serviceName)
+	slice.Endpoints = []discoveryv1.Endpoint{{
+		Addresses: []string{"val"},
+	}}
+	slice.Ports = []discoveryv1.EndpointPort{{
+		Name: &portName,
+		Port: &port,
+	}}
+	return slice
+}
+
+func newUnreadyEndpointSliceWithAddress(namespace, serviceName string, port int32, portName string) *discoveryv1.EndpointSlice {
+	slice := newEndpointSlice(namespace, serviceName)
+	slice.Endpoints = []discoveryv1.Endpoint{{
+		Addresses: []string{"val"},
+		Conditions: discoveryv1.EndpointConditions{
+			Ready: ptr.To(false),
+		},
+	}}
+	slice.Ports = []discoveryv1.EndpointPort{{
+		Name: &portName,
+		Port: &port,
+	}}
+	return slice
 }
 
 func newService(namespace, name string, port int32, portName string) *v1.Service {
@@ -115,7 +129,7 @@ func setupAPIServices(t T, apiServices []runtime.Object) (*AvailableConditionCon
 	fakeClient := fake.NewSimpleClientset()
 	apiServiceIndexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
 	serviceIndexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
-	endpointsIndexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
+	endpointSliceIndexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
 
 	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -129,11 +143,11 @@ func setupAPIServices(t T, apiServices []runtime.Object) (*AvailableConditionCon
 	}
 
 	c := AvailableConditionController{
-		apiServiceClient: fakeClient.ApiregistrationV1(),
-		apiServiceLister: listers.NewAPIServiceLister(apiServiceIndexer),
-		serviceLister:    v1listers.NewServiceLister(serviceIndexer),
-		endpointsLister:  v1listers.NewEndpointsLister(endpointsIndexer),
-		serviceResolver:  &fakeServiceResolver{url: testServer.URL},
+		apiServiceClient:    fakeClient.ApiregistrationV1(),
+		apiServiceLister:    listers.NewAPIServiceLister(apiServiceIndexer),
+		serviceLister:       v1listers.NewServiceLister(serviceIndexer),
+		endpointSliceLister: discoveryv1listers.NewEndpointSliceLister(endpointSliceIndexer),
+		serviceResolver:     &fakeServiceResolver{url: testServer.URL},
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
 			// We want a fairly tight requeue time.  The controller listens to the API, but because it relies on the routability of the
 			// service network, it is possible for an external, non-watchable factor to affect availability.  This keeps
@@ -184,7 +198,6 @@ func TestBuildCache(t *testing.T) {
 		apiServiceName string
 		apiServices    []runtime.Object
 		services       []*v1.Service
-		endpoints      []*v1.Endpoints
 
 		expectedAvailability apiregistration.APIServiceCondition
 	}{
@@ -219,7 +232,7 @@ func TestSync(t *testing.T) {
 		apiServiceName  string
 		apiServices     []runtime.Object
 		services        []*v1.Service
-		endpoints       []*v1.Endpoints
+		endpointSlices  []*discoveryv1.EndpointSlice
 		backendStatus   int
 		backendLocation string
 
@@ -266,8 +279,8 @@ func TestSync(t *testing.T) {
 					},
 				},
 			}},
-			endpoints:     []*v1.Endpoints{newEndpointsWithAddress("foo", "bar", testServicePort, testServicePortName)},
-			backendStatus: http.StatusOK,
+			endpointSlices: []*discoveryv1.EndpointSlice{newEndpointSliceWithAddress("foo", "bar", testServicePort, testServicePortName)},
+			backendStatus:  http.StatusOK,
 			expectedAvailability: apiregistration.APIServiceCondition{
 				Type:    apiregistration.Available,
 				Status:  apiregistration.ConditionFalse,
@@ -285,7 +298,7 @@ func TestSync(t *testing.T) {
 				Type:    apiregistration.Available,
 				Status:  apiregistration.ConditionFalse,
 				Reason:  "EndpointsNotFound",
-				Message: `cannot find endpoints for service/bar in "foo"`,
+				Message: `cannot find endpointslices for service/bar in "foo"`,
 			},
 		},
 		{
@@ -293,13 +306,13 @@ func TestSync(t *testing.T) {
 			apiServiceName: "remote.group",
 			apiServices:    []runtime.Object{newRemoteAPIService("remote.group")},
 			services:       []*v1.Service{newService("foo", "bar", testServicePort, testServicePortName)},
-			endpoints:      []*v1.Endpoints{newEndpoints("foo", "bar")},
+			endpointSlices: []*discoveryv1.EndpointSlice{newEndpointSlice("foo", "bar")},
 			backendStatus:  http.StatusOK,
 			expectedAvailability: apiregistration.APIServiceCondition{
 				Type:    apiregistration.Available,
 				Status:  apiregistration.ConditionFalse,
 				Reason:  "MissingEndpoints",
-				Message: `endpoints for service/bar in "foo" have no addresses with port name "testPort"`,
+				Message: `endpointslices for service/bar in "foo" have no addresses with port name "testPort"`,
 			},
 		},
 		{
@@ -307,13 +320,27 @@ func TestSync(t *testing.T) {
 			apiServiceName: "remote.group",
 			apiServices:    []runtime.Object{newRemoteAPIService("remote.group")},
 			services:       []*v1.Service{newService("foo", "bar", testServicePort, testServicePortName)},
-			endpoints:      []*v1.Endpoints{newEndpointsWithAddress("foo", "bar", testServicePort, "wrongName")},
+			endpointSlices: []*discoveryv1.EndpointSlice{newEndpointSliceWithAddress("foo", "bar", testServicePort, "wrongName")},
 			backendStatus:  http.StatusOK,
 			expectedAvailability: apiregistration.APIServiceCondition{
 				Type:    apiregistration.Available,
 				Status:  apiregistration.ConditionFalse,
 				Reason:  "MissingEndpoints",
-				Message: fmt.Sprintf(`endpoints for service/bar in "foo" have no addresses with port name "%s"`, testServicePortName),
+				Message: fmt.Sprintf(`endpointslices for service/bar in "foo" have no addresses with port name "%s"`, testServicePortName),
+			},
+		},
+		{
+			name:           "endpoints not ready",
+			apiServiceName: "remote.group",
+			apiServices:    []runtime.Object{newRemoteAPIService("remote.group")},
+			services:       []*v1.Service{newService("foo", "bar", testServicePort, testServicePortName)},
+			endpointSlices: []*discoveryv1.EndpointSlice{newUnreadyEndpointSliceWithAddress("foo", "bar", testServicePort, testServicePortName)},
+			backendStatus:  http.StatusOK,
+			expectedAvailability: apiregistration.APIServiceCondition{
+				Type:    apiregistration.Available,
+				Status:  apiregistration.ConditionFalse,
+				Reason:  "MissingEndpoints",
+				Message: fmt.Sprintf(`endpointslices for service/bar in "foo" have no addresses with port name "%s"`, testServicePortName),
 			},
 		},
 		{
@@ -321,7 +348,7 @@ func TestSync(t *testing.T) {
 			apiServiceName: "remote.group",
 			apiServices:    []runtime.Object{newRemoteAPIService("remote.group")},
 			services:       []*v1.Service{newService("foo", "bar", testServicePort, testServicePortName)},
-			endpoints:      []*v1.Endpoints{newEndpointsWithAddress("foo", "bar", testServicePort, testServicePortName)},
+			endpointSlices: []*discoveryv1.EndpointSlice{newEndpointSliceWithAddress("foo", "bar", testServicePort, testServicePortName)},
 			backendStatus:  http.StatusOK,
 			expectedAvailability: apiregistration.APIServiceCondition{
 				Type:    apiregistration.Available,
@@ -335,7 +362,7 @@ func TestSync(t *testing.T) {
 			apiServiceName: "remote.group",
 			apiServices:    []runtime.Object{newRemoteAPIService("remote.group")},
 			services:       []*v1.Service{newService("foo", "bar", testServicePort, testServicePortName)},
-			endpoints:      []*v1.Endpoints{newEndpointsWithAddress("foo", "bar", testServicePort, testServicePortName)},
+			endpointSlices: []*discoveryv1.EndpointSlice{newEndpointSliceWithAddress("foo", "bar", testServicePort, testServicePortName)},
 			backendStatus:  http.StatusForbidden,
 			expectedAvailability: apiregistration.APIServiceCondition{
 				Type:    apiregistration.Available,
@@ -350,7 +377,7 @@ func TestSync(t *testing.T) {
 			apiServiceName:  "remote.group",
 			apiServices:     []runtime.Object{newRemoteAPIService("remote.group")},
 			services:        []*v1.Service{newService("foo", "bar", testServicePort, testServicePortName)},
-			endpoints:       []*v1.Endpoints{newEndpointsWithAddress("foo", "bar", testServicePort, testServicePortName)},
+			endpointSlices:  []*discoveryv1.EndpointSlice{newEndpointSliceWithAddress("foo", "bar", testServicePort, testServicePortName)},
 			backendStatus:   http.StatusFound,
 			backendLocation: "/test",
 			expectedAvailability: apiregistration.APIServiceCondition{
@@ -366,7 +393,7 @@ func TestSync(t *testing.T) {
 			apiServiceName: "remote.group",
 			apiServices:    []runtime.Object{newRemoteAPIService("remote.group")},
 			services:       []*v1.Service{newService("foo", "bar", testServicePort, testServicePortName)},
-			endpoints:      []*v1.Endpoints{newEndpointsWithAddress("foo", "bar", testServicePort, testServicePortName)},
+			endpointSlices: []*discoveryv1.EndpointSlice{newEndpointSliceWithAddress("foo", "bar", testServicePort, testServicePortName)},
 			backendStatus:  http.StatusNotModified,
 			expectedAvailability: apiregistration.APIServiceCondition{
 				Type:    apiregistration.Available,
@@ -383,15 +410,15 @@ func TestSync(t *testing.T) {
 			fakeClient := fake.NewSimpleClientset(tc.apiServices...)
 			apiServiceIndexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
 			serviceIndexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
-			endpointsIndexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
+			endpointSliceIndexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
 			for _, obj := range tc.apiServices {
-				apiServiceIndexer.Add(obj)
+				apiServiceIndexer.Add(obj) //nolint:errcheck
 			}
 			for _, obj := range tc.services {
-				serviceIndexer.Add(obj)
+				serviceIndexer.Add(obj) //nolint:errcheck
 			}
-			for _, obj := range tc.endpoints {
-				endpointsIndexer.Add(obj)
+			for _, obj := range tc.endpointSlices {
+				endpointSliceIndexer.Add(obj) //nolint:errcheck
 			}
 
 			testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -406,7 +433,7 @@ func TestSync(t *testing.T) {
 				apiServiceClient:           fakeClient.ApiregistrationV1(),
 				apiServiceLister:           listers.NewAPIServiceLister(apiServiceIndexer),
 				serviceLister:              v1listers.NewServiceLister(serviceIndexer),
-				endpointsLister:            v1listers.NewEndpointsLister(endpointsIndexer),
+				endpointSliceLister:        discoveryv1listers.NewEndpointSliceLister(endpointSliceIndexer),
 				serviceResolver:            &fakeServiceResolver{url: testServer.URL},
 				proxyCurrentCertKeyContent: func() ([]byte, []byte) { return emptyCert(), emptyCert() },
 				metrics:                    availabilitymetrics.New(),
