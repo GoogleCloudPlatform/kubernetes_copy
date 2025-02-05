@@ -26,6 +26,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/version"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/watch"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
@@ -52,6 +53,8 @@ import (
 // either very timing-sensitive or slow to wait for real periodic sync.
 func TestControllerSync(t *testing.T) {
 	// Default enable the HonorPVReclaimPolicy feature gate.
+	// TODO: this will be removed in 1.36
+	featuregatetesting.SetFeatureGateEmulationVersionDuringTest(t, utilfeature.DefaultFeatureGate, version.MustParse("1.32"))
 	featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.HonorPVReclaimPolicy, true)
 	tests := []controllerTest{
 		// [Unit test set 5] - controller tests.
@@ -602,6 +605,8 @@ func TestModifyDeletionFinalizers(t *testing.T) {
 	// in-tree plugin is used as migration is disabled. When that plugin is migrated, a different
 	// non-migrated one should be used. If all plugins are migrated this test can be removed. The
 	// gce in-tree plugin is used for a migrated driver as it is feature-locked as of 1.25.
+	// TODO: this will be removed in 1.36
+	featuregatetesting.SetFeatureGateEmulationVersionDuringTest(t, utilfeature.DefaultFeatureGate, version.MustParse("1.32"))
 	featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.HonorPVReclaimPolicy, true)
 	const nonmigratedDriver = "rbd.csi.ceph.com"
 	const migratedPlugin = "kubernetes.io/gce-pd"

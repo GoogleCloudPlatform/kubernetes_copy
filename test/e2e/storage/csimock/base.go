@@ -106,7 +106,6 @@ type testParameters struct {
 	fsGroupPolicy                 *storagev1.FSGroupPolicy
 	enableSELinuxMount            *bool
 	enableRecoverExpansionFailure bool
-	enableHonorPVReclaimPolicy    bool
 	enableCSINodeExpandSecret     bool
 	reclaimPolicy                 *v1.PersistentVolumeReclaimPolicy
 }
@@ -181,7 +180,6 @@ func (m *mockDriverSetup) init(ctx context.Context, tp testParameters) {
 		FSGroupPolicy:                 tp.fsGroupPolicy,
 		EnableSELinuxMount:            tp.enableSELinuxMount,
 		EnableRecoverExpansionFailure: tp.enableRecoverExpansionFailure,
-		EnableHonorPVReclaimPolicy:    tp.enableHonorPVReclaimPolicy,
 	}
 
 	// At the moment, only tests which need hooks are

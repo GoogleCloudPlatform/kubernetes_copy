@@ -62,7 +62,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
-	"k8s.io/kubernetes/pkg/features"
 	"k8s.io/kubernetes/test/e2e/feature"
 	"k8s.io/kubernetes/test/e2e/framework"
 	e2enode "k8s.io/kubernetes/test/e2e/framework/node"
@@ -356,7 +355,6 @@ type mockCSIDriver struct {
 	enableSELinuxMount            *bool
 	enableRecoverExpansionFailure bool
 	disableControllerExpansion    bool
-	enableHonorPVReclaimPolicy    bool
 
 	// Additional values set during PrepareTest
 	clientSet       clientset.Interface
@@ -407,7 +405,6 @@ type CSIMockDriverOpts struct {
 	FSGroupPolicy                 *storagev1.FSGroupPolicy
 	EnableSELinuxMount            *bool
 	EnableRecoverExpansionFailure bool
-	EnableHonorPVReclaimPolicy    bool
 
 	// Embedded defines whether the CSI mock driver runs
 	// inside the cluster (false, the default) or just a proxy
@@ -564,7 +561,6 @@ func InitMockCSIDriver(driverOpts CSIMockDriverOpts) MockCSITestDriver {
 		enableVolumeMountGroup:        driverOpts.EnableVolumeMountGroup,
 		enableSELinuxMount:            driverOpts.EnableSELinuxMount,
 		enableRecoverExpansionFailure: driverOpts.EnableRecoverExpansionFailure,
-		enableHonorPVReclaimPolicy:    driverOpts.EnableHonorPVReclaimPolicy,
 		embedded:                      driverOpts.Embedded,
 		hooks:                         driverOpts.Hooks,
 	}
@@ -725,9 +721,6 @@ func (m *mockCSIDriver) PrepareTest(ctx context.Context, f *framework.Framework)
 
 	if m.enableRecoverExpansionFailure {
 		o.Features["csi-resizer"] = []string{"RecoverVolumeExpansionFailure=true"}
-	}
-	if m.enableHonorPVReclaimPolicy {
-		o.Features["csi-provisioner"] = append(o.Features["csi-provisioner"], fmt.Sprintf("%s=true", features.HonorPVReclaimPolicy))
 	}
 
 	err = utils.CreateFromManifests(ctx, f, m.driverNamespace, func(item interface{}) error {
