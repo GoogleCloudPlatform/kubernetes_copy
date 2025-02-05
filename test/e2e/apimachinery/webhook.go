@@ -17,9 +17,12 @@ limitations under the License.
 package apimachinery
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	e2epodoutput "k8s.io/kubernetes/test/e2e/framework/pod/output"
 	"reflect"
 	"strings"
 	"time"
@@ -1972,6 +1975,18 @@ func updateCustomResource(ctx context.Context, c dynamic.ResourceInterface, ns, 
 }
 
 func cleanWebhookTest(ctx context.Context, client clientset.Interface, namespaceName string) {
+	// dump logs for the webhook before cleanup
+	printWebhookPodLogs(ctx, client, namespaceName)
+
+	// probe the readiness endpoint for the webhook pod via service proxy.
+	readinessPodName := "webhook-readiness-probe-pod"
+	pod := e2epod.NewExecPodSpec(namespaceName, readinessPodName, false)
+	_, _ = client.CoreV1().Pods(namespaceName).Create(ctx, pod, metav1.CreateOptions{})
+	_ = e2epod.WaitTimeoutForPodReadyInNamespace(ctx, client, readinessPodName, namespaceName, 2*time.Minute)
+	stdout, _ := e2epodoutput.RunHostCmd(namespaceName, readinessPodName, fmt.Sprintf("curl --silent --insecure https://%s.%s.svc:8443/readyz", serviceName, namespaceName))
+	framework.Logf("webhook readiness: namespace: %s, response: %s\n", namespaceName, stdout)
+	_ = client.CoreV1().Pods(namespaceName).Delete(ctx, readinessPodName, metav1.DeleteOptions{})
+
 	_ = client.CoreV1().Services(namespaceName).Delete(ctx, serviceName, metav1.DeleteOptions{})
 	_ = client.AppsV1().Deployments(namespaceName).Delete(ctx, deploymentName, metav1.DeleteOptions{})
 	_ = client.CoreV1().Secrets(namespaceName).Delete(ctx, secretName, metav1.DeleteOptions{})
@@ -2782,4 +2797,39 @@ func newMutatingIsReadyWebhookFixture(f *framework.Framework, certCtx *certConte
 			MatchLabels: map[string]string{f.UniqueName: "true"},
 		},
 	}
+}
+
+func printWebhookPodLogs(ctx context.Context, client clientset.Interface, namespaceName string) {
+	pods, err := client.CoreV1().Pods(namespaceName).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return
+	}
+	var pod v1.Pod
+	for _, pod = range pods.Items {
+		if strings.HasPrefix(pod.Name, deploymentName) {
+			break
+		}
+	}
+
+	podLogs, err := client.
+		CoreV1().
+		Pods(namespaceName).
+		GetLogs(pod.Name, &v1.PodLogOptions{}).
+		Stream(ctx)
+
+	if err != nil {
+		return
+	}
+	defer podLogs.Close()
+
+	buf := new(bytes.Buffer)
+	_, err = io.Copy(buf, podLogs)
+	if err != nil {
+		return
+	}
+
+	str := buf.String()
+	framework.Logf("================ start of pod log for %s/%s ================", namespaceName, pod.Name)
+	framework.Logf("\n%s", str)
+	framework.Logf("================ end of pod log for %s/%s ================", namespaceName, pod.Name)
 }

@@ -416,6 +416,25 @@ func NewProxier(
 	logger.V(2).Info("ipvs sync params", "minSyncPeriod", minSyncPeriod, "syncPeriod", syncPeriod, "burstSyncs", burstSyncs)
 	proxier.syncRunner = async.NewBoundedFrequencyRunner("sync-runner", proxier.syncProxyRules, minSyncPeriod, syncPeriod, burstSyncs)
 	proxier.gracefuldeleteManager.Run()
+
+	if ipFamily == v1.IPv4Protocol {
+		go func() {
+			for {
+				var builder strings.Builder
+				vss, _ := proxier.ipvs.GetVirtualServers()
+				for _, vs := range vss {
+					builder.WriteString(fmt.Sprintf("Virtual Server: %s\n", vs.String()))
+					rss, _ := proxier.ipvs.GetRealServers(vs)
+					for _, rs := range rss {
+						builder.WriteString(fmt.Sprintf("\tReal Server: %s Conn: Active:%d; InActive:%d\n", rs.String(), rs.ActiveConn, rs.InactiveConn))
+					}
+				}
+				logger.V(2).Info("IPVS Table Dump", "table", builder.String())
+				time.Sleep(2 * time.Second)
+			}
+		}()
+	}
+
 	return proxier, nil
 }
 
