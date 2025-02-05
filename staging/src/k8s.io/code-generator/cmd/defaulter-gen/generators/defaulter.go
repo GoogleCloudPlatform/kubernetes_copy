@@ -63,9 +63,14 @@ var typeZeroValue = map[string]interface{}{
 const tagName = "k8s:defaulter-gen"
 const inputTagName = "k8s:defaulter-gen-input"
 const defaultTagName = "default"
+const featureGateTagName = "featureGate"
 
 func extractDefaultTag(comments []string) []string {
 	return gengo.ExtractCommentTags("+", comments)[defaultTagName]
+}
+
+func extractFeatureGateTag(comments []string) []string {
+	return gengo.ExtractCommentTags("+", comments)[featureGateTagName]
 }
 
 func extractTag(comments []string) []string {
@@ -546,6 +551,9 @@ func populateDefaultValue(node *callNode, t *types.Type, tags string, commentLin
 		klog.Fatalf("Found more than one default tag for %v", t.Kind)
 	}
 
+	// Get feature gates if present - store all of them
+	featureGates := extractFeatureGateTag(commentLines)
+
 	baseT, depth := resolveTypeAndDepth(t)
 	if depth > 0 && defaultString == "" {
 		defaultString = getNestedDefault(t)
@@ -583,6 +591,7 @@ func populateDefaultValue(node *callNode, t *types.Type, tags string, commentLin
 	node.defaultTopLevelType = t
 	node.defaultValue.InlineConstant = defaultString
 	node.defaultValue.SymbolReference = symbolReference
+	node.defaultValue.FeatureGates = featureGates
 	return node
 }
 
@@ -717,6 +726,17 @@ type genDefaulter struct {
 	existingDefaulters defaulterFuncMap
 	imports            namer.ImportTracker
 	typesForInit       []*types.Type
+	needsFeatureGate   bool
+}
+
+func (g *genDefaulter) hasFeatureGates(callTree *callNode) bool {
+	hasGates := false
+	callTree.VisitInOrder(func(ancestors []*callNode, current *callNode) {
+		if len(current.defaultValue.FeatureGates) > 0 {
+			hasGates = true
+		}
+	})
+	return hasGates
 }
 
 func NewGenDefaulter(outputFilename, typesPackage, outputPackage string, existingDefaulters, newDefaulters defaulterFuncMap, peerPkgs []string) generator.Generator {
@@ -762,6 +782,14 @@ func (g *genDefaulter) Filter(c *generator.Context, t *types.Type) bool {
 
 func (g *genDefaulter) Imports(c *generator.Context) (imports []string) {
 	var importLines []string
+
+	if g.needsFeatureGate {
+		importLines = append(importLines,
+			`utilfeature "k8s.io/apiserver/pkg/util/feature"`,
+			`"k8s.io/kubernetes/pkg/features"`,
+		)
+	}
+
 	for _, singleImport := range g.imports.ImportLines() {
 		if g.isOtherPackage(singleImport) {
 			importLines = append(importLines, singleImport)
@@ -803,6 +831,11 @@ func (g *genDefaulter) GenerateType(c *generator.Context, t *types.Type, w io.Wr
 		klog.V(5).Infof("  no defaulters defined")
 		return nil
 	}
+
+	if g.hasFeatureGates(callTree) {
+		g.needsFeatureGate = true
+	}
+
 	i := 0
 	callTree.VisitInOrder(func(ancestors []*callNode, current *callNode) {
 		if ref := &current.defaultValue.SymbolReference; len(ref.Name) > 0 {
@@ -916,6 +949,7 @@ type defaultValue struct {
 	// i.e. k8s.io/pkg.apis.v1.Foo if from another package or simply `Foo`
 	// if within the same package.
 	SymbolReference types.Name
+	FeatureGates    []string
 }
 
 func (d defaultValue) IsEmpty() bool {
@@ -1026,6 +1060,13 @@ func (n *callNode) writeDefaulter(c *generator.Context, varName string, index st
 		variablePlaceholder = "$.varName$"
 	}
 
+	conditions := []string{}
+
+	// Add feature gate conditions if present
+	for _, gate := range n.defaultValue.FeatureGates {
+		conditions = append(conditions, fmt.Sprintf("utilfeature.DefaultFeatureGate.Enabled(features.%s)", gate))
+	}
+
 	// defaultIsPrimitive is true if the type or underlying type (in an array/map) is primitive
 	// or is a pointer to a primitive type
 	// (Eg: int, map[string]*string, []int)
@@ -1042,7 +1083,9 @@ func (n *callNode) writeDefaulter(c *generator.Context, varName string, index st
 				"baseElemType": destElemType,
 			})
 
-			sw.Do(fmt.Sprintf("if %s == nil {\n", variablePlaceholder), pointerArgs)
+			conditions = append(conditions, fmt.Sprintf("%s == nil", variablePlaceholder))
+			sw.Do(fmt.Sprintf("if %s {\n", strings.Join(conditions, " && ")), pointerArgs)
+
 			if len(n.defaultValue.InlineConstant) > 0 {
 				// If default value is a literal then it can be assigned via var stmt
 				sw.Do("var ptrVar$.varDepth$ $.baseElemType|raw$ = $.defaultValue$\n", pointerArgs)
@@ -1091,7 +1134,8 @@ func (n *callNode) writeDefaulter(c *generator.Context, varName string, index st
 			}
 			args["defaultZero"] = defaultZero
 
-			sw.Do(fmt.Sprintf("if %s == $.defaultZero$ {\n", variablePlaceholder), args)
+			conditions = append(conditions, fmt.Sprintf("%s == $.defaultZero$", variablePlaceholder))
+			sw.Do(fmt.Sprintf("if %s {\n", strings.Join(conditions, " && ")), args)
 
 			if len(n.defaultValue.InlineConstant) > 0 {
 				sw.Do(fmt.Sprintf("%s = $.defaultValue$", variablePlaceholder), args)
@@ -1100,7 +1144,8 @@ func (n *callNode) writeDefaulter(c *generator.Context, varName string, index st
 			}
 		}
 	} else {
-		sw.Do(fmt.Sprintf("if %s == nil {\n", variablePlaceholder), args)
+		conditions = append(conditions, fmt.Sprintf("%s == nil", variablePlaceholder))
+		sw.Do(fmt.Sprintf("if %s {\n", strings.Join(conditions, " && ")), args)
 		// Map values are not directly addressable and we need a temporary variable to do json unmarshalling
 		// This applies to maps with non-primitive values (eg: map[string]SubStruct)
 		if n.key {
