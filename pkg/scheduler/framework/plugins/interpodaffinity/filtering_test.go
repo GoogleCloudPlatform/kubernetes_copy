@@ -18,8 +18,6 @@ package interpodaffinity
 
 import (
 	"context"
-	"fmt"
-	"reflect"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -39,7 +37,10 @@ import (
 )
 
 var (
-	defaultNamespace = ""
+	defaultNamespace      = ""
+	preFilterStateCmpOpts = []cmp.Option{
+		cmp.AllowUnexported(preFilterState{}, framework.PodInfo{}),
+	}
 )
 
 func createPodWithAffinityTerms(namespace, nodeName string, labels map[string]string, affinity, antiAffinity []v1.PodAffinityTerm) *v1.Pod {
@@ -550,7 +551,7 @@ func TestRequiredAffinitySingleNode(t *testing.T) {
 			p := plugintesting.SetupPluginWithInformers(ctx, t, schedruntime.FactoryAdapter(feature.Features{}, New), &config.InterPodAffinityArgs{}, snapshot, namespaces)
 			state := framework.NewCycleState()
 			_, preFilterStatus := p.(framework.PreFilterPlugin).PreFilter(ctx, state, test.pod)
-			if diff := cmp.Diff(preFilterStatus, test.wantPreFilterStatus); diff != "" {
+			if diff := cmp.Diff(test.wantPreFilterStatus, preFilterStatus); diff != "" {
 				t.Errorf("PreFilter: status does not match (-want,+got):\n%s", diff)
 			}
 			if !preFilterStatus.IsSuccess() {
@@ -559,7 +560,7 @@ func TestRequiredAffinitySingleNode(t *testing.T) {
 
 			nodeInfo := mustGetNodeInfo(t, snapshot, test.node.Name)
 			gotStatus := p.(framework.FilterPlugin).Filter(ctx, state, test.pod, nodeInfo)
-			if diff := cmp.Diff(gotStatus, test.wantFilterStatus); diff != "" {
+			if diff := cmp.Diff(test.wantFilterStatus, gotStatus); diff != "" {
 				t.Errorf("Filter: status does not match (-want,+got):\n%s", diff)
 			}
 		})
@@ -965,7 +966,7 @@ func TestRequiredAffinityMultipleNodes(t *testing.T) {
 				})
 			state := framework.NewCycleState()
 			_, preFilterStatus := p.(framework.PreFilterPlugin).PreFilter(ctx, state, test.pod)
-			if diff := cmp.Diff(preFilterStatus, test.wantPreFilterStatus); diff != "" {
+			if diff := cmp.Diff(test.wantPreFilterStatus, preFilterStatus); diff != "" {
 				t.Errorf("PreFilter: status does not match (-want,+got):\n%s", diff)
 			}
 			if preFilterStatus.IsSkip() {
@@ -974,7 +975,7 @@ func TestRequiredAffinityMultipleNodes(t *testing.T) {
 			for indexNode, node := range test.nodes {
 				nodeInfo := mustGetNodeInfo(t, snapshot, node.Name)
 				gotStatus := p.(framework.FilterPlugin).Filter(ctx, state, test.pod, nodeInfo)
-				if diff := cmp.Diff(gotStatus, test.wantFilterStatuses[indexNode]); diff != "" {
+				if diff := cmp.Diff(test.wantFilterStatuses[indexNode], gotStatus); diff != "" {
 					t.Errorf("index: %d: Filter: status does not match (-want,+got):\n%s", indexTest, diff)
 				}
 			}
@@ -993,9 +994,9 @@ func TestPreFilterDisabled(t *testing.T) {
 	p := plugintesting.SetupPluginWithInformers(ctx, t, schedruntime.FactoryAdapter(feature.Features{}, New), &config.InterPodAffinityArgs{}, cache.NewEmptySnapshot(), nil)
 	cycleState := framework.NewCycleState()
 	gotStatus := p.(framework.FilterPlugin).Filter(ctx, cycleState, pod, nodeInfo)
-	wantStatus := framework.AsStatus(fmt.Errorf(`error reading "PreFilterInterPodAffinity" from cycleState: %w`, framework.ErrNotFound))
-	if !reflect.DeepEqual(gotStatus, wantStatus) {
-		t.Errorf("status does not match: %v, want: %v", gotStatus, wantStatus)
+	wantStatus := framework.AsStatus(framework.ErrNotFound)
+	if diff := cmp.Diff(gotStatus, wantStatus); diff != "" {
+		t.Errorf("Status does not match (-want,+got):\n%s", diff)
 	}
 }
 
@@ -1270,24 +1271,24 @@ func TestPreFilterStateAddRemovePod(t *testing.T) {
 				t.Errorf("failed to get preFilterState from cycleState: %v", err)
 			}
 
-			if !reflect.DeepEqual(newState.antiAffinityCounts, test.expectedAntiAffinity) {
-				t.Errorf("State is not equal, got: %v, want: %v", newState.antiAffinityCounts, test.expectedAntiAffinity)
+			if diff := cmp.Diff(test.expectedAntiAffinity, newState.antiAffinityCounts); diff != "" {
+				t.Errorf("State is not equal (-want,+got):\n%s", diff)
 			}
 
-			if !reflect.DeepEqual(newState.affinityCounts, test.expectedAffinity) {
-				t.Errorf("State is not equal, got: %v, want: %v", newState.affinityCounts, test.expectedAffinity)
+			if diff := cmp.Diff(test.expectedAffinity, newState.affinityCounts); diff != "" {
+				t.Errorf("State is not equal (-want,+got):\n%s", diff)
 			}
 
-			if !reflect.DeepEqual(allPodsState, state) {
-				t.Errorf("State is not equal, got: %v, want: %v", state, allPodsState)
+			if diff := cmp.Diff(allPodsState, state, preFilterStateCmpOpts...); diff != "" {
+				t.Errorf("State is not equal (-want,+got):\n%s", diff)
 			}
 
 			// Remove the added pod pod and make sure it is equal to the original state.
 			if err := ipa.RemovePod(ctx, cycleState, test.pendingPod, mustNewPodInfo(t, test.addedPod), nodeInfo); err != nil {
 				t.Errorf("error removing pod from meta: %v", err)
 			}
-			if !reflect.DeepEqual(originalState, state) {
-				t.Errorf("State is not equal, got: %v, want: %v", state, originalState)
+			if diff := cmp.Diff(originalState, state, preFilterStateCmpOpts...); diff != "" {
+				t.Errorf("State is not equal (-want,+got):\n%s", diff)
 			}
 		})
 	}
@@ -1313,8 +1314,8 @@ func TestPreFilterStateClone(t *testing.T) {
 	if clone == source {
 		t.Errorf("Clone returned the exact same object!")
 	}
-	if !reflect.DeepEqual(clone, source) {
-		t.Errorf("Copy is not equal to source!")
+	if diff := cmp.Diff(source, clone, preFilterStateCmpOpts...); diff != "" {
+		t.Errorf("Copy is not equal to source! (-want,+got):\n%s", diff)
 	}
 }
 
@@ -1440,11 +1441,11 @@ func TestGetTPMapMatchingIncomingAffinityAntiAffinity(t *testing.T) {
 			defer cancel()
 			p := plugintesting.SetupPluginWithInformers(ctx, t, schedruntime.FactoryAdapter(feature.Features{}, New), &config.InterPodAffinityArgs{}, snapshot, nil)
 			gotAffinityPodsMap, gotAntiAffinityPodsMap := p.(*InterPodAffinity).getIncomingAffinityAntiAffinityCounts(ctx, mustNewPodInfo(t, tt.pod), l)
-			if !reflect.DeepEqual(gotAffinityPodsMap, tt.wantAffinityPodsMap) {
-				t.Errorf("getTPMapMatchingIncomingAffinityAntiAffinity() gotAffinityPodsMap = %#v, want %#v", gotAffinityPodsMap, tt.wantAffinityPodsMap)
+			if diff := cmp.Diff(tt.wantAffinityPodsMap, gotAffinityPodsMap); diff != "" {
+				t.Errorf("Unexpected getTPMapMatchingIncomingAffinityAntiAffinity() (-want,+got):\n%s", diff)
 			}
-			if !reflect.DeepEqual(gotAntiAffinityPodsMap, tt.wantAntiAffinityPodsMap) {
-				t.Errorf("getTPMapMatchingIncomingAffinityAntiAffinity() gotAntiAffinityPodsMap = %#v, want %#v", gotAntiAffinityPodsMap, tt.wantAntiAffinityPodsMap)
+			if diff := cmp.Diff(tt.wantAntiAffinityPodsMap, gotAntiAffinityPodsMap); diff != "" {
+				t.Errorf("Unexpected getTPMapMatchingIncomingAffinityAntiAffinity() (-want,+got):\n%s", diff)
 			}
 		})
 	}

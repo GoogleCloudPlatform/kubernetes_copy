@@ -18,9 +18,9 @@ package runtime
 
 import (
 	"context"
-	"reflect"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 
 	"k8s.io/apimachinery/pkg/runtime"
@@ -66,9 +66,8 @@ func TestDecodeInto(t *testing.T) {
 			if err := DecodeInto(test.args, &pluginFooConf); err != nil {
 				t.Errorf("DecodeInto(): failed to decode args %+v: %v", test.args, err)
 			}
-			if !reflect.DeepEqual(test.expected, pluginFooConf) {
-				t.Errorf("DecodeInto(): failed to decode plugin config, expected: %+v, got: %+v",
-					test.expected, pluginFooConf)
+			if diff := cmp.Diff(test.expected, pluginFooConf); diff != "" {
+				t.Errorf("DecodeInto(): failed to decode plugin config (-want,+got):\n%s", diff)
 			}
 		})
 	}

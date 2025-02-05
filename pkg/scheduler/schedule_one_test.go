@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
-	"reflect"
 	"regexp"
 	goruntime "runtime"
 	"sort"
@@ -86,6 +85,10 @@ var (
 	emptySnapshot         = internalcache.NewEmptySnapshot()
 	podTopologySpreadFunc = frameworkruntime.FactoryAdapter(feature.Features{}, podtopologyspread.New)
 	errPrioritize         = fmt.Errorf("priority map encounters an error")
+	schedulerCmpOpts      = []cmp.Option{
+		cmp.AllowUnexported(framework.NodeToStatus{}),
+		cmpopts.IgnoreFields(framework.Diagnosis{}, "NodeToStatus"),
+	}
 )
 
 type mockScheduleResult struct {
@@ -387,7 +390,7 @@ func nodeToStatusDiff(want, got *framework.NodeToStatus) string {
 	if want == nil || got == nil {
 		return cmp.Diff(want, got)
 	}
-	return cmp.Diff(*want, *got, cmp.AllowUnexported(framework.NodeToStatus{}))
+	return cmp.Diff(*want, *got, schedulerCmpOpts...)
 }
 
 func TestSchedulerMultipleProfilesScheduling(t *testing.T) {
@@ -837,20 +840,24 @@ func TestSchedulerScheduleOne(t *testing.T) {
 				}
 				sched.ScheduleOne(ctx)
 				<-called
-				if e, a := item.expectAssumedPod, gotAssumedPod; !reflect.DeepEqual(e, a) {
-					t.Errorf("assumed pod: wanted %v, got %v", e, a)
+				if diff := cmp.Diff(item.expectAssumedPod, gotAssumedPod); diff != "" {
+					t.Errorf("Unexpected assumed pod (-want,+got):\n%s", diff)
 				}
-				if e, a := item.expectErrorPod, gotPod; !reflect.DeepEqual(e, a) {
-					t.Errorf("error pod: wanted %v, got %v", e, a)
+				if diff := cmp.Diff(item.expectErrorPod, gotPod); diff != "" {
+					t.Errorf("Unexpected error pod (-want,+got):\n%s", diff)
 				}
-				if e, a := item.expectForgetPod, gotForgetPod; !reflect.DeepEqual(e, a) {
-					t.Errorf("forget pod: wanted %v, got %v", e, a)
+				if diff := cmp.Diff(item.expectForgetPod, gotForgetPod); diff != "" {
+					t.Errorf("Unexpected forget pod (-want,+got):\n%s", diff)
 				}
-				if e, a := item.expectError, gotError; !reflect.DeepEqual(e, a) {
-					t.Errorf("error: wanted %v, got %v", e, a)
+				if item.expectError == nil || gotError == nil {
+					if item.expectError != gotError {
+						t.Errorf("Unexpected error. Wanted %v, got %v", item.expectError, gotError)
+					}
+				} else if diff := cmp.Diff(item.expectError.Error(), gotError.Error()); diff != "" {
+					t.Errorf("Unexpected error (-want,+got):\n%s", diff)
 				}
 				if diff := cmp.Diff(item.expectBind, gotBinding); diff != "" {
-					t.Errorf("got binding diff (-want, +got): %s", diff)
+					t.Errorf("Unexpected binding (-want,+got):\n%s", diff)
 				}
 				// We have to use wait here
 				// because the Pod goes to the binding cycle in some test cases and the inflight pods might not be empty immediately at this point in such case.
@@ -923,8 +930,8 @@ func TestSchedulerNoPhantomPodAfterExpire(t *testing.T) {
 			ObjectMeta: metav1.ObjectMeta{Name: "bar", UID: types.UID("bar")},
 			Target:     v1.ObjectReference{Kind: "Node", Name: node.Name},
 		}
-		if !reflect.DeepEqual(expectBinding, b) {
-			t.Errorf("binding want=%v, get=%v", expectBinding, b)
+		if diff := cmp.Diff(expectBinding, b); diff != "" {
+			t.Errorf("Unexpected binding (-want,+got):\n%s", diff)
 		}
 	case <-time.After(wait.ForeverTestTimeout):
 		t.Fatalf("timeout in binding after %v", wait.ForeverTestTimeout)
@@ -966,8 +973,10 @@ func TestSchedulerNoPhantomPodAfterDelete(t *testing.T) {
 				UnschedulablePlugins: sets.New(nodeports.Name),
 			},
 		}
-		if !reflect.DeepEqual(expectErr, err) {
-			t.Errorf("err want=%v, get=%v", expectErr, err)
+		if err == nil {
+			t.Errorf("unexpected error. wanted %v, got %v", expectErr, err)
+		} else if diff := cmp.Diff(expectErr.Error(), err.Error()); diff != "" {
+			t.Errorf("unexpected error (-want,+got):\n%s", diff)
 		}
 	case <-time.After(wait.ForeverTestTimeout):
 		t.Fatalf("timeout in fitting after %v", wait.ForeverTestTimeout)
@@ -993,8 +1002,8 @@ func TestSchedulerNoPhantomPodAfterDelete(t *testing.T) {
 			ObjectMeta: metav1.ObjectMeta{Name: "bar", UID: types.UID("bar")},
 			Target:     v1.ObjectReference{Kind: "Node", Name: node.Name},
 		}
-		if !reflect.DeepEqual(expectBinding, b) {
-			t.Errorf("binding want=%v, get=%v", expectBinding, b)
+		if diff := cmp.Diff(expectBinding, b); diff != "" {
+			t.Errorf("unexpected binding (-want,+got):\n%s", diff)
 		}
 	case <-time.After(wait.ForeverTestTimeout):
 		t.Fatalf("timeout in binding after %v", wait.ForeverTestTimeout)
@@ -1076,8 +1085,8 @@ func TestSchedulerFailedSchedulingReasons(t *testing.T) {
 		if len(fmt.Sprint(expectErr)) > 150 {
 			t.Errorf("message is too spammy ! %v ", len(fmt.Sprint(expectErr)))
 		}
-		if !reflect.DeepEqual(expectErr, err) {
-			t.Errorf("\n err \nWANT=%+v,\nGOT=%+v", expectErr, err)
+		if diff := cmp.Diff(expectErr, err, schedulerCmpOpts...); diff != "" {
+			t.Errorf("Unexpected error (-want,+got):\n%s", diff)
 		}
 	case <-time.After(wait.ForeverTestTimeout):
 		t.Fatalf("timeout after %v", wait.ForeverTestTimeout)
@@ -2661,11 +2670,11 @@ func TestSchedulerSchedulePod(t *testing.T) {
 				if gotOK != wantOK {
 					t.Errorf("Expected err to be FitError: %v, but got %v (error: %v)", wantOK, gotOK, err)
 				} else if gotOK {
-					if diff := cmp.Diff(wantFitErr, gotFitErr, cmpopts.IgnoreFields(framework.Diagnosis{}, "NodeToStatus")); diff != "" {
-						t.Errorf("Unexpected fitErr for map: (-want, +got): %s", diff)
+					if diff := cmp.Diff(wantFitErr, gotFitErr, schedulerCmpOpts...); diff != "" {
+						t.Errorf("Unexpected fitErr for map (-want, +got):\n%s", diff)
 					}
 					if diff := nodeToStatusDiff(wantFitErr.Diagnosis.NodeToStatus, gotFitErr.Diagnosis.NodeToStatus); diff != "" {
-						t.Errorf("Unexpected nodeToStatus within fitErr for map: (-want, +got): %s", diff)
+						t.Errorf("Unexpected nodeToStatus within fitErr for map: (-want, +got):\n%s", diff)
 					}
 				}
 			}
@@ -2719,11 +2728,11 @@ func TestFindFitAllError(t *testing.T) {
 		}, framework.NewStatus(framework.UnschedulableAndUnresolvable)),
 		UnschedulablePlugins: sets.New("MatchFilter"),
 	}
-	if diff := cmp.Diff(diagnosis, expected, cmpopts.IgnoreFields(framework.Diagnosis{}, "NodeToStatus")); diff != "" {
-		t.Errorf("Unexpected diagnosis: (-want, +got): %s", diff)
+	if diff := cmp.Diff(expected, diagnosis, schedulerCmpOpts...); diff != "" {
+		t.Errorf("Unexpected diagnosis (-want, +got):\n%s", diff)
 	}
-	if diff := nodeToStatusDiff(diagnosis.NodeToStatus, expected.NodeToStatus); diff != "" {
-		t.Errorf("Unexpected nodeToStatus within diagnosis: (-want, +got): %s", diff)
+	if diff := nodeToStatusDiff(expected.NodeToStatus, diagnosis.NodeToStatus); diff != "" {
+		t.Errorf("Unexpected nodeToStatus within diagnosis: (-want, +got):\n%s", diff)
 	}
 }
 
@@ -2761,7 +2770,7 @@ func TestFindFitSomeError(t *testing.T) {
 	}
 
 	if diff := cmp.Diff(sets.New("MatchFilter"), diagnosis.UnschedulablePlugins); diff != "" {
-		t.Errorf("Unexpected unschedulablePlugins: (-want, +got): %s", diagnosis.UnschedulablePlugins)
+		t.Errorf("Unexpected unschedulablePlugins: (-want, +got): \n%s", diff)
 	}
 
 	for _, node := range nodes {
@@ -3692,8 +3701,8 @@ func setupTestSchedulerWithOnePodOnNode(ctx context.Context, t *testing.T, queue
 			ObjectMeta: metav1.ObjectMeta{Name: pod.Name, UID: types.UID(pod.Name)},
 			Target:     v1.ObjectReference{Kind: "Node", Name: node.Name},
 		}
-		if !reflect.DeepEqual(expectBinding, b) {
-			t.Errorf("binding want=%v, get=%v", expectBinding, b)
+		if diff := cmp.Diff(expectBinding, b); diff != "" {
+			t.Errorf("Unexpected binding (-want,+got):\n%s", diff)
 		}
 	case <-time.After(wait.ForeverTestTimeout):
 		t.Fatalf("timeout after %v", wait.ForeverTestTimeout)

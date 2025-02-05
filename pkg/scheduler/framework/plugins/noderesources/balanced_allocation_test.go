@@ -18,9 +18,9 @@ package noderesources
 
 import (
 	"context"
-	"reflect"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -403,8 +403,8 @@ func TestNodeResourcesBalancedAllocation(t *testing.T) {
 				if !status.IsSuccess() {
 					t.Errorf("Score is expected to return success, but didn't. Got status: %v", status)
 				}
-				if !reflect.DeepEqual(test.expectedList[i].Score, hostResult) {
-					t.Errorf("got score %v for host %v, expected %v", hostResult, test.nodes[i].Name, test.expectedList[i].Score)
+				if diff := cmp.Diff(test.expectedList[i].Score, hostResult); diff != "" {
+					t.Errorf("unexpected score for host %v (-want,+got):\n%s", test.nodes[i].Name, diff)
 				}
 			}
 		})

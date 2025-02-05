@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"reflect"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -41,14 +40,20 @@ import (
 	"k8s.io/utils/ptr"
 )
 
-var cmpOpts = []cmp.Option{
-	cmp.Comparer(func(s1 labels.Selector, s2 labels.Selector) bool {
-		return reflect.DeepEqual(s1, s2)
-	}),
+var preFilterStateCmpOpts = []cmp.Option{
 	cmp.Comparer(func(p1, p2 criticalPaths) bool {
 		p1.sort()
 		p2.sort()
 		return p1[0] == p2[0] && p1[1] == p2[1]
+	}),
+	cmp.Comparer(func(s1 *framework.Status, s2 *framework.Status) bool {
+		if s1 == nil || s2 == nil {
+			return s1.IsSuccess() && s2.IsSuccess()
+		}
+		if s1.Code() == framework.Error {
+			return s1.AsError().Error() == s2.AsError().Error()
+		}
+		return s1.Code() == s2.Code() && s1.Plugin() == s2.Plugin() && s1.Message() == s2.Message()
 	}),
 }
 
@@ -1504,7 +1509,7 @@ func TestPreFilterState(t *testing.T) {
 			if err != nil {
 				t.Fatalf("failed to get PreFilterState from cyclestate: %v", err)
 			}
-			if diff := cmp.Diff(tt.want, got, cmpOpts...); diff != "" {
+			if diff := cmp.Diff(tt.want, got, preFilterStateCmpOpts...); diff != "" {
 				t.Errorf("PodTopologySpread#PreFilter() returned unexpected prefilter status: diff (-want,+got):\n%s", diff)
 			}
 		})
@@ -1999,7 +2004,7 @@ func TestPreFilterStateAddPod(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if diff := cmp.Diff(tt.want, state, cmpOpts...); diff != "" {
+			if diff := cmp.Diff(tt.want, state, preFilterStateCmpOpts...); diff != "" {
 				t.Errorf("PodTopologySpread.AddPod() returned diff (-want,+got):\n%s", diff)
 			}
 		})
@@ -2307,7 +2312,7 @@ func TestPreFilterStateRemovePod(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if diff := cmp.Diff(tt.want, state, cmpOpts...); diff != "" {
+			if diff := cmp.Diff(tt.want, state, preFilterStateCmpOpts...); diff != "" {
 				t.Errorf("PodTopologySpread.RemovePod() returned diff (-want,+got):\n%s", diff)
 			}
 		})
@@ -3416,8 +3421,8 @@ func TestPreFilterDisabled(t *testing.T) {
 	cycleState := framework.NewCycleState()
 	gotStatus := p.(*PodTopologySpread).Filter(ctx, cycleState, pod, nodeInfo)
 	wantStatus := framework.AsStatus(fmt.Errorf(`reading "PreFilterPodTopologySpread" from cycleState: %w`, framework.ErrNotFound))
-	if !reflect.DeepEqual(gotStatus, wantStatus) {
-		t.Errorf("status does not match: %v, want: %v", gotStatus, wantStatus)
+	if diff := cmp.Diff(wantStatus, gotStatus, preFilterStateCmpOpts...); diff != "" {
+		t.Errorf("Status does not match (-want,+got):\n%s", diff)
 	}
 }
 

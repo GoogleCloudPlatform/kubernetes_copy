@@ -19,7 +19,6 @@ package nodevolumelimits
 import (
 	"errors"
 	"fmt"
-	"reflect"
 	"strings"
 	"testing"
 
@@ -49,6 +48,18 @@ const (
 var (
 	scName = "csi-sc"
 )
+
+var statusCmpOpts = []cmp.Option{
+	cmp.Comparer(func(s1 *framework.Status, s2 *framework.Status) bool {
+		if s1 == nil || s2 == nil {
+			return s1.IsSuccess() && s2.IsSuccess()
+		}
+		if s1.Code() == framework.Error {
+			return s1.AsError().Error() == s2.AsError().Error()
+		}
+		return s1.Code() == s2.Code() && s1.Plugin() == s2.Plugin() && s1.Message() == s2.Message()
+	}),
+}
 
 func TestCSILimits(t *testing.T) {
 	runningPod := st.MakePod().PVC("csi-ebs.csi.aws.com-3").Obj()
@@ -637,13 +648,13 @@ func TestCSILimits(t *testing.T) {
 			}
 			_, ctx := ktesting.NewTestContext(t)
 			_, gotPreFilterStatus := p.PreFilter(ctx, nil, test.newPod)
-			if diff := cmp.Diff(test.wantPreFilterStatus, gotPreFilterStatus); diff != "" {
-				t.Errorf("PreFilter status does not match (-want, +got): %s", diff)
+			if diff := cmp.Diff(test.wantPreFilterStatus, gotPreFilterStatus, statusCmpOpts...); diff != "" {
+				t.Errorf("PreFilter status does not match (-want, +got):\n%s", diff)
 			}
 			if gotPreFilterStatus.Code() != framework.Skip {
 				gotStatus := p.Filter(ctx, nil, test.newPod, node)
-				if !reflect.DeepEqual(gotStatus, test.wantStatus) {
-					t.Errorf("Filter status does not match: %v, want: %v", gotStatus, test.wantStatus)
+				if diff := cmp.Diff(test.wantStatus, gotStatus, statusCmpOpts...); diff != "" {
+					t.Errorf("Filter status does not match (-want, +got):\n%s", diff)
 				}
 			}
 		})
