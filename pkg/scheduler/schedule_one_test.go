@@ -850,7 +850,7 @@ func TestSchedulerScheduleOne(t *testing.T) {
 					t.Errorf("Unexpected forget pod (-want,+got):\n%s", diff)
 				}
 				if item.expectError == nil || gotError == nil {
-					if !errors.Is(gotError, item.expectError) {
+					if item.expectError != gotError {
 						t.Errorf("Unexpected error. Wanted %v, got %v", item.expectError, gotError)
 					}
 				} else if diff := cmp.Diff(item.expectError.Error(), gotError.Error()); diff != "" {
