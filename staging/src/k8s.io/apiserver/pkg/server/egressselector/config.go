@@ -32,7 +32,7 @@ import (
 
 var cfgScheme = runtime.NewScheme()
 
-// validEgressSelectorNames contains the set of valid egress selctor names.
+// validEgressSelectorNames contains the set of valid egress selector names.
 var validEgressSelectorNames = sets.NewString("controlplane", "cluster", "etcd")
 
 func init() {
