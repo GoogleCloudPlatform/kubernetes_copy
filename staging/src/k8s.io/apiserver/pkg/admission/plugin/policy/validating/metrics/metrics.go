@@ -18,6 +18,8 @@ package metrics
 
 import (
 	"context"
+	"strconv"
+	"sync"
 	"time"
 
 	"k8s.io/component-base/metrics"
@@ -48,12 +50,15 @@ const (
 var (
 	// Metrics provides access to validation admission metrics.
 	Metrics = newValidationAdmissionMetrics()
+	once    sync.Once
 )
 
 // ValidatingAdmissionPolicyMetrics aggregates Prometheus metrics related to validation admission control.
 type ValidatingAdmissionPolicyMetrics struct {
-	policyCheck   *metrics.CounterVec
-	policyLatency *metrics.HistogramVec
+	policyCheck                     *metrics.CounterVec
+	policyLatency                   *metrics.HistogramVec
+	policyActivePolicies            *metrics.Gauge
+	policyActiveBindingsEnforcement *metrics.GaugeVec
 }
 
 func newValidationAdmissionMetrics() *ValidatingAdmissionPolicyMetrics {
@@ -62,16 +67,16 @@ func newValidationAdmissionMetrics() *ValidatingAdmissionPolicyMetrics {
 			Namespace:      metricsNamespace,
 			Subsystem:      metricsSubsystem,
 			Name:           "check_total",
-			Help:           "Validation admission policy check total, labeled by policy and further identified by binding and enforcement action taken.",
+			Help:           "Validation admission policy check total, labeled by policy and further identified by binding, enforcement action taken, result type, namespace and name of the associated parameter resource, and index of the result.",
 			StabilityLevel: metrics.BETA,
 		},
-		[]string{"policy", "policy_binding", "error_type", "enforcement_action"},
+		[]string{"policy", "policy_binding", "error_type", "enforcement_action", "result_type", "param_namespace", "param_name", "result_index"},
 	)
 	latency := metrics.NewHistogramVec(&metrics.HistogramOpts{
 		Namespace: metricsNamespace,
 		Subsystem: metricsSubsystem,
 		Name:      "check_duration_seconds",
-		Help:      "Validation admission latency for individual validation expressions in seconds, labeled by policy and further including binding and enforcement action taken.",
+		Help:      "Validation admission latency for individual validation expressions in seconds, labeled by policy and further including binding and enforcement action taken, result type, namespace and name of the associated parameter resource, and index of the result.",
 		// the bucket distribution here is based oo the benchmark suite at
 		// github.com/DangerOnTheRanger/cel-benchmark performed on 16-core Intel Xeon
 		// the lowest bucket was based around the 180ns/op figure for BenchmarkAccess,
@@ -83,40 +88,84 @@ func newValidationAdmissionMetrics() *ValidatingAdmissionPolicyMetrics {
 		Buckets:        []float64{0.0000005, 0.001, 0.01, 0.1, 1.0},
 		StabilityLevel: metrics.BETA,
 	},
-		[]string{"policy", "policy_binding", "error_type", "enforcement_action"},
+		[]string{"policy", "policy_binding", "error_type", "enforcement_action", "result_type", "param_namespace", "param_name", "result_index"},
+	)
+	activePolicies := metrics.NewGauge(&metrics.GaugeOpts{
+		Namespace:      metricsNamespace,
+		Subsystem:      metricsSubsystem,
+		Name:           "active_policies",
+		Help:           "Validation admission policy active policies",
+		StabilityLevel: metrics.ALPHA,
+	})
+	activeBindingsEnforcement := metrics.NewGaugeVec(&metrics.GaugeOpts{
+		Namespace:      metricsNamespace,
+		Subsystem:      metricsSubsystem,
+		Name:           "active_bindings_enforcement",
+		Help:           "Validation admission policy active bindings, labeled by enforcement action.",
+		StabilityLevel: metrics.ALPHA,
+	},
+		[]string{"enforcement_action"},
 	)
 
-	legacyregistry.MustRegister(check)
-	legacyregistry.MustRegister(latency)
-	return &ValidatingAdmissionPolicyMetrics{policyCheck: check, policyLatency: latency}
+	return &ValidatingAdmissionPolicyMetrics{
+		policyCheck:                     check,
+		policyLatency:                   latency,
+		policyActivePolicies:            activePolicies,
+		policyActiveBindingsEnforcement: activeBindingsEnforcement,
+	}
+}
+
+func (m *ValidatingAdmissionPolicyMetrics) Register() {
+	once.Do(func() {
+		legacyregistry.MustRegister(m.policyCheck, m.policyLatency, m.policyActivePolicies, m.policyActiveBindingsEnforcement)
+	})
 }
 
 // Reset resets all validation admission-related Prometheus metrics.
 func (m *ValidatingAdmissionPolicyMetrics) Reset() {
 	m.policyCheck.Reset()
 	m.policyLatency.Reset()
+	m.policyActivePolicies.Set(0)
+	m.policyActiveBindingsEnforcement.Reset()
 }
 
 // ObserveAdmission observes a policy validation, with an optional error to indicate the error that may occur but ignored.
-func (m *ValidatingAdmissionPolicyMetrics) ObserveAdmission(ctx context.Context, elapsed time.Duration, policy, binding string, errorType ValidationErrorType) {
-	m.policyCheck.WithContext(ctx).WithLabelValues(policy, binding, string(errorType), "allow").Inc()
-	m.policyLatency.WithContext(ctx).WithLabelValues(policy, binding, string(errorType), "allow").Observe(elapsed.Seconds())
+func (m *ValidatingAdmissionPolicyMetrics) ObserveAdmission(ctx context.Context, elapsed time.Duration, policy, binding string, errorType ValidationErrorType,
+	resultType, paramNamespace, paramName string, decisionIndex int) {
+	lblVals := []string{policy, binding, string(errorType), "allow", resultType, paramNamespace, paramName, strconv.Itoa(decisionIndex)}
+	m.observe(ctx, elapsed, lblVals)
 }
 
 // ObserveRejection observes a policy validation error that was at least one of the reasons for a deny.
-func (m *ValidatingAdmissionPolicyMetrics) ObserveRejection(ctx context.Context, elapsed time.Duration, policy, binding string, errorType ValidationErrorType) {
-	m.policyCheck.WithContext(ctx).WithLabelValues(policy, binding, string(errorType), "deny").Inc()
-	m.policyLatency.WithContext(ctx).WithLabelValues(policy, binding, string(errorType), "deny").Observe(elapsed.Seconds())
+func (m *ValidatingAdmissionPolicyMetrics) ObserveRejection(ctx context.Context, elapsed time.Duration, policy, binding string, errorType ValidationErrorType,
+	resultType, paramNamespace, paramName string, decisionIndex int) {
+	lblVals := []string{policy, binding, string(errorType), "deny", resultType, paramNamespace, paramName, strconv.Itoa(decisionIndex)}
+	m.observe(ctx, elapsed, lblVals)
 }
 
 // ObserveAudit observes a policy validation audit annotation was published for a validation failure.
-func (m *ValidatingAdmissionPolicyMetrics) ObserveAudit(ctx context.Context, elapsed time.Duration, policy, binding string, errorType ValidationErrorType) {
-	m.policyCheck.WithContext(ctx).WithLabelValues(policy, binding, string(errorType), "audit").Inc()
-	m.policyLatency.WithContext(ctx).WithLabelValues(policy, binding, string(errorType), "audit").Observe(elapsed.Seconds())
+func (m *ValidatingAdmissionPolicyMetrics) ObserveAudit(ctx context.Context, elapsed time.Duration, policy, binding string, errorType ValidationErrorType,
+	resultType, paramNamespace, paramName string, decisionIndex int) {
+	lblVals := []string{policy, binding, string(errorType), "audit", resultType, paramNamespace, paramName, strconv.Itoa(decisionIndex)}
+	m.observe(ctx, elapsed, lblVals)
 }
 
 // ObserveWarn observes a policy validation warning was published for a validation failure.
-func (m *ValidatingAdmissionPolicyMetrics) ObserveWarn(ctx context.Context, elapsed time.Duration, policy, binding string, errorType ValidationErrorType) {
-	m.policyCheck.WithContext(ctx).WithLabelValues(policy, binding, string(errorType), "warn").Inc()
-	m.policyLatency.WithContext(ctx).WithLabelValues(policy, binding, string(errorType), "warn").Observe(elapsed.Seconds())
+func (m *ValidatingAdmissionPolicyMetrics) ObserveWarn(ctx context.Context, elapsed time.Duration, policy, binding string, errorType ValidationErrorType,
+	resultType, paramNamespace, paramName string, decisionIndex int) {
+	lblVals := []string{policy, binding, string(errorType), "warn", resultType, paramNamespace, paramName, strconv.Itoa(decisionIndex)}
+	m.observe(ctx, elapsed, lblVals)
+}
+
+func (m *ValidatingAdmissionPolicyMetrics) observe(ctx context.Context, elapsed time.Duration, lblVals []string) {
+	m.policyCheck.WithContext(ctx).WithLabelValues(lblVals...).Inc()
+	m.policyLatency.WithContext(ctx).WithLabelValues(lblVals...).Observe(elapsed.Seconds())
+}
+
+// ObserveActiveBindings observes the count of active validation admission policy bindings.
+func (m *ValidatingAdmissionPolicyMetrics) ObserveActiveBindings(policyCount, allowCount, warnCount, denyCount int) {
+	m.policyActivePolicies.Set(float64(policyCount))
+	m.policyActiveBindingsEnforcement.WithLabelValues("allow").Set(float64(allowCount))
+	m.policyActiveBindingsEnforcement.WithLabelValues("warn").Set(float64(warnCount))
+	m.policyActiveBindingsEnforcement.WithLabelValues("deny").Set(float64(denyCount))
 }

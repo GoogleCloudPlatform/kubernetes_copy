@@ -50,9 +50,10 @@ import (
 // PolicyTestContext is everything you need to unit test a policy plugin
 type PolicyTestContext[P runtime.Object, B runtime.Object, E Evaluator] struct {
 	context.Context
-	Plugin *Plugin[PolicyHook[P, B, E]]
-	Source Source[PolicyHook[P, B, E]]
-	Start  func() error
+	Plugin            *Plugin[PolicyHook[P, B, E]]
+	Source            Source[PolicyHook[P, B, E]]
+	Start             func() error
+	MetricHookTracker *metricHookTracker[P, B, E]
 
 	scheme     *runtime.Scheme
 	restMapper *meta.DefaultRESTMapper
@@ -176,6 +177,7 @@ func NewPolicyTestContext[P, B runtime.Object, E Evaluator](
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 	)
 
+	hookTracker := &metricHookTracker[P, B, E]{}
 	var source Source[PolicyHook[P, B, E]]
 	plugin := NewPlugin[PolicyHook[P, B, E]](
 		admission.NewHandler(admission.Connect, admission.Create, admission.Delete, admission.Update),
@@ -187,6 +189,7 @@ func NewPolicyTestContext[P, B runtime.Object, E Evaluator](
 				newBindingAccessor,
 				compileFunc,
 				sif,
+				hookTracker.updateHookMetrics,
 				i2,
 				r,
 			)
@@ -214,9 +217,10 @@ func NewPolicyTestContext[P, B runtime.Object, E Evaluator](
 	}
 
 	res := &PolicyTestContext[P, B, E]{
-		Context: testContext,
-		Plugin:  plugin,
-		Source:  source,
+		Context:           testContext,
+		Plugin:            plugin,
+		Source:            source,
+		MetricHookTracker: hookTracker,
 
 		restMapper:              fakeRestMapper,
 		scheme:                  policySourceTestScheme,
@@ -623,4 +627,12 @@ type fakeAuthorizer struct{}
 
 func (f fakeAuthorizer) Authorize(ctx context.Context, a authorizer.Attributes) (authorizer.Decision, string, error) {
 	return authorizer.DecisionAllow, "", nil
+}
+
+type metricHookTracker[P runtime.Object, B runtime.Object, E Evaluator] struct {
+	MetricHooks []PolicyHook[P, B, E]
+}
+
+func (m *metricHookTracker[P, B, E]) updateHookMetrics(hooks []PolicyHook[P, B, E]) {
+	m.MetricHooks = hooks
 }

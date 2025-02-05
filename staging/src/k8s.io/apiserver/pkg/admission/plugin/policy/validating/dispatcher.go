@@ -25,6 +25,7 @@ import (
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	v1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -62,6 +63,12 @@ type policyDecisionWithMetadata struct {
 	PolicyDecision
 	Definition *admissionregistrationv1.ValidatingAdmissionPolicy
 	Binding    *admissionregistrationv1.ValidatingAdmissionPolicyBinding
+}
+
+type validateResultWithParam struct {
+	Result         ValidateResult
+	ParamNamespace string
+	ParamName      string
 }
 
 func (c *dispatcher) Start(ctx context.Context) error {
@@ -176,7 +183,7 @@ func (c *dispatcher) Dispatch(ctx context.Context, a admission.Attributes, o adm
 				versionedAttr = va
 			}
 
-			var validationResults []ValidateResult
+			var validationResults []validateResultWithParam
 			var namespace *v1.Namespace
 			namespaceName := a.GetNamespace()
 
@@ -197,39 +204,54 @@ func (c *dispatcher) Dispatch(ctx context.Context, a admission.Attributes, o adm
 
 			for _, param := range params {
 				var p runtime.Object = param
-				if p != nil && p.GetObjectKind().GroupVersionKind().Empty() {
-					// Make sure param has TypeMeta populated
-					// This is a simple hack to make sure typeMeta is
-					// available to CEL without making copies of objects, etc.
-					p = &wrappedParam{
-						TypeMeta: metav1.TypeMeta{
-							APIVersion: definition.Spec.ParamKind.APIVersion,
-							Kind:       definition.Spec.ParamKind.Kind,
-						},
-						nested: param,
+				paramNamespace := ""
+				paramName := ""
+				if p != nil {
+					accessor, err := meta.Accessor(p)
+					if err != nil {
+						return err
+					}
+					paramNamespace = accessor.GetNamespace()
+					paramName = accessor.GetName()
+
+					if p.GetObjectKind().GroupVersionKind().Empty() {
+						// Make sure param has TypeMeta populated
+						// This is a simple hack to make sure typeMeta is
+						// available to CEL without making copies of objects, etc.
+						p = &wrappedParam{
+							TypeMeta: metav1.TypeMeta{
+								APIVersion: definition.Spec.ParamKind.APIVersion,
+								Kind:       definition.Spec.ParamKind.Kind,
+							},
+							nested: param,
+						}
 					}
 				}
 
-				validationResults = append(validationResults,
-					hook.Evaluator.Validate(
-						ctx,
-						matchResource,
-						versionedAttr,
-						p,
-						namespace,
-						celconfig.RuntimeCELCostBudget,
-						authz,
-					),
+				validationResult := hook.Evaluator.Validate(
+					ctx,
+					matchResource,
+					versionedAttr,
+					p,
+					namespace,
+					celconfig.RuntimeCELCostBudget,
+					authz,
 				)
+
+				validationResults = append(validationResults, validateResultWithParam{
+					Result:         validationResult,
+					ParamNamespace: paramNamespace,
+					ParamName:      paramName,
+				})
 			}
 
-			for _, validationResult := range validationResults {
+			for _, result := range validationResults {
+				validationResult := result.Result
 				for i, decision := range validationResult.Decisions {
 					switch decision.Action {
 					case ActionAdmit:
-						if decision.Evaluation == EvalError {
-							celmetrics.Metrics.ObserveAdmission(ctx, decision.Elapsed, definition.Name, binding.Name, ErrorType(&decision))
-						}
+						celmetrics.Metrics.ObserveAdmission(ctx, decision.Elapsed, definition.Name, binding.Name, ErrorType(&decision),
+							"validation", result.ParamNamespace, result.ParamName, i)
 					case ActionDeny:
 						for _, action := range binding.Spec.ValidationActions {
 							switch action {
@@ -239,13 +261,16 @@ func (c *dispatcher) Dispatch(ctx context.Context, a admission.Attributes, o adm
 									Binding:        binding,
 									PolicyDecision: decision,
 								})
-								celmetrics.Metrics.ObserveRejection(ctx, decision.Elapsed, definition.Name, binding.Name, ErrorType(&decision))
+								celmetrics.Metrics.ObserveRejection(ctx, decision.Elapsed, definition.Name, binding.Name, ErrorType(&decision),
+									"validation", result.ParamNamespace, result.ParamName, i)
 							case admissionregistrationv1.Audit:
 								publishValidationFailureAnnotation(binding, i, decision, versionedAttr)
-								celmetrics.Metrics.ObserveAudit(ctx, decision.Elapsed, definition.Name, binding.Name, ErrorType(&decision))
+								celmetrics.Metrics.ObserveAudit(ctx, decision.Elapsed, definition.Name, binding.Name, ErrorType(&decision),
+									"validation", result.ParamNamespace, result.ParamName, i)
 							case admissionregistrationv1.Warn:
 								warning.AddWarning(ctx, "", fmt.Sprintf("Validation failed for ValidatingAdmissionPolicy '%s' with binding '%s': %s", definition.Name, binding.Name, decision.Message))
-								celmetrics.Metrics.ObserveWarn(ctx, decision.Elapsed, definition.Name, binding.Name, ErrorType(&decision))
+								celmetrics.Metrics.ObserveWarn(ctx, decision.Elapsed, definition.Name, binding.Name, ErrorType(&decision),
+									"validation", result.ParamNamespace, result.ParamName, i)
 							}
 						}
 					default:
@@ -254,7 +279,7 @@ func (c *dispatcher) Dispatch(ctx context.Context, a admission.Attributes, o adm
 					}
 				}
 
-				for _, auditAnnotation := range validationResult.AuditAnnotations {
+				for i, auditAnnotation := range validationResult.AuditAnnotations {
 					switch auditAnnotation.Action {
 					case AuditAnnotationActionPublish:
 						value := auditAnnotation.Value
@@ -275,7 +300,8 @@ func (c *dispatcher) Dispatch(ctx context.Context, a admission.Attributes, o adm
 							},
 						}
 						deniedDecisions = append(deniedDecisions, d)
-						celmetrics.Metrics.ObserveRejection(ctx, auditAnnotation.Elapsed, definition.Name, binding.Name, ErrorType(&d.PolicyDecision))
+						celmetrics.Metrics.ObserveRejection(ctx, auditAnnotation.Elapsed, definition.Name, binding.Name, ErrorType(&d.PolicyDecision),
+							"auditAnnotation", result.ParamNamespace, result.ParamName, i)
 					case AuditAnnotationActionExclude: // skip it
 					default:
 						return fmt.Errorf("unsupported AuditAnnotation Action: %s", auditAnnotation.Action)

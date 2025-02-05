@@ -130,7 +130,16 @@ func TestPolicySourceHasSyncedInitialList(t *testing.T) {
 		},
 	))
 	require.Len(t, testContext.Source.Hooks(), 3, "should have 3 policies")
-
+	require.Len(t, testContext.MetricHookTracker.MetricHooks, 3, "should have 3 metric policies")
+	require.Equal(t, testContext.Source.Hooks()[0].Bindings[0].GetName(),
+		testContext.MetricHookTracker.MetricHooks[0].Bindings[0].GetName(),
+		"First binding names should be the same")
+	require.Equal(t, testContext.Source.Hooks()[1].Bindings[0].GetName(),
+		testContext.MetricHookTracker.MetricHooks[1].Bindings[0].GetName(),
+		"Second binding names should be the same")
+	require.Equal(t, testContext.Source.Hooks()[2].Bindings[0].GetName(),
+		testContext.MetricHookTracker.MetricHooks[2].Bindings[0].GetName(),
+		"Third binding names should be the same")
 }
 
 func TestPolicySourceBindsToPolicies(t *testing.T) {
@@ -163,7 +172,11 @@ func TestPolicySourceBindsToPolicies(t *testing.T) {
 
 	require.Len(t, testContext.Source.Hooks(), 1, "should have one policy")
 	require.Len(t, testContext.Source.Hooks()[0].Bindings, 1, "should have one binding")
-	require.Equal(t, "binding1", testContext.Source.Hooks()[0].Bindings[0].GetName(), "should have one binding")
+	require.Equal(t, "binding1", testContext.Source.Hooks()[0].Bindings[0].GetName(), "binding name should be binding1")
+
+	require.Len(t, testContext.MetricHookTracker.MetricHooks, 1, "should have one metric policy")
+	require.Len(t, testContext.MetricHookTracker.MetricHooks[0].Bindings, 1, "should have one metric binding")
+	require.Equal(t, "binding1", testContext.MetricHookTracker.MetricHooks[0].Bindings[0].GetName(), "binding name should be binding1")
 
 	// Change the binding to another policy (policies without bindings should
 	// be ignored, so it should remove the first
@@ -184,6 +197,10 @@ func TestPolicySourceBindsToPolicies(t *testing.T) {
 	require.Len(t, testContext.Source.Hooks()[0].Bindings, 1, "should have one binding")
 	require.Equal(t, "binding1", testContext.Source.Hooks()[0].Bindings[0].GetName(), "binding name should be binding1")
 
+	require.Len(t, testContext.MetricHookTracker.MetricHooks, 1, "should have one metric policy")
+	require.Equal(t, "policy2", testContext.MetricHookTracker.MetricHooks[0].Policy.GetName(), "metric policy name should be policy2")
+	require.Len(t, testContext.MetricHookTracker.MetricHooks[0].Bindings, 1, "should have one metric binding")
+	require.Equal(t, "binding1", testContext.MetricHookTracker.MetricHooks[0].Bindings[0].GetName(), "metric binding name should be binding1")
 }
 
 type FakePolicy struct {
