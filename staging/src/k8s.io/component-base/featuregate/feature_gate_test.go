@@ -1180,6 +1180,7 @@ func TestVersionedFeatureGateKnownFeatures(t *testing.T) {
 	const (
 		testPreAlphaGate            Feature = "TestPreAlpha"
 		testAlphaGate               Feature = "TestAlpha"
+		testDirectBetaPreAlphaGate  Feature = "TestDirectBetaPreAlpha"
 		testBetaGate                Feature = "TestBeta"
 		testGAGate                  Feature = "TestGA"
 		testDeprecatedGate          Feature = "TestDeprecated"
@@ -1203,6 +1204,9 @@ func TestVersionedFeatureGateKnownFeatures(t *testing.T) {
 		testAlphaGate: {
 			{Version: version.MustParse("1.28"), Default: false, PreRelease: Alpha},
 		},
+		testDirectBetaPreAlphaGate: {
+			{Version: version.MustParse("1.29"), Default: true, PreRelease: Beta},
+		},
 		testBetaGate: {
 			{Version: version.MustParse("1.28"), Default: false, PreRelease: Beta},
 		},
@@ -1224,6 +1228,7 @@ func TestVersionedFeatureGateKnownFeatures(t *testing.T) {
 
 	assert.NotContains(t, known, testPreAlphaGate)
 	assert.Contains(t, known, testAlphaGate)
+	assert.NotContains(t, known, testDirectBetaPreAlphaGate)
 	assert.Contains(t, known, testBetaGate)
 	assert.NotContains(t, known, testGAGate)
 	assert.NotContains(t, known, testDeprecatedGate)
