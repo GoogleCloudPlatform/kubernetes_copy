@@ -1084,26 +1084,20 @@ func delayTerminalCondition() bool {
 // which the objects can actually be deleted.
 // Returns number of successfully deleted ready pods and total number of successfully deleted pods.
 func (jm *Controller) deleteActivePods(ctx context.Context, job *batch.Job, pods []*v1.Pod) (int32, int32, error) {
-	errCh := make(chan error, len(pods))
-	successfulDeletes := int32(len(pods))
+	podsCount := len(pods)
+	successfulDeletes := int32(podsCount)
 	var deletedReady int32 = 0
-	wg := sync.WaitGroup{}
-	wg.Add(len(pods))
-	for i := range pods {
-		go func(pod *v1.Pod) {
-			defer wg.Done()
-			if err := jm.podControl.DeletePod(ctx, job.Namespace, pod.Name, job); err != nil && !apierrors.IsNotFound(err) {
-				atomic.AddInt32(&successfulDeletes, -1)
-				errCh <- err
-				utilruntime.HandleError(err)
-			}
-			if podutil.IsPodReady(pod) {
-				atomic.AddInt32(&deletedReady, 1)
-			}
-		}(pods[i])
-	}
-	wg.Wait()
-	return deletedReady, successfulDeletes, errorFromChannel(errCh)
+	err := parallelizeUntil(ctx, podsCount, func(i int) error {
+		err := jm.podControl.DeletePod(ctx, job.Namespace, pods[i].Name, job)
+		if err != nil && !apierrors.IsNotFound(err) {
+			atomic.AddInt32(&successfulDeletes, -1)
+		}
+		if podutil.IsPodReady(pods[i]) {
+			atomic.AddInt32(&deletedReady, 1)
+		}
+		return err
+	})
+	return deletedReady, successfulDeletes, err
 }
 
 func nonIgnoredFailedPodsCount(jobCtx *syncJobCtx, failedPods []*v1.Pod) int {
@@ -1122,43 +1116,37 @@ func nonIgnoredFailedPodsCount(jobCtx *syncJobCtx, failedPods []*v1.Pod) int {
 // deleteJobPods deletes the pods, returns the number of successful removals of ready pods and total number of successful pod removals
 // and any error.
 func (jm *Controller) deleteJobPods(ctx context.Context, job *batch.Job, jobKey string, pods []*v1.Pod) (int32, int32, error) {
-	errCh := make(chan error, len(pods))
-	successfulDeletes := int32(len(pods))
+	podsCount := len(pods)
+	successfulDeletes := int32(podsCount)
 	var deletedReady int32 = 0
 	logger := klog.FromContext(ctx)
 
-	failDelete := func(pod *v1.Pod, err error) {
+	failDelete := func(pod *v1.Pod, err error) error {
 		// Decrement the expected number of deletes because the informer won't observe this deletion
 		jm.expectations.DeletionObserved(logger, jobKey)
 		if !apierrors.IsNotFound(err) {
 			logger.V(2).Info("Failed to delete Pod", "job", klog.KObj(job), "pod", klog.KObj(pod), "err", err)
 			atomic.AddInt32(&successfulDeletes, -1)
-			errCh <- err
-			utilruntime.HandleError(err)
+			return err
 		}
+		return nil
 	}
-
-	wg := sync.WaitGroup{}
-	wg.Add(len(pods))
-	for i := range pods {
-		go func(pod *v1.Pod) {
-			defer wg.Done()
-			if patch := removeTrackingFinalizerPatch(pod); patch != nil {
-				if err := jm.podControl.PatchPod(ctx, pod.Namespace, pod.Name, patch); err != nil {
-					failDelete(pod, fmt.Errorf("removing completion finalizer: %w", err))
-					return
-				}
+	err := parallelizeUntil(ctx, podsCount, func(i int) error {
+		var err error
+		if patch := removeTrackingFinalizerPatch(pods[i]); patch != nil {
+			if err = jm.podControl.PatchPod(ctx, pods[i].Namespace, pods[i].Name, patch); err != nil {
+				return failDelete(pods[i], fmt.Errorf("removing completion fainalizer: %w", err))
 			}
-			if err := jm.podControl.DeletePod(ctx, job.Namespace, pod.Name, job); err != nil {
-				failDelete(pod, err)
-			}
-			if podutil.IsPodReady(pod) {
-				atomic.AddInt32(&deletedReady, 1)
-			}
-		}(pods[i])
-	}
-	wg.Wait()
-	return deletedReady, successfulDeletes, errorFromChannel(errCh)
+		}
+		if err = jm.podControl.DeletePod(ctx, job.Namespace, pods[i].Name, job); err != nil {
+			_ = failDelete(pods[i], err)
+		}
+		if podutil.IsPodReady(pods[i]) {
+			atomic.AddInt32(&deletedReady, 1)
+		}
+		return err
+	})
+	return deletedReady, successfulDeletes, err
 }
 
 // trackJobStatusAndRemoveFinalizers does:
@@ -1427,9 +1415,9 @@ func cleanUncountedPodsWithoutFinalizers(status *batch.JobStatus, uidsWithFinali
 // function was called, it's considered as the finalizer was removed successfully).
 func (jm *Controller) removeTrackingFinalizerFromPods(ctx context.Context, jobKey string, pods []*v1.Pod) ([]bool, error) {
 	logger := klog.FromContext(ctx)
-	errCh := make(chan error, len(pods))
-	succeeded := make([]bool, len(pods))
-	uids := make([]types.UID, len(pods))
+	podsCount := len(pods)
+	succeeded := make([]bool, podsCount)
+	uids := make([]types.UID, podsCount)
 	for i, p := range pods {
 		uids[i] = p.UID
 	}
@@ -1439,32 +1427,23 @@ func (jm *Controller) removeTrackingFinalizerFromPods(ctx context.Context, jobKe
 			return succeeded, fmt.Errorf("setting expected removed finalizers: %w", err)
 		}
 	}
-	wg := sync.WaitGroup{}
-	wg.Add(len(pods))
-	for i := range pods {
-		go func(i int) {
-			pod := pods[i]
-			defer wg.Done()
-			if patch := removeTrackingFinalizerPatch(pod); patch != nil {
-				if err := jm.podControl.PatchPod(ctx, pod.Namespace, pod.Name, patch); err != nil {
-					// In case of any failure, we don't expect a Pod update for the
-					// finalizer removed. Clear expectation now.
-					if jobKey != "" {
-						jm.finalizerExpectations.finalizerRemovalObserved(logger, jobKey, pod.UID)
-					}
-					if !apierrors.IsNotFound(err) {
-						errCh <- err
-						utilruntime.HandleError(fmt.Errorf("removing tracking finalizer: %w", err))
-						return
-					}
+	err := parallelizeUntil(ctx, podsCount, func(i int) error {
+		if patch := removeTrackingFinalizerPatch(pods[i]); patch != nil {
+			if err := jm.podControl.PatchPod(ctx, pods[i].Namespace, pods[i].Name, patch); err != nil {
+				// In case of any failure, we don't expect a Pod update for the
+				// finalizer removed. Clear expectation now.
+				if jobKey != "" {
+					jm.finalizerExpectations.finalizerRemovalObserved(logger, jobKey, pods[i].UID)
 				}
-				succeeded[i] = true
+				if !apierrors.IsNotFound(err) {
+					return fmt.Errorf("removing tracking finalizer: %w", err)
+				}
 			}
-		}(i)
-	}
-	wg.Wait()
-
-	return succeeded, errorFromChannel(errCh)
+		}
+		succeeded[i] = true
+		return nil
+	})
+	return succeeded, err
 }
 
 // enactJobFinished adds the Complete or Failed condition and records events.
@@ -1951,6 +1930,17 @@ func errorFromChannel(errCh <-chan error) error {
 	default:
 	}
 	return nil
+}
+
+func parallelizeUntil(ctx context.Context, pieces int, doWorkPiece func(i int) error) error {
+	errCh := make(chan error, pieces)
+	workqueue.ParallelizeUntil(ctx, pieces, pieces, func(i int) {
+		if err := doWorkPiece(i); err != nil {
+			errCh <- err
+			utilruntime.HandleError(err)
+		}
+	})
+	return errorFromChannel(errCh)
 }
 
 // ensureJobConditionStatus appends or updates an existing job condition of the
