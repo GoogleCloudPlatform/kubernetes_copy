@@ -273,6 +273,24 @@ port: 123
 			name:             "empty drop-in apiVersion/kind",
 			expectMergeError: `'Kind' is missing`,
 		},
+		{
+			name: "identical kubelet config and drop-in file",
+			kubeletConfig: &kubeletconfiginternal.KubeletConfiguration{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "KubeletConfiguration",
+					APIVersion: "kubelet.config.k8s.io/v1beta1",
+				},
+				Port:         int32(9090),
+				ReadOnlyPort: int32(10255),
+			},
+			dropin1: `
+apiVersion: kubelet.config.k8s.io/v1beta1
+kind: KubeletConfiguration
+port: 9090
+readOnlyPort: 10255
+`,
+			expectMergeError: "",
+		},
 	}
 
 	for _, test := range testCases {
