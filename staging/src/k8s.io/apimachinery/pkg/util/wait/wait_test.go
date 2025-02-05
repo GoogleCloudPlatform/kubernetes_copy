@@ -657,6 +657,35 @@ func TestPollUntil(t *testing.T) {
 	close(called)
 }
 
+func TestDyanmicPeriodUntil(t *testing.T) {
+	i := 0
+	loopPeriod := 1 * time.Second
+	startIterationNow := time.Now()
+	jitered := 0.0
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	DyanmicPeriodUntil(ctx, func() {
+		t.Logf("Current date and time is: %v ", startIterationNow.String())
+		//  i = 0,1,2,3,4 = 1 second
+		//  i = 5,6,7,8,9 = 2 seconds
+		if i < 5 {
+			t.Logf("i <= 5 , i = %v", i)
+		} else if i >= 5 && i < 10 {
+			t.Logf("i >= 5 , i = %v ", i)
+			loopPeriod = 2 * time.Second
+		} else if i >= 10 {
+			difference := time.Since(startIterationNow)
+
+			if difference.Seconds() < 15 {
+				t.Errorf("end - start = %v,  expected >= %v ", difference.Seconds(), 15)
+			}
+			cancelFunc()
+		}
+		i++
+	}, func() time.Duration {
+		return loopPeriod
+	}, jitered, true)
+}
+
 func TestBackoff_Step(t *testing.T) {
 	tests := []struct {
 		initial *Backoff

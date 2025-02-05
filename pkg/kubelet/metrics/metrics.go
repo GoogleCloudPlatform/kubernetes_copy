@@ -51,6 +51,8 @@ const (
 	PLEGDiscardEventsKey               = "pleg_discard_events"
 	PLEGRelistIntervalKey              = "pleg_relist_interval_seconds"
 	PLEGLastSeenKey                    = "pleg_last_seen_seconds"
+	EventedDSWPConnErrKey              = "evented_dswp_connection_error_count"
+	EventedDSWPConnKey                 = "evented_dswp_connection_success_count"
 	EventedPLEGConnErrKey              = "evented_pleg_connection_error_count"
 	EventedPLEGConnKey                 = "evented_pleg_connection_success_count"
 	EventedPLEGConnLatencyKey          = "evented_pleg_connection_latency_seconds"
@@ -375,6 +377,28 @@ var (
 			Subsystem:      KubeletSubsystem,
 			Name:           EventedPLEGConnKey,
 			Help:           "The number of times a streaming client was obtained to receive CRI Events.",
+			StabilityLevel: metrics.ALPHA,
+		},
+	)
+
+	// EventedDSWPConnErr is a Counter that tracks the number of DSWP errors encountered during
+	// the establishment of streaming connection with the CRI runtime.
+	EventedDSWPConnErr = metrics.NewCounter(
+		&metrics.CounterOpts{
+			Subsystem:      KubeletSubsystem,
+			Name:           EventedDSWPConnErrKey,
+			Help:           "The number of DSWP errors encountered during the establishment of streaming connection with the CRI runtime.",
+			StabilityLevel: metrics.ALPHA,
+		},
+	)
+
+	// EventedDSWPConn is a Counter that tracks the number of times a DSWP streaming client
+	// was obtained to receive CRI Events.
+	EventedDSWPConn = metrics.NewCounter(
+		&metrics.CounterOpts{
+			Subsystem:      KubeletSubsystem,
+			Name:           EventedDSWPConnKey,
+			Help:           "The number of times a DSWP streaming client was obtained to receive CRI Events.",
 			StabilityLevel: metrics.ALPHA,
 		},
 	)
@@ -1039,6 +1063,8 @@ func Register(collectors ...metrics.StableCollector) {
 		legacyregistry.MustRegister(PLEGLastSeen)
 		legacyregistry.MustRegister(EventedPLEGConnErr)
 		legacyregistry.MustRegister(EventedPLEGConn)
+		legacyregistry.MustRegister(EventedDSWPConnErr)
+		legacyregistry.MustRegister(EventedDSWPConn)
 		legacyregistry.MustRegister(EventedPLEGConnLatency)
 		legacyregistry.MustRegister(RuntimeOperations)
 		legacyregistry.MustRegister(RuntimeOperationsDuration)
