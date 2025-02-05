@@ -17,11 +17,33 @@ limitations under the License.
 package metrics
 
 import (
+	"time"
+
 	"github.com/prometheus/client_golang/prometheus"
 )
 
 // DefBuckets is a wrapper for prometheus.DefBuckets
 var DefBuckets = prometheus.DefBuckets
+
+// DefNativeHistogramBucketFactor defines a sane default for the Prometheus
+// native histogram exponential bucket factor. The value of 1.1 means each
+// bucket is 10% wider than the previous bucket.
+//
+// For more information on Prometheus Native Histograms, see the upstream
+// client_golang documentation.
+//
+// https://pkg.go.dev/github.com/prometheus/client_golang/prometheus#HistogramOpts
+var DefNativeHistogramBucketFactor = 1.1
+
+// DefNativeHistogramMaxBucketNumber defines a sane default for the Prometheus
+// native histogram limit to the number of sparse buckets. This avoids
+// unbounded memory requirements for native histogram tracking.
+var DefNativeHistogramMaxBucketNumber = 200
+
+// DefNativeHistogramMinResetDuration defines a sane default for the Prometheus
+// native histogram minimum reset duration. This is used to reset the histogram
+// buckets in case the max bucket number value is reached.
+var DefNativeHistogramMinResetDuration = time.Hour
 
 // LinearBuckets is a wrapper for prometheus.LinearBuckets.
 func LinearBuckets(start, width float64, count int) []float64 {
