@@ -144,7 +144,7 @@ func TestCreate_Token_SetsCredentialIDAuditAnnotation(t *testing.T) {
 	}
 
 	auditContext := audit.AuditContextFrom(ctx)
-	issuedCredentialID, ok := auditContext.Event.Annotations["authentication.kubernetes.io/issued-credential-id"]
+	issuedCredentialID, ok := auditContext.GetEventAnnotation("authentication.kubernetes.io/issued-credential-id")
 	if !ok || len(issuedCredentialID) == 0 {
 		t.Errorf("did not find issued-credential-id in audit event annotations")
 	}

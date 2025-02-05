@@ -23,7 +23,6 @@ import (
 	"net/http"
 	"time"
 
-	authnv1 "k8s.io/api/authentication/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -45,105 +44,38 @@ func LogRequestMetadata(ctx context.Context, req *http.Request, requestReceivedT
 	if !ac.Enabled() {
 		return
 	}
-	ev := &ac.Event
-
-	ev.RequestReceivedTimestamp = metav1.NewMicroTime(requestReceivedTimestamp)
-	ev.Verb = attribs.GetVerb()
-	ev.RequestURI = req.URL.RequestURI()
-	ev.UserAgent = maybeTruncateUserAgent(req)
-	ev.Level = level
-
-	ips := utilnet.SourceIPs(req)
-	ev.SourceIPs = make([]string, len(ips))
-	for i := range ips {
-		ev.SourceIPs[i] = ips[i].String()
-	}
-
-	if user := attribs.GetUser(); user != nil {
-		ev.User.Username = user.GetName()
-		ev.User.Extra = map[string]authnv1.ExtraValue{}
-		for k, v := range user.GetExtra() {
-			ev.User.Extra[k] = authnv1.ExtraValue(v)
-		}
-		ev.User.Groups = user.GetGroups()
-		ev.User.UID = user.GetUID()
-	}
-
-	if attribs.IsResourceRequest() {
-		ev.ObjectRef = &auditinternal.ObjectReference{
-			Namespace:   attribs.GetNamespace(),
-			Name:        attribs.GetName(),
-			Resource:    attribs.GetResource(),
-			Subresource: attribs.GetSubresource(),
-			APIGroup:    attribs.GetAPIGroup(),
-			APIVersion:  attribs.GetAPIVersion(),
-		}
-	}
+	ac.LogRequestMetadata(req.URL.RequestURI(), maybeTruncateUserAgent(req), utilnet.SourceIPs(req), requestReceivedTimestamp, level, attribs)
 }
 
 // LogImpersonatedUser fills in the impersonated user attributes into an audit event.
-func LogImpersonatedUser(ae *auditinternal.Event, user user.Info) {
-	if ae == nil || ae.Level.Less(auditinternal.LevelMetadata) {
+func LogImpersonatedUser(ctx context.Context, user user.Info) {
+	ac := AuditContextFrom(ctx)
+	if !ac.Enabled() {
 		return
 	}
-	ae.ImpersonatedUser = &authnv1.UserInfo{
-		Username: user.GetName(),
+	if ac.EventIsNil() || ac.Level().Less(auditinternal.LevelMetadata) {
+		return
 	}
-	ae.ImpersonatedUser.Groups = user.GetGroups()
-	ae.ImpersonatedUser.UID = user.GetUID()
-	ae.ImpersonatedUser.Extra = map[string]authnv1.ExtraValue{}
-	for k, v := range user.GetExtra() {
-		ae.ImpersonatedUser.Extra[k] = authnv1.ExtraValue(v)
-	}
+	ac.LogImpersonatedUser(user)
 }
 
 // LogRequestObject fills in the request object into an audit event. The passed runtime.Object
 // will be converted to the given gv.
 func LogRequestObject(ctx context.Context, obj runtime.Object, objGV schema.GroupVersion, gvr schema.GroupVersionResource, subresource string, s runtime.NegotiatedSerializer) {
-	ae := AuditEventFrom(ctx)
-	if ae == nil || ae.Level.Less(auditinternal.LevelMetadata) {
+	ac := AuditContextFrom(ctx)
+	if !ac.Enabled() {
 		return
 	}
-
-	// complete ObjectRef
-	if ae.ObjectRef == nil {
-		ae.ObjectRef = &auditinternal.ObjectReference{}
+	if ac.EventIsNil() || ac.Level().Less(auditinternal.LevelMetadata) {
+		return
 	}
 
 	// meta.Accessor is more general than ObjectMetaAccessor, but if it fails, we can just skip setting these bits
-	if meta, err := meta.Accessor(obj); err == nil {
-		if len(ae.ObjectRef.Namespace) == 0 {
-			ae.ObjectRef.Namespace = meta.GetNamespace()
-		}
-		if len(ae.ObjectRef.Name) == 0 {
-			ae.ObjectRef.Name = meta.GetName()
-		}
-		if len(ae.ObjectRef.UID) == 0 {
-			ae.ObjectRef.UID = meta.GetUID()
-		}
-		if len(ae.ObjectRef.ResourceVersion) == 0 {
-			ae.ObjectRef.ResourceVersion = meta.GetResourceVersion()
-		}
-	}
-	if len(ae.ObjectRef.APIVersion) == 0 {
-		ae.ObjectRef.APIGroup = gvr.Group
-		ae.ObjectRef.APIVersion = gvr.Version
-	}
-	if len(ae.ObjectRef.Resource) == 0 {
-		ae.ObjectRef.Resource = gvr.Resource
-	}
-	if len(ae.ObjectRef.Subresource) == 0 {
-		ae.ObjectRef.Subresource = subresource
-	}
-
-	if ae.Level.Less(auditinternal.LevelRequest) {
-		return
-	}
-
+	objMeta, _ := meta.Accessor(obj)
 	if shouldOmitManagedFields(ctx) {
 		copy, ok, err := copyWithoutManagedFields(obj)
 		if err != nil {
-			klog.ErrorS(err, "Error while dropping managed fields from the request", "auditID", ae.AuditID)
+			klog.ErrorS(err, "Error while dropping managed fields from the request", "auditID", ac.AuditID())
 		}
 		if ok {
 			obj = copy
@@ -151,54 +83,38 @@ func LogRequestObject(ctx context.Context, obj runtime.Object, objGV schema.Grou
 	}
 
 	// TODO(audit): hook into the serializer to avoid double conversion
-	var err error
-	ae.RequestObject, err = encodeObject(obj, objGV, s)
+	requestObject, err := encodeObject(obj, objGV, s)
 	if err != nil {
 		// TODO(audit): add error slice to audit event struct
-		klog.ErrorS(err, "Encoding failed of request object", "auditID", ae.AuditID, "gvr", gvr.String(), "obj", obj)
+		klog.ErrorS(err, "Encoding failed of request object", "auditID", ac.AuditID(), "gvr", gvr.String(), "obj", obj)
 		return
 	}
+	ac.LogRequestObject(objMeta, gvr, subresource, requestObject)
 }
 
 // LogRequestPatch fills in the given patch as the request object into an audit event.
 func LogRequestPatch(ctx context.Context, patch []byte) {
-	ae := AuditEventFrom(ctx)
-	if ae == nil || ae.Level.Less(auditinternal.LevelRequest) {
+	ac := AuditContextFrom(ctx)
+	if ac.EventIsNil() || ac.Level().Less(auditinternal.LevelRequest) {
 		return
 	}
-
-	ae.RequestObject = &runtime.Unknown{
-		Raw:         patch,
-		ContentType: runtime.ContentTypeJSON,
-	}
+	ac.LogRequestPatch(patch)
 }
 
 // LogResponseObject fills in the response object into an audit event. The passed runtime.Object
 // will be converted to the given gv.
 func LogResponseObject(ctx context.Context, obj runtime.Object, gv schema.GroupVersion, s runtime.NegotiatedSerializer) {
-	ae := AuditEventFrom(ctx)
-	if ae == nil || ae.Level.Less(auditinternal.LevelMetadata) {
+	ac := AuditContextFrom(WithAuditContext(ctx))
+	if ac.EventIsNil() || ac.Level().Less(auditinternal.LevelMetadata) {
 		return
-	}
-	if status, ok := obj.(*metav1.Status); ok {
-		// selectively copy the bounded fields.
-		ae.ResponseStatus = &metav1.Status{
-			Status:  status.Status,
-			Message: status.Message,
-			Reason:  status.Reason,
-			Details: status.Details,
-			Code:    status.Code,
-		}
 	}
 
-	if ae.Level.Less(auditinternal.LevelRequestResponse) {
-		return
-	}
+	status, _ := obj.(*metav1.Status)
 
 	if shouldOmitManagedFields(ctx) {
 		copy, ok, err := copyWithoutManagedFields(obj)
 		if err != nil {
-			klog.ErrorS(err, "Error while dropping managed fields from the response", "auditID", ae.AuditID)
+			klog.ErrorS(err, "Error while dropping managed fields from the response", "auditID", ac.AuditID())
 		}
 		if ok {
 			obj = copy
@@ -207,10 +123,11 @@ func LogResponseObject(ctx context.Context, obj runtime.Object, gv schema.GroupV
 
 	// TODO(audit): hook into the serializer to avoid double conversion
 	var err error
-	ae.ResponseObject, err = encodeObject(obj, gv, s)
+	responseObject, err := encodeObject(obj, gv, s)
 	if err != nil {
-		klog.ErrorS(err, "Encoding failed of response object", "auditID", ae.AuditID, "obj", obj)
+		klog.ErrorS(err, "Encoding failed of response object", "auditID", ac.AuditID(), "obj", obj)
 	}
+	ac.LogResponseObject(status, responseObject)
 }
 
 func encodeObject(obj runtime.Object, gv schema.GroupVersion, serializer runtime.NegotiatedSerializer) (*runtime.Unknown, error) {
