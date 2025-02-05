@@ -223,6 +223,7 @@ func (f *fixture) run_(ctx context.Context, deploymentName string, startInformer
 		stopCh := make(chan struct{})
 		defer close(stopCh)
 		informers.Start(stopCh)
+		informers.WaitForCacheSync(stopCh)
 	}
 
 	err = c.syncDeployment(ctx, deploymentName)
@@ -554,6 +555,7 @@ func TestGetReplicaSetsForDeployment(t *testing.T) {
 	stopCh := make(chan struct{})
 	defer close(stopCh)
 	informers.Start(stopCh)
+	informers.WaitForCacheSync(stopCh)
 
 	rsList, err := c.getReplicaSetsForDeployment(ctx, d1)
 	if err != nil {
@@ -1037,6 +1039,7 @@ func BenchmarkGetPodMapForDeployment(b *testing.B) {
 	stopCh := make(chan struct{})
 	defer close(stopCh)
 	informers.Start(stopCh)
+	informers.WaitForCacheSync(stopCh)
 
 	b.ReportAllocs()
 	b.ResetTimer()
