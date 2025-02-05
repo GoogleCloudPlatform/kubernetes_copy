@@ -329,7 +329,11 @@ func (d *Helper) evictPods(pods []corev1.Pod, evictionGroupVersion schema.GroupV
 					fmt.Fprintf(d.ErrOut, "error when evicting pod %q from terminating namespace %q (will retry after 5s): %v\n", activePod.Name, activePod.Namespace, err)
 					time.Sleep(5 * time.Second)
 				} else {
-					returnCh <- fmt.Errorf("error when evicting pods/%q -n %q: %v", activePod.Name, activePod.Namespace, err)
+					err = fmt.Errorf("error when evicting pods/%q -n %q: %w", activePod.Name, activePod.Namespace, err)
+					if d.OnPodDeletionOrEvictionFinished != nil {
+						d.OnPodDeletionOrEvictionFinished(&pod, true, err)
+					}
+					returnCh <- err
 					return
 				}
 			}
@@ -354,7 +358,11 @@ func (d *Helper) evictPods(pods []corev1.Pod, evictionGroupVersion schema.GroupV
 			if err == nil {
 				returnCh <- nil
 			} else {
-				returnCh <- fmt.Errorf("error when waiting for pod %q in namespace %q to terminate: %v", pod.Name, pod.Namespace, err)
+				err = fmt.Errorf("error when waiting for pod %q in namespace %q to terminate: %w", pod.Name, pod.Namespace, err)
+				if d.OnPodDeletionOrEvictionFinished != nil {
+					d.OnPodDeletionOrEvictionFinished(&pod, true, err)
+				}
+				returnCh <- err
 			}
 		}(pod, returnCh)
 	}
