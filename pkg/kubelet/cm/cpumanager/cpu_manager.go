@@ -239,6 +239,8 @@ func (m *manager) Start(activePods ActivePodsFunc, sourcesReady config.SourcesRe
 		return err
 	}
 
+	klog.V(4).InfoS("CPU manager started", "policy", m.policy.Name())
+
 	m.allocatableCPUs = m.policy.GetAllocatableCPUs(m.state)
 
 	if m.policy.Name() == string(PolicyNone) {

@@ -201,7 +201,7 @@ func (sc *stateCheckpoint) SetCPUSet(podUID string, containerName string, cset c
 	sc.cache.SetCPUSet(podUID, containerName, cset)
 	err := sc.storeState()
 	if err != nil {
-		klog.InfoS("Store state to checkpoint error", "err", err)
+		klog.ErrorS(err, "Store state to checkpoint error", "podUID", podUID, "containerName", containerName)
 	}
 }
 
@@ -212,7 +212,7 @@ func (sc *stateCheckpoint) SetDefaultCPUSet(cset cpuset.CPUSet) {
 	sc.cache.SetDefaultCPUSet(cset)
 	err := sc.storeState()
 	if err != nil {
-		klog.InfoS("Store state to checkpoint error", "err", err)
+		klog.ErrorS(err, "Store state to checkpoint error")
 	}
 }
 
@@ -223,7 +223,7 @@ func (sc *stateCheckpoint) SetCPUAssignments(a ContainerCPUAssignments) {
 	sc.cache.SetCPUAssignments(a)
 	err := sc.storeState()
 	if err != nil {
-		klog.InfoS("Store state to checkpoint error", "err", err)
+		klog.ErrorS(err, "Store state to checkpoint error")
 	}
 }
 
@@ -234,7 +234,7 @@ func (sc *stateCheckpoint) Delete(podUID string, containerName string) {
 	sc.cache.Delete(podUID, containerName)
 	err := sc.storeState()
 	if err != nil {
-		klog.InfoS("Store state to checkpoint error", "err", err)
+		klog.ErrorS(err, "Store state to checkpoint error", "podUID", podUID, "containerName", containerName)
 	}
 }
 
@@ -245,6 +245,6 @@ func (sc *stateCheckpoint) ClearState() {
 	sc.cache.ClearState()
 	err := sc.storeState()
 	if err != nil {
-		klog.InfoS("Store state to checkpoint error", "err", err)
+		klog.ErrorS(err, "Store state to checkpoint error")
 	}
 }
