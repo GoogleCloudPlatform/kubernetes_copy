@@ -491,7 +491,7 @@ func (kl *Kubelet) fastNodeStatusUpdate(ctx context.Context, timeout bool) (comp
 
 	readyIdx, nodeReady := nodeutil.GetNodeCondition(&node.Status, v1.NodeReady)
 	if readyIdx == -1 {
-		klog.ErrorS(nil, "Node does not have NodeReady condition", "node", node)
+		klog.ErrorS(nil, "Node does not have NodeReady condition", "node", klog.KObj(node))
 		return false
 	}
 

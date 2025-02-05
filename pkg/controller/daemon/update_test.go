@@ -31,6 +31,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/klog/v2"
 	"k8s.io/klog/v2/ktesting"
 	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
 	"k8s.io/kubernetes/pkg/controller/daemon/util"
@@ -671,7 +672,7 @@ func setPodReadiness(t *testing.T, dsc *daemonSetsController, ready bool, count 
 		// TODO: workaround UpdatePodCondition calling time.Now() directly
 		setCondition := podutil.GetPodReadyCondition(pod.Status)
 		setCondition.LastTransitionTime.Time = dsc.failedPodsBackoff.Clock.Now()
-		logger.Info("marked pod ready", "pod", pod.Name, "ready", ready)
+		logger.Info("marked pod ready", "pod", klog.KObj(pod), "ready", ready)
 		count--
 	}
 	if count > 0 {

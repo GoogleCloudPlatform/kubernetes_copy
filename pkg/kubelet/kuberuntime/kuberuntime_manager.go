@@ -679,7 +679,7 @@ func (m *kubeGenericRuntimeManager) doPodResizeAction(pod *v1.Pod, podContainerC
 	//TODO(vinaykul,InPlacePodVerticalScaling): Figure out best way to get enforceMemoryQoS value (parameter #4 below) in platform-agnostic way
 	podResources := cm.ResourceConfigForPod(pod, m.cpuCFSQuota, uint64((m.cpuCFSQuotaPeriod.Duration)/time.Microsecond), false)
 	if podResources == nil {
-		klog.ErrorS(nil, "Unable to get resource configuration", "pod", pod.Name)
+		klog.ErrorS(nil, "Unable to get resource configuration", "pod", klog.KObj(pod))
 		result.Fail(fmt.Errorf("unable to get resource configuration processing resize for pod %s", pod.Name))
 		return
 	}
@@ -706,7 +706,7 @@ func (m *kubeGenericRuntimeManager) doPodResizeAction(pod *v1.Pod, podContainerC
 			err = pcm.SetPodCgroupConfig(pod, podMemoryResources)
 		}
 		if err != nil {
-			klog.ErrorS(err, "Failed to set cgroup config", "resource", rName, "pod", pod.Name)
+			klog.ErrorS(err, "Failed to set cgroup config", "resource", rName, "pod", klog.KObj(pod))
 		}
 		return err
 	}
@@ -749,19 +749,19 @@ func (m *kubeGenericRuntimeManager) doPodResizeAction(pod *v1.Pod, podContainerC
 	if len(podContainerChanges.ContainersToUpdate[v1.ResourceMemory]) > 0 || podContainerChanges.UpdatePodResources {
 		currentPodMemoryConfig, err := pcm.GetPodCgroupConfig(pod, v1.ResourceMemory)
 		if err != nil {
-			klog.ErrorS(err, "GetPodCgroupConfig for memory failed", "pod", pod.Name)
+			klog.ErrorS(err, "GetPodCgroupConfig for memory failed", "pod", klog.KObj(pod))
 			result.Fail(err)
 			return
 		}
 		if podResources.Memory != nil {
 			currentPodMemoryUsage, err := pcm.GetPodCgroupMemoryUsage(pod)
 			if err != nil {
-				klog.ErrorS(err, "GetPodCgroupMemoryUsage failed", "pod", pod.Name)
+				klog.ErrorS(err, "GetPodCgroupMemoryUsage failed", "pod", klog.KObj(pod))
 				result.Fail(err)
 				return
 			}
 			if currentPodMemoryUsage >= uint64(*podResources.Memory) {
-				klog.ErrorS(nil, "Aborting attempt to set pod memory limit less than current memory usage", "pod", pod.Name)
+				klog.ErrorS(nil, "Aborting attempt to set pod memory limit less than current memory usage", "pod", klog.KObj(pod))
 				result.Fail(fmt.Errorf("aborting attempt to set pod memory limit less than current memory usage for pod %s", pod.Name))
 				return
 			}
@@ -778,13 +778,13 @@ func (m *kubeGenericRuntimeManager) doPodResizeAction(pod *v1.Pod, podContainerC
 	if len(podContainerChanges.ContainersToUpdate[v1.ResourceCPU]) > 0 || podContainerChanges.UpdatePodResources {
 		if podResources.CPUShares == nil {
 			// This shouldn't happen: ResourceConfigForPod always returns a non-nil value for CPUShares.
-			klog.ErrorS(nil, "podResources.CPUShares is nil", "pod", pod.Name)
+			klog.ErrorS(nil, "podResources.CPUShares is nil", "pod", klog.KObj(pod))
 			result.Fail(fmt.Errorf("podResources.CPUShares is nil for pod %s", pod.Name))
 			return
 		}
 		currentPodCpuConfig, err := pcm.GetPodCgroupConfig(pod, v1.ResourceCPU)
 		if err != nil {
-			klog.ErrorS(err, "GetPodCgroupConfig for CPU failed", "pod", pod.Name)
+			klog.ErrorS(err, "GetPodCgroupConfig for CPU failed", "pod", klog.KObj(pod))
 			result.Fail(err)
 			return
 		}
