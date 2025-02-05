@@ -18,6 +18,7 @@ package podgc
 
 import (
 	"context"
+	"k8s.io/kubernetes/pkg/kubelet/status"
 	"sort"
 	"sync"
 	"time"
@@ -41,6 +42,7 @@ import (
 	nodeutil "k8s.io/kubernetes/pkg/util/node"
 	utilpod "k8s.io/kubernetes/pkg/util/pod"
 	"k8s.io/kubernetes/pkg/util/taints"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 )
 
 const (
@@ -143,7 +145,7 @@ func isPodTerminating(pod *v1.Pod) bool {
 func (gcc *PodGCController) gcTerminating(ctx context.Context, pods []*v1.Pod) {
 	logger := klog.FromContext(ctx)
 	logger.V(4).Info("GC'ing terminating pods that are on out-of-service nodes")
-	terminatingPods := []*v1.Pod{}
+	terminatingPods := []*v1.Pod
 	for _, pod := range pods {
 		if isPodTerminating(pod) {
 			node, err := gcc.nodeLister.Get(pod.Spec.NodeName)
@@ -167,8 +169,10 @@ func (gcc *PodGCController) gcTerminating(ctx context.Context, pods []*v1.Pod) {
 	}
 
 	logger.V(4).Info("Garbage collecting pods that are terminating on node tainted with node.kubernetes.io/out-of-service", "numPods", deleteCount)
+
 	// sort only when necessary
 	sort.Sort(byEvictionAndCreationTimestamp(terminatingPods))
+
 	var wait sync.WaitGroup
 	for i := 0; i < deleteCount; i++ {
 		wait.Add(1)
@@ -203,7 +207,12 @@ func (gcc *PodGCController) gcTerminated(ctx context.Context, pods []*v1.Pod) {
 	logger := klog.FromContext(ctx)
 	logger.Info("Garbage collecting pods", "numPods", deleteCount)
 	// sort only when necessary
-	sort.Sort(byEvictionAndCreationTimestamp(terminatedPods))
+	if utilfeature.DefaultFeatureGate.Enabled(GCSortByFinishTime) {
+		sort.Sort(byEvictionAndFinishTimestamp(terminatedPods))
+	} else {
+		sort.Sort(byEvictionAndCreationTimestamp(terminatedPods))
+	}
+
 	var wait sync.WaitGroup
 	for i := 0; i < deleteCount; i++ {
 		wait.Add(1)
@@ -331,6 +340,57 @@ func (o byEvictionAndCreationTimestamp) Less(i, j int) bool {
 		return o[i].Name < o[j].Name
 	}
 	return o[i].CreationTimestamp.Before(&o[j].CreationTimestamp)
+}
+
+
+// byEvictionAndFinishTimestamp sorts a list by pod's finish time and then Evicted status and then creation timestamp,
+// using their names as a tie breaker.
+// Evicted pods will be deleted first to avoid impact on terminated pods created by controllers.
+type byEvictionAndFinishTimestamp []*v1.Pod
+
+func (o byEvictionAndFinishTimestamp) Len() int      { return len(o) }
+func (o byEvictionAndFinishTimestamp) Swap(i, j int) { o[i], o[j] = o[j], o[i] }
+
+func (o byEvictionAndFinishTimestamp) Less(i, j int) bool {
+
+	cur := podFinishTime(o[i])
+	next := podFinishTime(o[j])
+
+	if !cur.Equal(&next) {
+		return cur.Before(&next)
+	}
+
+	iEvicted, jEvicted := eviction.PodIsEvicted(o[i].Status), eviction.PodIsEvicted(o[j].Status)
+	// Evicted pod is smaller
+	if iEvicted != jEvicted {
+		return iEvicted
+	}
+
+	// sort by pod create time when container finished at same time
+	if o[i].CreationTimestamp.Equal(&o[j].CreationTimestamp) {
+		return o[i].Name < o[j].Name
+	}
+	return o[i].CreationTimestamp.Before(&o[j].CreationTimestamp)
+}
+
+func podFinishTime(pod *v1.Pod) metav1.Time {
+	// find finish time in condition
+	for _, condition := range pod.Status.Conditions {
+		if condition.Type == v1.PodReady && (condition.Reason == status.PodCompleted || condition.Reason == status.PodFailed) {
+			return condition.LastTransitionTime
+		}
+	}
+
+	// find finish time in container status
+
+	// use pod create time as default
+	finishTimestamp := pod.GetCreationTimestamp()
+	for _, cs := range pod.Status.ContainerStatuses {
+		if cs.State.Terminated != nil && !cs.State.Terminated.FinishedAt.IsZero() && cs.State.Terminated.FinishedAt.After(finishTimestamp.Time) {
+			finishTimestamp = cs.State.Terminated.FinishedAt
+		}
+	}
+	return finishTimestamp
 }
 
 func (gcc *PodGCController) markFailedAndDeletePod(ctx context.Context, pod *v1.Pod) error {
