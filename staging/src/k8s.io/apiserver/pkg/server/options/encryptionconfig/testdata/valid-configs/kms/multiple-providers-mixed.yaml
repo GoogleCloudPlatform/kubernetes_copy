@@ -8,8 +8,8 @@ resources:
           apiVersion: v2
           name: foo
           endpoint: unix:///tmp/testprovider.sock
-          timeout:   15s
+          timeout: 100ms
       - kms:
           name: bar
           endpoint: unix:///tmp/testprovider.sock
-          timeout:   15s
+          timeout: 15s
