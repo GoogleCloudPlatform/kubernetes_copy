@@ -149,9 +149,9 @@ type ActualStateOfWorld interface {
 	// current actual state of the world.
 	GetMountedVolumesForPod(podName volumetypes.UniquePodName) []MountedVolume
 
-	// GetMountedVolumeForPodByOuterVolumeSpecName returns the volume and true if
-	// the given outerVolumeSpecName is mounted on the given pod.
-	GetMountedVolumeForPodByOuterVolumeSpecName(podName volumetypes.UniquePodName, outerVolumeSpecName string) (MountedVolume, bool)
+	// GetMountedVolumeForPod returns the volume and true if
+	// the given name is mounted on the given pod.
+	GetMountedVolumeForPod(podName volumetypes.UniquePodName, volumeName v1.UniqueVolumeName) (MountedVolume, bool)
 
 	// GetPossiblyMountedVolumesForPod generates and returns a list of volumes for
 	// the specified pod that either are attached and mounted or are "uncertain",
@@ -1100,15 +1100,14 @@ func (asw *actualStateOfWorld) GetMountedVolumesForPod(
 	return mountedVolume
 }
 
-func (asw *actualStateOfWorld) GetMountedVolumeForPodByOuterVolumeSpecName(
-	podName volumetypes.UniquePodName, outerVolumeSpecName string) (MountedVolume, bool) {
+func (asw *actualStateOfWorld) GetMountedVolumeForPod(
+	podName volumetypes.UniquePodName, volumeName v1.UniqueVolumeName) (MountedVolume, bool) {
 	asw.RLock()
 	defer asw.RUnlock()
-	for _, volumeObj := range asw.attachedVolumes {
-		if podObj, hasPod := volumeObj.mountedPods[podName]; hasPod {
-			if podObj.volumeMountStateForPod == operationexecutor.VolumeMounted && podObj.outerVolumeSpecName == outerVolumeSpecName {
-				return getMountedVolume(&podObj, &volumeObj), true
-			}
+	volumeObj := asw.attachedVolumes[volumeName]
+	if podObj, hasPod := volumeObj.mountedPods[podName]; hasPod {
+		if podObj.volumeMountStateForPod == operationexecutor.VolumeMounted {
+			return getMountedVolume(&podObj, &volumeObj), true
 		}
 	}
 

@@ -99,6 +99,9 @@ type DesiredStateOfWorld interface {
 	// attached volumes, false is returned.
 	PodExistsInVolume(podName types.UniquePodName, volumeName v1.UniqueVolumeName, seLinuxMountContext string) bool
 
+	// GetVolumeName returns the UniqueVolumeName for the given pod, indexed by outerVolumeSpecName.
+	GetVolumeNamesForPod(podName types.UniquePodName) map[string]v1.UniqueVolumeName
+
 	// GetVolumesToMount generates and returns a list of volumes that should be
 	// attached to this node and the pods they should be mounted to based on the
 	// current desired state of the world.
@@ -556,6 +559,20 @@ func (dsw *desiredStateOfWorld) GetPods() map[types.UniquePodName]bool {
 		}
 	}
 	return podList
+}
+
+func (dsw *desiredStateOfWorld) GetVolumeNamesForPod(podName types.UniquePodName) map[string]v1.UniqueVolumeName {
+	dsw.RLock()
+	defer dsw.RUnlock()
+
+	volumeNames := make(map[string]v1.UniqueVolumeName)
+	for volumeName, volumeObj := range dsw.volumesToMount {
+		podObj, ok := volumeObj.podsToMount[podName]
+		if ok {
+			volumeNames[podObj.outerVolumeSpecName] = volumeName
+		}
+	}
+	return volumeNames
 }
 
 func (dsw *desiredStateOfWorld) GetVolumesToMount() []VolumeToMount {

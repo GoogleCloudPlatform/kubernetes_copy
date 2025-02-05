@@ -17,6 +17,7 @@ limitations under the License.
 package cache
 
 import (
+	"maps"
 	"testing"
 
 	v1 "k8s.io/api/core/v1"
@@ -1264,6 +1265,91 @@ func Test_AddPodToVolume_SELinux_MultiplePods(t *testing.T) {
 			verifyPodExistsInVolumeDsw(t, pod2Name, generatedVolumeName, tc.expectedSELinuxLabel, dsw)
 		})
 	}
+}
+
+func TestGetVolumeNamesForPod(t *testing.T) {
+	volumePluginMgr, _ := volumetesting.GetTestKubeletVolumePluginMgr(t)
+	seLinuxTranslator := util.NewFakeSELinuxLabelTranslator()
+	dsw := NewDesiredStateOfWorld(volumePluginMgr, seLinuxTranslator)
+
+	pod1 := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "pod1",
+			UID:  "pod1-uid",
+		},
+		Spec: v1.PodSpec{
+			Volumes: []v1.Volume{
+				{
+					Name: "volume1-name",
+					VolumeSource: v1.VolumeSource{
+						GCEPersistentDisk: &v1.GCEPersistentDiskVolumeSource{
+							PDName: "fake-device1",
+						},
+					},
+				},
+				{
+					Name: "volume3-name",
+					VolumeSource: v1.VolumeSource{
+						GCEPersistentDisk: &v1.GCEPersistentDiskVolumeSource{
+							PDName: "fake-device3",
+						},
+					},
+				},
+			},
+		},
+	}
+	pod2 := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "pod2",
+			UID:  "pod2-uid",
+		},
+		Spec: v1.PodSpec{
+			Volumes: []v1.Volume{
+				{
+					Name: "volume2-name",
+					VolumeSource: v1.VolumeSource{
+						GCEPersistentDisk: &v1.GCEPersistentDiskVolumeSource{
+							PDName: "fake-device2",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	addVolume := func(pod *v1.Pod, index int) {
+		volumeSpec := &volume.Spec{
+			Volume: &pod.Spec.Volumes[index],
+		}
+		podName := util.GetUniquePodName(pod)
+		_, err := dsw.AddPodToVolume(
+			podName, pod, volumeSpec, volumeSpec.Name(), "" /* volumeGIDValue */, nil /* seLinuxContainerContexts */)
+		if err != nil {
+			t.Fatalf("AddPodToVolume failed. Expected: <no error> Actual: <%v>", err)
+		}
+	}
+
+	addVolume(pod1, 0)
+	addVolume(pod1, 1)
+	addVolume(pod2, 0)
+
+	verifyVolumeNames := func(pod *v1.Pod, expectedVolumeNames map[string]v1.UniqueVolumeName) {
+		t.Run(pod.Name, func(t *testing.T) {
+			podName := util.GetUniquePodName(pod)
+			actualVolumeNames := dsw.GetVolumeNamesForPod(podName)
+			if !maps.Equal(expectedVolumeNames, actualVolumeNames) {
+				t.Errorf("GetVolumeNamesForPod returned incorrect value. Expected: <%v> Actual: <%v>",
+					expectedVolumeNames, actualVolumeNames)
+			}
+		})
+	}
+	verifyVolumeNames(pod1, map[string]v1.UniqueVolumeName{
+		"volume1-name": "fake-plugin/fake-device1",
+		"volume3-name": "fake-plugin/fake-device3",
+	})
+	verifyVolumeNames(pod2, map[string]v1.UniqueVolumeName{
+		"volume2-name": "fake-plugin/fake-device2",
+	})
 }
 
 func verifyVolumeExistsDsw(
