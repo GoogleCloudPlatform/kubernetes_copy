@@ -27,8 +27,10 @@ import (
 	apidiscoveryv2beta1 "k8s.io/api/apidiscovery/v2beta1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
+	utilversion "k8s.io/apimachinery/pkg/util/version"
 	"k8s.io/apimachinery/pkg/version"
 	apidiscoveryv2conversion "k8s.io/apiserver/pkg/apis/apidiscovery/v2"
+	componentbaseversion "k8s.io/component-base/version"
 
 	"k8s.io/apiserver/pkg/endpoints/handlers/responsewriters"
 
@@ -51,6 +53,8 @@ const (
 	BuiltinSource    Source = 100
 	CRDSource        Source = 200
 )
+
+var V2Beta1RemovedVersion = utilversion.MustParseMajorMinor("1.33")
 
 // This handler serves the /apis endpoint for an aggregated list of
 // api resources indexed by their group version.
@@ -150,11 +154,20 @@ type priorityInfo struct {
 }
 
 func NewResourceManager(path string) ResourceManager {
+	return NewResourceManagerWithEmulatedVersion(path, componentbaseversion.DefaultKubeEffectiveVersion().EmulationVersion())
+}
+
+func NewResourceManagerWithEmulatedVersion(path string, emulatedVersion *utilversion.Version) ResourceManager {
 	scheme := runtime.NewScheme()
 	utilruntime.Must(apidiscoveryv2.AddToScheme(scheme))
-	utilruntime.Must(apidiscoveryv2beta1.AddToScheme(scheme))
-	// Register conversion for apidiscovery
-	utilruntime.Must(apidiscoveryv2conversion.RegisterConversions(scheme))
+	// Only register v2beta1 and corresponding conversions
+	// if the emulated version is less than 1.33 as the type
+	// is removed in the corresponding release
+	if emulatedVersion.LessThan(V2Beta1RemovedVersion) {
+		utilruntime.Must(apidiscoveryv2beta1.AddToScheme(scheme))
+		// Register conversion for apidiscovery
+		utilruntime.Must(apidiscoveryv2conversion.RegisterConversions(scheme))
+	}
 
 	codecs := serializer.NewCodecFactory(scheme)
 	rdm := &resourceDiscoveryManager{

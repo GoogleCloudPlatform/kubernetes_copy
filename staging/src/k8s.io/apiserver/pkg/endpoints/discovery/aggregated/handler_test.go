@@ -40,6 +40,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	runtimeserializer "k8s.io/apimachinery/pkg/runtime/serializer"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	utilversion "k8s.io/apimachinery/pkg/util/version"
 	"k8s.io/apimachinery/pkg/version"
 	apidiscoveryv2conversion "k8s.io/apiserver/pkg/apis/apidiscovery/v2"
 	discoveryendpoint "k8s.io/apiserver/pkg/endpoints/discovery/aggregated"
@@ -97,19 +98,16 @@ func fuzzAPIGroups(atLeastNumGroups, maxNumGroups int, seed int64) apidiscoveryv
 	}
 }
 
-func fetchPathV2Beta1(handler http.Handler, acceptPrefix string, path string, etag string) (*http.Response, []byte, *apidiscoveryv2beta1.APIGroupDiscoveryList) {
+func fetchPathV2Beta1(handler http.Handler, acceptPrefix string, path string, etag string) (*http.Response, []byte, *apidiscoveryv2beta1.APIGroupDiscoveryList, error) {
 	acceptSuffix := ";g=apidiscovery.k8s.io;v=v2beta1;as=APIGroupDiscoveryList"
 	r, bytes := fetchPathHelper(handler, acceptPrefix+acceptSuffix, path, etag)
 	var decoded *apidiscoveryv2beta1.APIGroupDiscoveryList
+	var err error
 	if len(bytes) > 0 {
 		decoded = &apidiscoveryv2beta1.APIGroupDiscoveryList{}
-		err := runtime.DecodeInto(codecs.UniversalDecoder(), bytes, decoded)
-		if err != nil {
-			panic(fmt.Sprintf("failed to decode response: %v", err))
-		}
-
+		err = runtime.DecodeInto(codecs.UniversalDecoder(), bytes, decoded)
 	}
-	return r, bytes, decoded
+	return r, bytes, decoded, err
 }
 
 func fetchPath(handler http.Handler, acceptPrefix string, path string, etag string) (*http.Response, []byte, *apidiscoveryv2.APIGroupDiscoveryList) {
@@ -185,9 +183,22 @@ func TestBasicResponseProtobuf(t *testing.T) {
 	assert.EqualValues(t, &apis, decoded, "decoded value should equal input")
 }
 
-// V2Beta1 should still be served
+// V2Beta1 should not be served on emulated version >= 1.33
+func TestV2Beta1NotServed(t *testing.T) {
+	manager := discoveryendpoint.NewResourceManagerWithEmulatedVersion("apis", utilversion.MustParse("1.33"))
+
+	apis := fuzzAPIGroups(1, 3, 10)
+	manager.SetGroups(apis.Items)
+
+	_, _, _, err := fetchPathV2Beta1(manager, "application/json", discoveryPath, "")
+	if err == nil {
+		t.Error("Expected err fetching v2beta1 resources, got no err")
+	}
+}
+
+// V2Beta1 should only be served on emulated version < 1.33
 func TestV2Beta1SkewSupport(t *testing.T) {
-	manager := discoveryendpoint.NewResourceManager("apis")
+	manager := discoveryendpoint.NewResourceManagerWithEmulatedVersion("apis", utilversion.MustParse("1.32"))
 
 	apis := fuzzAPIGroups(1, 3, 10)
 	manager.SetGroups(apis.Items)
@@ -199,7 +210,10 @@ func TestV2Beta1SkewSupport(t *testing.T) {
 
 	v2beta1apis := converted.(*apidiscoveryv2beta1.APIGroupDiscoveryList)
 
-	response, body, decoded := fetchPathV2Beta1(manager, "application/json", discoveryPath, "")
+	response, body, decoded, err := fetchPathV2Beta1(manager, "application/json", discoveryPath, "")
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	jsonFormatted, err := json.Marshal(v2beta1apis)
 	require.NoError(t, err, "json marshal should always succeed")

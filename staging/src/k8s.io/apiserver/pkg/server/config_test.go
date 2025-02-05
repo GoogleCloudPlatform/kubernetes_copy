@@ -124,7 +124,7 @@ func TestNewWithDelegate(t *testing.T) {
 	delegateConfig.PublicAddress = netutils.ParseIPSloppy("192.168.10.4")
 	delegateConfig.LegacyAPIGroupPrefixes = sets.NewString("/api")
 	delegateConfig.LoopbackClientConfig = &rest.Config{}
-	delegateConfig.EffectiveVersion = utilversion.NewEffectiveVersion("")
+	delegateConfig.EffectiveVersion = utilversion.NewEffectiveVersion(utilversion.DefaultKubeBinaryVersion)
 	clientset := fake.NewSimpleClientset()
 	if clientset == nil {
 		t.Fatal("unable to create fake client set")
