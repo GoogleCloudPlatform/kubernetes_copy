@@ -461,14 +461,9 @@ var (
 	// Tests validating the behavior of kubelet when running without the API server.
 	StandaloneMode = framework.WithFeature(framework.ValidFeatures.Add("StandaloneMode"))
 
-	// TODO: document the feature (owning SIG, when to use this feature for a test)
-	StatefulSet = framework.WithFeature(framework.ValidFeatures.Add("StatefulSet"))
-
 	// Added to test Swap Feature
 	// This label should be used when testing KEP-2400 (Node Swap Support)
 	Swap = framework.WithFeature(framework.ValidFeatures.Add("NodeSwap"))
-
-	PodIndexLabel = framework.WithFeature(framework.ValidFeatures.Add("PodIndexLabel"))
 
 	// TODO: document the feature (owning SIG, when to use this feature for a test)
 	StatefulSetStartOrdinal = framework.WithFeature(framework.ValidFeatures.Add("StatefulSetStartOrdinal"))
