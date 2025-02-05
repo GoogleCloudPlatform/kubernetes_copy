@@ -17,6 +17,7 @@ limitations under the License.
 package apply
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -915,14 +916,18 @@ func (o *ApplyOptions) migrateToSSAIfNecessary(
 	// There may be multiple owners if multiple managers wrote the same exact
 	// configuration. In this case there are multiple owners, we want to migrate
 	// them all.
-	csaManagers := csaupgrade.FindFieldsOwners(
-		accessor.GetManagedFields(),
-		metav1.ManagedFieldsOperationUpdate,
-		lastAppliedAnnotationFieldPath)
-
 	managerNames := sets.New[string]()
-	for _, entry := range csaManagers {
-		managerNames.Insert(entry.Manager)
+	if o.Overwrite {
+		insertOwnersOfFieldsExceptStatus(accessor.GetManagedFields(), managerNames)
+	} else {
+		csaManagers := csaupgrade.FindFieldsOwners(
+			accessor.GetManagedFields(),
+			metav1.ManagedFieldsOperationUpdate,
+			lastAppliedAnnotationFieldPath)
+
+		for _, entry := range csaManagers {
+			managerNames.Insert(entry.Manager)
+		}
 	}
 
 	// Re-attempt patch as many times as it is conflicting due to ResourceVersion
@@ -1127,5 +1132,31 @@ func WarnIfDeleting(obj runtime.Object, stderr io.Writer) {
 	if metadata != nil && metadata.GetDeletionTimestamp() != nil {
 		// just warn the user about the conflict
 		fmt.Fprintf(stderr, warningChangesOnDeletingResource, metadata.GetName())
+	}
+}
+
+// Finds all managed fields owners of updates except those that owns .status and insert into supplied managerNames
+//
+// If there is an error decoding one of the fieldsets for any reason, it is ignored
+// and assumed not to match the query.
+func insertOwnersOfFieldsExceptStatus(managedFields []metav1.ManagedFieldsEntry, managerNames sets.Set[string]) {
+	status := "status"
+	statusElement := fieldpath.PathElement{FieldName: &status}
+	for _, entry := range managedFields {
+		if entry.Operation != metav1.ManagedFieldsOperationUpdate {
+			continue
+		}
+
+		var fieldSet fieldpath.Set
+		err := fieldSet.FromJSON(bytes.NewReader(entry.FieldsV1.Raw))
+		if err != nil {
+			continue
+		}
+
+		_, hasStatus := fieldSet.Children.Get(statusElement)
+		if hasStatus {
+			continue
+		}
+		managerNames.Insert(entry.Manager)
 	}
 }
