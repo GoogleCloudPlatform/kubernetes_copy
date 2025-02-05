@@ -580,6 +580,52 @@ func testPod() *corev1.Pod {
 	}
 }
 
+func TestToLogOptions(t *testing.T) {
+	testCases := map[string]struct {
+		opts         func(genericiooptions.IOStreams) *LogsOptions
+		checkLogOpts func(*testing.T, *corev1.PodLogOptions)
+		expectedErr  string
+	}{
+		"invalid stream": {
+			opts: func(streams genericiooptions.IOStreams) *LogsOptions {
+				o := NewLogsOptions(streams)
+				o.Stream = "invalid"
+				return o
+			},
+			expectedErr: `invalid stream type "invalid"`,
+		},
+		"stdout stream": {
+			opts: func(streams genericiooptions.IOStreams) *LogsOptions {
+				o := NewLogsOptions(streams)
+				o.Stream = streamStdout
+				return o
+			},
+			checkLogOpts: func(t *testing.T, opts *corev1.PodLogOptions) {
+				if opts.Stream == nil || *opts.Stream != corev1.LogStreamStdout {
+					t.Fatalf("Expected stream to be Stdout, got %v", opts.Stream)
+				}
+			},
+		},
+	}
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			streams := genericiooptions.NewTestIOStreamsDiscard()
+			o := tc.opts(streams)
+			logOpts, err := o.ToLogOptions()
+			if err != nil {
+				if tc.expectedErr == "" {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				if !strings.Contains(err.Error(), tc.expectedErr) {
+					t.Fatalf("Expected error %q\nGot %v", tc.expectedErr, err)
+				}
+				return
+			}
+			tc.checkLogOpts(t, logOpts)
+		})
+	}
+}
+
 func TestValidateLogOptions(t *testing.T) {
 	f := cmdtesting.NewTestFactory()
 	defer f.Cleanup()
@@ -695,6 +741,24 @@ func TestValidateLogOptions(t *testing.T) {
 			},
 			args:     []string{"my-pod", "my-container"},
 			expected: "only one of -c or an inline",
+		},
+		{
+			name: "specific stream combined with --tail",
+			opts: func(streams genericiooptions.IOStreams) *LogsOptions {
+				o := NewLogsOptions(streams)
+				o.Tail = 10
+				o.Stream = streamStdout
+
+				var err error
+				o.Options, err = o.ToLogOptions()
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+
+				return o
+			},
+			args:     []string{"foo"},
+			expected: "specific log stream and --tail are mutually exclusive",
 		},
 	}
 	for _, test := range tests {

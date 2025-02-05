@@ -35,6 +35,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/apimachinery/pkg/util/wait"
 	clientset "k8s.io/client-go/kubernetes"
+	"k8s.io/kubernetes/pkg/features"
 	admissionapi "k8s.io/pod-security-admission/api"
 
 	"k8s.io/kubernetes/test/e2e/feature"
@@ -642,7 +643,7 @@ var _ = SIGDescribe("kubelet", func() {
 	})
 })
 
-var _ = SIGDescribe("specific log stream", feature.PodLogsQuerySplitStreams, func() {
+var _ = SIGDescribe("specific log stream", feature.PodLogsQuerySplitStreams, framework.WithFeatureGate(features.PodLogsQuerySplitStreams), func() {
 	var (
 		c  clientset.Interface
 		ns string

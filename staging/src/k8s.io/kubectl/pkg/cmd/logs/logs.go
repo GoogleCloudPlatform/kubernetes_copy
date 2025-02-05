@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"k8s.io/utils/ptr"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -94,6 +95,9 @@ var (
 		# Display only the most recent 20 lines of output in pod nginx
 		kubectl logs --tail=20 nginx
 
+		# Display only the logs from the stderr stream of the ruby container in pod web-1
+		kubectl logs --stream=stderr -c ruby web-1
+
 		# Show all logs from pod nginx written in the last hour
 		kubectl logs --since=1h nginx
 		
@@ -117,6 +121,11 @@ const (
 	defaultPodLogsTimeout = 20 * time.Second
 )
 
+const (
+	streamStdout = "stdout"
+	streamStderr = "stderr"
+)
+
 type LogsOptions struct {
 	Namespace     string
 	ResourceArg   string
@@ -128,6 +137,7 @@ type LogsOptions struct {
 	ConsumeRequestFn func(context.Context, rest.ResponseWrapper, io.Writer) error
 
 	// PodLogOptions
+	Stream                       string
 	SinceTime                    string
 	SinceSeconds                 time.Duration
 	Follow                       bool
@@ -199,6 +209,7 @@ func (o *LogsOptions) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().Int64Var(&o.Tail, "tail", o.Tail, "Lines of recent log file to display. Defaults to -1 with no selector, showing all log lines otherwise 10, if a selector is provided.")
 	cmd.Flags().BoolVar(&o.IgnoreLogErrors, "ignore-errors", o.IgnoreLogErrors, "If watching / following pod logs, allow for any errors that occur to be non-fatal")
 	cmd.Flags().StringVar(&o.SinceTime, "since-time", o.SinceTime, i18n.T("Only return logs after a specific date (RFC3339). Defaults to all logs. Only one of since-time / since may be used."))
+	cmd.Flags().StringVar(&o.Stream, "stream", o.Stream, "Only return logs from the given stream. Defaults to all logs. One of: (stdout, stderr)")
 	cmd.Flags().DurationVar(&o.SinceSeconds, "since", o.SinceSeconds, "Only return logs newer than a relative duration like 5s, 2m, or 3h. Defaults to all logs. Only one of since-time / since may be used.")
 	cmd.Flags().StringVarP(&o.Container, "container", "c", o.Container, "Print the logs of this container")
 	cmd.Flags().BoolVar(&o.InsecureSkipTLSVerifyBackend, "insecure-skip-tls-verify-backend", o.InsecureSkipTLSVerifyBackend,
@@ -216,6 +227,16 @@ func (o *LogsOptions) ToLogOptions() (*corev1.PodLogOptions, error) {
 		Previous:                     o.Previous,
 		Timestamps:                   o.Timestamps,
 		InsecureSkipTLSVerifyBackend: o.InsecureSkipTLSVerifyBackend,
+	}
+
+	switch o.Stream {
+	case "":
+	case streamStdout:
+		logOptions.Stream = ptr.To(corev1.LogStreamStdout)
+	case streamStderr:
+		logOptions.Stream = ptr.To(corev1.LogStreamStderr)
+	default:
+		return nil, fmt.Errorf("invalid stream type %q", o.Stream)
 	}
 
 	if len(o.SinceTime) > 0 {
@@ -351,6 +372,10 @@ func (o LogsOptions) Validate() error {
 
 	if logsOptions.TailLines != nil && *logsOptions.TailLines < -1 {
 		return fmt.Errorf("--tail must be greater than or equal to -1")
+	}
+
+	if logsOptions.Stream != nil && *logsOptions.Stream != corev1.LogStreamAll && logsOptions.TailLines != nil {
+		return fmt.Errorf("specific log stream and --tail are mutually exclusive")
 	}
 
 	return nil

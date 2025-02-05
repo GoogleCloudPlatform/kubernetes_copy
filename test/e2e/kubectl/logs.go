@@ -27,6 +27,7 @@ import (
 
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
+	"k8s.io/utils/ptr"
 
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
@@ -34,6 +35,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/uuid"
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/kubectl/pkg/cmd/util/podcmd"
+	"k8s.io/kubernetes/pkg/features"
+	"k8s.io/kubernetes/test/e2e/feature"
 	"k8s.io/kubernetes/test/e2e/framework"
 	e2edeployment "k8s.io/kubernetes/test/e2e/framework/deployment"
 	e2ekubectl "k8s.io/kubernetes/test/e2e/framework/kubectl"
@@ -41,7 +44,6 @@ import (
 	e2eoutput "k8s.io/kubernetes/test/e2e/framework/pod/output"
 	imageutils "k8s.io/kubernetes/test/utils/image"
 	admissionapi "k8s.io/pod-security-admission/api"
-	"k8s.io/utils/ptr"
 )
 
 func testingDeployment(name, ns string, numberOfPods int32) appsv1.Deployment {
@@ -356,5 +358,50 @@ var _ = SIGDescribe("Kubectl logs", func() {
 
 		})
 	})
+})
 
+var _ = SIGDescribe("kubectl logs with specific stream", feature.PodLogsQuerySplitStreams, framework.WithFeatureGate(features.PodLogsQuerySplitStreams), func() {
+	f := framework.NewDefaultFramework("kubectl-logs-stream")
+	f.NamespacePodSecurityLevel = admissionapi.LevelBaseline
+	defer ginkgo.GinkgoRecover()
+
+	var c clientset.Interface
+	var ns string
+	ginkgo.BeforeEach(func() {
+		c = f.ClientSet
+		ns = f.Namespace.Name
+	})
+
+	ginkgo.Describe("specific log stream", func() {
+		podName := "log-stream"
+		ginkgo.BeforeEach(func() {
+			ginkgo.By("creating a pod")
+			e2ekubectl.RunKubectlOrDie(ns, "run", podName, "--image="+imageutils.GetE2EImage(imageutils.BusyBox), "--restart=Never", podRunningTimeoutArg, "--", "/bin/sh", "-c", "echo out1; echo err1 >&2; tail -f /dev/null")
+		})
+		ginkgo.AfterEach(func() {
+			e2ekubectl.RunKubectlOrDie(ns, "delete", "pod", podName)
+		})
+		ginkgo.It("should get logs from specific log stream", func(ctx context.Context) {
+			ginkgo.By("Waiting for pod to start.")
+			// we need to wait for pod completion, to check the generated number of lines
+			if err := e2epod.WaitForPodSuccessInNamespaceTimeout(ctx, c, podName, ns, framework.PodStartTimeout); err != nil {
+				framework.Failf("Pod %s did not finish: %v", podName, err)
+			}
+
+			ginkgo.By("get logs from stdout")
+			out := e2ekubectl.RunKubectlOrDie(ns, "logs", podName, "--stream=stdout")
+			framework.Logf("got output %q", out)
+			gomega.Expect(out).To(gomega.ContainSubstring("out1"))
+			gomega.Expect(out).NotTo(gomega.ContainSubstring("err1"))
+
+			ginkgo.By("get logs from stderr")
+			out = e2ekubectl.RunKubectlOrDie(ns, "logs", podName, "--stream=stderr")
+			framework.Logf("got output %q", out)
+			gomega.Expect(out).To(gomega.ContainSubstring("err1"))
+			gomega.Expect(out).NotTo(gomega.ContainSubstring("out1"))
+
+			out = e2ekubectl.RunKubectlOrDie(ns, "logs", podName, "--stream=stdout", "--limit-bytes=6")
+			gomega.Expect(out).To(gomega.Equal("out1\ne"))
+		})
+	})
 })
