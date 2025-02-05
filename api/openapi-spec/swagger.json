@@ -16798,7 +16798,7 @@
           "type": "boolean"
         },
         "allowedTopologies": {
-          "description": "allowedTopologies restrict the node topologies where volumes can be dynamically provisioned. Each volume plugin defines its own supported topology specifications. An empty TopologySelectorTerm list means there is no topology restriction. This field is only honored by servers that enable the VolumeScheduling feature.",
+          "description": "allowedTopologies restrict the node topologies where volumes can be dynamically provisioned. Each volume plugin defines its own supported topology specifications. An empty TopologySelectorTerm list means there is no topology restriction.",
           "items": {
             "$ref": "#/definitions/io.k8s.api.core.v1.TopologySelectorTerm"
           },
@@ -16841,7 +16841,7 @@
           "type": "string"
         },
         "volumeBindingMode": {
-          "description": "volumeBindingMode indicates how PersistentVolumeClaims should be provisioned and bound.  When unset, VolumeBindingImmediate is used. This field is only honored by servers that enable the VolumeScheduling feature.",
+          "description": "volumeBindingMode indicates how PersistentVolumeClaims should be provisioned and bound.  When unset, VolumeBindingImmediate is used.",
           "type": "string"
         }
       },
