@@ -107,3 +107,33 @@ This is implemented as follows:
     higher (i.e. less urgent) priority than the DNAT chains making sure all valid
     traffic directed for ClusterIPs is already DNATed. Drop rule will only
     be installed if `MultiCIDRServiceAllocator` feature is enabled.
+
+## Integrating with kube-proxy's nftables mode
+
+Implementations of pod networking, NetworkPolicy, service meshes, etc, may need to be
+aware of some slightly lower-level details of kube-proxy's implementation.
+
+Components other than kube-proxy should *never* make any modifications to the
+`kube-proxy` nftables table, or any of the chains, sets, maps, etc, within it. Every
+component should create its own table and only work within that table. However,
+you can ensure that rules in your own table will run before or after kube-proxy's rules
+by setting appropriate `priority` values for your base chains. In particular:
+
+  - Service traffic that needs to be DNATted will be DNATted by kube-proxy on a chain of
+    `type nat` with `priority dstnat` and either `hook output` (for traffic on the
+    "output" path) or `hook prerouting` (for traffic on the "input" or "forward" paths).
+    (So chains in other tables that run before this will see traffic addressed to service
+    IPs, while chains that run after this will see traffic addressed to endpoint IPs.)
+
+  - Service traffic that needs to be masqueraded will be SNATted on a chain of `type
+    nat`, `hook postrouting`, and `priority srcnat`. (So chains in other tables that run
+    before this will always see the original client IP, while chains that run after this
+    will will see masqueraded source IPs for some traffic.)
+
+  - Traffic to services with no endpoints will be dropped or rejected from a chain with
+    `type filter`, `priority dstnat-10`, and any of `hook input`, `hook output`, or `hook
+    forward`.
+
+Note that the use of `mark` to indicate what traffic needs to be masqueraded is *not*
+part of kube-proxy's public API, and you should not assume that you can cause traffic to
+be masqueraded (or not) by setting or clearing a particular mark bit.
