@@ -120,8 +120,7 @@ func TestStatusz(t *testing.T) {
 
 			Install(mux, tt.componentName, tt.registry)
 
-			path := "/statusz"
-			req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("http://example.com%s", path), nil)
+			req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("http://example.com%s", DefaultStatuszPath), nil)
 			if err != nil {
 				t.Fatalf("unexpected error while creating request: %v", err)
 			}

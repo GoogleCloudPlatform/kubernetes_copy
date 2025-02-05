@@ -35,6 +35,8 @@ var (
 const DefaultStatuszPath = "/statusz"
 
 const (
+	DefaultStatuszPath = "/statusz"
+
 	headerFmt = `
 %s statusz
 Warning: This endpoint is not meant to be machine parseable, has no formatting compatibility guarantees and is for debugging purposes only.
