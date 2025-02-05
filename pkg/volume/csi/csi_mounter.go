@@ -36,7 +36,6 @@ import (
 	"k8s.io/kubernetes/pkg/volume"
 	"k8s.io/kubernetes/pkg/volume/util"
 	volumetypes "k8s.io/kubernetes/pkg/volume/util/types"
-	"k8s.io/mount-utils"
 	utilstrings "k8s.io/utils/strings"
 )
 
@@ -567,11 +566,6 @@ func isDirMounted(plug *csiPlugin, dir string) (bool, error) {
 		return false, err
 	}
 	return !notMnt, nil
-}
-
-func isCorruptedDir(dir string) bool {
-	_, pathErr := mount.PathExists(dir)
-	return pathErr != nil && mount.IsCorruptedMnt(pathErr)
 }
 
 // removeMountDir cleans the mount dir when dir is not mounted and removed the volume data file in dir

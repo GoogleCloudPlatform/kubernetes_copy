@@ -28,7 +28,6 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/stretchr/testify/assert"
 	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
 	storage "k8s.io/api/storage/v1"
@@ -1152,36 +1151,6 @@ func TestUnmounterTeardownNoClientError(t *testing.T) {
 		t.Errorf("test should fail, but no error occurred")
 	} else if reflect.TypeOf(transientError) != reflect.TypeOf(err) {
 		t.Fatalf("expected exitError type: %v got: %v (%v)", reflect.TypeOf(transientError), reflect.TypeOf(err), err)
-	}
-}
-
-func TestIsCorruptedDir(t *testing.T) {
-	existingMountPath, err := os.MkdirTemp(os.TempDir(), "blobfuse-csi-mount-test")
-	if err != nil {
-		t.Fatalf("failed to create tmp dir: %v", err)
-	}
-	defer os.RemoveAll(existingMountPath)
-
-	tests := []struct {
-		desc           string
-		dir            string
-		expectedResult bool
-	}{
-		{
-			desc:           "NotExist dir",
-			dir:            "/tmp/NotExist",
-			expectedResult: false,
-		},
-		{
-			desc:           "Existing dir",
-			dir:            existingMountPath,
-			expectedResult: false,
-		},
-	}
-
-	for i, test := range tests {
-		isCorruptedDir := isCorruptedDir(test.dir)
-		assert.Equal(t, test.expectedResult, isCorruptedDir, "TestCase[%d]: %s", i, test.desc)
 	}
 }
 
