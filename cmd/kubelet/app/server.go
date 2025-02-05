@@ -279,8 +279,10 @@ is checked every 20 seconds (also configurable with a flag).`,
 			// log the kubelet's config for inspection
 			klog.V(5).InfoS("KubeletConfiguration", "configuration", klog.Format(config))
 
+			// set up path to for kubelet dump
+			dumpPath := filepath.Join(os.TempDir(), fmt.Sprintf("kubelet.%d.stacks.log", os.Getpid()))
 			// set up signal context for kubelet shutdown
-			ctx := genericapiserver.SetupSignalContext()
+			ctx := genericapiserver.SetupSignalContextV2(dumpPath)
 
 			utilfeature.DefaultMutableFeatureGate.AddMetrics()
 			// run the kubelet
