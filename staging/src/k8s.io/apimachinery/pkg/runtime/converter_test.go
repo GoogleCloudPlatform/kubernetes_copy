@@ -45,6 +45,9 @@ var simpleEquality = conversion.EqualitiesOrDie(
 	func(a, b time.Time) bool {
 		return a.UTC() == b.UTC()
 	},
+	func(a, b J) bool {
+		return a.A == b.A
+	},
 )
 
 // Define a number of test types.
@@ -111,6 +114,11 @@ type I struct {
 	H `json:",inline"`
 
 	UL1 UnknownLevel1 `json:"ul1"`
+}
+
+type J struct {
+	A int `json:"aa"`
+	b int `json:"-"` //lint:ignore U1000 This field is used for test.
 }
 
 type UnknownLevel1 struct {
@@ -996,5 +1004,16 @@ func TestCustomToUnstructuredTopLevel(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, expected, result)
 		})
+	}
+}
+
+func TestPrivateFields(t *testing.T) {
+	unstr := map[string]interface{}{"aa": 1}
+	var obj J
+	if err := runtime.NewTestUnstructuredConverter(simpleEquality).FromUnstructured(unstr, &obj); err != nil {
+		t.Errorf("Unexpected error in FromUnstructured: %v", err)
+	}
+	if obj.A != 1 {
+		t.Errorf("Incorrect conversion, diff: %v", cmp.Diff(obj, unstr))
 	}
 }

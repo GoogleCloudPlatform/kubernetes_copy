@@ -527,6 +527,9 @@ func structFromUnstructured(sv, dv reflect.Value, ctx *fromUnstructuredContext) 
 	for i := 0; i < dt.NumField(); i++ {
 		fieldInfo := fieldInfoFromField(dt, i)
 		fv := dv.Field(i)
+		if !fv.CanSet() {
+			continue
+		}
 
 		if len(fieldInfo.name) == 0 {
 			// This field is inlined, recurse into fromUnstructured again
