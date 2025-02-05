@@ -473,13 +473,6 @@ const (
 	// Enables controlling pod ranking on replicaset scale-down.
 	PodDeletionCost featuregate.Feature = "PodDeletionCost"
 
-	// owner: @mimowo
-	// kep: https://kep.k8s.io/3329
-	//
-	// Enables support for appending a dedicated pod condition indicating that
-	// the pod is being deleted due to a disruption.
-	PodDisruptionConditions featuregate.Feature = "PodDisruptionConditions"
-
 	// owner: @danielvegamyhre
 	// kep: https://kep.k8s.io/4017
 	//

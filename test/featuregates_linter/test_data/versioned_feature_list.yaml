@@ -896,20 +896,6 @@
     lockToDefault: false
     preRelease: Beta
     version: "1.22"
-- name: PodDisruptionConditions
-  versionedSpecs:
-  - default: false
-    lockToDefault: false
-    preRelease: Alpha
-    version: "1.25"
-  - default: true
-    lockToDefault: false
-    preRelease: Beta
-    version: "1.26"
-  - default: true
-    lockToDefault: true
-    preRelease: GA
-    version: "1.31"
 - name: PodIndexLabel
   versionedSpecs:
   - default: true

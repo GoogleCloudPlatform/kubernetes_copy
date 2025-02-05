@@ -565,12 +565,6 @@ var defaultVersionedKubernetesFeatureGates = map[featuregate.Feature]featuregate
 		{Version: version.MustParse("1.22"), Default: true, PreRelease: featuregate.Beta},
 	},
 
-	PodDisruptionConditions: {
-		{Version: version.MustParse("1.25"), Default: false, PreRelease: featuregate.Alpha},
-		{Version: version.MustParse("1.26"), Default: true, PreRelease: featuregate.Beta},
-		{Version: version.MustParse("1.31"), Default: true, PreRelease: featuregate.GA, LockToDefault: true}, // remove in 1.33
-	},
-
 	PodIndexLabel: {
 		{Version: version.MustParse("1.28"), Default: true, PreRelease: featuregate.Beta},
 		{Version: version.MustParse("1.32"), Default: true, PreRelease: featuregate.GA, LockToDefault: true}, // remove in 1.35
