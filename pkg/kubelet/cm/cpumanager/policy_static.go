@@ -447,8 +447,9 @@ func (p *staticPolicy) allocateCPUs(s state.State, numCPUs int, numaAffinity bit
 	}
 	result = result.Union(remainingCPUs)
 
+	// The CPUs of reusableCPUs have not been allocated, those can be put back into defaultCPUSet.
 	// Remove allocated CPUs from the shared CPUSet.
-	s.SetDefaultCPUSet(s.GetDefaultCPUSet().Difference(result))
+	s.SetDefaultCPUSet(s.GetDefaultCPUSet().Union(reusableCPUs).Difference(result))
 
 	klog.InfoS("AllocateCPUs", "result", result)
 	return result, nil
