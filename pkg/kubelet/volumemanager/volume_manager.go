@@ -41,6 +41,7 @@ import (
 	csitrans "k8s.io/csi-translation-lib"
 	"k8s.io/kubernetes/pkg/kubelet/config"
 	"k8s.io/kubernetes/pkg/kubelet/container"
+	"k8s.io/kubernetes/pkg/kubelet/events"
 	"k8s.io/kubernetes/pkg/kubelet/volumemanager/cache"
 	"k8s.io/kubernetes/pkg/kubelet/volumemanager/metrics"
 	"k8s.io/kubernetes/pkg/kubelet/volumemanager/populator"
@@ -203,6 +204,7 @@ func NewVolumeManager(
 			volumePluginMgr,
 			recorder,
 			blockVolumePathHandler)),
+		recorder: recorder,
 	}
 
 	intreeToCSITranslator := csitrans.New()
@@ -281,6 +283,9 @@ type volumeManager struct {
 
 	// intreeToCSITranslator translates in-tree volume specs to CSI
 	intreeToCSITranslator csimigration.InTreeToCSITranslator
+
+	// recorder record events
+	recorder record.EventRecorder
 }
 
 func (vm *volumeManager) Run(ctx context.Context, sourcesReady config.SourcesReady) {
@@ -429,12 +434,18 @@ func (vm *volumeManager) WaitForAttachAndMount(ctx context.Context, pod *v1.Pod)
 			return nil
 		}
 
-		return fmt.Errorf(
+		err = fmt.Errorf(
 			"unmounted volumes=%v, unattached volumes=%v, failed to process volumes=%v: %w",
 			unmountedVolumes,
 			unattachedVolumes,
 			volumesNotInDSW,
 			err)
+
+		// Record an event for the pod, usually events are sent because some volumes of the pod are not mounted successfully.
+		// If the volume is not mounted successfully for a long time, events need to be sent to remind the user what happened, see #127004
+		vm.recorder.Eventf(pod, v1.EventTypeWarning, events.FailedMountVolume, "Failed to mount pod volumes: %v", err)
+
+		return err
 	}
 
 	klog.V(3).InfoS("All volumes are attached and mounted for pod", "pod", klog.KObj(pod))
