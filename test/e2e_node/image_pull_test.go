@@ -63,19 +63,11 @@ var _ = SIGDescribe("Pull Image", feature.CriProxy, framework.WithSerial(), func
 			if err := resetCRIProxyInjector(e2eCriProxy); err != nil {
 				ginkgo.Skip("Skip the test since the CRI Proxy is undefined.")
 			}
-
+			ginkgo.DeferCleanup(func() error {
+				return resetCRIProxyInjector(e2eCriProxy)
+			})
 			testpods = prepareAndCleanup(ctx, f)
 			gomega.Expect(len(testpods)).To(gomega.BeNumerically("<=", 5))
-		})
-
-		ginkgo.AfterEach(func(ctx context.Context) {
-			err := resetCRIProxyInjector(e2eCriProxy)
-			framework.ExpectNoError(err)
-
-			ginkgo.By("cleanup pods")
-			for _, pod := range testpods {
-				deletePodSyncByName(ctx, f, pod.Name)
-			}
 		})
 
 		ginkgo.It("should pull immediately if no more than 5 pods", func(ctx context.Context) {
@@ -107,7 +99,8 @@ var _ = SIGDescribe("Pull Image", feature.CriProxy, framework.WithSerial(), func
 			framework.ExpectNoError(err)
 
 			for _, testpod := range testpods {
-				_ = e2epod.NewPodClient(f).Create(ctx, testpod)
+				pod := e2epod.NewPodClient(f).Create(ctx, testpod)
+				ginkgo.DeferCleanup(deletePodSyncByName, f, pod.Name)
 			}
 
 			imagePulled, podStartTime, podEndTime, err := getPodImagePullDurations(ctx, f, testpods)
@@ -146,19 +139,11 @@ var _ = SIGDescribe("Pull Image", feature.CriProxy, framework.WithSerial(), func
 			if err := resetCRIProxyInjector(e2eCriProxy); err != nil {
 				ginkgo.Skip("Skip the test since the CRI Proxy is undefined.")
 			}
-
+			ginkgo.DeferCleanup(func() error {
+				return resetCRIProxyInjector(e2eCriProxy)
+			})
 			testpods = prepareAndCleanup(ctx, f)
 			gomega.Expect(len(testpods)).To(gomega.BeNumerically("<=", 5))
-		})
-
-		ginkgo.AfterEach(func(ctx context.Context) {
-			err := resetCRIProxyInjector(e2eCriProxy)
-			framework.ExpectNoError(err)
-
-			ginkgo.By("cleanup pods")
-			for _, pod := range testpods {
-				deletePodSyncByName(ctx, f, pod.Name)
-			}
 		})
 
 		ginkgo.It("should be waiting more", func(ctx context.Context) {
@@ -197,7 +182,9 @@ var _ = SIGDescribe("Pull Image", feature.CriProxy, framework.WithSerial(), func
 
 			var pods []*v1.Pod
 			for _, testpod := range testpods {
-				pods = append(pods, e2epod.NewPodClient(f).Create(ctx, testpod))
+				pod := e2epod.NewPodClient(f).Create(ctx, testpod)
+				ginkgo.DeferCleanup(deletePodSyncByName, f, pod.Name)
+				pods = append(pods, pod)
 			}
 			for _, pod := range pods {
 				err := e2epod.WaitForPodCondition(ctx, f.ClientSet, f.Namespace.Name, pod.Name, "Running", 2*time.Minute, func(pod *v1.Pod) (bool, error) {
