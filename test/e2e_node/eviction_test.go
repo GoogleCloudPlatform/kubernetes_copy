@@ -18,6 +18,7 @@ package e2enode
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strconv"
@@ -755,6 +756,17 @@ func verifyEvictionOrdering(ctx context.Context, f *framework.Framework, testSpe
 		}
 
 		if priorityPod.Status.Phase == v1.PodFailed {
+			gomega.Eventually(ctx, func(ctx context.Context) (bool, error) {
+				if len(priorityPod.Status.Reason) == 0 {
+					updatePod, err := f.ClientSet.CoreV1().Pods(priorityPod.Namespace).Get(ctx, priorityPod.Name, metav1.GetOptions{})
+					if err != nil {
+						return false, err
+					}
+					priorityPod = *updatePod
+					return false, errors.New("Pod status reason still empty")
+				}
+				return true, nil
+			}).WithTimeout(pressureDelay).Should(gomega.BeTrueBecause("pod %s failed for an non empty reason", priorityPod.Name))
 			gomega.Expect(priorityPod.Status.Reason).To(gomega.Equal(eviction.Reason), "pod %s failed; expected Status.Reason to be %s, but got %s",
 				priorityPod.Name, eviction.Reason, priorityPod.Status.Reason)
 		}
